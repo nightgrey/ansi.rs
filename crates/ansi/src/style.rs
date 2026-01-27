@@ -191,7 +191,7 @@ impl Style {
     ///
     /// # Example
     /// ```
-    /// use ansi::{Attribute, Style, Styleable};
+    /// use ansi::{Attribute, Style};
     /// let s = Style::new().bold();
     /// assert!(s.contains(Attribute::Bold));
     /// ```

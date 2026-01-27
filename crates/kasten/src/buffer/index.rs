@@ -383,3 +383,213 @@ impl<I: BufferIndex> ops::IndexMut<I> for Buffer {
         index.index_mut(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Rect;
+
+    fn create_buffer() -> Buffer {
+        Buffer::new(Rect::new((0, 0), (10, 5))) // 10 cols, 5 rows = 50 cells
+    }
+
+    // === Index by usize ===
+
+    #[test]
+    fn test_index_usize() {
+        let buffer = create_buffer();
+        assert!(buffer.get(0).is_some());
+        assert!(buffer.get(49).is_some()); // Last cell
+        assert!(buffer.get(50).is_none()); // Out of bounds
+    }
+
+    #[test]
+    fn test_index_usize_out_of_bounds() {
+        let buffer = create_buffer();
+        assert!(buffer.get(100).is_none());
+    }
+
+    // === Index by Position ===
+
+    #[test]
+    fn test_index_position() {
+        let buffer = create_buffer();
+
+        // Valid positions
+        assert!(buffer.get(Position::new(0, 0)).is_some());
+        assert!(buffer.get(Position::new(4, 9)).is_some()); // Last cell (row 4, col 9)
+
+        // Out of bounds
+        assert!(buffer.get(Position::new(5, 0)).is_none()); // Row too large
+        assert!(buffer.get(Position::new(0, 10)).is_none()); // Col too large
+    }
+
+    #[test]
+    fn test_position_to_linear_index() {
+        let buffer = create_buffer();
+
+        // Position (0, 0) should be index 0
+        assert_eq!(Position::new(0, 0).index_of(&buffer), Some(0));
+
+        // Position (0, 5) should be index 5
+        assert_eq!(Position::new(0, 5).index_of(&buffer), Some(5));
+
+        // Position (1, 0) should be index 10 (start of second row)
+        assert_eq!(Position::new(1, 0).index_of(&buffer), Some(10));
+
+        // Position (1, 5) should be index 15
+        assert_eq!(Position::new(1, 5).index_of(&buffer), Some(15));
+    }
+
+    #[test]
+    fn test_position_to_linear_calculation() {
+        let buffer = create_buffer();
+        let width = buffer.width(); // 10
+
+        // row * width + col
+        let pos = Position::new(3, 7);
+        let expected_index = 3 * width + 7; // = 37
+        assert_eq!(pos.index_of(&buffer), Some(expected_index));
+    }
+
+    // === Index by Range<Position> ===
+
+    #[test]
+    fn test_index_range_positions() {
+        let buffer = create_buffer();
+        let start = Position::new(0, 0);
+        let end = Position::new(0, 5);
+
+        let slice = buffer.get(start..end);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 5);
+    }
+
+    #[test]
+    fn test_index_range_positions_out_of_bounds() {
+        let buffer = create_buffer();
+        let start = Position::new(0, 0);
+        let end = Position::new(10, 0); // Row out of bounds
+
+        assert!(buffer.get(start..end).is_none());
+    }
+
+    // === Index by Row ===
+
+    #[test]
+    fn test_index_row() {
+        let buffer = create_buffer();
+
+        // Row 0
+        let row0 = buffer.get([0]);
+        assert!(row0.is_some());
+        assert_eq!(row0.unwrap().len(), 10); // Full row width
+
+        // Row 4 (last row)
+        let row4 = buffer.get([4]);
+        assert!(row4.is_some());
+
+        // Row 5 (out of bounds)
+        assert!(buffer.get([5]).is_none());
+    }
+
+    #[test]
+    fn test_index_row_range() {
+        let buffer = create_buffer();
+
+        // Rows 0..2 (rows 0, 1, and 2)
+        let rows = buffer.get([0]..[2]);
+        assert!(rows.is_some());
+        assert_eq!(rows.unwrap().len(), 30); // 3 rows * 10 cols (includes row at end)
+    }
+
+    // === Index by usize Range variants ===
+
+    #[test]
+    fn test_index_range_usize() {
+        let buffer = create_buffer();
+        let slice = buffer.get(0..10);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 10);
+    }
+
+    #[test]
+    fn test_index_range_inclusive_usize() {
+        let buffer = create_buffer();
+        let slice = buffer.get(0..=9);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 10);
+    }
+
+    #[test]
+    fn test_index_range_from_usize() {
+        let buffer = create_buffer();
+        let slice = buffer.get(40..);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 10); // Cells 40-49
+    }
+
+    #[test]
+    fn test_index_range_to_usize() {
+        let buffer = create_buffer();
+        let slice = buffer.get(..10);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 10);
+    }
+
+    #[test]
+    fn test_index_range_full() {
+        let buffer = create_buffer();
+        let slice = buffer.get(..);
+        assert!(slice.is_some());
+        assert_eq!(slice.unwrap().len(), 50); // All cells
+    }
+
+    // === Index mutation ===
+
+    #[test]
+    fn test_index_mut_usize() {
+        let mut buffer = create_buffer();
+        buffer[0].set_char('X');
+        assert_eq!(buffer[0].as_str(), "X");
+    }
+
+    #[test]
+    fn test_index_mut_position() {
+        let mut buffer = create_buffer();
+        let pos = Position::new(2, 5);
+        buffer[pos].set_char('Y');
+        assert_eq!(buffer[pos].as_str(), "Y");
+    }
+
+    // === Bounds checking ===
+
+    #[test]
+    fn test_buffer_contains_position() {
+        let buffer = create_buffer();
+
+        // Inside bounds
+        assert!(buffer.contains(&Position::new(0, 0)));
+        assert!(buffer.contains(&Position::new(4, 9)));
+
+        // Outside bounds
+        assert!(!buffer.contains(&Position::new(5, 0)));
+        assert!(!buffer.contains(&Position::new(0, 10)));
+    }
+
+    // === Edge cases ===
+
+    #[test]
+    fn test_zero_width_buffer() {
+        let buffer = Buffer::new(Rect::new((0, 0), (0, 5)));
+        assert_eq!(buffer.width(), 0);
+        assert!(buffer.get(Position::new(0, 0)).is_none());
+    }
+
+    #[test]
+    fn test_zero_height_buffer() {
+        let buffer = Buffer::new(Rect::new((0, 0), (10, 0)));
+        assert_eq!(buffer.height(), 0);
+        assert!(buffer.get(Position::new(0, 0)).is_none());
+    }
+}

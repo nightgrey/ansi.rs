@@ -1,15 +1,37 @@
 use crate::geometry::{Rect, Size};
 use crate::Point;
 
+/// Edge insets for padding or margins.
+///
+/// Represents spacing on all four sides of a rectangle. Commonly used with
+/// [`Node::Pad`](crate::Node::Pad) to add padding around content.
+///
+/// # Example
+///
+/// ```rust
+/// use kasten::Edges;
+///
+/// let edges = Edges::new(1, 2, 1, 2);  // top, right, bottom, left
+/// assert_eq!(edges.horizontal(), 4);  // left + right
+/// assert_eq!(edges.vertical(), 2);     // top + bottom
+/// ```
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Edges {
+    /// Spacing from the top edge.
     pub top: usize,
+
+    /// Spacing from the right edge.
     pub right: usize,
+
+    /// Spacing from the bottom edge.
     pub bottom: usize,
+
+    /// Spacing from the left edge.
     pub left: usize,
 }
 
 impl Edges {
+    /// No spacing on any edge (all zeros).
     pub const ZERO: Self = Self {
         top: 0,
         right: 0,
@@ -17,6 +39,16 @@ impl Edges {
         left: 0,
     };
 
+    /// Create edges with individual values for each side.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Edges;
+    /// let edges = Edges::new(1, 2, 3, 4);  // top, right, bottom, left
+    /// assert_eq!(edges.top, 1);
+    /// assert_eq!(edges.right, 2);
+    /// ```
     pub const fn new(top: usize, right: usize, bottom: usize, left: usize) -> Self {
         Self {
             top,
@@ -26,6 +58,23 @@ impl Edges {
         }
 }
 
+    /// Create edges with different horizontal and vertical spacing.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Horizontal spacing (left and right)
+    /// * `y` - Vertical spacing (top and bottom)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Edges;
+    /// let edges = Edges::sides(2, 1);  // 2 on left/right, 1 on top/bottom
+    /// assert_eq!(edges.left, 2);
+    /// assert_eq!(edges.right, 2);
+    /// assert_eq!(edges.top, 1);
+    /// assert_eq!(edges.bottom, 1);
+    /// ```
     pub const fn sides(x: usize, y: usize) -> Self {
         Self {
             top: y,
@@ -35,6 +84,16 @@ impl Edges {
         }
     }
 
+    /// Create edges with the same spacing on all sides.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Edges;
+    /// let edges = Edges::all(2);  // 2 on all sides
+    /// assert_eq!(edges.horizontal(), 4);
+    /// assert_eq!(edges.vertical(), 4);
+    /// ```
     pub const fn all(n: usize) -> Self {
         Self {
             top: n,
@@ -44,10 +103,28 @@ impl Edges {
         }
     }
 
+    /// Calculate total horizontal spacing (left + right).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Edges;
+    /// let edges = Edges::new(1, 2, 1, 3);
+    /// assert_eq!(edges.horizontal(), 5);  // 3 + 2
+    /// ```
     pub fn horizontal(&self) -> usize {
         self.left + self.right
     }
 
+    /// Calculate total vertical spacing (top + bottom).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Edges;
+    /// let edges = Edges::new(2, 1, 3, 1);
+    /// assert_eq!(edges.vertical(), 5);  // 2 + 3
+    /// ```
     pub fn vertical(&self) -> usize {
         self.top + self.bottom
     }
@@ -68,20 +145,72 @@ impl Rect {
     }
 
 }
+
+/// Alignment along a single axis.
+///
+/// Used as part of [`Alignment`] to position content horizontally or vertically
+/// within available space.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum Align {
+    /// Align to the start of the axis (left for horizontal, top for vertical).
     #[default]
     Start,
+
+    /// Align to the center of the axis.
     Center,
+
+    /// Align to the end of the axis (right for horizontal, bottom for vertical).
     End,
 }
+
+/// 2D alignment specification for horizontal and vertical axes.
+///
+/// Used with [`Node::Align`](crate::Node::Align) to position content within
+/// available space.
+///
+/// # Example
+///
+/// ```rust
+/// use kasten::{Alignment, Align, Node, Content};
+///
+/// // Center content both horizontally and vertically
+/// let centered = Node::Align(
+///     Alignment { x: Align::Center, y: Align::Center },
+///     Box::new(Node::Base(Content::Text("Centered".into()))),
+/// );
+///
+/// // Align to top-right
+/// let top_right = Node::Align(
+///     Alignment { x: Align::End, y: Align::Start },
+///     Box::new(Node::Base(Content::Text("Top Right".into()))),
+/// );
+/// ```
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Alignment {
+    /// Horizontal alignment.
     pub x: Align,
+
+    /// Vertical alignment.
     pub y: Align,
 }
 
 impl Alignment {
+    /// Calculate the offset point to position `inner` within `outer` according to this alignment.
+    ///
+    /// Returns a [`Point`] offset that should be added to the outer bounds' min point
+    /// to get the inner bounds' min point.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Alignment, Align, Size, Point};
+    /// let alignment = Alignment { x: Align::Center, y: Align::Center };
+    /// let outer = Size::new(20, 10);
+    /// let inner = Size::new(10, 5);
+    ///
+    /// let offset = alignment.offset(outer, inner);
+    /// assert_eq!(offset, Point::new(5, 2));  // Centered offset
+    /// ```
     pub fn offset(&self, outer: Size, inner: Size) -> Point {
         Point {
             x: match self.x {
@@ -98,18 +227,84 @@ impl Alignment {
     }
 }
 
+/// A size constraint for a single dimension (width or height).
+///
+/// Constraints control how nodes size themselves during the measure and layout phases.
+/// They can specify minimum sizes, maximum sizes, exact sizes, or flexible sizing.
+///
+/// # Variants
+///
+/// - **Auto**: Use the node's natural size
+/// - **Min(n)**: At least `n` units
+/// - **Max(n)**: At most `n` units
+/// - **Fixed(n)**: Exactly `n` units
+/// - **Between(min, max)**: Within the range `[min, max]`
+/// - **Fill**: Expand to fill available space
+///
+/// # Example
+///
+/// ```rust
+/// use kasten::{Constraint, Constraints};
+///
+/// // Fixed width, flexible height up to 20
+/// let constraints = Constraints::new(
+///     Constraint::Fixed(40),
+///     Constraint::Max(20),
+/// );
+///
+/// // Clamp a value to the constraint
+/// let width = Constraint::Fixed(40);
+/// assert_eq!(width.clamp(100), 40);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Constraint {
+    /// Use the natural size of the content.
+    ///
+    /// The node measures itself based on its content without external constraints.
     #[default]
     Auto,
+
+    /// Minimum size constraint.
+    ///
+    /// The node must be at least this many units, but can be larger.
     Min(usize),
+
+    /// Maximum size constraint.
+    ///
+    /// The node must be at most this many units, but can be smaller.
     Max(usize),
+
+    /// Fixed size constraint.
+    ///
+    /// The node must be exactly this many units.
     Fixed(usize),
+
+    /// Range constraint.
+    ///
+    /// The node must be within the range `[min, max]`.
     Between(usize, usize),
+
+    /// Fill available space.
+    ///
+    /// The node expands to use all available space provided by its parent.
     Fill,
 }
 
 impl Constraint {
+    /// Clamp a value to satisfy this constraint.
+    ///
+    /// Returns a value that satisfies the constraint's bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Max(10).clamp(15), 10);
+    /// assert_eq!(Constraint::Min(10).clamp(5), 10);
+    /// assert_eq!(Constraint::Fixed(10).clamp(100), 10);
+    /// assert_eq!(Constraint::Between(5, 15).clamp(3), 5);
+    /// assert_eq!(Constraint::Auto.clamp(42), 42);
+    /// ```
     pub fn clamp(&self, value: usize) -> usize {
         match self {
             Self::Auto => value,
@@ -121,6 +316,18 @@ impl Constraint {
         }
     }
 
+    /// Get the minimum value for this constraint, if any.
+    ///
+    /// Returns `Some(n)` for Min, Between, and Fixed constraints, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Min(10).min(), Some(10));
+    /// assert_eq!(Constraint::Between(5, 15).min(), Some(5));
+    /// assert_eq!(Constraint::Max(10).min(), None);
+    /// ```
     pub fn min(&self) -> Option<usize> {
         match *self {
             Self::Min(min) | Self::Between(min, ..) | Self::Fixed(min) => Some(min),
@@ -128,10 +335,31 @@ impl Constraint {
         }
     }
 
+    /// Get the minimum value for this constraint, or a default if none.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Min(10).min_or(0), 10);
+    /// assert_eq!(Constraint::Auto.min_or(5), 5);
+    /// ```
     pub fn min_or(&self, default: usize) -> usize {
         self.min().unwrap_or(default)
     }
 
+    /// Get the maximum value for this constraint, if any.
+    ///
+    /// Returns `Some(n)` for Max, Between, and Fixed constraints, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Max(10).max(), Some(10));
+    /// assert_eq!(Constraint::Between(5, 15).max(), Some(15));
+    /// assert_eq!(Constraint::Min(10).max(), None);
+    /// ```
     pub fn max(&self) -> Option<usize> {
         match *self {
             Self::Max(max) | Self::Between(_, max) | Self::Fixed(max) => Some(max),
@@ -139,10 +367,28 @@ impl Constraint {
         }
     }
 
+    /// Get the maximum value for this constraint, or a default if none.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Max(10).max_or(0), 10);
+    /// assert_eq!(Constraint::Auto.max_or(100), 100);
+    /// ```
     pub fn max_or(&self, default: usize) -> usize {
         self.max().unwrap_or(default)
     }
 
+    /// Get the fixed value for this constraint, if it is Fixed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Fixed(10).fixed(), Some(10));
+    /// assert_eq!(Constraint::Max(10).fixed(), None);
+    /// ```
     pub fn fixed(&self) -> Option<usize> {
         match self {
             Self::Fixed(fixed) => Some(*fixed),
@@ -150,7 +396,27 @@ impl Constraint {
         }
     }
 
-    /// Merge with other constraint
+    /// Merge this constraint with another, resolving conflicts.
+    ///
+    /// This is used during layout to compose constraints from different sources:
+    ///
+    /// - If `self` is `Auto`, inherit `other`
+    /// - If `self` is `Fill`, expand to `other`'s maximum
+    /// - Otherwise, use `self`
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// let parent = Constraint::Max(100);
+    /// let child = Constraint::Min(20);
+    /// let result = child.constrain(parent);
+    /// assert_eq!(result, Constraint::Min(20));  // Child's constraint wins
+    ///
+    /// let auto = Constraint::Auto;
+    /// let result = auto.constrain(parent);
+    /// assert_eq!(result, Constraint::Max(100));  // Inherits parent
+    /// ```
     pub fn constrain(&self, other: Constraint) -> Constraint {
         match (*self, other) {
             // self is Auto → inherit other
@@ -162,6 +428,21 @@ impl Constraint {
         }
     }
 
+    /// Shrink the constraint by a given amount.
+    ///
+    /// For numeric constraints (Min, Max, Fixed, Between), subtracts the amount
+    /// using saturating subtraction. Auto and Fill are unchanged.
+    ///
+    /// This is used when applying padding or margins to reduce available space.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraint;
+    /// assert_eq!(Constraint::Fixed(20).shrink(5), Constraint::Fixed(15));
+    /// assert_eq!(Constraint::Max(10).shrink(3), Constraint::Max(7));
+    /// assert_eq!(Constraint::Auto.shrink(10), Constraint::Auto);
+    /// ```
     pub fn shrink(&self, amount: usize) -> Self {
         match *self {
             Self::Auto | Self::Fill => *self,
@@ -176,40 +457,139 @@ impl Constraint {
     }
 }
 
+/// 2D size constraints for width and height.
+///
+/// Combines two [`Constraint`] values to control sizing in both dimensions.
+/// Commonly used throughout the layout system to propagate sizing requirements.
+///
+/// # Constructor Convenience
+///
+/// The `Fixed`, `Max`, `Min`, and `Auto` methods use PascalCase (like type constructors)
+/// for consistency with other constructor-style methods in Rust.
+///
+/// # Example
+///
+/// ```rust
+/// use kasten::{Constraints, Constraint};
+///
+/// // Fixed size
+/// let fixed = Constraints::Fixed(80, 24);
+///
+/// // Max constraints
+/// let max = Constraints::Max(100, 50);
+///
+/// // Mixed constraints
+/// let mixed = Constraints::new(
+///     Constraint::Fixed(40),
+///     Constraint::Max(20),
+/// );
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Constraints {
+    /// Width constraint.
     pub width: Constraint,
+
+    /// Height constraint.
     pub height: Constraint,
 }
 
 #[allow(non_snake_case)]
 impl Constraints {
+    /// Create constraints with fixed width and height.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraints;
+    /// let constraints = Constraints::Fixed(80, 24);
+    /// ```
     pub fn Fixed(width: usize, height: usize) -> Self {
         Self::new(Constraint::Fixed(width), Constraint::Fixed(height))
     }
 
+    /// Create constraints with maximum width and height.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraints;
+    /// let constraints = Constraints::Max(100, 50);
+    /// ```
     pub fn Max(width: usize, height: usize) -> Self {
         Self::new(Constraint::Max(width), Constraint::Max(height))
     }
 
+    /// Create constraints with minimum width and height.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraints;
+    /// let constraints = Constraints::Min(20, 10);
+    /// ```
     pub fn Min(width: usize, height: usize) -> Self {
         Self::new(Constraint::Min(width), Constraint::Min(height))
     }
 
+    /// Create Auto constraints (natural sizing).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraints;
+    /// let constraints = Constraints::Auto();
+    /// ```
     pub fn Auto() -> Self {
         Self::new(Constraint::Auto, Constraint::Auto)
     }
 
+    /// Create constraints with individual width and height constraints.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Constraints, Constraint};
+    /// let constraints = Constraints::new(
+    ///     Constraint::Fixed(40),
+    ///     Constraint::Max(20),
+    /// );
+    /// ```
     pub fn new(width: Constraint, height: Constraint) -> Self {
         Self { width, height }
     }
 
+    /// Clamp width and height values to satisfy these constraints.
+    ///
+    /// Returns a [`Size`] with both dimensions clamped.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Constraints, Size};
+    /// let constraints = Constraints::Max(10, 10);
+    /// let size = constraints.clamp(15, 20);
+    /// assert_eq!(size, Size::new(10, 10));
+    /// ```
     pub fn clamp(&self, width: usize, height: usize) -> Size {
         Size {
             width: self.width.clamp(width),
             height: self.height.clamp(height),
         }
     }
+
+    /// Merge these constraints with another set, resolving conflicts.
+    ///
+    /// Delegates to [`Constraint::constrain`] for each dimension.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Constraints;
+    /// let parent = Constraints::Max(100, 50);
+    /// let child = Constraints::Fixed(40, 20);
+    /// let result = child.constrain(parent);
+    /// assert_eq!(result, Constraints::Fixed(40, 20));
+    /// ```
     pub fn constrain(&self, other: Constraints) -> Constraints {
        Self {
            width: self.width.constrain(other.width),
@@ -217,6 +597,19 @@ impl Constraints {
        }
     }
 
+    /// Shrink constraints by edge insets (for padding/margins).
+    ///
+    /// Reduces width by horizontal edges and height by vertical edges.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Constraints, Edges};
+    /// let constraints = Constraints::Fixed(20, 10);
+    /// let edges = Edges::all(2);
+    /// let shrunk = constraints.shrink(&edges);
+    /// assert_eq!(shrunk, Constraints::Fixed(16, 6));
+    /// ```
     pub fn shrink(&self, insets: &Edges) -> Self {
         Self {
             width: self.width.shrink(insets.horizontal()),
@@ -224,6 +617,20 @@ impl Constraints {
         }
     }
 
+    /// Get the minimum size from these constraints.
+    ///
+    /// Returns a [`Size`] with the minimum width and height (or 0 if no minimum).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Constraints, Size};
+    /// let constraints = Constraints::new(
+    ///     kasten::Constraint::Min(10),
+    ///     kasten::Constraint::Between(5, 20),
+    /// );
+    /// assert_eq!(constraints.min(), Size::new(10, 5));
+    /// ```
     pub fn min(&self) -> Size {
         Size {
             width: self.width.min_or(0),
@@ -231,6 +638,17 @@ impl Constraints {
         }
     }
 
+    /// Get the maximum size from these constraints.
+    ///
+    /// Returns a [`Size`] with the maximum width and height (or 0 if no maximum).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Constraints, Size};
+    /// let constraints = Constraints::Max(100, 50);
+    /// assert_eq!(constraints.max(), Size::new(100, 50));
+    /// ```
     pub fn max(&self) -> Size {
         Size {
             width: self.width.max_or(0),
@@ -240,6 +658,16 @@ impl Constraints {
 }
 
 impl From<Rect> for Constraints {
+    /// Convert a [`Rect`] to fixed constraints matching its dimensions.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::{Rect, Constraints};
+    /// let rect = Rect::new((0, 0), (80, 24));
+    /// let constraints = Constraints::from(rect);
+    /// assert_eq!(constraints, Constraints::Fixed(80, 24));
+    /// ```
     fn from(value: Rect) -> Self {
         Self::Fixed(value.width(), value.height())
     }

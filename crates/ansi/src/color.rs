@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::marker::Destruct;
 use derive_more::{Deref, DerefMut, From, Into};
+use crate::Escape;
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Hash, Debug)]
 #[repr(C)]
@@ -263,7 +264,7 @@ impl Into<Color> for Background<'_> {
     }
 }
 
-impl crate::Escape for Background<'_> {
+impl Escape for Background<'_> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
@@ -325,7 +326,7 @@ impl Into<Color> for Foreground<'_> {
     }
 }
 
-impl crate::Escape for Foreground<'_> {
+impl Escape for Foreground<'_> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
@@ -376,7 +377,7 @@ impl Underline<'_> {
     }
 }
 
-impl crate::Escape for Underline<'_> {
+impl Escape for Underline<'_> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
         match self.0 {

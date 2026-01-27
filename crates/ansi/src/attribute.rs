@@ -129,57 +129,6 @@ impl Attribute {
         self.insert_only(other);
         self.remove(other.inverse());
     }
-    // Inverse lookup: (Attribute, its inverse(s))
-
-    /// Inverts all attributes.
-    ///
-    /// These attributes are opposites of each other, so only one of them can be set at a time.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ansi::{Attribute};
-    ///
-    /// let inverse = Attribute::Bold.inverse();
-    /// assert_eq!(inverse, Attribute::NoBold);
-    /// ```
-    pub fn invert(&mut self) -> impl Iterator<Item = Attribute> {
-        self.iter().map(|attribute| {
-            bitflags_match!(attribute, {
-                    Attribute::Reset => Attribute::ALL,
-                    Attribute::Bold => Attribute::NoBold | Attribute::NormalIntensity,
-                    Attribute::Faint => Attribute::NormalIntensity,
-                    Attribute::Italic => Attribute::NoItalic | Attribute::NormalIntensity,
-                    Attribute::Underline => Attribute::NoUnderline | Attribute::UnderlineStyleNone,
-                    Attribute::UnderlineStyleNone => Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDotted | Attribute::UnderlineStyleDashed,
-                    Attribute::UnderlineStyleSingle => Attribute::NoUnderline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDotted | Attribute::UnderlineStyleDashed,
-                    Attribute::UnderlineStyleDouble => Attribute::NoUnderline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDotted | Attribute::UnderlineStyleDashed,
-                    Attribute::UnderlineStyleCurly => Attribute::NoUnderline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleDotted | Attribute::UnderlineStyleDashed,
-                    Attribute::UnderlineStyleDotted => Attribute::NoUnderline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDashed,
-                    Attribute::UnderlineStyleDashed => Attribute::NoUnderline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDotted,
-                    Attribute::Blink => Attribute::NoBlink | Attribute::RapidBlink,
-                    Attribute::RapidBlink => Attribute::NoBlink | Attribute::Blink,
-                    Attribute::Reverse => Attribute::NoReverse,
-                    Attribute::Conceal => Attribute::NoConceal,
-                    Attribute::Strikethrough => Attribute::NoStrikethrough,
-                    Attribute::NoBold => Attribute::Bold,
-                    Attribute::NormalIntensity => Attribute::Faint | Attribute::Italic | Attribute::Bold,
-                    Attribute::NoItalic => Attribute::Italic | Attribute::Bold,
-                    Attribute::NoUnderline => Attribute::Underline | Attribute::UnderlineStyleNone | Attribute::UnderlineStyleSingle | Attribute::UnderlineStyleDouble | Attribute::UnderlineStyleCurly | Attribute::UnderlineStyleDotted | Attribute::UnderlineStyleDashed,
-                    Attribute::NoBlink => Attribute::Blink | Attribute::RapidBlink,
-                    Attribute::NoReverse => Attribute::Reverse,
-                    Attribute::NoConceal => Attribute::Conceal,
-                    Attribute::NoStrikethrough => Attribute::Strikethrough,
-                    Attribute::NoFrameOrEncircle => Attribute::Frame | Attribute::Encircle,
-                    Attribute::NoOverline => Attribute::Overline,
-                    Attribute::Frame => Attribute::NoFrameOrEncircle | Attribute::Encircle,
-                    Attribute::Encircle => Attribute::NoFrameOrEncircle | Attribute::Frame,
-                    Attribute::Overline => Attribute::NoOverline,
-                    _ => Attribute::empty(),
-                })
-        })
-    }
-
     /// Returns the inverse of the given attributes.
     ///
     /// See [`Attribute::invert`].
@@ -345,6 +294,7 @@ impl Attribute {
             }
         }
         out
+
     }
 
     pub fn diff(self, other: Self) -> Self {
@@ -478,6 +428,7 @@ mod tests {
     }
 
     mod inverse {
+        use std::time::Instant;
         use super::*;
 
         #[test]
@@ -534,24 +485,6 @@ mod tests {
             assert!(inverse.contains(Attribute::Faint));
             assert!(inverse.contains(Attribute::Italic));
             assert!(inverse.contains(Attribute::Bold));
-        }
-
-        #[test]
-        fn invert_mutates() {
-            let mut attrs = Attribute::Bold;
-            attrs.invert();
-            assert!(attrs.contains(Attribute::NoBold));
-            assert!(attrs.contains(Attribute::NormalIntensity));
-            assert!(!attrs.contains(Attribute::Bold));
-        }
-
-        #[test]
-        fn invert_multiple() {
-            let mut attrs = Attribute::Bold | Attribute::Italic;
-            attrs.invert();
-            assert!(attrs.contains(Attribute::NoBold));
-            assert!(attrs.contains(Attribute::NoItalic));
-            assert!(attrs.contains(Attribute::NormalIntensity));
         }
 
         #[test]

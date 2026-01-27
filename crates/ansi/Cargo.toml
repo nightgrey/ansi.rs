@@ -1,0 +1,9 @@
+[package]
+name = "ansi"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_more = { workspace = true }
+bitflags = { workspace = true }
+utils = { workspace = true }

@@ -1,0 +1,19 @@
+[package]
+name = "kasten"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kurbo = { workspace = true }
+ansi = { workspace = true }
+unicode-width = { workspace = true }
+utils = { workspace = true }
+unicode-segmentation = { workspace = true }
+derive_more = { workspace = true }
+compact_str = "0.9.0"
+rustix = "1.1.3"
+
+[[bin]]
+name = "sandbox"
+test = false
+bench = false

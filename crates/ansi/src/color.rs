@@ -237,7 +237,6 @@ pub enum ColorSpace {
     Rgb,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into)]
 #[repr(transparent)]
 pub struct Background<'a>(pub &'a Color);

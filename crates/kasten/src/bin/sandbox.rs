@@ -2,14 +2,9 @@ use ansi::io::Write;
 use ansi::{Color, Style};
 use kasten::{layout, Context, Buffer, Constraints, Edges, Node, Content, Rect, render, Position};
 
-macro_rules! la {
-    () => {};
-}
-
 fn main() {
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
-
     let ui = Node::Style(
         Style::new().bold().background(Color::Blue).foreground(Color::White),
         Box::new(Node::Pad(
@@ -18,8 +13,11 @@ fn main() {
                 Node::Base(Content::Text("Header".into())),
                 Node::Style(
                     Style::new().foreground(Color::Yellow).bold(),
-                    Box::new(Node::Base(Content::Fill('.'))),
-                ),
+                    // @CLAUDE: HERE!!!
+                    // This now works after the fix!
+                    Box::new(Node::Base(Content::Text("Highlighted".into()))),
+                    // Box::new(Node::Base(Content::Empty))
+                ), 
                 Node::Base(Content::Fill('.')),
             ])),
         )),

@@ -95,7 +95,7 @@ pub fn layout<'a>(node: &'a Node, bounds: Rect, constraints: Constraints) -> Lay
                 let remaining_h = bounds.height().saturating_sub(y - bounds.y());
                 let child_ct = Constraints::Max(bounds.width(), remaining_h);
                 let size = measure(child, child_ct);
-                let child_rect = Rect::new((bounds.x(), y), (bounds.width(), size.height));
+                let child_rect = Rect::new((bounds.x(), y), (bounds.max.x, y.saturating_add(size.height)));
                 laid_out.push(layout(child, child_rect, child_ct));
                 y = y.saturating_add(size.height);
             }
@@ -111,7 +111,7 @@ pub fn layout<'a>(node: &'a Node, bounds: Rect, constraints: Constraints) -> Lay
                 let remaining_w = bounds.width().saturating_sub(x - bounds.x());
                 let child_ct = Constraints::Max(remaining_w, bounds.height());
                 let size = measure(child, child_ct);
-                let child_rect = Rect::new((x, bounds.y()), (size.width, bounds.height()));
+                let child_rect = Rect::new((x, bounds.y()), (x.saturating_add(size.width), bounds.max.y));
                 laid_out.push(layout(child, child_rect, child_ct));
                 x = x.saturating_add(size.width);
             }
@@ -215,8 +215,6 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
 pub fn render(layout: &LayoutNode<'_>, buffer: &mut Buffer, ctx: &Context) {
     let rect = layout.bounds;
     let region = Region::from(rect);
-
-    dbg!(layout.bounds);
 
     match layout.node {
         Node::Base(Content::Empty) => {}

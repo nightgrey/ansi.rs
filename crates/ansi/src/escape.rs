@@ -1,18 +1,50 @@
+use std::io::Cursor;
+
 pub trait Escape {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
-
-    fn escape_fmt(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
-        let mut buf = [0u8; 64];
-
-        let mut cursor = std::io::Cursor::new(&mut buf[..]);
-        if let Err(err) = self.escape(&mut cursor) {
-            eprintln!("{err}");
-            return Err(std::fmt::Error);
+    fn escape_fmt(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result
+    where
+        Self: Sized,
+    {
+        // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
+        // I/O errors, instead of discarding them.
+        struct Adapter<'a, Inner: std::fmt::Write + 'a> {
+            inner: &'a mut Inner,
+            error: std::fmt::Result,
         }
 
-        let position = cursor.position() as usize;
-        // SAFETY: escape only writes ASCII
-        f.write_str(unsafe { std::str::from_utf8_unchecked(&buf[..position]) })
+        impl<Inner: std::fmt::Write> io::Write for Adapter<'_, Inner> {
+            fn write_escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
+                let mut buf = Vec::<u8>::new();
+                let mut cursor = Cursor::new(&mut buf);
+
+                escape.escape(&mut cursor)?;
+
+                unsafe { self.inner.write_str(&String::from_utf8_unchecked(buf)).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to write string"))?; }
+                Ok(())
+            }
+        }
+
+        let mut adapter = Adapter {
+            inner: f,
+            error: Ok(()),
+        };
+
+        match io::Write::write_escape(&mut adapter, self) {
+            Ok(()) => Ok(()),
+            Err(..) => {
+                // Check whether the error came from the underlying `Write`.
+                if adapter.error.is_err() {
+                    adapter.error
+                } else {
+                    // This shouldn't happen: the underlying stream did not error,
+                    // but somehow the formatter still errored?
+                    panic!(
+                        "a formatting trait implementation returned an error when the underlying stream did not"
+                    );
+                }
+            }
+        }
     }
 }
 

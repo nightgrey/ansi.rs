@@ -1,9 +1,11 @@
-use std::io::Write;
+use std::fmt::{Display, Formatter};
+use std::io::Write as _;
 use std::slice::SliceIndex;
 use derive_more::{Deref, DerefMut};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use ansi::{Escape, Style};
+use ansi::fmt::Write;
 use crate::{BufferIndex, Cell, Point, Rect};
 use crate::position::{Position, Region, RegionIter};
 
@@ -117,7 +119,7 @@ impl Buffer {
                 })
             {
                 // Set the starting cell
-                cells[i].set_grapheme(grapheme);
+                cells[i].set(grapheme);
                 cells[i].set_style(style);
                 let next_symbol = i + width;
                 i += 1;
@@ -143,8 +145,8 @@ impl Buffer {
         self.bounds.contains(&Point::from(*position))
     }
 
-    pub fn index_of(&self, position: &Position) -> Option<usize> {
-       position.index_of(self)
+    pub fn index_of(&self, index: &Position) -> Option<usize> {
+        index.index_of(self)
     }
 
     pub fn position_of(&self, index: usize) -> Position {
@@ -167,6 +169,13 @@ impl Buffer {
 
     pub fn iter_rows(&self) -> std::slice::Chunks<'_, Cell> {
         self.inner.chunks(self.width())
+    }
+
+}
+
+impl Display for Buffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_escape(self)
     }
 }
 
@@ -201,11 +210,10 @@ impl Escape for Buffer {
             .enumerate()
             .map(|(i, cell)| (self.position_of(i), cell))
         {
-            let style = cell.style();
-            if style != last_style {
-                w.write_escape(&last_style.diff(style))?;
+            if cell.style != last_style {
+                w.write_escape(&last_style.diff(cell.style))?;
 
-                last_style = style;
+                last_style = cell.style;
             }
 
             w.write(&cell.as_bytes())?;

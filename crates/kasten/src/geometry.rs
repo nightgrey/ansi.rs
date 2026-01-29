@@ -314,8 +314,25 @@ impl Rect {
     /// let rect2 = Rect::new(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
     /// ```
-    pub  fn new(min: impl Into<Point>, max: impl Into<Point>) -> Self {
+    pub fn new(min: impl Into<Point>, max: impl Into<Point>) -> Self {
         Self { min: min.into(), max: max.into() }
+    }
+
+    /// Create a rectangle from its bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Rect;
+    /// let rect = Rect::bounds(10, 5, 20, 15);
+    /// assert_eq!(rect.min, Point::new(10, 5));
+    /// assert_eq!(rect.max, Point::new(30, 20));
+    /// ```
+    pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self {
+            min: Point::new(x, y),
+            max: Point::new(x + width, y + height),
+        }
     }
 
     /// Get the x-coordinate of the rectangle (left edge).

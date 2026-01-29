@@ -1,9 +1,11 @@
 use std::ops::BitOr;
 use derive_more::Deref;
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use ansi::{Color, Escape, Style};
 use ansi::io::Write;
 use crate::{Align, Region, Alignment, Buffer, BufferIndex, Constraint, Constraints, Edges, Point, Rect, Size};
+use crate::runes::DisplayWidth;
 
 /// Content types for leaf nodes in the UI tree.
 ///
@@ -437,8 +439,7 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
         }
 
         Node::Base(Content::Text(string)) => {
-            let w = string.width();
-            constraints.clamp(w, 1)
+            constraints.clamp(string.display_width(), 1)
         }
 
         // Node::Base(Primitive::TextWrap(tw)) => {
@@ -524,22 +525,6 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
 /// * `buffer` - The buffer to render into (will be mutated)
 /// * `ctx` - The rendering context (tracks accumulated styles)
 ///
-/// # Example
-///
-/// ```rust
-/// use kasten::{layout, render, Node, Content, Buffer, Context, Rect, Constraints};
-/// # use ansi::Style;
-///
-/// let node = Node::Base(Content::Text("Hello".into()));
-/// let mut buffer = Buffer::new(Rect::new((0, 0), (10, 10)));
-/// let layout_tree = layout(&node, buffer.bounds, Constraints::Max(10, 10));
-///
-/// let ctx = Context::default();
-/// render(&layout_tree, &mut buffer, &ctx);
-///
-/// // Buffer now contains the rendered text
-/// ```
-///
 /// # Rendering Rules
 ///
 /// Different node types render differently:
@@ -559,14 +544,14 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
 /// This function uses `unsafe` buffer access for performance. It assumes that
 /// the layout phase has computed valid bounds that fit within the buffer.
 pub fn render(layout: &LayoutNode<'_>, buffer: &mut Buffer, ctx: &Context) {
-    let rect = layout.bounds;
-    let region = Region::from(rect);
+    let bounds = layout.bounds;
+    let region = Region::from(bounds);
 
     match layout.node {
         Node::Base(Content::Empty) => {}
 
         Node::Base(Content::Text(s)) => {
-            buffer.text(region.min..region.max, &s, &ctx.style);
+            buffer.text(region.min..region.max, s, &ctx.style);
         }
 
         // Node::Base(Primitive::TextWrap(tw)) => {
@@ -590,7 +575,7 @@ pub fn render(layout: &LayoutNode<'_>, buffer: &mut Buffer, ctx: &Context) {
         // }
 
         Node::Base(Content::Fill(ch)) =>  {
-            for pos in region {
+            for pos in Region::from(bounds) {
                 unsafe { buffer.get_unchecked_mut(pos) }.set_char(*ch);
             }
         }
@@ -598,10 +583,9 @@ pub fn render(layout: &LayoutNode<'_>, buffer: &mut Buffer, ctx: &Context) {
         Node::Style(style, _) => {
             let new_ctx = ctx.add(style);
 
-
             if style.bg.is_some() {
-                for pos in region {
-                    unsafe { buffer.get_unchecked_mut(pos) }.bg = style.bg;
+                for pos in Region::from(bounds) {
+                    unsafe { buffer.get_unchecked_mut(pos) }.style.bg = style.bg;
                 }
             }
 
@@ -920,8 +904,18 @@ mod tests {
         assert_eq!(size.height, 1); // All text is 1 tall
     }
 
-    // === Render Tests ===
-    // Note: Render tests are simplified due to buffer Position indexing complexity.
-    // The render system works correctly as demonstrated by the sandbox binary and examples.
-    // Full integration testing of rendering would require additional buffer test utilities.
+    #[test]
+    fn qwe() {
+        let bounds = Rect::bounds(0, 0, 4, 2);
+        let mut buffer = Buffer::new(bounds);
+
+        let node = Node::Base(Content::Text("Helloooooooo".into()));
+        let layout_tree = layout(&node, bounds, Constraints::Max(bounds.width(), bounds.height()));
+
+        dbg!(&layout_tree);
+        let ctx = Context::default();
+        render(&layout_tree, &mut buffer, &ctx);
+
+        print!("{}", buffer.to_string())
+    }
 }

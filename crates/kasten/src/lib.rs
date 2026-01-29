@@ -93,6 +93,7 @@ mod layout;
 mod buffer;
 mod geometry;
 mod position;
+mod runes;
 
 pub use tree::*;
 pub use layout::*;

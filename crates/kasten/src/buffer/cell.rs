@@ -3,7 +3,7 @@ use std::convert::AsRef;
 use unicode_width::UnicodeWidthStr;
 use ansi::{Escape, Flags, Style};
 use ansi::io::Write;
-use crate::runes::DisplayWidth;
+use crate::text::DisplayWidth;
 
 /// Represents a single terminal grid cell with display attributes.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

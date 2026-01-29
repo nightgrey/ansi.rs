@@ -1,5 +1,6 @@
 use ansi::io::Write;
-use kasten::{layout, render, Buffer, Context, Constraints, Node, Content, Rect};
+use kasten::{constraints, render, Buffer, Constraints, Node, Content, Rect};
+use kasten::layout::layout::LayoutContext;
 
 fn main() {
     // Build a simple UI tree
@@ -16,7 +17,7 @@ fn main() {
     );
 
     // Render to buffer
-    let ctx = Context::default();
+    let ctx = LayoutContext::default();
     render(&tree, &mut buffer, &ctx);
 
     // Output to terminal

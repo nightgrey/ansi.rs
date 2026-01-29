@@ -17,7 +17,7 @@
 //!
 //! ```rust
 //! use ansi::{Color, Style};
-//! use kasten::{layout, render, Buffer, Context, Constraints, Edges, Node, Content, Rect};
+//! use kasten::{constraints, render, Buffer,  Constraints, Edges, Node, Content, Rect};
 //!
 //! // Build a UI tree
 //! let ui = Node::Style(
@@ -62,7 +62,7 @@
 //! ### Three-Phase Workflow
 //!
 //! 1. **Measure** - Calculate natural sizes: [`measure()`]
-//! 2. **Layout** - Assign positions and bounds: [`layout()`]
+//! 2. **Layout** - Assign positions and bounds: [`constraints()`]
 //! 3. **Render** - Draw to buffer: [`render()`]
 //!
 //! ### Constraints
@@ -77,10 +77,10 @@
 //!
 //! ## Module Organization
 //!
-//! - [`tree`] - Node types and core layout/measure/render functions
+//! - [`node`] - Node types and core layout/measure/render functions
 //! - [`geometry`] - Point, Size, Rect primitives
 //! - [`indexing`] - Position and Region for buffer indexing
-//! - [`layout`] - Constraints, Edges, Alignment types
+//! - [`constraints`] - Constraints, Edges, Alignment types
 //! - [`buffer`] - Buffer and Cell for terminal rendering
 
 #![feature(slice_index_methods)]
@@ -88,15 +88,15 @@
 #![feature(const_cmp)]
 #![feature(const_range)]
 
-mod tree;
-mod layout;
 mod buffer;
 mod geometry;
 mod indexing;
-mod runes;
+mod text;
+mod layout;
+mod display_width;
 
-pub use tree::*;
-pub use layout::*;
 pub use buffer::*;
 pub use geometry::*;
 pub use indexing::*;
+pub use layout::*;
+

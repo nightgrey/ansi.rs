@@ -1,6 +1,7 @@
 use ansi::io::Write;
 use ansi::{Color, Style};
-use kasten::{layout, Context, Buffer, Constraints, Edges, Node, Content, Rect, render, Position};
+use kasten::{constraints, Buffer, Constraints, Edges, Node, Content, Rect, render, Position};
+use kasten::layout::layout::LayoutContext;
 
 fn main() {
     let stdout = std::io::stdout();
@@ -29,7 +30,7 @@ fn main() {
     let tree = layout(&ui, buffer.bounds, Constraints::Fixed(buffer.bounds.width(), buffer.bounds.height()));
 
     // // 2. Render to buffer
-    let ctx = Context::default();
+    let ctx = LayoutContext::default();
     render(&tree, &mut buffer, &ctx);
     // buffer.text(Position::new(2, 1)..Position::new(1, 78), &"Hello".to_string(), &Style::new().bold());
     dbg!(buffer.index_of(&Position::new(2, 1)), buffer.index_of(&Position::new(1, 78)), buffer.len());

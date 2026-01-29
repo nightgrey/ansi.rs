@@ -503,7 +503,7 @@ impl Constraints {
     /// # use kasten::Constraints;
     /// let constraints = Constraints::Fixed(80, 24);
     /// ```
-    pub fn Fixed(width: usize, height: usize) -> Self {
+    pub const fn Fixed(width: usize, height: usize) -> Self {
         Self::new(Constraint::Fixed(width), Constraint::Fixed(height))
     }
 
@@ -515,7 +515,7 @@ impl Constraints {
     /// # use kasten::Constraints;
     /// let constraints = Constraints::Max(100, 50);
     /// ```
-    pub fn Max(width: usize, height: usize) -> Self {
+    pub   const fn Max(width: usize, height: usize) -> Self {
         Self::new(Constraint::Max(width), Constraint::Max(height))
     }
 
@@ -527,7 +527,7 @@ impl Constraints {
     /// # use kasten::Constraints;
     /// let constraints = Constraints::Min(20, 10);
     /// ```
-    pub fn Min(width: usize, height: usize) -> Self {
+    pub const  fn Min(width: usize, height: usize) -> Self {
         Self::new(Constraint::Min(width), Constraint::Min(height))
     }
 
@@ -539,7 +539,7 @@ impl Constraints {
     /// # use kasten::Constraints;
     /// let constraints = Constraints::Auto();
     /// ```
-    pub fn Auto() -> Self {
+    pub const fn Auto() -> Self {
         Self::new(Constraint::Auto, Constraint::Auto)
     }
 
@@ -554,7 +554,7 @@ impl Constraints {
     ///     Constraint::Max(20),
     /// );
     /// ```
-    pub fn new(width: Constraint, height: Constraint) -> Self {
+    pub const fn new(width: Constraint, height: Constraint) -> Self {
         Self { width, height }
     }
 

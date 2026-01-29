@@ -1,4 +1,4 @@
-use unicode_segmentation::{Graphemes, UnicodeSegmentation};
+use unicode_segmentation::{UnicodeSegmentation};
 use unicode_display_width::is_double_width;
 
 pub trait DisplayWidth {
@@ -12,7 +12,7 @@ impl<T: AsRef<str>> DisplayWidth for T {
             acc + (grapheme_cluster.cluster_display_width())
         })
     }
-    
+
     fn cluster_display_width(&self) -> usize {
         for char in self.as_ref().chars() {
             // emoji style variation selector

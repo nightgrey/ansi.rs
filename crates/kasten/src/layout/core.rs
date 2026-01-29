@@ -70,37 +70,38 @@ pub fn layout(node: &Node, bounds: Rect, constraints: Constraints) -> LayoutNode
         }
 
         Node::Align(alignment, child) => {
-            let child_size =
-               measure(child, Constraints::Max(bounds.width(), bounds.height()));
+            let child_size = measure(child, Constraints::Max(bounds.width(), bounds.height()));
+
             let offset = alignment.offset(bounds.size(), child_size);
-            let child_node = layout(
+            LayoutNode::new(node, bounds, vec![layout(
                 child,
                 Rect::new(
-                    (bounds.min + offset),
-                    Point::new(child_size.width, child_size.height),
+                    bounds.min + offset,
+                    Point::from(child_size) + offset,
                 ),
-                Constraints::Fixed(child_size.width, child_size.height),
-            );
-            LayoutNode::new(node, bounds, vec![child_node])
+                Constraints::Auto(),
+            )])
         }
 
         Node::Stack(children) => {
             let mut y = bounds.y();
-            let mut laid_out = Vec::with_capacity(children.len());
+            let mut layout_children = Vec::with_capacity(children.len());
 
             for child in children {
                 let remaining_h = bounds.height().saturating_sub(y - bounds.y());
                 let child_ct = Constraints::Max(bounds.width(), remaining_h);
-                let size =measure(child, child_ct);
+                let size = measure(child, child_ct);
                 let child_rect = Rect::new(
                     (bounds.x(), y),
                     (bounds.max.x, y.saturating_add(size.height)),
                 );
-                laid_out.push(layout(child, child_rect, child_ct));
+                let layout_node = layout(child, child_rect, child_ct);
+                layout_children.push(layout_node);
                 y = y.saturating_add(size.height);
             }
 
-            LayoutNode::new(node, bounds, laid_out)
+
+            LayoutNode::new(node, bounds, layout_children)
         }
 
         Node::Row(children) => {
@@ -179,7 +180,9 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
     match node {
         Node::Base(Content::Empty) => Size::ZERO,
 
-        Node::Base(Content::Text(string)) => constraints.clamp(string.display_width(), 1),
+        Node::Base(Content::Text(string)) => {
+            constraints.clamp(string.display_width(), 1)
+        },
 
         // Node::Base(Primitive::TextWrap(tw)) => {
         //     let lines = wrap_text(&tw.content, constraints.max_w);
@@ -190,10 +193,17 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
         // }
         Node::Base(Content::Fill(_)) => constraints.max(),
 
-        Node::Style(_, child) | Node::Align(_, child) =>measure(child, constraints),
+        Node::Style(_, child) => {
+            measure(child, constraints)
+        }
+
+        Node::Align(_, child) => {
+            measure(child, constraints)
+        }
 
         Node::Pad(edges, child) => {
             let inner =measure(child, constraints.shrink(edges));
+
             Size::new(
                 inner.width + edges.horizontal(),
                 inner.height + edges.vertical(),
@@ -212,8 +222,8 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
                 let size =measure(
                     child,
                     Constraints {
-                        height: Constraint::Max(
-                            constraints.height.max_or(0).saturating_sub(total_h),
+                        y: Constraint::Max(
+                            constraints.y.max_or(0).saturating_sub(total_h),
                         ),
                         ..constraints
                     },
@@ -233,8 +243,8 @@ pub fn measure(node: &Node, constraints: Constraints) -> Size {
                 let size =measure(
                     child,
                     Constraints {
-                        width: Constraint::Max(
-                            constraints.width.max_or(0).saturating_sub(total_w),
+                        x: Constraint::Max(
+                            constraints.x.max_or(0).saturating_sub(total_w),
                         ),
                         ..constraints
                     },

@@ -18,5 +18,5 @@ fn main() {
     // Output to terminal
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
-    lock.write_escape(&buffer).unwrap();
+    lock.escape(&buffer).unwrap();
 }

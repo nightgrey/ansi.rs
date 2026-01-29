@@ -1,9 +1,6 @@
 use ansi::io::Write;
-use ansi::{Color, Style};
-use kasten::{
-    Align, Alignment, Buffer, Constraints, Content, Edges, Layout, LayoutNode, Node, Position,
-    Rect, align, center, fill, layer, pad, size, stack, style, text,
-};
+use ansi::{Color, Style, UnderlineStyle};
+use kasten::{Align, Alignment, Buffer, Constraints, Content, Edges, Layout, LayoutNode, Node, Position, Rect, align, center, fill, layer, pad, size, stack, style, text, Constraint};
 use std::io;
 
 fn main() -> io::Result<()> {
@@ -13,19 +10,21 @@ fn main() -> io::Result<()> {
     let size = terminal::size()?;
     let bounds = Rect::new((0, 0), (80, 10));
 
-    let header = Style::new().foreground(Color::BrightRed).bold();
+    let header = Style::new().foreground(Color::BrightRed).bold().underline().underline_style(UnderlineStyle::Curly);
     let sub = Style::new().foreground(Color::Blue).bold();
     let ui = style!(
         Style::new().background(Color::Default).foreground(Color::White) =>
         stack![
             size!(
-                Constraints::Fixed(40, 1) => fill!('x')
+                Constraints::Vertical(1) => fill!('x')
             ),
 
-            style!(header => text!("Hello Ay! 👋")),
+            size!(
+                Constraints::Vertical(3) => align!(Alignment::CENTER => style!(header => text!("Hello Ay! 👋")))
+            ),
 
             size!(
-                Constraints::Fixed(40, 1) => style!(sub => fill!('x'))
+                Constraints::Vertical( 1) => style!(sub => fill!('x'))
             ),
 
             fill!('.'),
@@ -35,7 +34,8 @@ fn main() -> io::Result<()> {
     let mut buffer = Buffer::new(bounds);
 
     tree.render(&mut buffer);
-    lock.write_escape(&buffer)?;
+    lock.escape(&buffer)?;
+
 
     Ok(())
 }

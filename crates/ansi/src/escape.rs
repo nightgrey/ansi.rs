@@ -14,7 +14,7 @@ pub trait Escape {
         }
 
         impl<Inner: std::fmt::Write> io::Write for Adapter<'_, Inner> {
-            fn write_escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
+            fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
                 let mut buf = Vec::<u8>::new();
                 let mut cursor = Cursor::new(&mut buf);
 
@@ -36,7 +36,7 @@ pub trait Escape {
             error: Ok(()),
         };
 
-        match io::Write::write_escape(&mut adapter, self) {
+        match io::Write::escape(&mut adapter, self) {
             Ok(()) => Ok(()),
             Err(..) => {
                 // Check whether the error came from the underlying `Write`.
@@ -58,12 +58,12 @@ pub mod io {
     use super::*;
 
     pub trait Write {
-        fn write_escape(&mut self, escape: &impl Escape) -> std::io::Result<()>;
+        fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()>;
     }
 
     impl<W: std::io::Write> Write for W {
         #[inline]
-        fn write_escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
+        fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
             escape.escape(self)
         }
     }
@@ -73,12 +73,12 @@ pub mod fmt {
     use super::*;
 
     pub trait Write {
-        fn write_escape(&mut self, escape: &impl Escape) -> std::fmt::Result;
+        fn escape(&mut self, escape: &impl Escape) -> std::fmt::Result;
     }
 
     impl<W: std::fmt::Write> Write for W {
         #[inline]
-        fn write_escape(&mut self, escape: &impl Escape) -> std::fmt::Result {
+        fn escape(&mut self, escape: &impl Escape) -> std::fmt::Result {
             escape.escape_fmt(self)
         }
     }

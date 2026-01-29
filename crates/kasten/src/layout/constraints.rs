@@ -50,6 +50,31 @@ pub struct Alignment {
 }
 
 impl Alignment {
+    pub const CENTER: Self = Self {
+        x: Align::Center,
+        y: Align::Center,
+    };
+    
+    pub const START: Self = Self {
+        x: Align::Start,
+        y: Align::Start,
+    };
+    
+    pub const END: Self = Self {
+        x: Align::End,
+        y: Align::End,
+    };
+    
+    pub const HORIZONTAL_CENTER: Self = Self {
+        x: Align::Center,
+        y: Align::Start,
+    };
+    
+    pub const VERTICAL_CENTER: Self = Self {
+        x: Align::Start,
+        y: Align::Center,
+    };
+    
     /// Calculate the offset point to position `inner` within `outer` according to this alignment.
     ///
     /// Returns a [`Point`] offset that should be added to the outer bounds' min point
@@ -165,7 +190,7 @@ impl Constraint {
             Self::Auto => value,
             &Self::Min(min) => min.max(value),
             &Self::Max(max) => max.min(value),
-            &Self::Fixed(fixed) => fixed.min(value),
+            &Self::Fixed(fixed) => fixed,
             &Self::Between(min, max) => min.max(value).min(max),
             Self::Fill => value,
         }
@@ -311,6 +336,12 @@ impl Constraint {
     }
 }
 
+impl From<usize> for Constraint {
+    fn from(value: usize) -> Self {
+        Self::Fixed(value)
+    }
+}
+
 /// 2D size constraints for width and height.
 ///
 /// Combines two [`Constraint`] values to control sizing in both dimensions.
@@ -340,11 +371,11 @@ impl Constraint {
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Constraints {
-    /// Width constraint.
-    pub width: Constraint,
+    /// Horizontal constraint.
+    pub x: Constraint,
 
-    /// Height constraint.
-    pub height: Constraint,
+    /// Vertical constraint.
+    pub y: Constraint,
 }
 
 #[allow(non_snake_case)]
@@ -358,7 +389,10 @@ impl Constraints {
     /// let constraints = Constraints::Fixed(80, 24);
     /// ```
     pub const fn Fixed(width: usize, height: usize) -> Self {
-        Self::new(Constraint::Fixed(width), Constraint::Fixed(height))
+        Constraints {
+            x: Constraint::Fixed(width),
+            y: Constraint::Fixed(height),
+        }
     }
 
     /// Create constraints with maximum width and height.
@@ -369,8 +403,11 @@ impl Constraints {
     /// # use kasten::Constraints;
     /// let constraints = Constraints::Max(100, 50);
     /// ```
-    pub const fn Max(width: usize, height: usize) -> Self {
-        Self::new(Constraint::Max(width), Constraint::Max(height))
+    pub fn Max(width: usize, height: usize) -> Self {
+        Constraints {
+            x: Constraint::Max(width),
+            y: Constraint::Max(height),
+        }
     }
 
     /// Create constraints with minimum width and height.
@@ -382,7 +419,10 @@ impl Constraints {
     /// let constraints = Constraints::Min(20, 10);
     /// ```
     pub const fn Min(width: usize, height: usize) -> Self {
-        Self::new(Constraint::Min(width), Constraint::Min(height))
+        Constraints {
+            x: Constraint::Min(width),
+            y: Constraint::Min(height),
+        }
     }
 
     /// Create Auto constraints (natural sizing).
@@ -394,7 +434,24 @@ impl Constraints {
     /// let constraints = Constraints::Auto();
     /// ```
     pub const fn Auto() -> Self {
-        Self::new(Constraint::Auto, Constraint::Auto)
+        Constraints {
+            x: Constraint::Auto,
+            y: Constraint::Auto,
+        }
+    }
+
+    pub  fn Vertical(constraint: impl Into<Constraint>) -> Self {
+        Self {
+            x: Constraint::Auto,
+            y: constraint.into(),
+        }
+    }
+
+    pub  fn Horizontal(constraint: impl Into<Constraint>) -> Self {
+        Self {
+            x: constraint.into(),
+            y: Constraint::Auto,
+        }
     }
 
     /// Create constraints with individual width and height constraints.
@@ -408,8 +465,11 @@ impl Constraints {
     ///     Constraint::Max(20),
     /// );
     /// ```
-    pub const fn new(width: Constraint, height: Constraint) -> Self {
-        Self { width, height }
+    pub fn new(width: impl Into<Constraint>, height: impl Into<Constraint>) -> Self {
+        Self {
+            x: width.into(),
+            y: height.into(),
+        }
     }
 
     /// Clamp width and height values to satisfy these constraints.
@@ -426,8 +486,8 @@ impl Constraints {
     /// ```
     pub fn clamp(&self, width: usize, height: usize) -> Size {
         Size {
-            width: self.width.clamp(width),
-            height: self.height.clamp(height),
+            width: self.x.clamp(width),
+            height: self.y.clamp(height),
         }
     }
 
@@ -446,8 +506,8 @@ impl Constraints {
     /// ```
     pub fn constrain(&self, other: Constraints) -> Constraints {
         Self {
-            width: self.width.constrain(other.width),
-            height: self.height.constrain(other.height),
+            x: self.x.constrain(other.x),
+            y: self.y.constrain(other.y),
         }
     }
 
@@ -466,8 +526,8 @@ impl Constraints {
     /// ```
     pub fn shrink(&self, insets: &Edges) -> Self {
         Self {
-            width: self.width.shrink(insets.horizontal()),
-            height: self.height.shrink(insets.vertical()),
+            x: self.x.shrink(insets.horizontal()),
+            y: self.y.shrink(insets.vertical()),
         }
     }
 
@@ -487,8 +547,8 @@ impl Constraints {
     /// ```
     pub fn min(&self) -> Size {
         Size {
-            width: self.width.min_or(0),
-            height: self.height.min_or(0),
+            width: self.x.min_or(0),
+            height: self.y.min_or(0),
         }
     }
 
@@ -505,8 +565,8 @@ impl Constraints {
     /// ```
     pub fn max(&self) -> Size {
         Size {
-            width: self.width.max_or(0),
-            height: self.height.max_or(0),
+            width: self.x.max_or(0),
+            height: self.y.max_or(0),
         }
     }
 }

@@ -183,7 +183,7 @@ impl Buffer {
 
 impl Display for Buffer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_escape(self)
+        f.escape(self)
     }
 }
 
@@ -219,7 +219,7 @@ impl Escape for Buffer {
             .map(|(i, cell)| (self.position_of(i), cell))
         {
             if cell.style != last_style {
-                w.write_escape(&last_style.diff(cell.style))?;
+                w.escape(&last_style.diff(cell.style))?;
 
                 last_style = cell.style;
             }
@@ -227,7 +227,7 @@ impl Escape for Buffer {
             w.write(&cell.as_bytes())?;
 
             if position.col == self.width() - 1 {
-                w.write_escape(&Style::Reset)?;
+                w.escape(&Style::Reset)?;
                 w.write(b"\n")?;
                 last_style = Style::EMPTY;
             }

@@ -165,7 +165,7 @@ impl<'a> FromIterator<&'a Cell> for String {
 
 impl Escape for Cell {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        w.write_escape(&self.style)?;
+        w.escape(&self.style)?;
         w.write(self.as_bytes())?;
         Ok(())
     }

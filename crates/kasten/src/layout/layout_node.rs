@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use super::{LayoutContext, render};
 use crate::{
     Buffer, BufferIndex, Constraint, Constraints, Content, Edges, Node, Point, Position, Rect,
@@ -32,11 +33,11 @@ use derive_more::Deref;
 ///     _ => {}
 /// }
 /// ```
-#[derive(Debug, Clone, Deref)]
+#[derive(Clone, Deref)]
 pub struct LayoutNode<'a> {
     /// The original node from the UI tree.
     #[deref]
-    pub node: &'a Node,
+    pub(super) node: &'a Node,
 
     /// The computed rectangular bounds for this node.
     pub bounds: Rect,
@@ -67,5 +68,33 @@ impl<'a> LayoutNode<'a> {
     /// applying styles from the context and respecting the computed bounds.
     pub fn render(&self, buffer: &mut Buffer, context: &LayoutContext) {
         render(self, buffer, context);
+    }
+}
+
+impl Debug for LayoutNode<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (kind, prop): (&str, Option<&dyn Debug>) = match self.node {
+            Node::Base(content) => ("Base", Some(content)),
+            Node::Style(style, _) => ("Style", Some(style)),
+            Node::Pad(edges, _) => ("Pad", Some(edges)),
+            Node::Size(constraints, _) => ("Size", Some(constraints)),
+            Node::Align(align, _) => ("Align", Some(align)),
+            Node::Stack(_) => ("Stack", None),
+            Node::Row(_) => ("Row", None),
+            Node::Layer(_) => ("Layer", None),
+        };
+
+        if let Some(prop) = prop {
+            f.debug_struct(&format!("LayoutNode::{kind}"))
+                .field("prop", &prop)
+                .field("bounds", &self.bounds)
+                .field("children", &self.children)
+                .finish()
+        } else {
+            f.debug_struct(&format!("LayoutNode::{kind}"))
+                .field("bounds", &self.bounds)
+                .field("children", &self.children)
+                .finish()
+        }
     }
 }

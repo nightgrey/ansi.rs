@@ -113,12 +113,31 @@ impl LayoutContext {
 
 #[cfg(test)]
 mod tests {
-    use unicode_segmentation::UnicodeSegmentation;
+    use ansi::Color;
     use super::*;
-    use crate::{Align, Alignment, Cell, Edges, Row};
+    use crate::{layout::macros::*, text, Align, Alignment, Cell, Edges, Row};
 
-    fn text(s: &str) -> Node {
-        Node::Base(Content::Text(s.into()))
+    fn render_and_layout(node: &Node, width: usize, height: usize) -> (Buffer, Layout)   {
+        let bounds = Rect::bounds(0, 0, width, height);
+        let layout = Layout::new(&node, bounds);
+        let mut buffer = Buffer::new(bounds);
+        layout.render(&mut buffer);
+        (buffer, layout)
+    }
+    fn render(node: &Node, width: usize, height: usize) -> Buffer {
+        let bounds = Rect::bounds(0, 0, width, height);
+        let layout = Layout::new(&node, bounds);
+        let mut buffer = Buffer::new(bounds);
+        layout.render(&mut buffer);
+        buffer
+    }
+
+    fn layout(node: &Node, width: usize, height: usize) -> Layout {
+        let bounds = Rect::bounds(0, 0, width, height);
+        let layout = Layout::new(&node, bounds);
+        let mut buffer = Buffer::new(bounds);
+        layout.render(&mut buffer);
+        layout
     }
 
     macro_rules! row {
@@ -141,16 +160,18 @@ mod tests {
 
     macro_rules! assert_row_trimmed {
         ($buffer:expr, $row:expr, $expected:expr) => {{
+            let actual = if ($buffer[Row::from($row)].iter().any(|cell| cell.content() != Cell::SPACE)) {
+                $buffer[Row::from($row)].iter().collect::<String>()
+            } else {
+                "".to_string()
+            };
+
             assert_eq!(
-                if ($buffer[Row::from($row)].iter().any(|cell| cell.content() != Cell::SPACE)) {
-                    $buffer[Row::from($row)].iter().collect::<String>()
-                } else {
-                    "".to_string()
-                },
+                actual,
                 $expected,
-                "Row {row:?} should be {expected:?}",
+                "Row({row:?}) contains {actual:?}.",
+                actual = actual,
                 row = $row,
-                expected = $expected,
             );
         }};
     }
@@ -188,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_layout_stack_basic() {
-        let node = Node::Stack(vec![text("A"), text("B"), text("C")]);
+        let node = Node::Stack(vec![text!("A"), text!("B"), text!("C")]);
 
         let bounds = Rect::bounds(0, 0, 10, 10);
         let layout_tree = Layout::new(&node, bounds);
@@ -204,7 +225,7 @@ mod tests {
     fn test_layout_stack_with_padding() {
         let node = Node::Pad(
             Edges::all(1),
-            Box::new(Node::Stack(vec![text("A"), text("B")])),
+            Box::new(Node::Stack(vec![text!("A"), text!("B")])),
         );
 
         let bounds = Rect::bounds(0, 0, 10, 10);
@@ -222,11 +243,11 @@ mod tests {
     fn test_layout_stack_overflow() {
         // Create stack with more content than available space
         let node = Node::Stack(vec![
-            text("Line 1"),
-            text("Line 2"),
-            text("Line 3"),
-            text("Line 4"),
-            text("Line 5"),
+            text!("Line 1"),
+            text!("Line 2"),
+            text!("Line 3"),
+            text!("Line 4"),
+            text!("Line 5"),
         ]);
 
         let bounds = Rect::bounds(0, 0, 10, 3); // Only 3 rows available
@@ -252,8 +273,8 @@ mod tests {
     fn test_layout_stack_inverted_bounds_prevented() {
         // Regression test: Stack should not create inverted rectangles
         let node = Node::Stack(vec![
-            text("A".repeat(100).as_str()),
-            text("B".repeat(100).as_str()),
+            text!("A".repeat(100).as_str()),
+            text!("B".repeat(100).as_str()),
         ]);
 
         let bounds = Rect::bounds(0, 0, 10, 1); // Very limited space
@@ -268,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_layout_row_basic() {
-        let node = Node::Row(vec![text("A"), text("B"), text("C")]);
+        let node = Node::Row(vec![text!("A"), text!("B"), text!("C")]);
 
         let bounds = Rect::bounds(0, 0, 10, 10);
         let layout_tree = Layout::new(&node, bounds);
@@ -282,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_layout_row_overflow() {
-        let node = Node::Row(vec![text("Word1"), text("Word2"), text("Word3")]);
+        let node = Node::Row(vec![text!("Word1"), text!("Word2"), text!("Word3")]);
 
         let bounds = Rect::bounds(0, 0, 10, 5); // Limited width
         let layout_tree = Layout::new(&node, bounds);
@@ -297,9 +318,9 @@ mod tests {
     fn test_layout_row_inverted_bounds_prevented() {
         // Regression test: Row should not create inverted rectangles
         let node = Node::Row(vec![
-            text("LongWord1"),
-            text("LongWord2"),
-            text("LongWord3"),
+            text!("LongWord1"),
+            text!("LongWord2"),
+            text!("LongWord3"),
         ]);
 
         let bounds = Rect::bounds(0, 0, 5, 10); // Very limited width
@@ -312,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_layout_layer_overlapping() {
-        let node = Node::Layer(vec![text("Background"), text("Foreground")]);
+        let node = Node::Layer(vec![text!("Background"), text!("Foreground")]);
 
         let bounds = Rect::bounds(0, 0, 20, 10);
         let layout_tree = Layout::new(&node, bounds);
@@ -330,7 +351,7 @@ mod tests {
                 x: Align::Center,
                 y: Align::Center,
             },
-            Box::new(text("Hi")),
+            Box::new(text!("Hi")),
         );
 
         let bounds = Rect::bounds(0, 0, 10, 10);
@@ -349,7 +370,7 @@ mod tests {
                 x: Align::End,
                 y: Align::Start,
             },
-            Box::new(text("Text")),
+            Box::new(text!("Text")),
         );
 
         let bounds = Rect::bounds(0, 0, 20, 10);
@@ -363,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_layout_pad_shrinks_bounds() {
-        let node = Node::Pad(Edges::new(1, 2, 3, 4), Box::new(text("Test")));
+        let node = Node::Pad(Edges::new(1, 2, 3, 4), Box::new(text!("Test")));
 
         let bounds = Rect::bounds(0, 0, 20, 20);
         let layout_tree = Layout::new(&node, bounds);
@@ -376,46 +397,16 @@ mod tests {
     }
 
     #[test]
-    fn test_render_align() {
-        let node = Node::Align(
-            Alignment {
-                x: Align::Center,
-                y: Align::Center,
-            },
-            Box::new(text("Text")),
-        );
-
-        let bounds = Rect::bounds(0, 0, 10, 10);
-        let layout_tree = Layout::new(&node, bounds);
-
-        let mut buffer = Buffer::new(bounds);
-        layout_tree.render(&mut buffer);
-
-        let lines = buffer.lines();
-        assert_row_trimmed!(&buffer, 0, "");
-        assert_row_trimmed!(&buffer, 1, "");
-        assert_row_trimmed!(&buffer, 2, "");
-        assert_row_trimmed!(&buffer, 3, "");
-        assert_row_trimmed!(&buffer, 4, "   Text   ");
-        assert_row_trimmed!(&buffer, 5, "");
-        assert_row_trimmed!(&buffer, 6, "");
-        assert_row_trimmed!(&buffer, 7, "");
-        assert_row_trimmed!(&buffer, 8, "");
-        assert_row_trimmed!(&buffer, 9, "");
-        assert_row_trimmed!(&buffer, 10, "");
-    }
-
-    #[test]
     fn test_layout_size_constraints() {
-        let node = Node::Size(Constraints::Fixed(15, 8), Box::new(text("Constrained")));
-
-        let bounds = Rect::bounds(0, 0, 100, 100);
-        let layout_tree = Layout::new(&node, bounds);
+        let ui = size!(
+            Constraints::Fixed(15, 8) => text!("Constrained")
+        );
+        let layout = layout(&ui, 100, 100);
 
         // The Size node passes constraints to its child, but the child's bounds
         // are still determined by the parent's provided space
         // The measured size of "Constrained" is 11 chars × 1 row
-        let child = &layout_tree.children[0];
+        let child = &layout.children[0];
         // With Fixed(15, 8) constraints and large parent bounds,
         // the child will use the parent's full bounds
         assert_eq!(child.bounds.width(), 100); // Uses parent's width
@@ -423,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_render_stack() {
-        let node = Node::Stack(vec![text("First"), text("Second"), text("Third")]);
+        let node = Node::Stack(vec![text!("First"), text!("Second"), text!("Third")]);
 
         let bounds = Rect::bounds(0, 0, 4, 3);
         let layout_tree = Layout::new(&node, bounds);
@@ -440,13 +431,50 @@ mod tests {
     fn test_render_text() {
         let node = Node::Base(Content::Text("Out of bounds\nMore".into()));
 
-        let bounds = Rect::bounds(0, 0, 4, 2);
-        let layout_tree = Layout::new(&node, bounds);
-
-        let mut buffer = Buffer::new(bounds);
-        layout_tree.render(&mut buffer);
+        let buffer = render(&node, 4, 2);
 
         assert_row!(&buffer, 0, "Out ");
         assert_row_empty!(&buffer, 1);
+    }
+
+
+    #[test]
+    fn test_render_align() {
+        let ui = align!(
+            Alignment::CENTER => text!("Text")
+        );
+        let buffer = render(&ui, 10, 10);
+
+        let lines = buffer.lines();
+        assert_row_trimmed!(&buffer, 0, "");
+        assert_row_trimmed!(&buffer, 1, "");
+        assert_row_trimmed!(&buffer, 2, "");
+        assert_row_trimmed!(&buffer, 3, "");
+        assert_row_trimmed!(&buffer, 4, "   Text   ");
+        assert_row_trimmed!(&buffer, 5, "");
+        assert_row_trimmed!(&buffer, 6, "");
+        assert_row_trimmed!(&buffer, 7, "");
+        assert_row_trimmed!(&buffer, 8, "");
+        assert_row_trimmed!(&buffer, 9, "");
+    }
+
+    #[test]
+    fn test_render_size_constrained_stack_item_with_aligned_text() {
+        let ui = stack![
+            size!(
+                Constraints::Fixed(20, 5) => align!(Alignment::CENTER => text!("Hello Ay! 👋")           )
+            ),
+            text!("After")
+        ];
+
+        let (buffer, layout) = render_and_layout(&ui, 20, 20);
+
+        // This here is 1 because it takes the text's size as bounds.
+        assert_eq!(layout.children[0].children[0].bounds.height(), 5);
+
+        assert_row_empty!(&buffer, 0);
+        assert_row_empty!(&buffer, 1);
+        assert_row_trimmed!(&buffer, 2, "    Hello Ay! 👋     ");
+        assert_row_empty!(&buffer, 3);
     }
 }

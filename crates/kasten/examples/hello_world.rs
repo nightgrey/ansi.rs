@@ -1,6 +1,6 @@
 use ansi::io::Write;
-use kasten::layout::layout::LayoutContext;
-use kasten::{Buffer, Constraints, Content, Node, Rect, constraints, render};
+use kasten::{Layout, LayoutContext};
+use kasten::{Buffer, Constraints, Content, Node, Rect};
 
 fn main() {
     // Build a simple UI tree
@@ -10,15 +10,10 @@ fn main() {
     let mut buffer = Buffer::new(Rect::new((0, 0), (80, 24)));
 
     // Layout the tree
-    let tree = layout(
-        &ui,
-        buffer.bounds,
-        Constraints::Fixed(buffer.bounds.width(), buffer.bounds.height()),
-    );
+    let tree = Layout::new(&ui, buffer.bounds);
 
     // Render to buffer
-    let ctx = LayoutContext::default();
-    render(&tree, &mut buffer, &ctx);
+    tree.render(&mut buffer);
 
     // Output to terminal
     let stdout = std::io::stdout();

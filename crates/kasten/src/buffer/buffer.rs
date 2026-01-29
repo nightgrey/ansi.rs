@@ -172,8 +172,12 @@ impl Buffer {
         self.inner.iter_mut()
     }
 
-    pub fn iter_rows(&self) -> std::slice::Chunks<'_, Cell> {
+    pub fn rows(&self) -> std::slice::Chunks<'_, Cell> {
         self.inner.chunks(self.width())
+    }
+
+    pub fn lines(&self) -> impl Iterator<Item = String> {
+        self.rows().map(|row| row.iter().collect::<String>())
     }
 }
 

@@ -154,6 +154,7 @@ impl FromIterator<Cell> for String {
     }
 }
 
+
 impl<'a> FromIterator<&'a Cell> for String {
     fn from_iter<I: IntoIterator<Item = &'a Cell>>(iter: I) -> Self {
         iter.into_iter()

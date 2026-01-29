@@ -113,8 +113,9 @@ impl LayoutContext {
 
 #[cfg(test)]
 mod tests {
+    use unicode_segmentation::UnicodeSegmentation;
     use super::*;
-    use crate::{Align, Alignment, Edges, Row};
+    use crate::{Align, Alignment, Cell, Edges, Row};
 
     fn text(s: &str) -> Node {
         Node::Base(Content::Text(s.into()))
@@ -122,19 +123,57 @@ mod tests {
 
     macro_rules! row {
         ($buffer:expr, $row:expr) => {
-            &$buffer[Row::from($row)].iter().collect::<String>()
+            $buffer[Row::from($row)].iter().collect::<String>()
         };
     }
 
     macro_rules! assert_row {
         ($buffer:expr, $row:expr, $expected:expr) => {
-            assert_eq!(row!($buffer, $row), $expected);
+            assert_eq!(
+                row!($buffer, $row),
+                $expected,
+                "Row {row:?} should be {expected:?}",
+                row = $row,
+                expected = $expected
+            );
         };
+    }
+
+    macro_rules! assert_row_trimmed {
+        ($buffer:expr, $row:expr, $expected:expr) => {{
+            assert_eq!(
+                if ($buffer[Row::from($row)].iter().any(|cell| cell.content() != Cell::SPACE)) {
+                    $buffer[Row::from($row)].iter().collect::<String>()
+                } else {
+                    "".to_string()
+                },
+                $expected,
+                "Row {row:?} should be {expected:?}",
+                row = $row,
+                expected = $expected,
+            );
+        }};
     }
 
     macro_rules! assert_row_empty {
         ($buffer:expr, $row:expr) => {
-            assert_eq!(row!($buffer, $row).trim(), "");
+            assert_eq!(
+                row!($buffer, $row).trim(),
+                "",
+                "Row {row:?} should be empty",
+                row = $row,
+            );
+        };
+    }
+
+    macro_rules! assert_text {
+        ($buffer:expr, $expected:expr) => {
+            assert_eq!(
+                &$buffer.lines().map(|line| line.trim().to_string()).collect::<Vec<_>>().join("\n"),
+                $expected,
+                "Expected buffer text to be {expected:?}",
+                expected = $expected,
+            );
         };
     }
 
@@ -334,6 +373,36 @@ mod tests {
         assert_eq!(child.bounds.y(), 1); // top padding
         assert_eq!(child.bounds.width(), 14); // 20 - 4 - 2
         assert_eq!(child.bounds.height(), 16); // 20 - 1 - 3
+    }
+
+    #[test]
+    fn test_render_align() {
+        let node = Node::Align(
+            Alignment {
+                x: Align::Center,
+                y: Align::Center,
+            },
+            Box::new(text("Text")),
+        );
+
+        let bounds = Rect::bounds(0, 0, 10, 10);
+        let layout_tree = Layout::new(&node, bounds);
+
+        let mut buffer = Buffer::new(bounds);
+        layout_tree.render(&mut buffer);
+
+        let lines = buffer.lines();
+        assert_row_trimmed!(&buffer, 0, "");
+        assert_row_trimmed!(&buffer, 1, "");
+        assert_row_trimmed!(&buffer, 2, "");
+        assert_row_trimmed!(&buffer, 3, "");
+        assert_row_trimmed!(&buffer, 4, "   Text   ");
+        assert_row_trimmed!(&buffer, 5, "");
+        assert_row_trimmed!(&buffer, 6, "");
+        assert_row_trimmed!(&buffer, 7, "");
+        assert_row_trimmed!(&buffer, 8, "");
+        assert_row_trimmed!(&buffer, 9, "");
+        assert_row_trimmed!(&buffer, 10, "");
     }
 
     #[test]

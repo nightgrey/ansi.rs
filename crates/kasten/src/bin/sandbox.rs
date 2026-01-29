@@ -10,7 +10,8 @@ fn main() -> io::Result<()> {
     let stdout = io::stdout();
     let mut lock = stdout.lock();
 
-    let bounds = Rect::new((0, 0), (40, 40));
+    let size = terminal::size()?;
+    let bounds = Rect::new((0, 0), (80, 10));
 
     let header = Style::new().foreground(Color::BrightRed).bold();
     let sub = Style::new().foreground(Color::Blue).bold();

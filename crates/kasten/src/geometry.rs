@@ -1,5 +1,5 @@
 use std::ops::{Add, AddAssign};
-use crate::position::Position;
+use crate::indexing::Position;
 
 /// Type alias for tuple-based points: `(x, y)`.
 ///

@@ -11,14 +11,14 @@ src/
 ├── lib.rs          # Re-exports public API
 ├── tree.rs         # Node types, layout, measure, render functions
 ├── geometry.rs     # Point, Size, Rect, basic geometry
-├── position.rs     # Position, Region for buffer indexing
+├── indexing.rs     # Position, Col, Row, Region for indexing rectangular buffers
 ├── layout.rs       # Constraints, Edges, Alignment
 └── buffer/
     ├── mod.rs      # Buffer module re-exports
     ├── buffer.rs   # Buffer type and operations
     ├── cell.rs     # Cell type for buffer storage
     ├── index.rs    # BufferIndex trait for flexible indexing
-    └── range.rs    # Range utilities
+    └── selector.rs    # BufferSelector trait for non-contiguous regions.
 ```
 
 ### Core Responsibilities

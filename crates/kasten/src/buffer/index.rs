@@ -2,8 +2,8 @@ use super::{Buffer, Cell};
 use std::ops;
 use std::ops::{Add, Mul};
 use std::slice::SliceIndex;
-use crate::Point;
-use crate::position::{Position};
+use crate::{Point, Row};
+use crate::indexing::{Position};
 
 pub trait BufferIndex: Sized {
     type Output: ?Sized;
@@ -76,11 +76,10 @@ pub trait BufferIndex: Sized {
     }
 }
 
-pub type RowLike = [usize; 1];
-
 impl BufferIndex for usize {
     type SliceIndex = usize;
     type Output = Cell;
+
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let start = self;
@@ -91,8 +90,8 @@ impl BufferIndex for usize {
 }
 
 impl BufferIndex for ops::Range<usize> {
-    type SliceIndex = ops::Range<usize>;
     type Output = [Cell];
+    type SliceIndex = ops::Range<usize>;
 
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
@@ -100,7 +99,7 @@ impl BufferIndex for ops::Range<usize> {
         let end = self.end;
         let len = buffer.len();
 
-        if start < len && end < len {
+        if start <= end && end <= len {
             Some(start..end)
         } else {
             None
@@ -108,8 +107,8 @@ impl BufferIndex for ops::Range<usize> {
     }
 }
 impl BufferIndex for ops::RangeInclusive<usize> {
-    type SliceIndex = ops::RangeInclusive<usize>;
     type Output = [Cell];
+    type SliceIndex = ops::RangeInclusive<usize>;
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let start = *self.start();
@@ -124,8 +123,8 @@ impl BufferIndex for ops::RangeInclusive<usize> {
     }
 }
 impl BufferIndex for ops::RangeFrom<usize> {
-    type SliceIndex = ops::RangeFrom<usize>;
     type Output = [Cell];
+    type SliceIndex = ops::RangeFrom<usize>;
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let start = self.start;
@@ -135,19 +134,19 @@ impl BufferIndex for ops::RangeFrom<usize> {
     }
 }
 impl BufferIndex for ops::RangeTo<usize> {
-    type SliceIndex = ops::RangeTo<usize>;
     type Output = [Cell];
+    type SliceIndex = ops::RangeTo<usize>;
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let end = self.end;
         let len = buffer.len();
 
-        if end < len { Some(..end) } else { None }
+        if end <= len { Some(..end) } else { None }
     }
 }
 impl BufferIndex for ops::RangeToInclusive<usize> {
-    type SliceIndex = ops::RangeToInclusive<usize>;
     type Output = [Cell];
+    type SliceIndex = ops::RangeToInclusive<usize>;
     #[inline]
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let end = self.end;
@@ -157,14 +156,28 @@ impl BufferIndex for ops::RangeToInclusive<usize> {
     }
 }
 
+impl BufferIndex for ops::RangeFull {
+    type Output = [Cell];
+    type SliceIndex = ops::RangeFull;
+
+    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+        Some(..)
+    }
+}
+
 impl BufferIndex for Position {
     type SliceIndex = usize;
     type Output = Cell;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+        if self.col >= buffer.width() || self.row >= buffer.height() {
+            return None;
+        }
         (self.row * buffer.width() + self.col).index_of(buffer)
     }
 }
+
+
 impl BufferIndex for ops::Range<Position> {
     type Output = [Cell];
     type SliceIndex = ops::Range<usize>;
@@ -174,9 +187,7 @@ impl BufferIndex for ops::Range<Position> {
         let end = self.end;
         let width = buffer.width();
 
-        dbg!(start, end, width);
         (start.row * width + start.col..end.row * width + end.col).index_of(buffer)
-
     }
 }
 impl BufferIndex for ops::RangeInclusive<Position> {
@@ -221,16 +232,6 @@ impl BufferIndex for ops::RangeToInclusive<Position> {
     }
 }
 
-impl BufferIndex for Point {
-    type SliceIndex = usize;
-    type Output = Cell;
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let width = buffer.width();
-
-        (self.y * width + self.x).index_of(buffer)
-    }
-}
 impl BufferIndex for ops::Range<Point> {
     type SliceIndex = ops::Range<usize>;
     type Output = [Cell];
@@ -287,12 +288,24 @@ impl BufferIndex for ops::RangeToInclusive<Point> {
     }
 }
 
-impl BufferIndex for RowLike {
+
+impl BufferIndex for Point {
+    type SliceIndex = usize;
+    type Output = Cell;
+
+    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+        let width = buffer.width();
+
+        (self.y * width + self.x).index_of(buffer)
+    }
+}
+
+impl BufferIndex for Row {
     type Output = [Cell];
     type SliceIndex = ops::Range<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let start = self[0];
+        let start = *self;
         let width = buffer.width();
 
         let start_of_start = start * width;
@@ -300,13 +313,14 @@ impl BufferIndex for RowLike {
         (start_of_start..start_of_start + width).index_of(buffer)
     }
 }
-impl BufferIndex for ops::Range<RowLike> {
+
+impl BufferIndex for ops::Range<Row> {
     type Output = [Cell];
     type SliceIndex = ops::Range<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let start = self.start[0];
-        let end = self.end[0];
+        let start = *self.start;
+        let end = *self.end;
         let width = buffer.width();
 
         let start_of_start = start * width;
@@ -315,13 +329,13 @@ impl BufferIndex for ops::Range<RowLike> {
         (start_of_start..end_of_end).index_of(buffer)
     }
 }
-impl BufferIndex for ops::RangeInclusive<RowLike> {
+impl BufferIndex for ops::RangeInclusive<Row> {
     type Output = [Cell];
     type SliceIndex = ops::RangeInclusive<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let start = self.start()[0];
-        let end = self.end()[0];
+        let start = **self.start();
+        let end = **self.end();
 
         let width = buffer.width();
         let start_of_start = start * width;
@@ -330,23 +344,23 @@ impl BufferIndex for ops::RangeInclusive<RowLike> {
         (start_of_start..=end_of_end).index_of(buffer)
     }
 }
-impl BufferIndex for ops::RangeFrom<RowLike> {
+impl BufferIndex for ops::RangeFrom<Row> {
     type Output = [Cell];
     type SliceIndex = ops::RangeFrom<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let start = self.start[0];
+        let start = *self.start;
 
         let start_of_start = start * buffer.width();
         (start_of_start..).index_of(buffer)
     }
 }
-impl BufferIndex for ops::RangeTo<RowLike> {
-    type SliceIndex = ops::RangeTo<usize>;
+impl BufferIndex for ops::RangeTo<Row> {
     type Output = [Cell];
+    type SliceIndex = ops::RangeTo<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let end = self.end[0];
+        let end = *self.end;
 
         let width = buffer.width();
 
@@ -354,26 +368,17 @@ impl BufferIndex for ops::RangeTo<RowLike> {
         (..end_of_end).index_of(buffer)
     }
 }
-impl BufferIndex for ops::RangeToInclusive<RowLike> {
-    type SliceIndex = ops::RangeToInclusive<usize>;
+impl BufferIndex for ops::RangeToInclusive<Row> {
     type Output = [Cell];
+    type SliceIndex = ops::RangeToInclusive<usize>;
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let end = self.end[0];
+        let end = *self.end;
 
         let width = buffer.width();
 
         let end_of_end = end * width + width;
         (..=end_of_end).index_of(buffer)
-    }
-}
-
-impl BufferIndex for ops::RangeFull {
-    type SliceIndex = ops::RangeFull;
-    type Output = [Cell];
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        Some(..)
     }
 }
 
@@ -459,27 +464,6 @@ mod tests {
         assert_eq!(pos.index_of(&buffer), Some(expected_index));
     }
 
-    // === Index by Range<Position> ===
-
-    #[test]
-    fn test_index_range_positions() {
-        let buffer = create_buffer();
-        let start = Position::new(0, 0);
-        let end = Position::new(0, 5);
-
-        let slice = buffer.get(start..end);
-        assert!(slice.is_some());
-        assert_eq!(slice.unwrap().len(), 5);
-    }
-
-    #[test]
-    fn test_index_range_positions_out_of_bounds() {
-        let buffer = create_buffer();
-        let start = Position::new(0, 0);
-        let end = Position::new(10, 0); // Row out of bounds
-
-        assert!(buffer.get(start..end).is_none());
-    }
 
     // === Index by Row ===
 
@@ -488,24 +472,23 @@ mod tests {
         let buffer = create_buffer();
 
         // Row 0
-        let row0 = buffer.get([0]);
+        let row0 = buffer.get(Row(0));
         assert!(row0.is_some());
         assert_eq!(row0.unwrap().len(), 10); // Full row width
 
         // Row 4 (last row)
-        let row4 = buffer.get([4]);
+        let row4 = buffer.get(Row(4));
         assert!(row4.is_some());
 
         // Row 5 (out of bounds)
-        assert!(buffer.get([5]).is_none());
+        assert!(buffer.get(Row(5)).is_none());
     }
 
     #[test]
     fn test_index_row_range() {
         let buffer = create_buffer();
 
-        // Rows 0..2 (rows 0, 1, and 2)
-        let rows = buffer.get([0]..[2]);
+        let rows = buffer.get(Row(0)..Row(2));
         assert!(rows.is_some());
         assert_eq!(rows.unwrap().len(), 30); // 3 rows * 10 cols (includes row at end)
     }

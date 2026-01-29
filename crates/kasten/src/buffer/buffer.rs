@@ -6,8 +6,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use ansi::{Escape, Style};
 use ansi::fmt::Write;
-use crate::{BufferIndex, Cell, Point, Rect};
-use crate::position::{Position, Region, RegionIter};
+use crate::{BufferIndex, Cell, Point, Rect, BufferSelector};
+use crate::indexing::{Position, Region, RegionIter};
 
 // TODO: Check https://lib.rs/crates/stable-vec
 // https://github.com/HarrisonMc555/array2d
@@ -97,13 +97,17 @@ impl Buffer {
         &mut *index.get_unchecked_mut(self)
     }
 
+    pub fn select<'a>(&'a self, selector: &'a impl BufferSelector) -> impl Iterator<Item = Position> + 'a {
+        selector.positions(self)
+    }
+
     pub fn text(
         &mut self,
         index: impl BufferIndex<Output = [Cell]>,
         string: impl AsRef<str>,
         style: &Style,
     ) {
-        if let cells = index.index_mut(self) {
+        if let Some(cells) = index.get_mut(self) {
             let mut remaining = cells.len();
             let mut i = 0;
 
@@ -119,7 +123,7 @@ impl Buffer {
                 })
             {
                 // Set the starting cell
-                cells[i].set(grapheme);
+                cells[i].set_content(grapheme);
                 cells[i].set_style(style);
                 let next_symbol = i + width;
                 i += 1;
@@ -150,9 +154,7 @@ impl Buffer {
     }
 
     pub fn position_of(&self, index: usize) -> Position {
-        let row = index / self.width();
-        let col = index % self.width();
-        Position { row, col }
+        Position { row: index / self.width(), col: index % self.width() }
     }
 
     pub fn as_slice(&self) -> &[Cell] {

@@ -4,7 +4,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use ansi::{Color, Escape, Style};
 use ansi::io::Write;
-use crate::{Align, Region, Alignment, Buffer, BufferIndex, Constraint, Constraints, Edges, Point, Rect, Size};
+use crate::{Align, Region, Alignment, Buffer, BufferIndex, Constraint, Constraints, Edges, Point, Rect, Size, Row, Position};
 use crate::runes::DisplayWidth;
 
 /// Content types for leaf nodes in the UI tree.
@@ -551,7 +551,7 @@ pub fn render(layout: &LayoutNode<'_>, buffer: &mut Buffer, ctx: &Context) {
         Node::Base(Content::Empty) => {}
 
         Node::Base(Content::Text(s)) => {
-            buffer.text(region.min..region.max, s, &ctx.style);
+            buffer.text(region.min..Position::new(region.min.row, region.max.col), s, &ctx.style);
         }
 
         // Node::Base(Primitive::TextWrap(tw)) => {
@@ -616,14 +616,34 @@ mod tests {
         Rect::new((x, y), (x + w, y + h))
     }
 
-    fn text_node(s: &str) -> Node {
+    fn text(s: &str) -> Node {
         Node::Base(Content::Text(s.into()))
     }
 
-    /// Assert rectangle is not inverted
-    fn assert_rect_valid(rect: &Rect) {
-        assert!(rect.min.x <= rect.max.x, "Inverted x: {:?}", rect);
-        assert!(rect.min.y <= rect.max.y, "Inverted y: {:?}", rect);
+    macro_rules! row {
+        ($buffer:expr, $row:expr) => {
+            &$buffer[Row::from($row)].iter().collect::<String>()
+        };
+    }
+
+    macro_rules! assert_row {
+        ($buffer:expr, $row:expr, $expected:expr) => {
+            assert_eq!(row!($buffer, $row), $expected);
+        };
+    }
+
+
+    macro_rules! assert_row_empty {
+        ($buffer:expr, $row:expr) => {
+            assert_eq!(row!($buffer, $row).trim(), "");
+        };
+    }
+
+    macro_rules! assert_rect {
+        ($rect:expr) => {
+            assert!($rect.min.x <= $rect.max.x, "Inverted x: {:?}", $rect);
+            assert!($rect.min.y <= $rect.max.y, "Inverted y: {:?}", $rect);
+        };
     }
 
     // === Layout Tests ===
@@ -631,9 +651,9 @@ mod tests {
     #[test]
     fn test_layout_stack_basic() {
         let node = Node::Stack(vec![
-            text_node("A"),
-            text_node("B"),
-            text_node("C"),
+            text("A"),
+            text("B"),
+            text("C"),
         ]);
 
         let bounds = rect(0, 0, 10, 10);
@@ -650,7 +670,7 @@ mod tests {
     fn test_layout_stack_with_padding() {
         let node = Node::Pad(
             Edges::all(1),
-            Box::new(Node::Stack(vec![text_node("A"), text_node("B")])),
+            Box::new(Node::Stack(vec![text("A"), text("B")])),
         );
 
         let bounds = rect(0, 0, 10, 10);
@@ -668,11 +688,11 @@ mod tests {
     fn test_layout_stack_overflow() {
         // Create stack with more content than available space
         let node = Node::Stack(vec![
-            text_node("Line 1"),
-            text_node("Line 2"),
-            text_node("Line 3"),
-            text_node("Line 4"),
-            text_node("Line 5"),
+            text("Line 1"),
+            text("Line 2"),
+            text("Line 3"),
+            text("Line 4"),
+            text("Line 5"),
         ]);
 
         let bounds = rect(0, 0, 10, 3); // Only 3 rows available
@@ -681,7 +701,7 @@ mod tests {
         assert_eq!(layout_tree.children.len(), 5);
         // All children should be laid out, even if they overflow
         for child in &layout_tree.children {
-            assert_rect_valid(&child.bounds);
+            assert_rect!(&child.bounds);
         }
     }
 
@@ -698,8 +718,8 @@ mod tests {
     fn test_layout_stack_inverted_bounds_prevented() {
         // Regression test: Stack should not create inverted rectangles
         let node = Node::Stack(vec![
-            text_node("A".repeat(100).as_str()),
-            text_node("B".repeat(100).as_str()),
+            text("A".repeat(100).as_str()),
+            text("B".repeat(100).as_str()),
         ]);
 
         let bounds = rect(0, 0, 10, 1); // Very limited space
@@ -707,14 +727,14 @@ mod tests {
 
         // Verify no child has inverted bounds
         for child in &layout_tree.children {
-            assert_rect_valid(&child.bounds);
+            assert_rect!(&child.bounds);
             assert!(child.bounds.width() <= 10);
         }
     }
 
     #[test]
     fn test_layout_row_basic() {
-        let node = Node::Row(vec![text_node("A"), text_node("B"), text_node("C")]);
+        let node = Node::Row(vec![text("A"), text("B"), text("C")]);
 
         let bounds = rect(0, 0, 10, 10);
         let layout_tree = layout(&node, bounds, Constraints::Max(10, 10));
@@ -729,9 +749,9 @@ mod tests {
     #[test]
     fn test_layout_row_overflow() {
         let node = Node::Row(vec![
-            text_node("Word1"),
-            text_node("Word2"),
-            text_node("Word3"),
+            text("Word1"),
+            text("Word2"),
+            text("Word3"),
         ]);
 
         let bounds = rect(0, 0, 10, 5); // Limited width
@@ -739,7 +759,7 @@ mod tests {
 
         // All children should have valid bounds
         for child in &layout_tree.children {
-            assert_rect_valid(&child.bounds);
+            assert_rect!(&child.bounds);
         }
     }
 
@@ -747,24 +767,24 @@ mod tests {
     fn test_layout_row_inverted_bounds_prevented() {
         // Regression test: Row should not create inverted rectangles
         let node = Node::Row(vec![
-            text_node("LongWord1"),
-            text_node("LongWord2"),
-            text_node("LongWord3"),
+            text("LongWord1"),
+            text("LongWord2"),
+            text("LongWord3"),
         ]);
 
         let bounds = rect(0, 0, 5, 10); // Very limited width
         let layout_tree = layout(&node, bounds, Constraints::Max(5, 10));
 
         for child in &layout_tree.children {
-            assert_rect_valid(&child.bounds);
+            assert_rect!(&child.bounds);
         }
     }
 
     #[test]
     fn test_layout_layer_overlapping() {
         let node = Node::Layer(vec![
-            text_node("Background"),
-            text_node("Foreground"),
+            text("Background"),
+            text("Foreground"),
         ]);
 
         let bounds = rect(0, 0, 20, 10);
@@ -783,7 +803,7 @@ mod tests {
                 x: Align::Center,
                 y: Align::Center,
             },
-            Box::new(text_node("Hi")),
+            Box::new(text("Hi")),
         );
 
         let bounds = rect(0, 0, 10, 10);
@@ -802,7 +822,7 @@ mod tests {
                 x: Align::End,
                 y: Align::Start,
             },
-            Box::new(text_node("Text")),
+            Box::new(text("Text")),
         );
 
         let bounds = rect(0, 0, 20, 10);
@@ -816,7 +836,7 @@ mod tests {
 
     #[test]
     fn test_layout_pad_shrinks_bounds() {
-        let node = Node::Pad(Edges::new(1, 2, 3, 4), Box::new(text_node("Test")));
+        let node = Node::Pad(Edges::new(1, 2, 3, 4), Box::new(text("Test")));
 
         let bounds = rect(0, 0, 20, 20);
         let layout_tree = layout(&node, bounds, Constraints::Max(20, 20));
@@ -832,7 +852,7 @@ mod tests {
     fn test_layout_size_constraints() {
         let node = Node::Size(
             Constraints::Fixed(15, 8),
-            Box::new(text_node("Constrained")),
+            Box::new(text("Constrained")),
         );
 
         let bounds = rect(0, 0, 100, 100);
@@ -851,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_measure_text() {
-        let node = text_node("Hello");
+        let node = text("Hello");
         let size = measure(&node, Constraints::Max(100, 100));
 
         assert_eq!(size.width, 5); // "Hello" is 5 chars
@@ -879,9 +899,9 @@ mod tests {
     #[test]
     fn test_measure_stack() {
         let node = Node::Stack(vec![
-            text_node("Short"),
-            text_node("LongerText"),
-            text_node("X"),
+            text("Short"),
+            text("LongerText"),
+            text("X"),
         ]);
 
         let size = measure(&node, Constraints::Max(100, 100));
@@ -894,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_measure_row() {
-        let node = Node::Row(vec![text_node("A"), text_node("BC"), text_node("DEF")]);
+        let node = Node::Row(vec![text("A"), text("BC"), text("DEF")]);
 
         let size = measure(&node, Constraints::Max(100, 100));
 
@@ -905,17 +925,31 @@ mod tests {
     }
 
     #[test]
-    fn qwe() {
-        let bounds = Rect::bounds(0, 0, 4, 2);
-        let mut buffer = Buffer::new(bounds);
+    fn test_render_stack() {
+        let node = Node::Stack(vec![text("First"), text("Second"), text("Third")]);
 
-        let node = Node::Base(Content::Text("Helloooooooo".into()));
+        let bounds = rect(0, 0, 4, 3);
         let layout_tree = layout(&node, bounds, Constraints::Max(bounds.width(), bounds.height()));
 
-        dbg!(&layout_tree);
-        let ctx = Context::default();
-        render(&layout_tree, &mut buffer, &ctx);
+        let mut buffer = Buffer::new(bounds);
+        render(&layout_tree, &mut buffer, &Context::default());
 
-        print!("{}", buffer.to_string())
+        assert_row!(&buffer, 0, "Firs");
+        assert_row!(&buffer, 1, "Seco");
+        assert_row!(&buffer, 2, "Thir");
+    }
+
+    #[test]
+    fn test_render_text() {
+        let node = Node::Base(Content::Text("Out of bounds\nMore".into()));
+
+        let bounds = rect(0, 0, 4, 2);
+        let layout_tree = layout(&node, bounds, Constraints::Max(bounds.width(), bounds.height()));
+
+        let mut buffer = Buffer::new(bounds);
+        render(&layout_tree, &mut buffer, &Context::default());
+
+        assert_row!(&buffer, 0, "Out ");
+        assert_row_empty!(&buffer, 1);
     }
 }

@@ -79,7 +79,7 @@
 //!
 //! - [`tree`] - Node types and core layout/measure/render functions
 //! - [`geometry`] - Point, Size, Rect primitives
-//! - [`position`] - Position and Region for buffer indexing
+//! - [`indexing`] - Position and Region for buffer indexing
 //! - [`layout`] - Constraints, Edges, Alignment types
 //! - [`buffer`] - Buffer and Cell for terminal rendering
 
@@ -92,11 +92,11 @@ mod tree;
 mod layout;
 mod buffer;
 mod geometry;
-mod position;
+mod indexing;
 mod runes;
 
 pub use tree::*;
 pub use layout::*;
 pub use buffer::*;
 pub use geometry::*;
-pub use position::*;
+pub use indexing::*;

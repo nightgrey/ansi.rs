@@ -2,11 +2,50 @@ use std::iter::FusedIterator;
 use std::ops::{Add, AddAssign, Sub};
 use crate::{Point,  Rect, Size};
 use std::ops::Range;
+use derive_more::{AsRef, Deref, DerefMut, From, Into, Mul};
 
-/// Type alias for tuple-based positions: `(row, col)`.
-///
-/// Used for convenient position construction from tuples.
-pub type PositionLike = (usize, usize);
+/// A row in buffer coordinates.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, AsRef, Deref, DerefMut, From, Into)]
+pub struct Row(pub usize);
+
+pub type RowLike = [usize; 1];
+
+impl Row {
+    /// Create a new row at the given index.
+    pub const fn new(row: usize) -> Self {
+        Self(row)
+    }
+}
+
+impl From<RowLike> for Row {
+    fn from(value: RowLike) -> Self {
+        Self::new(value[0])
+    }
+}
+
+impl From<Position> for Row {
+    fn from(value: Position) -> Self {
+        Self::new(value.row)
+    }
+}
+
+/// A column in buffer coordinates.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, AsRef, Deref, DerefMut, From, Into)]
+pub struct Col(pub usize);
+
+impl Col {
+    /// Create a new row at the given index.
+    pub const fn new(row: usize) -> Self {
+        Self(row)
+    }
+}
+
+impl From<Position> for Col {
+    fn from(value: Position) -> Self {
+        Self::new(value.col)
+    }
+}
+
 
 /// A position in buffer coordinates (row, column).
 ///
@@ -36,7 +75,7 @@ pub type PositionLike = (usize, usize);
 /// let manhattan = pos.manhattan();  // Distance from origin
 /// assert_eq!(manhattan, 15);
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Position {
     /// Vertical position (row index, 0 = top).
     pub row: usize,
@@ -44,6 +83,11 @@ pub struct Position {
     /// Horizontal position (column index, 0 = left).
     pub col: usize,
 }
+
+/// Type alias for tuple-based positions: `(row, col)`.
+///
+/// Used for convenient position construction from tuples.
+pub type PositionLike = (usize, usize);
 
 impl Position {
     /// The origin position (0, 0).
@@ -61,6 +105,23 @@ impl Position {
     /// ```
     pub const fn new(row: usize, col: usize) -> Self {
         Self { row, col }
+    }
+
+    /// Create a new position at the given index inside a rectangular region.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use kasten::Position;
+    /// let pos = Position::from_index(10, 5);
+    /// assert_eq!(pos.row, 2);
+    /// assert_eq!(pos.col, 0);
+    /// ```
+    pub const fn from_index(index: usize, width: usize) -> Self {
+        Self {
+            row: index / width,
+            col: index % width,
+        }
     }
 
     /// Calculate Manhattan distance (L1 norm) from origin: `row + col`.
@@ -150,6 +211,17 @@ impl AddAssign for Position {
     }
 }
 
+impl Add<usize> for Position {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self {
+            row: self.row,
+            col: self.col + rhs,
+        }
+    }
+}
+
 /// A rectangular region of buffer positions.
 ///
 /// A region is defined by min and max positions, representing a half-open range:
@@ -175,7 +247,7 @@ impl AddAssign for Position {
 /// assert_eq!(positions[2], Position::new(0, 2));  // First row, last column
 /// assert_eq!(positions[3], Position::new(1, 0));  // Second row, first column
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Region {
     /// Minimum (top-left) position (inclusive).
     pub min: Position,
@@ -388,7 +460,6 @@ impl RegionIter {
         }
     }
 }
-
 
 impl Iterator for RegionIter {
     type Item = Position;

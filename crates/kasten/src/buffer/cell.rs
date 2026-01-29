@@ -10,20 +10,16 @@ use crate::runes::DisplayWidth;
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     /// Empty string represents an empty cell.
-    grapheme: CompactString,
-    width: usize,
+    content: CompactString,
+     width: usize,
     pub style: Style,
 }
 
 impl Cell {
-    #[cfg(not(test))]
-    pub const SPACE: &'static str = " ";
-
-    #[cfg(test)]
-    pub const SPACE: &'static str = "▒";
+    pub const SPACE: &'static str = &" ";
 
     pub const EMPTY: Cell = Cell {
-        grapheme: CompactString::const_new(Self::SPACE),
+        content: CompactString::const_new(Self::SPACE),
         width: 1,
         style: Style::EMPTY
     };
@@ -36,7 +32,7 @@ impl Cell {
         let grapheme = CompactString::new(grapheme);
         let width = grapheme.cluster_display_width();
         Self {
-            grapheme,
+            content: grapheme,
             width,
             ..Self::EMPTY
         }
@@ -44,55 +40,54 @@ impl Cell {
 
     pub fn new_const(grapheme: &'static str) -> Self {
         Self {
-            grapheme: CompactString::const_new(grapheme),
+            content: CompactString::const_new(grapheme),
             ..Self::EMPTY
         }
     }
 
-    pub fn grapheme(&self) -> &CompactString {
-        &self.grapheme
+    pub fn content(&self) -> &str {
+        &self.content
     }
 
-    pub fn set(&mut self, grapheme: impl AsRef<str>) {
-        self.grapheme.clear();
-        self.grapheme.insert_str(0, grapheme.as_ref());
-        self.width = self.grapheme.cluster_display_width();
+    pub fn width(&self) -> usize {
+        self.width
     }
+
+    pub fn style(&self) -> &Style {
+        &self.style
+    }
+
+    pub fn set_content(&mut self, grapheme: impl AsRef<str>) {
+        self.content.clear();
+        self.content.insert_str(0, grapheme.as_ref());
+        self.width = self.content.cluster_display_width();
+    }
+
 
     pub fn set_char(&mut self, char: char) {
-        self.grapheme.clear();
-        self.grapheme.insert(0, char);
-        self.width = self.grapheme.cluster_display_width();
+        self.content.clear();
+        self.content.push(char);
+        self.width = self.content.cluster_display_width();
     }
     
     pub fn set_space(&mut self) {
-        self.grapheme.clear();
-        self.grapheme.insert_str(0, Self::SPACE);
-        self.width = self.grapheme.cluster_display_width();
+        self.content.clear();
+        self.content.push_str(Self::SPACE);
+        self.width = self.content.cluster_display_width();
+    }
+
+    pub fn push_str(&mut self, string: impl AsRef<str>) {
+        self.content.push_str(string.as_ref());
+        self.width = self.content.cluster_display_width();
+    }
+
+    pub fn push(&mut self, char: char) {
+        self.content.push(char);
+        self.width = self.content.cluster_display_width();
     }
 
     pub fn set_style(&mut self, style: &Style) {
         self.style = style.clone();
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.grapheme == Self::SPACE
-    }
-
-    pub fn is_unstyled(&self) -> bool {
-        self.style.is_empty()
-    }
-
-    pub fn as_style(&self) -> &Style {
-        &self.style
-    }
-
-    pub fn as_str(&self) -> &str {
-        self.grapheme.as_str()
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.grapheme.as_bytes()
     }
 
     pub fn clear(&mut self) -> &mut Self {
@@ -100,6 +95,23 @@ impl Cell {
         self.style.clear();
         self
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.content == Self::SPACE
+    }
+
+    pub fn is_unstyled(&self) -> bool {
+        self.style.is_empty()
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.content.as_str()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.content.as_bytes()
+    }
+
 }
 
 impl PartialEq<Style> for Cell {
@@ -116,17 +128,23 @@ impl Default for Cell {
 
 impl AsRef<str> for Cell {
     fn as_ref(&self) -> &str {
-        self.grapheme.as_ref()
+        self.content.as_ref()
+    }
+}
+
+impl AsRef<Style> for Cell {
+    fn as_ref(&self) -> &Style {
+        &self.style
     }
 }
 
 impl UnicodeWidthStr for Cell {
     fn width(&self) -> usize {
-        self.grapheme.width()
+        self.content.width()
     }
 
     fn width_cjk(&self) -> usize {
-        self.grapheme.width_cjk()
+        self.content.width_cjk()
     }
 }
 

@@ -1,9 +1,9 @@
+use crate::text::DisplayWidth;
+use ansi::io::Write;
+use ansi::{Escape, Flags, Style};
 use compact_str::CompactString;
 use std::convert::AsRef;
 use unicode_width::UnicodeWidthStr;
-use ansi::{Escape, Flags, Style};
-use ansi::io::Write;
-use crate::text::DisplayWidth;
 
 /// Represents a single terminal grid cell with display attributes.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -11,7 +11,7 @@ pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     /// Empty string represents an empty cell.
     content: CompactString,
-     width: usize,
+    width: usize,
     pub style: Style,
 }
 
@@ -21,7 +21,7 @@ impl Cell {
     pub const EMPTY: Cell = Cell {
         content: CompactString::const_new(Self::SPACE),
         width: 1,
-        style: Style::EMPTY
+        style: Style::EMPTY,
     };
 
     pub const fn empty() -> Self {
@@ -63,13 +63,12 @@ impl Cell {
         self.width = self.content.cluster_display_width();
     }
 
-
     pub fn set_char(&mut self, char: char) {
         self.content.clear();
         self.content.push(char);
         self.width = self.content.cluster_display_width();
     }
-    
+
     pub fn set_space(&mut self) {
         self.content.clear();
         self.content.push_str(Self::SPACE);
@@ -111,7 +110,6 @@ impl Cell {
     pub fn as_bytes(&self) -> &[u8] {
         self.content.as_bytes()
     }
-
 }
 
 impl PartialEq<Style> for Cell {
@@ -163,7 +161,6 @@ impl<'a> FromIterator<&'a Cell> for String {
             .collect::<String>()
     }
 }
-
 
 impl Escape for Cell {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {

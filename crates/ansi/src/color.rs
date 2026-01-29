@@ -1,7 +1,7 @@
+use crate::Escape;
+use derive_more::{Deref, DerefMut, From, Into};
 use std::io::Write;
 use std::marker::Destruct;
-use derive_more::{Deref, DerefMut, From, Into};
-use crate::Escape;
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Hash, Debug)]
 #[repr(C)]

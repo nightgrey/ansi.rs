@@ -1,6 +1,6 @@
 use ansi::io::Write;
-use kasten::{constraints, render, Buffer, Constraints, Node, Content, Rect};
 use kasten::layout::layout::LayoutContext;
+use kasten::{Buffer, Constraints, Content, Node, Rect, constraints, render};
 
 fn main() {
     // Build a simple UI tree

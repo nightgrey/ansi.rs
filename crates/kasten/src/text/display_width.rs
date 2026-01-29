@@ -1,5 +1,5 @@
-use unicode_segmentation::{UnicodeSegmentation};
 use unicode_display_width::is_double_width;
+use unicode_segmentation::UnicodeSegmentation;
 
 pub trait DisplayWidth {
     fn display_width(&self) -> usize;
@@ -8,9 +8,11 @@ pub trait DisplayWidth {
 
 impl<T: AsRef<str>> DisplayWidth for T {
     fn display_width(&self) -> usize {
-        self.as_ref().graphemes(true).fold(0, |acc, grapheme_cluster| {
-            acc + (grapheme_cluster.cluster_display_width())
-        })
+        self.as_ref()
+            .graphemes(true)
+            .fold(0, |acc, grapheme_cluster| {
+                acc + (grapheme_cluster.cluster_display_width())
+            })
     }
 
     fn cluster_display_width(&self) -> usize {
@@ -27,7 +29,6 @@ impl<T: AsRef<str>> DisplayWidth for T {
 
         1
     }
-
 }
 
 pub fn split(s: &str, width: usize) -> Split<'_> {

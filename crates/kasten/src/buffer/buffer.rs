@@ -1,13 +1,13 @@
+use crate::{BufferIndex, BufferSelector, Cell, Point, Rect};
+use ansi::fmt::Write;
+use ansi::{Escape, Style};
+use derive_more::{Deref, DerefMut};
+use geometry::{Position, Region, RegionIter};
 use std::fmt::{Display, Formatter};
 use std::io::Write as _;
 use std::slice::SliceIndex;
-use derive_more::{Deref, DerefMut};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use ansi::{Escape, Style};
-use ansi::fmt::Write;
-use crate::{BufferIndex, Cell, Point, Rect, BufferSelector};
-use crate::indexing::{Position, Region, RegionIter};
 
 // TODO: Check https://lib.rs/crates/stable-vec
 // https://github.com/HarrisonMc555/array2d
@@ -50,7 +50,7 @@ impl Buffer {
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub  fn get<Index>(&self, index: Index) -> Option<&Index::Output>
+    pub fn get<Index>(&self, index: Index) -> Option<&Index::Output>
     where
         Index: BufferIndex,
     {
@@ -59,10 +59,7 @@ impl Buffer {
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub   fn get_mut<Index>(
-        &mut self,
-        index: Index,
-    ) -> Option<&mut Index::Output>
+    pub fn get_mut<Index>(&mut self, index: Index) -> Option<&mut Index::Output>
     where
         Index: BufferIndex,
     {
@@ -76,7 +73,7 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub  unsafe fn get_unchecked<Index>(&self, index: Index) -> *const Index::Output
+    pub unsafe fn get_unchecked<Index>(&self, index: Index) -> *const Index::Output
     where
         Index: BufferIndex,
     {
@@ -97,7 +94,10 @@ impl Buffer {
         &mut *index.get_unchecked_mut(self)
     }
 
-    pub fn select<'a>(&'a self, selector: &'a impl BufferSelector) -> impl Iterator<Item = Position> + 'a {
+    pub fn select<'a>(
+        &'a self,
+        selector: &'a impl BufferSelector,
+    ) -> impl Iterator<Item = Position> + 'a {
         selector.positions(self)
     }
 
@@ -154,7 +154,10 @@ impl Buffer {
     }
 
     pub fn position_of(&self, index: usize) -> Position {
-        Position { row: index / self.width(), col: index % self.width() }
+        Position {
+            row: index / self.width(),
+            col: index % self.width(),
+        }
     }
 
     pub fn as_slice(&self) -> &[Cell] {
@@ -172,7 +175,6 @@ impl Buffer {
     pub fn iter_rows(&self) -> std::slice::Chunks<'_, Cell> {
         self.inner.chunks(self.width())
     }
-
 }
 
 impl Display for Buffer {
@@ -220,7 +222,7 @@ impl Escape for Buffer {
 
             w.write(&cell.as_bytes())?;
 
-            if position.col == self.width() - 1  {
+            if position.col == self.width() - 1 {
                 w.write_escape(&Style::Reset)?;
                 w.write(b"\n")?;
                 last_style = Style::EMPTY;
@@ -228,5 +230,4 @@ impl Escape for Buffer {
         }
         Ok(())
     }
-
 }

@@ -1,6 +1,9 @@
-use derive_more::{Deref};
-use crate::{Region,Buffer, BufferIndex, Constraint, Constraints, Edges, Point, Rect, Size, Row, Position, Node, Content};
 use crate::layout::layout::LayoutContext;
+use crate::{
+    Buffer, BufferIndex, Constraint, Constraints, Content, Edges, Node, Point, Position, Rect,
+    Region, Row, Size,
+};
+use derive_more::Deref;
 
 /// The result of laying out a node tree with resolved bounds.
 ///
@@ -45,15 +48,17 @@ pub struct LayoutNode<'a> {
 impl<'a> LayoutNode<'a> {
     /// Create a new layout node with children.
     pub fn new(node: &'a Node, bounds: Rect, children: Vec<LayoutNode<'a>>) -> Self {
-        Self { node, bounds, children }
+        Self {
+            node,
+            bounds,
+            children,
+        }
     }
 
     /// Create a leaf layout node with no children.
     pub fn leaf(node: &'a Node, bounds: Rect) -> Self {
         Self::new(node, bounds, vec![])
     }
-
-
 
     /// Render a laid out node tree into a buffer.
     ///
@@ -94,7 +99,11 @@ impl<'a> LayoutNode<'a> {
             Node::Base(Content::Empty) => {}
 
             Node::Base(Content::Text(s)) => {
-                buffer.text(region.min..Position::new(region.min.row, region.max.col), s, &context.style);
+                buffer.text(
+                    region.min..Position::new(region.min.row, region.max.col),
+                    s,
+                    &context.style,
+                );
             }
 
             // Node::Base(Primitive::TextWrap(tw)) => {
@@ -116,8 +125,7 @@ impl<'a> LayoutNode<'a> {
             //         canvas.text(x, y, line, ctx.style);
             //     }
             // }
-
-            Node::Base(Content::Fill(ch)) =>  {
+            Node::Base(Content::Fill(ch)) => {
                 for pos in Region::from(bounds) {
                     unsafe { buffer.get_unchecked_mut(pos) }.set_char(*ch);
                 }
@@ -150,7 +158,4 @@ impl<'a> LayoutNode<'a> {
             }
         }
     }
-
 }
-
-

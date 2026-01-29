@@ -1,13 +1,14 @@
+use crate::{Buffer, Col, Position, Region};
 use std::iter::FusedIterator;
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
-use crate::{Buffer, Col, Position, Region};
 
 pub trait BufferSelector {
     fn select<'a>(&'a self, buffer: &'a Buffer) -> impl Iterator<Item = usize> + 'a;
     fn positions<'a>(&'a self, buffer: &'a Buffer) -> impl Iterator<Item = Position> + 'a {
         let width = buffer.width();
 
-        self.select(buffer).map(move |index| Position::from_index(index, width))
+        self.select(buffer)
+            .map(move |index| Position::from_index(index, width))
     }
 }
 
@@ -22,12 +23,10 @@ impl BufferSelector for Range<Col> {
         let start = self.start.0;
         let end = self.end.0;
 
-        (0..buffer.height()).flat_map(move |row| {
-            (start..end).map(move |col| row * buffer.width() + col)
-        })
+        (0..buffer.height())
+            .flat_map(move |row| (start..end).map(move |col| row * buffer.width() + col))
     }
 }
-
 
 impl BufferSelector for Range<Position> {
     fn select(&self, buffer: &Buffer) -> impl Iterator<Item = usize> {
@@ -43,7 +42,10 @@ impl BufferSelector for RangeInclusive<Position> {
 
 impl BufferSelector for RangeFrom<Position> {
     fn select(&self, buffer: &Buffer) -> impl Iterator<Item = usize> {
-        SelectorIter::new(Region::new(self.start, Position::new(buffer.height(), buffer.width())))
+        SelectorIter::new(Region::new(
+            self.start,
+            Position::new(buffer.height(), buffer.width()),
+        ))
     }
 }
 
@@ -51,14 +53,12 @@ impl BufferSelector for RangeTo<Position> {
     fn select(&self, buffer: &Buffer) -> impl Iterator<Item = usize> {
         SelectorIter::new(Region::new(Position::ZERO, self.end))
     }
-
 }
 
 impl BufferSelector for RangeToInclusive<Position> {
     fn select(&self, buffer: &Buffer) -> impl Iterator<Item = usize> {
         SelectorIter::new(Region::new(Position::ZERO, self.end))
     }
-
 }
 
 impl BufferSelector for Region {

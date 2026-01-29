@@ -8,27 +8,25 @@ Development guide for working on the Kasten terminal UI layout library.
 
 ```
 src/
-├── lib.rs          # Re-exports public API
-├── tree.rs         # Node types, layout, measure, render functions
-├── geometry.rs     # Point, Size, Rect, basic geometry
-├── indexing.rs     # Position, Col, Row, Region for indexing rectangular buffers
-├── layout.rs       # Constraints, Edges, Alignment
+├── lib.rs              # Re-exports public API
+├── tree.rs             # Node types, layout, measure, render functions
+├── geometry.rs         # Point, Size, Rect, basic geometry
+├── indexing.rs         # Position, Col, Row, Region for indexing rectangular buffers
+└── layout/         
+    ├── constraints.rs  # Constraints, Edges, Alignment types
+    ├── node.rs         # `Node` type + `layout` + `measure`
+    ├── layout_node.rs  # `LayoutNode` type + `render`
+    ├── layout.rs       # Convenience `Layout` struct to handle and call 
+    layout/measure/render functions
 └── buffer/
-    ├── mod.rs      # Buffer module re-exports
-    ├── buffer.rs   # Buffer type and operations
-    ├── cell.rs     # Cell type for buffer storage
-    ├── index.rs    # BufferIndex trait for flexible indexing
-    └── selector.rs    # BufferSelector trait for non-contiguous regions.
+    ├── mod.rs          # Buffer module re-exports
+    ├── buffer.rs       # Buffer type and operations
+    ├── cell.rs         # Cell type for buffer storage
+    ├── index.rs        # BufferIndex trait for flexible indexing
+    └── selector.rs     # BufferSelector trait for non-contiguous regions.
 ```
 
 ### Core Responsibilities
-
-- **tree.rs**: The heart of the layout engine
-  - `Node` enum: Declarative UI tree structure
-  - `Content` enum: Leaf node contents (Empty, Text, Fill)
-  - `layout()`: Recursively compute bounds for the tree
-  - `measure()`: Calculate natural size given constraints
-  - `render()`: Draw layout tree into buffer with styling
 
 - **geometry.rs**: Basic 2D primitives
   - `Point`: (x, y) coordinates
@@ -36,16 +34,25 @@ src/
   - `Rect`: Rectangle with min/max points
   - Operations: area, contains, shrink
 
-- **position.rs**: Buffer addressing
+- **indexing.rs**: Buffer addressing
   - `Position`: (row, col) buffer coordinates
   - `Region`: Rectangular region of buffer positions
   - `RegionIter`: Iterate positions row-by-row
 
-- **layout.rs**: Layout constraints and spacing
-  - `Constraint`: Size constraints (Auto, Min, Max, Fixed, Between, Fill)
-  - `Constraints`: Width and height constraints
+- **layout/**: The heart of the layout engine
+  - `Node` enum: Declarative UI tree structure
+  - `Content` enum: Leaf node contents (Empty, Text, Fill)
+  - `LayoutNode`: Resolved layout node with bounds
+  - `Layout`: Convenience wrapper for layout, measure, and render
+  - `layout()`: Recursively compute bounds for the tree
+  - `measure()`: Calculate natural size given constraints
+  - `render()`: Draw layout tree into buffer with styling
+  - `Constraints`: Size constraints (Auto, Min, Max, Fixed, Between, Fill)
   - `Edges`: Padding/margins (top, right, bottom, left)
   - `Alignment`: Horizontal and vertical alignment (Start, Center, End)
+
+- **tree.rs**: The heart of the layout engine
+  
 
 - **buffer/**: Terminal rendering
   - `Buffer`: 2D grid of cells with ANSI escape generation

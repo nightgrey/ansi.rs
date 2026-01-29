@@ -1,12 +1,15 @@
+use crate::text::DisplayWidth;
+use crate::{
+    Align, Alignment, Buffer, BufferIndex, Constraint, Constraints, Edges, LayoutNode, Point,
+    Position, Rect, Region, Row, Size,
+};
+use ansi::io::Write;
+use ansi::{Color, Escape, Style};
+use derive_more::Deref;
 use std::ops::BitOr;
 use std::process::Child;
-use derive_more::Deref;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use ansi::{Color, Escape, Style};
-use ansi::io::Write;
-use crate::{Align, Region, Alignment, Buffer, BufferIndex, Constraint, Constraints, Edges, Point, Rect, Size, Row, Position, LayoutNode};
-use crate::text::DisplayWidth;
 
 /// Content types for leaf nodes in the UI tree.
 ///
@@ -260,9 +263,17 @@ impl Node {
             }
 
             Node::Align(alignment, child) => {
-                let child_size = Self::measure(child, Constraints::Max(bounds.width(), bounds.height()));
+                let child_size =
+                    Self::measure(child, Constraints::Max(bounds.width(), bounds.height()));
                 let offset = alignment.offset(bounds.size(), child_size);
-                let child_node = Self::layout(child, Rect::new((bounds.min + offset), Point::new(child_size.width, child_size.height)), Constraints::Fixed(child_size.width, child_size.height));
+                let child_node = Self::layout(
+                    child,
+                    Rect::new(
+                        (bounds.min + offset),
+                        Point::new(child_size.width, child_size.height),
+                    ),
+                    Constraints::Fixed(child_size.width, child_size.height),
+                );
                 LayoutNode::new(self, bounds, vec![child_node])
             }
 
@@ -274,7 +285,10 @@ impl Node {
                     let remaining_h = bounds.height().saturating_sub(y - bounds.y());
                     let child_ct = Constraints::Max(bounds.width(), remaining_h);
                     let size = Self::measure(child, child_ct);
-                    let child_rect = Rect::new((bounds.x(), y), (bounds.max.x, y.saturating_add(size.height)));
+                    let child_rect = Rect::new(
+                        (bounds.x(), y),
+                        (bounds.max.x, y.saturating_add(size.height)),
+                    );
                     laid_out.push(Self::layout(child, child_rect, child_ct));
                     y = y.saturating_add(size.height);
                 }
@@ -290,7 +304,10 @@ impl Node {
                     let remaining_w = bounds.width().saturating_sub(x - bounds.x());
                     let child_ct = Constraints::Max(remaining_w, bounds.height());
                     let size = Self::measure(child, child_ct);
-                    let child_rect = Rect::new((x, bounds.y()), (x.saturating_add(size.width), bounds.max.y));
+                    let child_rect = Rect::new(
+                        (x, bounds.y()),
+                        (x.saturating_add(size.width), bounds.max.y),
+                    );
                     laid_out.push(Self::layout(child, child_rect, child_ct));
                     x = x.saturating_add(size.width);
                 }
@@ -353,13 +370,9 @@ impl Node {
     /// Measurements are clamped to satisfy constraints using [`Constraints::clamp`].
     pub fn measure(&self, constraints: Constraints) -> Size {
         match self {
-            Node::Base(Content::Empty) => {
-                Size::ZERO
-            }
+            Node::Base(Content::Empty) => Size::ZERO,
 
-            Node::Base(Content::Text(string)) => {
-                constraints.clamp(string.display_width(), 1)
-            }
+            Node::Base(Content::Text(string)) => constraints.clamp(string.display_width(), 1),
 
             // Node::Base(Primitive::TextWrap(tw)) => {
             //     let lines = wrap_text(&tw.content, constraints.max_w);
@@ -368,7 +381,6 @@ impl Node {
             //     let (w, h) = constraints.clamp(w, h);
             //     Size::new(w, h)
             // }
-
             Node::Base(Content::Fill(_)) => constraints.max(),
 
             Node::Style(_, child) | Node::Align(_, child) => Self::measure(child, constraints),
@@ -390,10 +402,15 @@ impl Node {
                 let mut max_w = 0;
 
                 for child in children {
-                    let size = Self::measure(child, Constraints {
-                        height: Constraint::Max(constraints.height.max_or(0).saturating_sub(total_h)),
-                        ..constraints
-                    });
+                    let size = Self::measure(
+                        child,
+                        Constraints {
+                            height: Constraint::Max(
+                                constraints.height.max_or(0).saturating_sub(total_h),
+                            ),
+                            ..constraints
+                        },
+                    );
                     total_h = total_h.saturating_add(size.height as usize);
                     max_w = max_w.max(size.width as usize);
                 }
@@ -406,10 +423,15 @@ impl Node {
                 let mut max_h = 0;
 
                 for child in children {
-                    let size = Self::measure(child, Constraints {
-                        width: Constraint::Max(constraints.width.max_or(0).saturating_sub(total_w)),
-                        ..constraints
-                    });
+                    let size = Self::measure(
+                        child,
+                        Constraints {
+                            width: Constraint::Max(
+                                constraints.width.max_or(0).saturating_sub(total_w),
+                            ),
+                            ..constraints
+                        },
+                    );
                     total_w = total_w.saturating_add(size.width as usize);
                     max_h = max_h.max(size.height as usize);
                 }
@@ -433,11 +455,9 @@ impl Node {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     fn text(s: &str) -> Node {
         Node::Base(Content::Text(s.into()))
@@ -474,11 +494,7 @@ mod tests {
 
     #[test]
     fn test_measure_stack() {
-        let node = Node::Stack(vec![
-            text("Short"),
-            text("LongerText"),
-            text("X"),
-        ]);
+        let node = Node::Stack(vec![text("Short"), text("LongerText"), text("X")]);
 
         let size = node.measure(Constraints::Max(100, 100));
 
@@ -499,5 +515,4 @@ mod tests {
         // Row height is max of children
         assert_eq!(size.height, 1); // All text is 1 tall
     }
-
 }

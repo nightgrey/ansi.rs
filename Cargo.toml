@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/ansi",
-    "crates/kasten", "crates/utils",
+    "crates/ansi", "crates/geometry",
+    "crates/kasten", "crates/terminal", "crates/utils",
 ]
 
 [workspace.dependencies]
@@ -26,3 +26,5 @@ kurbo = "0.13.0"
 kasten = { path = "crates/kasten" }
 ansi = { path = "crates/ansi" }
 utils = { path = "crates/utils" }
+geometry = { path = "crates/geometry" }
+terminal = { path = "crates/terminal" }

@@ -89,14 +89,11 @@
 #![feature(const_range)]
 
 mod buffer;
-mod geometry;
 mod indexing;
-mod text;
 mod layout;
-mod display_width;
+mod text;
 
 pub use buffer::*;
 pub use geometry::*;
 pub use indexing::*;
 pub use layout::*;
-

@@ -20,7 +20,13 @@ pub trait Escape {
 
                 escape.escape(&mut cursor)?;
 
-                unsafe { self.inner.write_str(&String::from_utf8_unchecked(buf)).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to write string"))?; }
+                unsafe {
+                    self.inner
+                        .write_str(&String::from_utf8_unchecked(buf))
+                        .map_err(|_| {
+                            std::io::Error::new(std::io::ErrorKind::Other, "Failed to write string")
+                        })?;
+                }
                 Ok(())
             }
         }

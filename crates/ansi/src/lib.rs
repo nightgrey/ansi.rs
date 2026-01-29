@@ -3,12 +3,12 @@
 #![feature(const_trait_impl)]
 #![feature(const_destruct)]
 
-mod color;
 mod attribute;
-mod style;
+mod color;
 mod escape;
+mod style;
 
-pub use color::*;
 pub use attribute::*;
-pub use style::*;
+pub use color::*;
 pub use escape::*;
+pub use style::*;

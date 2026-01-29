@@ -1,9 +1,9 @@
-use derive_more::{Deref, DerefMut, IsVariant};
+use derive_more::{Deref, DerefMut};
 
+use crate::Escape;
 pub use ::bitflags::{Bits, Flags, bitflags, bitflags_match};
 pub use ::std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::io::Write;
-use crate::Escape;
 
 bitflags! {
     /// Attributes
@@ -140,16 +140,12 @@ impl Attribute {
             ),
             (
                 Attribute::Bold,
-                Attribute::new(
-                    Attribute::NoBold.bits() | Attribute::NormalIntensity.bits(),
-                ),
+                Attribute::new(Attribute::NoBold.bits() | Attribute::NormalIntensity.bits()),
             ),
             (Attribute::Faint, Attribute::NormalIntensity),
             (
                 Attribute::Italic,
-                Attribute::new(
-                    Attribute::NoItalic.bits() | Attribute::NormalIntensity.bits(),
-                ),
+                Attribute::new(Attribute::NoItalic.bits() | Attribute::NormalIntensity.bits()),
             ),
             (
                 Attribute::Underline,
@@ -159,9 +155,7 @@ impl Attribute {
             ),
             (
                 Attribute::Blink,
-                Attribute::new(
-                    Attribute::NoBlink.bits() | Attribute::RapidBlink.bits(),
-                ),
+                Attribute::new(Attribute::NoBlink.bits() | Attribute::RapidBlink.bits()),
             ),
             (
                 Attribute::RapidBlink,
@@ -269,15 +263,11 @@ impl Attribute {
             (Attribute::NoStrikethrough, Attribute::Strikethrough),
             (
                 Attribute::Frame,
-                Attribute::new(
-                    Attribute::NoFrameOrEncircle.bits() | Attribute::Encircle.bits(),
-                ),
+                Attribute::new(Attribute::NoFrameOrEncircle.bits() | Attribute::Encircle.bits()),
             ),
             (
                 Attribute::Encircle,
-                Attribute::new(
-                    Attribute::NoFrameOrEncircle.bits() | Attribute::Frame.bits(),
-                ),
+                Attribute::new(Attribute::NoFrameOrEncircle.bits() | Attribute::Frame.bits()),
             ),
             (Attribute::Overline, Attribute::NoOverline),
             (
@@ -294,7 +284,6 @@ impl Attribute {
             }
         }
         out
-
     }
 
     pub fn diff(self, other: Self) -> Self {
@@ -344,7 +333,6 @@ impl Attribute {
             .filter(|(attr, _)| self.contains(*attr))
             .map(|(_, sgr)| *sgr)
     }
-
 }
 
 pub type AttributesIter = bitflags::iter::Iter<Attribute>;
@@ -428,8 +416,8 @@ mod tests {
     }
 
     mod inverse {
-        use std::time::Instant;
         use super::*;
+        use std::time::Instant;
 
         #[test]
         fn inverse_bold() {

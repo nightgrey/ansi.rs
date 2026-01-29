@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kurbo = { workspace = true }
 ansi = { workspace = true }
+geometry = { workspace = true }
+terminal = { workspace = true }
 unicode-width = { workspace = true }
 utils = { workspace = true }
 unicode-segmentation = { workspace = true }

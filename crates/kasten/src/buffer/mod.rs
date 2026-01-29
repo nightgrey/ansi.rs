@@ -1,6 +1,6 @@
 mod buffer;
-mod index;
 mod cell;
+mod index;
 mod selector;
 
 pub use buffer::*;

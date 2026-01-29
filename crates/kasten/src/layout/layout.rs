@@ -1,8 +1,7 @@
-use std::ops::BitOr;
+use crate::{Align, Alignment, Buffer, Constraints, Content, Edges, LayoutNode, Node, Rect};
 use ansi::Style;
 use derive_more::{Deref, DerefMut};
-use crate::{Align, Alignment, Buffer, Constraints, Content, Edges, LayoutNode, Node, Rect};
-
+use std::ops::BitOr;
 
 #[derive(Debug, Clone, Deref, DerefMut)]
 pub struct Layout<'a> {
@@ -19,19 +18,24 @@ impl<'a> Layout<'a> {
         root: LayoutNode {
             node: &Node::Base(Content::Empty),
             children: vec![],
-            bounds: Rect::ZERO
+            bounds: Rect::ZERO,
         },
         bounds: Rect::ZERO,
         constraints: Constraints::Auto(),
-        context: LayoutContext::EMPTY
+        context: LayoutContext::EMPTY,
     };
 
     pub fn new(root: &'a Node, bounds: Rect) -> Self {
-        let constraints = Constraints::Max(bounds.width(), bounds.height());
-        Self { root: root.layout(bounds, constraints), bounds, constraints, context: LayoutContext::EMPTY }
+        let constraints = Constraints::Fixed(bounds.width(), bounds.height());
+        Self {
+            root: root.layout(bounds, constraints),
+            bounds,
+            constraints,
+            context: LayoutContext::EMPTY,
+        }
     }
 
-    pub  fn replace(&mut self, root: &'a Node) {
+    pub fn replace(&mut self, root: &'a Node) {
         self.root = root.layout(self.bounds, self.constraints);
     }
 
@@ -68,9 +72,7 @@ impl<'a> Layout<'a> {
     pub fn render(&self, buffer: &mut Buffer) {
         self.root.render(buffer, &self.context);
     }
-
 }
-
 
 /// Rendering context that accumulates styles as the tree is traversed.
 ///
@@ -85,15 +87,14 @@ impl<'a> Layout<'a> {
 /// let ctx = Context::default();
 /// // ... use in render() ...
 /// ```
-#[derive(Clone, Default)]
-#[derive(Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct LayoutContext {
     pub(crate) style: Style,
 }
 
 impl LayoutContext {
     pub const EMPTY: Self = Self {
-        style: Style::EMPTY
+        style: Style::EMPTY,
     };
 
     pub const fn empty() -> Self {
@@ -104,14 +105,16 @@ impl LayoutContext {
     /// Styles are composed using bitwise OR. Later styles override conflicting
     /// attributes (e.g., if both specify a foreground color, the new one wins).
     pub fn compose(&self, style: &Style) -> Self {
-        Self { style: style.bitor(self.style) }
+        Self {
+            style: style.bitor(self.style),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Row, Align, Alignment, Edges};
     use super::*;
+    use crate::{Align, Alignment, Edges, Row};
 
     fn text(s: &str) -> Node {
         Node::Base(Content::Text(s.into()))
@@ -128,7 +131,6 @@ mod tests {
             assert_eq!(row!($buffer, $row), $expected);
         };
     }
-
 
     macro_rules! assert_row_empty {
         ($buffer:expr, $row:expr) => {
@@ -147,11 +149,7 @@ mod tests {
 
     #[test]
     fn test_layout_stack_basic() {
-        let node = Node::Stack(vec![
-            text("A"),
-            text("B"),
-            text("C"),
-        ]);
+        let node = Node::Stack(vec![text("A"), text("B"), text("C")]);
 
         let bounds = Rect::bounds(0, 0, 10, 10);
         let layout_tree = Layout::new(&node, bounds);
@@ -245,11 +243,7 @@ mod tests {
 
     #[test]
     fn test_layout_row_overflow() {
-        let node = Node::Row(vec![
-            text("Word1"),
-            text("Word2"),
-            text("Word3"),
-        ]);
+        let node = Node::Row(vec![text("Word1"), text("Word2"), text("Word3")]);
 
         let bounds = Rect::bounds(0, 0, 10, 5); // Limited width
         let layout_tree = Layout::new(&node, bounds);
@@ -279,10 +273,7 @@ mod tests {
 
     #[test]
     fn test_layout_layer_overlapping() {
-        let node = Node::Layer(vec![
-            text("Background"),
-            text("Foreground"),
-        ]);
+        let node = Node::Layer(vec![text("Background"), text("Foreground")]);
 
         let bounds = Rect::bounds(0, 0, 20, 10);
         let layout_tree = Layout::new(&node, bounds);
@@ -347,10 +338,7 @@ mod tests {
 
     #[test]
     fn test_layout_size_constraints() {
-        let node = Node::Size(
-            Constraints::Fixed(15, 8),
-            Box::new(text("Constrained")),
-        );
+        let node = Node::Size(Constraints::Fixed(15, 8), Box::new(text("Constrained")));
 
         let bounds = Rect::bounds(0, 0, 100, 100);
         let layout_tree = Layout::new(&node, bounds);

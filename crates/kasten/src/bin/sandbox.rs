@@ -1,38 +1,40 @@
 use ansi::io::Write;
 use ansi::{Color, Style};
-use kasten::{constraints, Buffer, Constraints, Edges, Node, Content, Rect, render, Position};
-use kasten::layout::layout::LayoutContext;
+use kasten::{
+    Align, Alignment, Buffer, Constraints, Content, Edges, Layout, LayoutNode, Node, Position,
+    Rect, align, center, fill, layer, pad, size, stack, style, text,
+};
+use std::io;
 
-fn main() {
-    let stdout = std::io::stdout();
+fn main() -> io::Result<()> {
+    let stdout = io::stdout();
     let mut lock = stdout.lock();
-    let ui = Node::Style(
-        Style::new().bold().background(Color::Blue).foreground(Color::White),
-        Box::new(Node::Pad(
-            Edges::all(1),
-            Box::new(Node::Stack(vec![
-                Node::Base(Content::Text("Header".into())),
-                Node::Style(
-                    Style::new().foreground(Color::Yellow).bold(),
-                    // @CLAUDE: HERE!!!
-                    // This now works after the fix!
-                    Box::new(Node::Base(Content::Text("Highlighted".into()))),
-                    // Box::new(Node::Base(Content::Empty))
-                ), 
-                Node::Base(Content::Fill('.')),
-            ])),
-        )),
+
+    let bounds = Rect::new((0, 0), (40, 40));
+
+    let header = Style::new().foreground(Color::BrightRed).bold();
+    let sub = Style::new().foreground(Color::Blue).bold();
+    let ui = style!(
+        Style::new().background(Color::Default).foreground(Color::White) =>
+        stack![
+            size!(
+                Constraints::Fixed(40, 1) => fill!('x')
+            ),
+
+            style!(header => text!("Hello Ay! 👋")),
+
+            size!(
+                Constraints::Fixed(40, 1) => style!(sub => fill!('x'))
+            ),
+
+            fill!('.'),
+        ]
     );
+    let tree = Layout::new(&ui, bounds);
+    let mut buffer = Buffer::new(bounds);
 
-    let mut buffer = Buffer::new(Rect::new((0, 0), (80, 60)));
+    tree.render(&mut buffer);
+    lock.write_escape(&buffer)?;
 
-    // // 1. Layout
-    let tree = layout(&ui, buffer.bounds, Constraints::Fixed(buffer.bounds.width(), buffer.bounds.height()));
-
-    // // 2. Render to buffer
-    let ctx = LayoutContext::default();
-    render(&tree, &mut buffer, &ctx);
-    // buffer.text(Position::new(2, 1)..Position::new(1, 78), &"Hello".to_string(), &Style::new().bold());
-    dbg!(buffer.index_of(&Position::new(2, 1)), buffer.index_of(&Position::new(1, 78)), buffer.len());
-    lock.write_escape(&buffer).unwrap();
+    Ok(())
 }

@@ -1,9 +1,8 @@
 use super::{Buffer, Cell};
+use geometry::{Point, Position, Row};
 use std::ops;
 use std::ops::{Add, Mul};
 use std::slice::SliceIndex;
-use crate::{Point, Row};
-use crate::indexing::{Position};
 
 pub trait BufferIndex: Sized {
     type Output: ?Sized;
@@ -14,7 +13,7 @@ pub trait BufferIndex: Sized {
     unsafe fn unchecked_index_of(self, buffer: &Buffer) -> Self::SliceIndex {
         self.index_of(buffer).unwrap_unchecked()
     }
-    
+
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
     fn get(self, buffer: &Buffer) -> Option<&Self::Output> {
@@ -177,7 +176,6 @@ impl BufferIndex for Position {
     }
 }
 
-
 impl BufferIndex for ops::Range<Position> {
     type Output = [Cell];
     type SliceIndex = ops::Range<usize>;
@@ -287,7 +285,6 @@ impl BufferIndex for ops::RangeToInclusive<Point> {
         (..=end.y * buffer.width() + end.x).index_of(buffer)
     }
 }
-
 
 impl BufferIndex for Point {
     type SliceIndex = usize;
@@ -463,7 +460,6 @@ mod tests {
         let expected_index = 3 * width + 7; // = 37
         assert_eq!(pos.index_of(&buffer), Some(expected_index));
     }
-
 
     // === Index by Row ===
 

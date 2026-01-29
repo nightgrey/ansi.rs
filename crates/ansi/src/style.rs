@@ -1,11 +1,11 @@
+use crate::attribute::Attribute;
 use crate::color::Color;
-use crate::attribute::{Attribute};
 
+use crate::Escape;
+use bitflags::Flags;
 use std::cmp::PartialEq;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXorAssign, Sub, SubAssign};
-use bitflags::Flags;
 use utils::separator;
-use crate::{Escape};
 
 #[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct Style {
@@ -211,7 +211,7 @@ impl Style {
     /// Remove attribute flags.
     #[inline]
     pub fn remove(&mut self, attributes: Attribute) {
-        self. attributes.remove(attributes);
+        self.attributes.remove(attributes);
     }
 
     /// Set the background color.
@@ -448,7 +448,6 @@ impl Style {
         self
     }
 
-
     #[inline]
     pub fn bitand(self, other: Style) -> Self {
         let mut style = self;
@@ -460,8 +459,7 @@ impl Style {
 
     #[inline]
     fn bitand_assign(&mut self, other: Style) {
-        self.attributes
-            .bitand_assign(other.attributes);
+        self.attributes.bitand_assign(other.attributes);
 
         self.fg = self.fg.and(other.fg);
         self.bg = self.bg.and(other.bg);
@@ -469,7 +467,7 @@ impl Style {
     }
 
     #[inline]
-    fn bitor( self, other: Style) -> Self {
+    fn bitor(self, other: Style) -> Self {
         let mut style = self;
 
         style.bitor_assign(other);
@@ -479,7 +477,7 @@ impl Style {
 
     #[inline]
     fn bitor_assign(&mut self, other: Style) {
-       self.attributes.bitor_assign(other.attributes);
+        self.attributes.bitor_assign(other.attributes);
 
         self.fg = self.fg.or(other.fg);
         self.bg = self.bg.or(other.bg);
@@ -490,14 +488,13 @@ impl Style {
     fn bitxor(self, other: Style) -> Self {
         let mut style = self;
 
-       style.bitxor_assign(other);
+        style.bitxor_assign(other);
 
         style
     }
 
     fn bitxor_assign(&mut self, other: Style) {
-        self.attributes
-            .bitxor_assign(other.attributes);
+        self.attributes.bitxor_assign(other.attributes);
 
         self.fg = self.fg.xor(other.fg);
         self.bg = self.bg.xor(other.bg);
@@ -513,9 +510,21 @@ impl Style {
             return style;
         }
 
-        style.bg = if other.bg == style.bg { Color::None } else { other.bg };
-        style.fg = if other.fg == style.fg { Color::None } else { other.fg };
-        style.ul = if other.ul == style.ul { Color::None } else { other.ul };
+        style.bg = if other.bg == style.bg {
+            Color::None
+        } else {
+            other.bg
+        };
+        style.fg = if other.fg == style.fg {
+            Color::None
+        } else {
+            other.fg
+        };
+        style.ul = if other.ul == style.ul {
+            Color::None
+        } else {
+            other.ul
+        };
 
         style.set(other.attributes - style.attributes);
         style
@@ -523,12 +532,8 @@ impl Style {
 
     /// Returns `true` if the style is empty.
     pub fn is_empty(&self) -> bool {
-        self.attributes.is_empty()
-            && self.fg.is_none()
-            && self.bg.is_none()
-            && self.ul.is_none()
+        self.attributes.is_empty() && self.fg.is_none() && self.bg.is_none() && self.ul.is_none()
     }
-
 
     /// Clears the style.
     #[inline]
@@ -586,7 +591,6 @@ impl BitOrAssign for Style {
     }
 }
 
-
 impl Escape for Style {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use crate::io::Write;
@@ -624,7 +628,6 @@ impl Escape for Style {
         w.write_all(b"m")
     }
 }
-
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]

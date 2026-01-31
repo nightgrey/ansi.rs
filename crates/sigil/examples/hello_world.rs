@@ -1,6 +1,6 @@
 use ansi::io::Write;
-use kasten::{Layout, LayoutContext};
-use kasten::{Buffer, Constraints, Content, Node, Rect};
+use sigil::{Layout, LayoutContext};
+use sigil::{Buffer, Constraints, Content, Node, Rect};
 
 fn main() {
     // Build a simple UI tree

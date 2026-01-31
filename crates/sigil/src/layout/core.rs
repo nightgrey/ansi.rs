@@ -111,6 +111,7 @@ pub fn layout(node: &Node, bounds: Rect, constraints: Constraints) -> LayoutNode
             for child in children {
                 let remaining_w = bounds.width().saturating_sub(x - bounds.x());
                 let child_ct = Constraints::Max(remaining_w, bounds.height());
+                dbg!(&bounds.width());
                 let size =measure(child, child_ct);
                 let child_rect = Rect::new(
                     (x, bounds.y()),
@@ -119,6 +120,8 @@ pub fn layout(node: &Node, bounds: Rect, constraints: Constraints) -> LayoutNode
                 laid_out.push(layout(child, child_rect, child_ct));
                 x = x.saturating_add(size.width);
             }
+
+            dbg!(&laid_out);
 
             LayoutNode::new(node, bounds, laid_out)
         }
@@ -337,8 +340,10 @@ pub fn render(layout_node: &LayoutNode, buffer: &mut Buffer, context: &LayoutCon
         //     }
         // }
         Node::Base(Content::Fill(ch)) => {
-            for pos in Region::from(bounds) {
-                unsafe { buffer.get_unchecked_mut(pos) }.set_char(*ch);
+            for pos in region {
+                let cell = &mut buffer[pos];
+                cell.set_char(*ch);
+                cell.set_style(&context.style);
             }
         }
 
@@ -346,8 +351,8 @@ pub fn render(layout_node: &LayoutNode, buffer: &mut Buffer, context: &LayoutCon
             let new_ctx = context.compose(style);
 
             if style.bg.is_some() {
-                for pos in Region::from(bounds) {
-                    unsafe { buffer.get_unchecked_mut(pos) }.style.bg = style.bg;
+                for pos in region {
+                   buffer[pos].style.bg = style.bg;
                 }
             }
 

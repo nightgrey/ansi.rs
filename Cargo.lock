@@ -386,25 +386,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
-name = "kasten"
-version = "0.1.0"
-dependencies = [
- "ansi",
- "compact_str",
- "derive_more",
- "geometry",
- "runefix-core",
- "rustix",
- "serde_json",
- "terminal",
- "textwrap",
- "unicode-display-width",
- "unicode-segmentation",
- "unicode-width",
- "utils",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.180"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -627,6 +608,25 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "sigil"
+version = "0.1.0"
+dependencies = [
+ "ansi",
+ "compact_str",
+ "derive_more",
+ "geometry",
+ "runefix-core",
+ "rustix",
+ "serde_json",
+ "terminal",
+ "textwrap",
+ "unicode-display-width",
+ "unicode-segmentation",
+ "unicode-width",
+ "utils",
 ]
 
 [[package]]

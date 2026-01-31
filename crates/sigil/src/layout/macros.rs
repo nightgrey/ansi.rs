@@ -1,3 +1,5 @@
+use crate::Constraints;
+
 /// Macros for ergonomic UI tree construction.
 ///
 /// # Example
@@ -95,6 +97,13 @@ macro_rules! pad {
 macro_rules! size {
     ($constraints:expr => $child:expr) => {
         $crate::Node::Size($constraints, Box::new($child))
+    };
+}
+
+#[macro_export]
+macro_rules! container {
+    ($child:expr) => {
+        $crate::Node::Size(Constraints::Auto(), Box::new($child))
     };
 }
 

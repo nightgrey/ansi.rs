@@ -1,5 +1,9 @@
 use std::io;
 
+fn main() -> io::Result<()> {
+    notcurses::main().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    // sigil()
+}
 mod sigil {
     use ansi::{Color, Style, UnderlineStyle};
     use ansi::io::Write;
@@ -91,9 +95,4 @@ mod notcurses {
         cli.render()?;
         Ok(())
     }
-}
-
-fn main() -> io::Result<()> {
-    notcurses::main().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-    // sigil()
 }

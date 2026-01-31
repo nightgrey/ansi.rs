@@ -7,6 +7,7 @@ mod attribute;
 mod color;
 mod escape;
 mod style;
+mod bit_color;
 
 pub use attribute::*;
 pub use color::*;

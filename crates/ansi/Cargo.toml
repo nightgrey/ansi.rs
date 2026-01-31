@@ -7,3 +7,4 @@ edition = "2024"
 derive_more = { workspace = true }
 bitflags = { workspace = true }
 utils = { workspace = true }
+modular-bitfield = "0.13.1"

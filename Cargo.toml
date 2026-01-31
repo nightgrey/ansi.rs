@@ -8,22 +8,12 @@ members = [
 [workspace.dependencies]
 rustix = { version = "1.1.2", features = ["termios"] }
 smol = "2.0.2"
-itertools = "0.14.0"
-num_enum = "0.7.5"
-strum = { version = "0.27.2", features = ["derive"] }
-paste = "1.0.15"
-getset = "0.1.6"
 derive_more = { version = "2.0.1", features = ["full"] }
-smallvec = "2.0.0-alpha.12"
 unicode-segmentation = "1.12.0"
 unicode-width = "0.2.2"
 bitflags = "2.10.0"
 bytemuck = "1.24.0"
-rstest = "0.26.1"
 textwrap = "0.16.2"
-kurbo = "0.13.0"
-
-sigil = { path = "crates/sigil" }
 ansi = { path = "crates/ansi" }
 utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }

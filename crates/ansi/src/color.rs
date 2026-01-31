@@ -4,7 +4,6 @@ use std::io::Write;
 use std::marker::Destruct;
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Hash, Debug)]
-#[repr(C)]
 pub enum Color {
     None,
     #[default]

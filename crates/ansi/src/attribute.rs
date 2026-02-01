@@ -4,6 +4,8 @@ use crate::Escape;
 pub use ::bitflags::{Bits, Flags, bitflags, bitflags_match};
 pub use ::std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::io::Write;
+use modular_bitfield::error::{InvalidBitPattern, OutOfBounds};
+use modular_bitfield::prelude::*;
 
 bitflags! {
     /// Attributes
@@ -335,6 +337,19 @@ impl Attribute {
     }
 }
 
+impl Specifier for Attribute {
+    const BITS: usize = 32;
+    type Bytes = u32;
+    type InOut = Self;
+
+    fn into_bytes(input: Self::InOut) -> Result<Self::Bytes, OutOfBounds> {
+        Ok(input.bits())
+    }
+
+    fn from_bytes(bytes: Self::Bytes) -> Result<Self::InOut, InvalidBitPattern<Self::Bytes>> {
+        Ok(Self::new(bytes))
+    }
+}
 pub type AttributesIter = bitflags::iter::Iter<Attribute>;
 
 impl Escape for Attribute {

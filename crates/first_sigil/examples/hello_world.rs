@@ -1,6 +1,6 @@
 use ansi::io::Write;
-use sigil::{Layout, LayoutContext};
-use sigil::{Buffer, Constraints, Content, Node, Rect};
+use first_sigil::{Layout, LayoutContext};
+use first_sigil::{Buffer, Constraints, Content, Node, Rect};
 
 fn main() {
     // Build a simple UI tree

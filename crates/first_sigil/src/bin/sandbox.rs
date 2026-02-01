@@ -9,7 +9,7 @@ mod sigil {
     use ansi::io::Write;
     use std::io;
 
-    use sigil::{Align, Alignment, Buffer, Constraints, Content, Edges, Layout, LayoutNode, Node, Position, Rect, align, center, fill, layer, pad, size, stack, style, text, Constraint, container, row};
+    use first_sigil::{Align, Alignment, Buffer, Constraints, Content, Edges, Layout, LayoutNode, Node, Position, Rect, align, center, fill, layer, pad, size, stack, style, text, Constraint, container, row};
 
     pub fn main() -> io::Result<()> {
     let stdout = io::stdout();

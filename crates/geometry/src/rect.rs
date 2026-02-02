@@ -15,7 +15,7 @@ use crate::{Edges, Point};
 /// # Example
 ///
 /// ```rust
-/// use kasten::{Rect, Point, Size};
+/// use geometry::{Rect, Point, Size};
 ///
 /// let rect = Rect::new((10, 5), (30, 25));
 /// assert_eq!(rect.width(), 20);
@@ -48,7 +48,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Rect, Point};
+    /// # use geometry::{Rect, Point};
     /// let rect1 = Rect::new((0, 0), (10, 10));
     /// let rect2 = Rect::new(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
@@ -65,7 +65,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Rect;
+    /// # use geometry::Rect;
     /// let rect = Rect::bounds(10, 5, 20, 15);
     /// assert_eq!(rect.min, Point::new(10, 5));
     /// assert_eq!(rect.max, Point::new(30, 20));
@@ -99,7 +99,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Rect;
+    /// # use geometry::Rect;
     /// let rect = Rect::new((5, 0), (15, 0));
     /// assert_eq!(rect.width(), 10);
     /// ```
@@ -115,7 +115,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Rect;
+    /// # use geometry::Rect;
     /// let rect = Rect::new((0, 5), (0, 20));
     /// assert_eq!(rect.height(), 15);
     /// ```
@@ -131,7 +131,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Rect;
+    /// # use geometry::Rect;
     /// let rect = Rect::new((0, 0), (10, 5));
     /// assert_eq!(rect.area(), 50);
     /// ```
@@ -147,7 +147,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Rect, Point};
+    /// # use geometry::{Rect, Point};
     /// let rect = Rect::new((0, 0), (10, 10));
     ///
     /// assert!(rect.contains(&Point::new(0, 0)));    // min edge (inclusive)
@@ -181,7 +181,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Rect, Size};
+    /// # use geometry::{Rect, Size};
     /// let rect = Rect::new((0, 0), (80, 24));
     /// assert_eq!(rect.size(), Size::new(80, 24));
     /// ```

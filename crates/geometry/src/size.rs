@@ -7,7 +7,7 @@ use std::ops::{Add, AddAssign, Div, DivAssign};
 /// # Example
 ///
 /// ```rust
-/// use kasten::Size;
+/// use geometry::Size;
 ///
 /// let size = Size::new(80, 24);
 /// assert_eq!(size.width, 80);
@@ -34,7 +34,7 @@ impl Size {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Size;
+    /// # use geometry::Size;
     /// let size = Size::new(40, 12);
     /// ```
     pub fn new(width: usize, height: usize) -> Self {

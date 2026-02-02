@@ -413,24 +413,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "first_sigil"
-version = "0.1.0"
-dependencies = [
- "ansi",
- "compact_str",
- "derive_more",
- "geometry",
- "notcurses",
- "rustix",
- "terminal",
- "textwrap",
- "unicode-display-width",
- "unicode-segmentation",
- "unicode-width",
- "utils",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"

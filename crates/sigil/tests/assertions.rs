@@ -1,6 +1,13 @@
 //! Custom assertions for testing.
 
-use kasten::{Rect, Buffer, Position};
+use geometry::{Position, Rect};
+use sigil::{Buffer};
+
+macro_rules! assert_rect {
+    ($rect: tt) => {
+        
+    };
+}
 
 /// Assert that a rectangle is valid (min <= max in both dimensions).
 ///
@@ -61,7 +68,7 @@ pub fn buffer_text_at(buffer: &Buffer, row: usize, col_start: usize, col_end: us
 
 /// Assert that a buffer contains the expected text at a specific row.
 pub fn assert_buffer_text(buffer: &Buffer, row: usize, expected: &str) {
-    let actual = buffer_text_at(buffer, row, 0, buffer.width());
+    let actual = buffer_text_at(buffer, row, 0, buffer.width);
     let trimmed = actual.trim_end();
     assert_eq!(
         trimmed, expected,

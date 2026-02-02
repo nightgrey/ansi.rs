@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "crates/ansi", "crates/geometry",
-    "crates/first_sigil", "crates/sigil", "crates/terminal", "crates/utils",
+    "crates/sigil", "crates/terminal", "crates/utils",
 ]
 
 [workspace.dependencies]
@@ -19,4 +19,3 @@ utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }
 terminal = { path = "crates/terminal" }
 sigil = { path = "crates/sigil" }
-first_sigil = { path = "crates/first_sigil" }

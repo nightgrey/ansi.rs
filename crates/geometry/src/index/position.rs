@@ -20,7 +20,7 @@ use std::ops::{Add, AddAssign, Sub};
 /// # Example
 ///
 /// ```rust
-/// use kasten::Position;
+/// use geometry::Position;
 ///
 /// let pos = Position::new(5, 10);  // row 5, column 10
 /// assert_eq!(pos.row, 5);
@@ -52,7 +52,7 @@ impl Position {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Position;
+    /// # use geometry::Position;
     /// let pos = Position::new(10, 20);
     /// assert_eq!(pos.row, 10);
     /// assert_eq!(pos.col, 20);
@@ -66,7 +66,7 @@ impl Position {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Position;
+    /// # use geometry::Position;
     /// let pos = Position::from_index(10, 5);
     /// assert_eq!(pos.row, 2);
     /// assert_eq!(pos.col, 0);
@@ -86,7 +86,7 @@ impl Position {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Position;
+    /// # use geometry::Position;
     /// let pos = Position::new(3, 4);
     /// assert_eq!(pos.manhattan(), 7);  // 3 + 4
     /// ```
@@ -103,7 +103,7 @@ impl Position {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Position;
+    /// # use geometry::Position;
     /// let pos = Position::new(3, 7);
     /// assert_eq!(pos.chebyshev(), 7);  // max(3, 7)
     /// ```

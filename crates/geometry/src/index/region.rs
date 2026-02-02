@@ -14,7 +14,7 @@ use std::ops::{Add, AddAssign, Sub};
 /// # Example
 ///
 /// ```rust
-/// use kasten::{Region, Position};
+/// use geometry::{Region, Position};
 ///
 /// let region = Region::new(Position::new(0, 0), Position::new(2, 3));
 /// assert_eq!(region.width(), 3);
@@ -49,7 +49,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(5, 10), Position::new(15, 30));
     /// ```
     pub fn new(min: Position, max: Position) -> Self {
@@ -83,7 +83,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(0, 5), Position::new(0, 15));
     /// assert_eq!(region.width(), 10);
     /// ```
@@ -98,7 +98,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(5, 0), Position::new(20, 0));
     /// assert_eq!(region.height(), 15);
     /// ```
@@ -111,7 +111,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(0, 0), Position::new(4, 5));
     /// assert_eq!(region.area(), 20);  // 4 rows × 5 cols
     /// ```
@@ -126,7 +126,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(0, 0), Position::new(10, 10));
     ///
     /// assert!(region.contains(&Position::new(0, 0)));    // min (inclusive)
@@ -145,7 +145,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position, Size};
+    /// # use geometry::{Region, Position, Size};
     /// let region = Region::new(Position::new(0, 0), Position::new(24, 80));
     /// assert_eq!(region.size(), Size::new(80, 24));  // width, height
     /// ```
@@ -163,7 +163,7 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::{Region, Position};
+    /// # use geometry::{Region, Position};
     /// let region = Region::new(Position::new(0, 0), Position::new(2, 2));
     /// let positions: Vec<_> = region.iter().collect();
     /// assert_eq!(positions, vec![

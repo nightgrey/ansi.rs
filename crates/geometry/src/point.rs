@@ -6,7 +6,7 @@ use std::ops::{Add, AddAssign};
 /// This allows constructing [`Point`] from tuples conveniently:
 ///
 /// ```rust
-/// # use kasten::{Point, Rect};
+/// # use geometry::{Point, Rect};
 /// let rect = Rect::new((0, 0), (10, 20));  // Uses PointLike
 /// ```
 pub type PointLike = (usize, usize);
@@ -22,7 +22,7 @@ pub type PointLike = (usize, usize);
 /// # Example
 ///
 /// ```rust
-/// use kasten::Point;
+/// use geometry::Point;
 ///
 /// let p1 = Point::new(10, 5);
 /// let p2 = Point::new(3, 2);
@@ -48,7 +48,7 @@ impl Point {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Point;
+    /// # use geometry::Point;
     /// let p = Point::new(5, 10);
     /// assert_eq!(p.x, 5);
     /// assert_eq!(p.y, 10);

@@ -6,7 +6,7 @@
 /// # Example
 ///
 /// ```rust
-/// use kasten::Edges;
+/// use geometry::Edges;
 ///
 /// let edges = Edges::new(1, 2, 1, 2);  // top, right, bottom, left
 /// assert_eq!(edges.horizontal(), 4);  // left + right
@@ -41,7 +41,7 @@ impl Edges {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Edges;
+    /// # use geometry::Edges;
     /// let edges = Edges::new(1, 2, 3, 4);  // top, right, bottom, left
     /// assert_eq!(edges.top, 1);
     /// assert_eq!(edges.right, 2);
@@ -65,7 +65,7 @@ impl Edges {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Edges;
+    /// # use geometry::Edges;
     /// let edges = Edges::sides(2, 1);  // 2 on left/right, 1 on top/bottom
     /// assert_eq!(edges.left, 2);
     /// assert_eq!(edges.right, 2);
@@ -86,7 +86,7 @@ impl Edges {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Edges;
+    /// # use geometry::Edges;
     /// let edges = Edges::all(2);  // 2 on all sides
     /// assert_eq!(edges.horizontal(), 4);
     /// assert_eq!(edges.vertical(), 4);
@@ -105,7 +105,7 @@ impl Edges {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Edges;
+    /// # use geometry::Edges;
     /// let edges = Edges::new(1, 2, 1, 3);
     /// assert_eq!(edges.horizontal(), 5);  // 3 + 2
     /// ```
@@ -118,7 +118,7 @@ impl Edges {
     /// # Example
     ///
     /// ```rust
-    /// # use kasten::Edges;
+    /// # use geometry::Edges;
     /// let edges = Edges::new(2, 1, 3, 1);
     /// assert_eq!(edges.vertical(), 5);  // 2 + 3
     /// ```

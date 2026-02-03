@@ -1,7 +1,7 @@
-use std::ops::{Deref};
-use derive_more::{Deref, DerefMut, Index, IndexMut};
 use super::iter::*;
-use super::{Tree, Key};
+use super::{Key, Tree};
+use derive_more::{Deref, DerefMut, Index, IndexMut};
+use std::ops::Deref;
 
 /// A tree node with embedded structural links.
 ///
@@ -52,16 +52,13 @@ impl<K: Key, V> Node<K, V> {
 }
 
 pub struct NodeRef<'a, K: Key, V> {
-     pub id: K,
-     tree: &'a Tree<K, V>,
+    pub id: K,
+    tree: &'a Tree<K, V>,
 }
 
 impl<'a, K: Key, V> NodeRef<'a, K, V> {
     pub fn new(id: K, tree: &'a Tree<K, V>) -> Self {
-        Self {
-            id,
-            tree,
-        }
+        Self { id, tree }
     }
 
     pub fn node(&self) -> &'a Node<K, V> {
@@ -87,7 +84,6 @@ impl<'a, K: Key, V> NodeRef<'a, K, V> {
     pub fn previous_sibling(&self) -> Option<K> {
         self.node().previous_sibling()
     }
-
 
     pub fn children(&self, key: K) -> Children<K, V> {
         self.tree.children(key)
@@ -137,10 +133,7 @@ pub struct NodeRefMut<'a, K: Key, V> {
 
 impl<'a, K: Key, V> NodeRefMut<'a, K, V> {
     pub fn new(id: K, tree: &'a mut Tree<K, V>) -> Self {
-        Self {
-            id,
-            tree,
-        }
+        Self { id, tree }
     }
 
     pub fn node(&self) -> &Node<K, V> {
@@ -223,14 +216,12 @@ fn qwe() {
         pub value: &'static str,
     }
 
-
     let mut tree = Tree::<Id, Node>::new();
 
     let id = tree.insert(Node { value: "root" });
 
     let a = tree.insert(Node { value: "a" });
     tree.insert_children(id, &[a]);
-
 
     let reference = NodeRef::new(id, &tree);
 

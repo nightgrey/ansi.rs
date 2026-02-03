@@ -179,7 +179,8 @@ impl BufferIndex for Position {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.row * buffer.width + self.col)
+        self.within(buffer)
+            .then_some(self.row * buffer.width + self.col)
     }
 }
 
@@ -192,7 +193,10 @@ impl BufferIndex for ops::Range<Position> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start.row * buffer.width + self.start.col..self.end.row * buffer.width + self.end.col)
+        self.within(buffer).then_some(
+            self.start.row * buffer.width + self.start.col
+                ..self.end.row * buffer.width + self.end.col,
+        )
     }
 }
 impl BufferIndex for ops::RangeInclusive<Position> {
@@ -204,7 +208,10 @@ impl BufferIndex for ops::RangeInclusive<Position> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start().row * buffer.width + self.start().col..=self.end().row * buffer.width + self.end().col)
+        self.within(buffer).then_some(
+            self.start().row * buffer.width + self.start().col
+                ..=self.end().row * buffer.width + self.end().col,
+        )
     }
 }
 impl BufferIndex for ops::RangeFrom<Position> {
@@ -215,7 +222,8 @@ impl BufferIndex for ops::RangeFrom<Position> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start.row * buffer.width + self.start.col..)
+        self.within(buffer)
+            .then_some(self.start.row * buffer.width + self.start.col..)
     }
 }
 impl BufferIndex for ops::RangeTo<Position> {
@@ -226,7 +234,8 @@ impl BufferIndex for ops::RangeTo<Position> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(..self.end.row * buffer.width + self.end.col)
+        self.within(buffer)
+            .then_some(..self.end.row * buffer.width + self.end.col)
     }
 }
 impl BufferIndex for ops::RangeToInclusive<Position> {
@@ -237,7 +246,8 @@ impl BufferIndex for ops::RangeToInclusive<Position> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(..=self.end.row * buffer.width + self.end.col)
+        self.within(buffer)
+            .then_some(..=self.end.row * buffer.width + self.end.col)
     }
 }
 
@@ -250,11 +260,12 @@ impl BufferIndex for Point {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.y * buffer.width + self.x)
+        self.within(buffer)
+            .then_some(self.y * buffer.width + self.x)
     }
 }
 
-impl BufferIndex for ops::Range<Point>  {
+impl BufferIndex for ops::Range<Point> {
     type SliceIndex = ops::Range<usize>;
     type Output = [Cell];
     fn within(&self, buffer: &Buffer) -> bool {
@@ -262,7 +273,9 @@ impl BufferIndex for ops::Range<Point>  {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start.y * buffer.width + self.start.x..self.end.y * buffer.width + self.end.x)
+        self.within(buffer).then_some(
+            self.start.y * buffer.width + self.start.x..self.end.y * buffer.width + self.end.x,
+        )
     }
 }
 impl BufferIndex for ops::RangeInclusive<Point> {
@@ -274,7 +287,10 @@ impl BufferIndex for ops::RangeInclusive<Point> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start().y * buffer.width + self.start().x..=self.end().y * buffer.width + self.end().x)
+        self.within(buffer).then_some(
+            self.start().y * buffer.width + self.start().x
+                ..=self.end().y * buffer.width + self.end().x,
+        )
     }
 }
 impl BufferIndex for ops::RangeFrom<Point> {
@@ -286,7 +302,8 @@ impl BufferIndex for ops::RangeFrom<Point> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(self.start.y * buffer.width + self.start.x..)
+        self.within(buffer)
+            .then_some(self.start.y * buffer.width + self.start.x..)
     }
 }
 impl BufferIndex for ops::RangeTo<Point> {
@@ -296,7 +313,8 @@ impl BufferIndex for ops::RangeTo<Point> {
         self.end.within(buffer)
     }
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(..self.end.y * buffer.width + self.end.x)
+        self.within(buffer)
+            .then_some(..self.end.y * buffer.width + self.end.x)
     }
 }
 impl BufferIndex for ops::RangeToInclusive<Point> {
@@ -308,7 +326,8 @@ impl BufferIndex for ops::RangeToInclusive<Point> {
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         let end = &self.end;
 
-        self.within(buffer).then_some(..=end.y * buffer.width + end.x)
+        self.within(buffer)
+            .then_some(..=end.y * buffer.width + end.x)
     }
 }
 
@@ -320,7 +339,8 @@ impl BufferIndex for Row {
         self.0 < buffer.height
     }
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(*self * buffer.width..(*self + 1) * buffer.width)
+        self.within(buffer)
+            .then_some(*self * buffer.width..(*self + 1) * buffer.width)
     }
 }
 
@@ -333,9 +353,9 @@ impl BufferIndex for ops::Range<Row> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(*self.start * buffer.width..*self.end * buffer.width + buffer.width)
+        self.within(buffer)
+            .then_some(*self.start * buffer.width..*self.end * buffer.width + buffer.width)
     }
-
 }
 impl BufferIndex for ops::RangeInclusive<Row> {
     type Output = [Cell];
@@ -346,7 +366,8 @@ impl BufferIndex for ops::RangeInclusive<Row> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(**self.start() * buffer.width..=**self.end() * buffer.width + buffer.width)
+        self.within(buffer)
+            .then_some(**self.start() * buffer.width..=**self.end() * buffer.width + buffer.width)
     }
 }
 impl BufferIndex for ops::RangeFrom<Row> {
@@ -370,7 +391,8 @@ impl BufferIndex for ops::RangeTo<Row> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(..*self.end * buffer.width + buffer.width)
+        self.within(buffer)
+            .then_some(..*self.end * buffer.width + buffer.width)
     }
 }
 impl BufferIndex for ops::RangeToInclusive<Row> {
@@ -382,13 +404,14 @@ impl BufferIndex for ops::RangeToInclusive<Row> {
     }
 
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(..=*self.end * buffer.width + buffer.width)
+        self.within(buffer)
+            .then_some(..=*self.end * buffer.width + buffer.width)
     }
 }
 
 impl<I: BufferIndex> ops::Index<I> for Buffer {
     type Output = <I::SliceIndex as SliceIndex<[Cell]>>::Output;
-    
+
     fn index(&self, index: I) -> &Self::Output {
         index.index(self)
     }

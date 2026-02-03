@@ -1,4 +1,4 @@
-use crate::{Buffer};
+use crate::Buffer;
 use geometry::{Col, Position, Region};
 use std::iter::FusedIterator;
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};

@@ -1,12 +1,10 @@
 //! Custom assertions for testing.
 
 use geometry::{Position, Rect};
-use sigil::{Buffer};
+use sigil::Buffer;
 
 macro_rules! assert_rect {
-    ($rect: tt) => {
-        
-    };
+    ($rect: tt) => {};
 }
 
 /// Assert that a rectangle is valid (min <= max in both dimensions).

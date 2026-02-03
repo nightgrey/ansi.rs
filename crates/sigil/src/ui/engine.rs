@@ -1,5 +1,5 @@
-use crate::{ElementId, Element, Layer, LayerId};
 use super::tree::*;
+use crate::{Element, ElementId, Layer, LayerId};
 
 pub struct Engine {
     elements: Tree<ElementId, Element>,

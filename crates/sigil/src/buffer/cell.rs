@@ -56,7 +56,7 @@ impl Cell {
     pub fn style(&self) -> &Style {
         &self.style
     }
-    
+
     pub fn style_mut(&mut self) -> &mut Style {
         &mut self.style
     }
@@ -157,7 +157,6 @@ impl FromIterator<Cell> for String {
             .collect::<String>()
     }
 }
-
 
 impl<'a> FromIterator<&'a Cell> for String {
     fn from_iter<I: IntoIterator<Item = &'a Cell>>(iter: I) -> Self {

@@ -6,10 +6,12 @@ fn main() -> io::Result<()> {
 }
 
 mod notcurses {
-    use notcurses::*;
-    use notcurses::sys::{NcBoxMask, NcCell, NcRgb};
-    use notcurses::sys::c_api::{ncplane_box, ncplane_box_sized, ncplane_double_box_sized, NcBoxMask_u32};
     use ansi::Bits;
+    use notcurses::sys::c_api::{
+        NcBoxMask_u32, ncplane_box, ncplane_box_sized, ncplane_double_box_sized,
+    };
+    use notcurses::sys::{NcBoxMask, NcCell, NcRgb};
+    use notcurses::*;
 
     pub fn main() -> NotcursesResult<()> {
         let mut nc = Notcurses::new_cli()?;
@@ -29,8 +31,18 @@ mod notcurses {
         let mut vl = NcCell::new();
         let mut child = cli.new_child_sized_at(Size::new(10, 10), Position::new(10, 10))?;
 
-        ncplane_box_sized(child.into_ref_mut(), &ul, &ur, &ll, &lr, &hl, &vl, 10, 10, NcBoxMask::default());
-
+        ncplane_box_sized(
+            child.into_ref_mut(),
+            &ul,
+            &ur,
+            &ll,
+            &lr,
+            &hl,
+            &vl,
+            10,
+            10,
+            NcBoxMask::default(),
+        );
 
         child.set_bg(2);
         child.set_base_bg(Channel::from_rgb(Rgb::new(255, 0, 0)))?;

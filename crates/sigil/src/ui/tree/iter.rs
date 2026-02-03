@@ -1,6 +1,6 @@
-use std::iter::FusedIterator;
+use super::{Key, Node, Tree};
 use derive_more::{Deref, DerefMut};
-use super::{Key, Tree, Node};
+use std::iter::FusedIterator;
 
 // ----------
 // ITERATORS
@@ -46,16 +46,12 @@ impl<'a, K: Key, V> Iterator for Ancestors<'a, K, V> {
 
 impl<'a, K: Key, V> FusedIterator for Ancestors<'a, K, V> {}
 
-
 #[derive(Clone, Debug)]
 pub struct Predecessors<'a, K: Key, V>(Iter<'a, K, V>);
 
 impl<'a, K: Key, V> Predecessors<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, key: K) -> Self {
-        Self(Iter {
-            tree,
-            node: key,
-        })
+        Self(Iter { tree, node: key })
     }
 }
 
@@ -68,7 +64,9 @@ impl<'a, K: Key, V> Iterator for Predecessors<'a, K, V> {
             return None;
         }
 
-        self.0.node = self.0.tree[key].previous_sibling.or_else(|| self.0.tree[key].parent);
+        self.0.node = self.0.tree[key]
+            .previous_sibling
+            .or_else(|| self.0.tree[key].parent);
 
         Some(key)
     }
@@ -84,7 +82,7 @@ impl<'a, K: Key, V> FusedIterator for Predecessors<'a, K, V> {}
 struct DoubleEndedIter<'a, K: Key, V> {
     pub(super) tree: &'a Tree<K, V>,
     pub(super) head: K,
-    pub(super) tail: K
+    pub(super) tail: K,
 }
 
 impl<'a, K: Key, V> DoubleEndedIter<'a, K, V> {
@@ -148,7 +146,7 @@ impl<'a, K: Key, V> Iterator for Children<'a, K, V> {
 impl<'a, K: Key, V> DoubleEndedIterator for Children<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
         match (self.0.head.option(), self.0.tail.option()) {
-            (Some(head), Some(tail))   if head == tail => {
+            (Some(head), Some(tail)) if head == tail => {
                 let result = head;
                 self.0.head = K::null();
                 self.0.tail = K::null();
@@ -163,7 +161,6 @@ impl<'a, K: Key, V> DoubleEndedIterator for Children<'a, K, V> {
     }
 }
 
-
 pub struct PrecedingSiblings<'a, K: Key, V>(DoubleEndedIter<'a, K, V>);
 
 impl<'a, K: Key, V> PrecedingSiblings<'a, K, V> {
@@ -171,7 +168,9 @@ impl<'a, K: Key, V> PrecedingSiblings<'a, K, V> {
         Self(DoubleEndedIter {
             tree,
             head: key,
-            tail: tree[key].parent.and_then(|parent_id| tree[parent_id].first_child),
+            tail: tree[key]
+                .parent
+                .and_then(|parent_id| tree[parent_id].first_child),
         })
     }
 }
@@ -180,7 +179,8 @@ impl<'a, K: Key, V> Iterator for PrecedingSiblings<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.advance_head(|tree, node| tree[node].previous_sibling)
+        self.0
+            .advance_head(|tree, node| tree[node].previous_sibling)
     }
 }
 
@@ -190,7 +190,6 @@ impl<'a, K: Key, V> DoubleEndedIterator for PrecedingSiblings<'a, K, V> {
     }
 }
 
-
 pub struct FollowingSiblings<'a, K: Key, V>(DoubleEndedIter<'a, K, V>);
 
 impl<'a, K: Key, V> FollowingSiblings<'a, K, V> {
@@ -198,7 +197,9 @@ impl<'a, K: Key, V> FollowingSiblings<'a, K, V> {
         Self(DoubleEndedIter {
             tree,
             head: key,
-            tail: tree[key].parent.and_then(|parent_id| tree[parent_id].last_child),
+            tail: tree[key]
+                .parent
+                .and_then(|parent_id| tree[parent_id].last_child),
         })
     }
 }
@@ -213,7 +214,8 @@ impl<'a, K: Key, V> Iterator for FollowingSiblings<'a, K, V> {
 
 impl<'a, K: Key, V> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.advance_tail(|tree, node| tree[node].previous_sibling)
+        self.0
+            .advance_tail(|tree, node| tree[node].previous_sibling)
     }
 }
 
@@ -270,7 +272,6 @@ impl<K: Key, V> Iterator for Traverse<'_, K, V> {
 
 impl<K: Key, V> FusedIterator for Traverse<'_, K, V> {}
 
-
 #[derive(Clone, Debug)]
 pub struct ReverseTraverse<'a, K: Key, V> {
     tree: &'a Tree<K, V>,
@@ -283,7 +284,7 @@ impl<'a, K: Key, V> ReverseTraverse<'a, K, V> {
         Self {
             tree,
             root: current,
-             next: Some(NodeEdge::End(current)),
+            next: Some(NodeEdge::End(current)),
         }
     }
 }
@@ -318,7 +319,6 @@ impl<K: Key, V> Iterator for ReverseTraverse<'_, K, V> {
 }
 
 impl<K: Key, V> FusedIterator for ReverseTraverse<'_, K, V> {}
-
 
 /// Indicator if the node is at a start or endpoint of the tree
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -357,7 +357,6 @@ impl<K: Key> PartialEq<K> for NodeEdge<K> {
         }
     }
 }
-
 
 #[derive(Clone, Deref, DerefMut)]
 pub struct Descendants<'a, K: Key, V>(Traverse<'a, K, V>);

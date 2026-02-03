@@ -1,8 +1,8 @@
+use super::{Key, Node, iter::*};
+use super::{NodeRef, NodeRefMut};
+use derive_more::{Index, IndexMut};
 use std::iter::FusedIterator;
 use std::ops::Deref;
-use derive_more::{Index, IndexMut};
-use super::{Node, Key, iter::*};
-use super::{NodeRef, NodeRefMut};
 
 type Inner<K, V> = slotmap::SlotMap<K, V>;
 
@@ -59,18 +59,17 @@ impl<K: Key, V> Tree<K, V> {
         }
     }
 
-   pub fn insert(&mut self, value: V) -> K {
+    pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))
-   }
+    }
 
-   pub fn insert_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
+    pub fn insert_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
         self.inner.insert_with_key(|k| Node::new(f(k)))
-   }
+    }
 
-   pub fn try_insert_with_key<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+    pub fn try_insert_with_key<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
         self.inner.try_insert_with_key(|k| f(k).map(Node::new))
-   }
-
+    }
 
     /// Insert a node and immediately append the given children to it.
     pub fn insert_with_children(&mut self, value: V, children: &[K]) -> K {
@@ -184,7 +183,10 @@ impl<K: Key, V> Tree<K, V> {
     /// Insert a child before a specific sibling.
     pub fn prepend(&mut self, node: K, before: K) {
         let parent = self.inner[before].parent;
-        debug_assert!(!parent.is_null(), "insert_before: reference node has no parent");
+        debug_assert!(
+            !parent.is_null(),
+            "insert_before: reference node has no parent"
+        );
 
         self.detach(node);
 
@@ -208,7 +210,10 @@ impl<K: Key, V> Tree<K, V> {
     /// Insert a node after a specific node.
     pub fn append(&mut self, node: K, after: K) {
         let parent = self.inner[after].parent;
-        debug_assert!(!parent.is_null(), "insert_after: reference node has no parent");
+        debug_assert!(
+            !parent.is_null(),
+            "insert_after: reference node has no parent"
+        );
 
         self.detach(node);
 
@@ -296,7 +301,6 @@ impl<K: Key, V> Tree<K, V> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,11 +356,15 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn append_child_relationships() {
-        let Test { root, a, b, c, tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            tree,
+        } = Test::default();
 
         assert_eq!(tree.parent(a), Some(root));
         assert_eq!(tree.parent(b), Some(root));
@@ -377,7 +385,13 @@ mod tests {
 
     #[test]
     fn prepend_child() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
 
         let z = tree.insert(Node("z"));
         tree.prepend_child(root, z);
@@ -389,7 +403,13 @@ mod tests {
 
     #[test]
     fn insert_before_after() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
 
         let x = tree.insert(Node("x"));
         let y = tree.insert(Node("y"));
@@ -403,7 +423,13 @@ mod tests {
 
     #[test]
     fn detach_middle() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
 
         tree.detach(b);
 
@@ -420,7 +446,13 @@ mod tests {
 
     #[test]
     fn detach_first_and_last() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
 
         tree.detach(a);
         assert_eq!(tree.first_child(root), Some(b));
@@ -438,7 +470,13 @@ mod tests {
         //    a   b   c
         //        |
         //        d
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
         let d = tree.insert(Node("d"));
         tree.append_child(b, d);
 
@@ -454,7 +492,13 @@ mod tests {
 
     #[test]
     fn insert_with_children() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
         let a = tree.insert(Node("a"));
         let b = tree.insert(Node("b"));
         let c = tree.insert(Node("c"));
@@ -468,7 +512,13 @@ mod tests {
 
     #[test]
     fn reparent_child() {
-        let Test { root, a, b, c, mut tree } = Test::default();
+        let Test {
+            root,
+            a,
+            b,
+            c,
+            mut tree,
+        } = Test::default();
         let other = tree.insert(Node("other"));
 
         // Move b under `other`
@@ -497,7 +547,13 @@ mod tests {
 
         #[test]
         fn children_iter() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
 
             let mut children = tree.children(root);
             assert_eq!(children.next(), Some(a));
@@ -509,7 +565,13 @@ mod tests {
 
         #[test]
         fn ancestors_iter() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
 
             let d = tree.insert(Node("d"));
             tree.append_child(b, d);
@@ -525,14 +587,21 @@ mod tests {
             //    a   b   c
             //       / \
             //      d   e
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
 
             let d = tree.insert(Node("d"));
             let e = tree.insert(Node("e"));
             tree.append_child(b, d);
             tree.append_child(b, e);
 
-            let names: Vec<_> = tree.descendants(root)
+            let names: Vec<_> = tree
+                .descendants(root)
                 .map(|id| tree.get(id).unwrap().0)
                 .collect();
 
@@ -541,7 +610,13 @@ mod tests {
 
         #[test]
         fn following_siblings() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
 
             let fwd: Vec<_> = tree.following_siblings(b).collect();
             assert_eq!(fwd, vec![b, c]);
@@ -549,7 +624,13 @@ mod tests {
 
         #[test]
         fn preceding_siblings() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
 
             let bwd: Vec<_> = tree.preceding_siblings(b).collect();
             assert_eq!(bwd, vec![b, a]);
@@ -557,7 +638,13 @@ mod tests {
 
         #[test]
         fn traverse() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
             let mut iter = tree.traverse(root);
 
             assert_eq!(iter.next().unwrap(), NodeEdge::Start(root));
@@ -573,7 +660,13 @@ mod tests {
 
         #[test]
         fn reverse_traverse() {
-            let Test { root, a, b, c, mut tree } = Test::default();
+            let Test {
+                root,
+                a,
+                b,
+                c,
+                mut tree,
+            } = Test::default();
             let mut iter = tree.reverse_traverse(root);
 
             assert_eq!(iter.next().unwrap(), NodeEdge::End(root));
@@ -585,7 +678,6 @@ mod tests {
             assert_eq!(iter.next().unwrap(), NodeEdge::Start(a));
             assert_eq!(iter.next().unwrap(), NodeEdge::Start(root));
             assert_eq!(iter.next(), None);
-
         }
     }
 }

@@ -1,9 +1,11 @@
+use crate::{Buffer, key};
 use compact_str::CompactString;
 use derive_more::{Deref, DerefMut, From, Into};
 use geometry::Position;
-use crate::{key, Buffer};
 
-key!(pub struct LayerId;);
+key!(
+    pub struct LayerId;
+);
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct Layer {
@@ -18,7 +20,7 @@ impl Layer {
     pub const ZERO: Self = Self {
         buffer: Buffer::ZERO,
         is_dirty: false,
-        position: Position::ZERO
+        position: Position::ZERO,
     };
 
     pub fn new(width: usize, height: usize) -> Self {

@@ -2,7 +2,7 @@ use crate::{BufferIndex, BufferSelector, Cell};
 use ansi::fmt::Write;
 use ansi::{Escape, Style};
 use derive_more::{Deref, DerefMut};
-use geometry::{Position, Point, Rect, Region, RegionIter};
+use geometry::{Point, Position, Rect, Region, RegionIter};
 use std::fmt::{Display, Formatter};
 use std::io::Write as _;
 use std::slice::SliceIndex;
@@ -94,7 +94,8 @@ impl Buffer {
     }
 
     pub fn index_of(&self, index: Position) -> Option<usize> {
-        self.contains(index).then_some(index.row * self.width + index.col)
+        self.contains(index)
+            .then_some(index.row * self.width + index.col)
     }
 
     pub const fn position_of(&self, index: usize) -> Position {
@@ -125,7 +126,6 @@ impl Buffer {
     }
 }
 impl Buffer {
-
     pub fn select<'a>(
         &'a self,
         selector: &'a impl BufferSelector,
@@ -176,7 +176,6 @@ impl Buffer {
             }
         }
     }
-
 }
 impl Display for Buffer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

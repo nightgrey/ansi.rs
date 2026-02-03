@@ -1,22 +1,20 @@
-use taffy::{GridContainerStyle, Style, TaffyTree};
-use crate::{ElementNode, LayerNode, RootTree};
+use crate::{ElementId, Element, Layer, LayerId};
+use super::tree::*;
 
 pub struct Engine {
-    elements: RootTree<ElementNode>,
-    layers: RootTree<LayerNode>,
-    layout: TaffyTree
+    elements: Tree<ElementId, Element>,
+    layers: Tree<LayerId, Layer>,
 }
 
 impl Engine {
     pub fn new() -> Self {
         Self {
-            elements: RootTree::new(ElementNode::container()),
-            layers: RootTree::new(LayerNode::ZERO),
-            layout: TaffyTree::new()
+            elements: Tree::new(),
+            layers: Tree::new(),
         }
     }
 
-    pub fn add(&mut self, node: ElementNode) {
-        self.elements.add(node);
+    pub fn add(&mut self, node: Element) {
+        self.elements.insert(node);
     }
 }

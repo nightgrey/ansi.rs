@@ -1,10 +1,12 @@
 use compact_str::CompactString;
 use derive_more::{Deref, DerefMut, From, Into};
 use geometry::Position;
-use crate::Buffer;
+use crate::{key, Buffer};
+
+key!(pub struct LayerId;);
 
 #[derive(Debug, Deref, DerefMut)]
-pub struct LayerNode {
+pub struct Layer {
     #[deref]
     #[deref_mut]
     buffer: Buffer,
@@ -12,7 +14,7 @@ pub struct LayerNode {
     is_dirty: bool,
 }
 
-impl LayerNode {
+impl Layer {
     pub const ZERO: Self = Self {
         buffer: Buffer::ZERO,
         is_dirty: false,
@@ -20,7 +22,7 @@ impl LayerNode {
     };
 
     pub fn new(width: usize, height: usize) -> Self {
-        LayerNode {
+        Layer {
             buffer: Buffer::new(width, height),
             is_dirty: false,
             position: Position::default(),

@@ -1,5 +1,8 @@
 use indextree::NodeId;
 use geometry::Position;
+use crate::key;
+
+key!(pub struct ElementId;);
 
 #[derive(Debug)]
 pub enum ElementNodeKind {
@@ -8,13 +11,13 @@ pub enum ElementNodeKind {
 }
 
 #[derive(Debug)]
-pub struct ElementNode {
+pub struct Element {
     pub kind: ElementNodeKind,
     pub layer_id: Option<NodeId>,
     pub position: Position
 }
 
-impl ElementNode {
+impl Element {
     pub const fn container() -> Self {
         Self {
             kind: ElementNodeKind::Container,

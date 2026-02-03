@@ -1,4 +1,3 @@
-
 pub trait Key: slotmap::Key {
     fn option(self) -> Option<Self> {
         match self.is_null() {
@@ -34,12 +33,13 @@ pub trait Key: slotmap::Key {
 macro_rules! key {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
         pub use slotmap::Key;
+
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;
 
         }
 
-        impl crate::ui::tree::Key for $name {}
+        impl $crate::Key for $name {}
     };
 }

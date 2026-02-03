@@ -61,14 +61,15 @@ impl<K: Key, V> Tree<K, V> {
 
    pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))
-    }
-    pub fn insert_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
-        self.inner.insert_with_key(|k| Node::new(f(k)))
-    }
+   }
 
-    pub fn try_insert_with_key<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+   pub fn insert_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
+        self.inner.insert_with_key(|k| Node::new(f(k)))
+   }
+
+   pub fn try_insert_with_key<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
         self.inner.try_insert_with_key(|k| f(k).map(Node::new))
-    }
+   }
 
 
     /// Insert a node and immediately append the given children to it.

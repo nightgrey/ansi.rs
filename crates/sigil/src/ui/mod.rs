@@ -1,9 +1,10 @@
 mod node;
-mod tree;
 mod layer;
 mod engine;
-mod t;
+mod arena;
+mod tree;
 
 pub use node::*;
+pub use arena::*;
 pub use tree::*;
 pub use layer::*;

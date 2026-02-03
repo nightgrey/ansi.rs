@@ -107,13 +107,13 @@ impl<T> Tree<T> {
 
 
 
-    #[derive(Deref, DerefMut)]
-    pub struct RootTree<T>  {
-        root: NodeId,
-        #[deref]
-        #[deref_mut]
-        inner: Tree<T>
-    }
+#[derive(Deref, DerefMut)]
+pub struct RootTree<T>  {
+    root: NodeId,
+    #[deref]
+    #[deref_mut]
+    inner: Tree<T>
+}
 
 impl<T> RootTree<T> {
     pub fn new(root: T) -> Self {

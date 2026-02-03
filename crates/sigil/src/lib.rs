@@ -3,6 +3,7 @@
 #![feature(const_cmp)]
 #![feature(const_range)]
 #![feature(option_reference_flattening)]
+extern crate core;
 
 mod buffer;
 mod ui;

@@ -1,4 +1,12 @@
 pub trait Key: slotmap::Key {
+    fn is_none(self) -> bool {
+        self.is_null()
+    }
+
+    fn is_some(self) -> bool {
+        !self.is_none()
+    }
+
     fn option(self) -> Option<Self> {
         match self.is_null() {
             true => None,

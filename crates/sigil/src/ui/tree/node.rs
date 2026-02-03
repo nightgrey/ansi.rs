@@ -4,8 +4,6 @@ use derive_more::{Deref, DerefMut, Index, IndexMut};
 use std::ops::Deref;
 
 /// A tree node with embedded structural links.
-///
-/// All keys use `K::null()` to represent "no link" instead of `Option<K>`.
 #[derive(Debug, Deref, DerefMut)]
 pub struct Node<K: Key, V> {
     pub(super) parent: K,
@@ -51,6 +49,7 @@ impl<K: Key, V> Node<K, V> {
     }
 }
 
+#[derive(Debug)]
 pub struct NodeRef<'a, K: Key, V> {
     pub id: K,
     tree: &'a Tree<K, V>,
@@ -61,8 +60,8 @@ impl<'a, K: Key, V> NodeRef<'a, K, V> {
         Self { id, tree }
     }
 
-    pub fn node(&self) -> &'a Node<K, V> {
-        self.tree.get_node(self.id).unwrap()
+    pub fn node(&self) -> &Node<K, V> {
+        &self.tree[self.id]
     }
 
     pub fn parent(&self) -> Option<K> {
@@ -118,6 +117,12 @@ impl<'a, K: Key, V> NodeRef<'a, K, V> {
     }
 }
 
+impl<'a, K: Key, V: PartialEq> PartialEq<V> for NodeRef<'a, K, V> {
+    fn eq(&self, other: &V) -> bool {
+        *self == *other
+    }
+}
+
 impl<'a, K: Key, V> Deref for NodeRef<'a, K, V> {
     type Target = V;
 
@@ -137,11 +142,27 @@ impl<'a, K: Key, V> NodeRefMut<'a, K, V> {
     }
 
     pub fn node(&self) -> &Node<K, V> {
-        self.tree.get_node(self.id).unwrap()
+        &self.tree[self.id]
     }
 
     pub fn node_mut(&mut self) -> &mut Node<K, V> {
-        self.tree.get_node_mut(self.id).unwrap()
+        &mut self.tree[self.id]
+    }
+
+    pub fn append_child(&mut self, child: K) {
+        self.tree.append_child(self.id, child);
+    }
+
+    pub fn append_children(&mut self, children: &[K]) {
+        self.tree.append_children(self.id, children);
+    }
+
+    pub fn prepend_child(&mut self, child: K) {
+        self.tree.prepend_child(self.id, child);
+    }
+
+    pub fn prepend_children(&mut self, children: &[K]) {
+        self.tree.prepend_children(self.id, children);
     }
 
     pub fn parent(&self) -> Option<K> {
@@ -201,29 +222,6 @@ impl<'a, K: Key, V> Deref for NodeRefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
-        self.node()
+        &self.node()
     }
-}
-#[test]
-fn qwe() {
-    // Setup
-    crate::key! {
-        pub struct Id;
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
-    pub struct Node {
-        pub value: &'static str,
-    }
-
-    let mut tree = Tree::<Id, Node>::new();
-
-    let id = tree.insert(Node { value: "root" });
-
-    let a = tree.insert(Node { value: "a" });
-    tree.insert_children(id, &[a]);
-
-    let reference = NodeRef::new(id, &tree);
-
-    println!("{:?}", reference.children(id).collect::<Vec<_>>());
 }

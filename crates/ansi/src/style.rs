@@ -606,9 +606,7 @@ impl Escape for Style {
 
         w.write_all(b"\x1B[")?;
 
-        separator!({
-            w.write_all(b";")
-        });
+        separator!({ w.write_all(b";") });
 
         if self.bg.is_some() {
             separate!(w.escape(&self.bg.as_background())?);

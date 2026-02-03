@@ -3,9 +3,9 @@ use derive_more::{Deref, DerefMut};
 use crate::Escape;
 pub use ::bitflags::{Bits, Flags, bitflags, bitflags_match};
 pub use ::std::ops::{BitAnd, BitOr, BitXor, Not};
-use std::io::Write;
 use modular_bitfield::error::{InvalidBitPattern, OutOfBounds};
 use modular_bitfield::prelude::*;
+use std::io::Write;
 
 bitflags! {
     /// Attributes

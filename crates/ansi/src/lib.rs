@@ -4,10 +4,10 @@
 #![feature(const_destruct)]
 
 mod attribute;
+mod bit_color;
 mod color;
 mod escape;
 mod style;
-mod bit_color;
 
 pub use attribute::*;
 pub use color::*;

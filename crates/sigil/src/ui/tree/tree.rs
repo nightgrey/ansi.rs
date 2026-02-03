@@ -29,12 +29,18 @@ impl<K: Key, V> Tree<K, V> {
         self.inner.contains_key(key)
     }
 
-    pub fn get(&self, key: K) -> Option<&V> {
-        self.get_node(key).map(|n| &n.value)
+    pub fn get(&self, key: K) -> Option<NodeRef<K, V>> {
+        match self.contains(key) {
+            true => Some(NodeRef::new(key, self)),
+            false => None,
+        }
     }
 
-    pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
-        self.get_node_mut(key).map(|n| &mut n.value)
+    pub fn get_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
+        match self.contains(key) {
+            true => Some(NodeRefMut::new(key, self)),
+            false => None,
+        }
     }
 
     pub fn get_node(&self, key: K) -> Option<&Node<K, V>> {
@@ -45,29 +51,15 @@ impl<K: Key, V> Tree<K, V> {
         self.inner.get_mut(key)
     }
 
-    pub fn get_node_ref(&self, key: K) -> Option<NodeRef<K, V>> {
-        match self.contains(key) {
-            true => Some(NodeRef::new(key, self)),
-            false => None,
-        }
-    }
-
-    pub fn get_node_ref_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
-        match self.contains(key) {
-            true => Some(NodeRefMut::new(key, self)),
-            false => None,
-        }
-    }
-
     pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))
     }
 
-    pub fn insert_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
+    pub fn insert_with(&mut self, f: impl FnOnce(K) -> V) -> K {
         self.inner.insert_with_key(|k| Node::new(f(k)))
     }
 
-    pub fn try_insert_with_key<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+    pub fn try_insert_with<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
         self.inner.try_insert_with_key(|k| f(k).map(Node::new))
     }
 
@@ -75,12 +67,12 @@ impl<K: Key, V> Tree<K, V> {
     pub fn insert_with_children(&mut self, value: V, children: &[K]) -> K {
         let id = self.inner.insert(Node::new(value));
 
-        self.insert_children(id, children);
+        self.append_children(id, children);
 
         id
     }
 
-    /// Recursively remove a node and all its descendants.
+    /// Remove a node with all its descendants.
     pub fn remove(&mut self, key: K) -> Option<V> {
         if !self.inner.contains_key(key) {
             return None;
@@ -97,7 +89,7 @@ impl<K: Key, V> Tree<K, V> {
         self.inner.remove(key).map(|n| n.value)
     }
 
-    /// Detach a node from its parent (keeps the node and its subtree intact).
+    /// Detach a node (keeps the node and its subtree intact).
     pub fn detach(&mut self, node: K) {
         let parent_key = self.inner[node].parent;
 
@@ -128,16 +120,6 @@ impl<K: Key, V> Tree<K, V> {
         node.next_sibling = K::null();
     }
 
-    pub fn insert_child(&mut self, parent: K, child: K) {
-        self.append_child(parent, child);
-    }
-
-    pub fn insert_children(&mut self, parent: K, children: &[K]) {
-        for &child in children {
-            self.append_child(parent, child);
-        }
-    }
-
     /// Append a child to the end of the parent's child list.
     pub fn append_child(&mut self, parent: K, child: K) {
         self.detach(child);
@@ -159,6 +141,19 @@ impl<K: Key, V> Tree<K, V> {
         node.next_sibling = K::null();
     }
 
+    /// Insert a child into the end of the parent's child list.
+    pub fn insert_child(&mut self, parent: K, child: V) -> K {
+        let id = self.insert(child);
+        self.append_child(parent, id);
+        id
+    }
+
+    pub fn append_children(&mut self, parent: K, children: &[K]) {
+        for &child in children {
+            self.append_child(parent, child);
+        }
+    }
+
     /// Prepend a child to the beginning of the parent's child list.
     pub fn prepend_child(&mut self, parent: K, child: K) {
         self.detach(child);
@@ -178,6 +173,13 @@ impl<K: Key, V> Tree<K, V> {
         node.parent = parent;
         node.previous_sibling = K::null();
         node.next_sibling = old_head;
+    }
+
+    /// Prepend a list of children to the beginning of the parent's child list.
+    pub fn prepend_children(&mut self, parent: K, children: &[K]) {
+        for &child in children {
+            self.prepend_child(parent, child);
+        }
     }
 
     /// Insert a child before a specific sibling.
@@ -255,9 +257,11 @@ impl<K: Key, V> Tree<K, V> {
     }
 
     pub fn is_leaf(&self, key: K) -> bool {
-        self.inner
-            .get(key)
-            .map_or(true, |n| n.first_child.is_null())
+        self.get_node(key).map_or(true, |n| n.first_child.is_null())
+    }
+
+    pub fn is_root(&self, key: K) -> bool {
+        self.inner.get(key).map_or(false, |n| n.parent.is_null())
     }
 
     pub fn len(&self) -> usize {
@@ -441,7 +445,8 @@ mod tests {
         assert_eq!(kids, vec![a, c]);
 
         // b still exists
-        assert_eq!(tree.get(b), Some(&Node("b")));
+        assert_eq!(tree.contains(b), true);
+        assert_eq!(tree.get(b).unwrap(), Node("b"));
     }
 
     #[test]
@@ -602,10 +607,20 @@ mod tests {
 
             let names: Vec<_> = tree
                 .descendants(root)
-                .map(|id| tree.get(id).unwrap().0)
+                .map(|id| tree.get(id).unwrap())
                 .collect();
 
-            assert_eq!(names, vec!["root", "a", "b", "d", "e", "c"]);
+            assert_eq!(
+                names,
+                vec![
+                    Node("root"),
+                    Node("a"),
+                    Node("b"),
+                    Node("d"),
+                    Node("e"),
+                    Node("c")
+                ]
+            );
         }
 
         #[test]

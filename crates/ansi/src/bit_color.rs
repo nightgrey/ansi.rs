@@ -6,7 +6,7 @@ enum ColorKindBits {
     None,
     Default,
     Index,
-    Rgb
+    Rgb,
 }
 
 #[bitfield]
@@ -29,7 +29,6 @@ struct ColorBits {
     tag: ColorKindBits,
     value: B24,
 }
-
 
 #[bitfield]
 #[derive(Specifier)]

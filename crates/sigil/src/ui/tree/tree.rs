@@ -1,14 +1,15 @@
 use super::{Key, Node, iter::*};
 use super::{NodeRef, NodeRefMut};
-use derive_more::{Index, IndexMut};
+use derive_more::{Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
 type Inner<K, V> = slotmap::SlotMap<K, V>;
 
-#[derive(Debug, Index, IndexMut)]
+#[derive(Debug, Index, IndexMut, IntoIterator)]
 #[repr(transparent)]
 pub struct Tree<K: Key, V> {
+    #[into_iterator(owned, ref, ref_mut)]
     inner: Inner<K, Node<K, V>>,
 }
 
@@ -302,6 +303,22 @@ impl<K: Key, V> Tree<K, V> {
 
     pub fn reverse_traverse(&self, key: K) -> ReverseTraverse<K, V> {
         ReverseTraverse::new(self, key)
+    }
+
+    pub fn iter(&self) -> slotmap::basic::Iter<K, Node<K, V>>  {
+        self.inner.iter()
+    }
+
+    pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<K, Node<K, V>> {
+        self.inner.values_mut()
+    }
+
+    pub fn keys(&self) -> slotmap::basic::Keys<K, Node<K, V>> {
+        self.inner.keys()
+    }
+
+    pub fn values(&self) -> slotmap::basic::Values<K, Node<K, V>> {
+        self.inner.values()
     }
 }
 

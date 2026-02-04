@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use crate::text::DisplayWidth;
 use ansi::io::Write;
 use ansi::{Escape, Flags, Style};
@@ -11,7 +12,7 @@ pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     /// Empty string represents an empty cell.
     content: CompactString,
-    width: usize,
+    pub(crate) width: usize,
     style: Style,
 }
 
@@ -93,6 +94,13 @@ impl Cell {
         self.style = style.clone();
     }
 
+    pub fn copy_from(&mut self, other: &Self) {
+        self.content.clear();
+        self.content.push_str(other.content.as_str());
+        self.width = other.width;
+        self.style = other.style;
+    }
+
     pub fn clear(&mut self) -> &mut Self {
         self.set_space();
         self.style.clear();
@@ -171,5 +179,12 @@ impl Escape for Cell {
         w.escape(&self.style)?;
         w.write(self.as_bytes())?;
         Ok(())
+    }
+}
+
+impl Display for Cell {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use ansi::fmt::Write as _;
+        f.escape(self)
     }
 }

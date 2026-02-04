@@ -1,4 +1,4 @@
-use crate::{Buffer, key};
+use crate::{Buffer, key, NodeRefMut, NodeRef};
 use compact_str::CompactString;
 use derive_more::{Deref, DerefMut, From, Into};
 use geometry::Position;
@@ -12,13 +12,15 @@ pub struct Layer {
     #[deref]
     #[deref_mut]
     buffer: Buffer,
-    position: Position,
-    is_dirty: bool,
+    pub position: Position,
+    pub z_index: i32,
+    pub is_dirty: bool,
 }
 
 impl Layer {
     pub const ZERO: Self = Self {
         buffer: Buffer::ZERO,
+        z_index: 0,
         is_dirty: false,
         position: Position::ZERO,
     };
@@ -26,6 +28,7 @@ impl Layer {
     pub fn new(width: usize, height: usize) -> Self {
         Layer {
             buffer: Buffer::new(width, height),
+            z_index: 0,
             is_dirty: false,
             position: Position::default(),
         }

@@ -1,7 +1,8 @@
-use crate::{Point, Position, Rect, Size};
+use crate::{Point, Position, Rect, Size, PointsIter};
 use std::iter::FusedIterator;
 use std::ops::Range;
 use std::ops::{Add, AddAssign, Sub};
+use super::{PositionsIter};
 
 /// A rectangular region of buffer positions.
 ///
@@ -171,8 +172,8 @@ impl Region {
     ///     Position::new(1, 0), Position::new(1, 1),
     /// ]);
     /// ```
-    pub const fn iter(&self) -> RegionIter {
-        RegionIter::new(self)
+    pub  fn iter(&self) -> PositionsIter {
+        PositionsIter::new(*self)
     }
 }
 
@@ -190,104 +191,21 @@ impl From<Range<Position>> for Region {
 
 impl IntoIterator for Region {
     type Item = Position;
-    type IntoIter = RegionIter;
+    type IntoIter = PositionsIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        RegionIter::new(&self)
+        PositionsIter::new(self)
     }
 }
 
 impl IntoIterator for &Region {
     type Item = Position;
-    type IntoIter = RegionIter;
+    type IntoIter = PositionsIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        RegionIter::new(self)
+        PositionsIter::new(*self)
     }
 }
-
-/// Iterator over positions in a region, row-by-row.
-#[derive(Clone, Debug)]
-pub struct RegionIter {
-    // Region bounds (immutable)
-    pub row: Range<usize>,
-    pub col: Range<usize>,
-
-    start: usize,
-    end: usize,
-}
-
-impl RegionIter {
-    #[inline]
-    const fn new(region: &Region) -> Self {
-        let width = region.width();
-        let height = region.height();
-
-        let row = region.min.row..region.max.row;
-        let col = region.min.col..region.max.col;
-
-        Self {
-            row,
-            col,
-            start: 0,
-            end: height * width,
-        }
-    }
-
-    fn to_position(&self, index: usize) -> Position {
-        let width = self.col.end - self.col.start;
-        if width == 0 {
-            return Position::ZERO;
-        }
-
-        Position {
-            row: self.row.start + index / width,
-            col: self.col.start + index % width,
-        }
-    }
-}
-
-impl Iterator for RegionIter {
-    type Item = Position;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start >= self.end {
-            return None;
-        }
-
-        let coord = self.to_position(self.start);
-        self.start += 1;
-        Some(coord)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        self.start = self.start.saturating_add(n);
-        self.next()
-    }
-}
-
-impl DoubleEndedIterator for RegionIter {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.start >= self.end {
-            return None;
-        }
-
-        self.end -= 1;
-        Some(self.to_position(self.end))
-    }
-}
-
-impl ExactSizeIterator for RegionIter {
-    fn len(&self) -> usize {
-        self.end.saturating_sub(self.start)
-    }
-}
-impl FusedIterator for RegionIter {}
 
 #[cfg(test)]
 mod tests {
@@ -430,7 +348,7 @@ mod tests {
         assert_eq!(region.max, end);
     }
 
-    // === RegionIter Tests ===
+    // === SpatialIter Tests ===
 
     #[test]
     fn test_region_iter_basic() {

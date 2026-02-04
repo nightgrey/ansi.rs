@@ -40,8 +40,7 @@ pub trait Key: slotmap::Key {
 #[macro_use]
 macro_rules! key {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
-        pub use slotmap::Key;
-
+        use slotmap::Key as _;
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;

@@ -7,7 +7,7 @@ extern crate core;
 
 mod buffer;
 mod text;
-mod ui;
+pub mod ui;
 
 pub use buffer::*;
 pub use text::*;

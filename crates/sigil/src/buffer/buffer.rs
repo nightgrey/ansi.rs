@@ -2,7 +2,7 @@ use crate::{BufferIndex, BufferSelector, Cell};
 use ansi::fmt::Write;
 use ansi::{Escape, Style};
 use derive_more::{Deref, DerefMut};
-use geometry::{Point, Position, Rect, Region, RegionIter};
+use geometry::{Point, Position, Rect, Region, PositionsIter};
 use std::fmt::{Display, Formatter};
 use std::io::Write as _;
 use std::slice::SliceIndex;
@@ -11,7 +11,7 @@ use unicode_width::UnicodeWidthStr;
 
 // TODO: Check https://lib.rs/crates/stable-vec
 // https://github.com/HarrisonMc555/array2d
-#[derive(Clone, PartialEq, Deref, DerefMut, Debug)]
+#[derive(Clone, PartialEq,  Deref, DerefMut, Debug)]
 pub struct Buffer {
     #[deref]
     #[deref_mut]
@@ -124,6 +124,10 @@ impl Buffer {
     pub fn lines(&self) -> impl Iterator<Item = String> {
         self.rows().map(|row| row.iter().collect::<String>())
     }
+
+    pub fn clear(&mut self) {
+        self.inner.fill(Cell::EMPTY);
+    }
 }
 impl Buffer {
     pub fn select<'a>(
@@ -133,11 +137,11 @@ impl Buffer {
         selector.positions(self)
     }
 
-    pub fn text(
+    pub fn string(
         &mut self,
         index: impl BufferIndex<Output = [Cell]>,
         string: impl AsRef<str>,
-        style: &Style,
+        style: Style,
     ) {
         if let Some(cells) = index.get_mut(self) {
             let mut remaining = cells.len();
@@ -156,7 +160,7 @@ impl Buffer {
             {
                 // Set the starting cell
                 cells[i].set_content(grapheme);
-                cells[i].set_style(style);
+                cells[i].set_style(&style);
                 let next_symbol = i + width;
                 i += 1;
 

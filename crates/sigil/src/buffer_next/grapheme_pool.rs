@@ -1,15 +1,14 @@
-use  super::GraphemePoolError;
-
 /// A per-plane byte arena for extended grapheme clusters.
 ///
 /// When a grapheme cluster exceeds 4 UTF-8 bytes (e.g., emoji ZWJ sequences),
-/// it's stored here as a NUL-terminated string and referenced by a 24-bit
-/// offset from the [`Grapheme`](crate::Grapheme) handle.
+/// it's stored here and referenced by a 24-bit offset from the
+/// [`Grapheme`](crate::Grapheme) handle.
 ///
 /// Inspired by notcurses' `egcpool`, this pool is designed for the specific
 /// access pattern of a terminal framebuffer:
 ///
-/// - **Append-first allocation**: new entries are appended to the end (O(1)).
+/// - **Append-first allocation**: new entries are appended to the end (amortised
+///   O(1) via doubling growth).
 /// - **Gap reclamation**: when the pool approaches its 16 MiB limit, freed
 ///   regions (zeroed by [`release`](Self::release)) are reclaimed via a linear
 ///   scan from a write cursor.
@@ -17,14 +16,25 @@ use  super::GraphemePoolError;
 ///   invalidating all outstanding grapheme handles. This is the "erase plane"
 ///   operation.
 ///
-/// The pool is **not** a deduplication interner — each `insert` gets its own
+/// ## Storage format
+///
+/// Each entry is stored as a 2-byte little-endian length prefix followed by the
+/// raw UTF-8 bytes. This avoids the fragility of NUL-terminated scanning (where
+/// adjacent released entries could merge) and enables O(1) release via a single
+/// `fill(0)`.
+///
+/// ```text
+/// [len_lo] [len_hi] [utf8 bytes ...]
+/// ```
+///
+/// The pool is **not** a deduplication interner — each `stash` gets its own
 /// slot. This avoids HashMap overhead and keeps the common path (inline
 /// graphemes that never touch the pool) at zero cost.
 pub struct GraphemePool {
-    /// Contiguous byte storage. Each entry is a NUL-terminated UTF-8 string.
+    /// Contiguous byte storage. Each entry is a length-prefixed UTF-8 string.
     pool: Vec<u8>,
 
-    /// Bytes actively occupied by stored graphemes (excluding freed gaps).
+    /// Bytes actively occupied by stored graphemes (including length prefixes).
     used: usize,
 
     /// Write cursor for gap scanning. When the pool is near capacity,
@@ -32,6 +42,13 @@ pub struct GraphemePool {
     /// regions to reuse.
     write_cursor: usize,
 }
+
+/// Size of the length prefix for each pool entry (2 bytes, little-endian u16).
+const PREFIX_SIZE: usize = 2;
+
+/// Minimum allocation size for the pool backing storage.
+/// Avoids repeated tiny allocations for the first few extended graphemes.
+const MINIMUM_ALLOC: usize = 1024;
 
 impl GraphemePool {
     /// Maximum pool size: 16 MiB. This is the addressable range of the
@@ -56,16 +73,22 @@ impl GraphemePool {
         }
     }
 
-    /// Store a NUL-terminated UTF-8 grapheme cluster and return its offset.
+    /// Store a length-prefixed UTF-8 grapheme cluster and return its offset.
     ///
     /// This is called by [`Grapheme::new`](crate::Grapheme::new) when the
     /// cluster exceeds 4 bytes.
     pub fn stash(&mut self, s: &str) -> Result<usize, GraphemePoolError> {
-        let needed = s.len() + 1; // +1 for NUL terminator
+        let str_len = s.len();
+        let needed = PREFIX_SIZE + str_len;
         let offset = self.allocate(needed)?;
 
-        self.pool[offset..offset + s.len()].copy_from_slice(s.as_bytes());
-        self.pool[offset + s.len()] = 0; // NUL terminator
+        // Write length prefix (little-endian u16).
+        let len_bytes = (str_len as u16).to_le_bytes();
+        self.pool[offset] = len_bytes[0];
+        self.pool[offset + 1] = len_bytes[1];
+
+        // Write UTF-8 payload.
+        self.pool[offset + PREFIX_SIZE..offset + needed].copy_from_slice(s.as_bytes());
         self.used += needed;
 
         Ok(offset)
@@ -79,39 +102,42 @@ impl GraphemePool {
     /// and the entry must not have been released. This is upheld internally by
     /// [`Grapheme::resolve`](crate::Grapheme::resolve).
     pub fn resolve(&self, offset: usize) -> &str {
-        debug_assert!(offset < self.pool.len(), "pool offset out of bounds");
+        debug_assert!(
+            offset + PREFIX_SIZE <= self.pool.len(),
+            "pool offset out of bounds"
+        );
 
-        // Find the NUL terminator.
-        let end = self.pool[offset..]
-            .iter()
-            .position(|&b| b == 0)
-            .map(|i| offset + i)
-            .unwrap_or(self.pool.len());
+        let str_len = self.entry_len(offset);
+
+        debug_assert!(
+            offset + PREFIX_SIZE + str_len <= self.pool.len(),
+            "pool entry extends past end of pool"
+        );
 
         // SAFETY: We only store valid UTF-8 via `stash`.
-        unsafe { std::str::from_utf8_unchecked(&self.pool[offset..end]) }
+        unsafe {
+            std::str::from_utf8_unchecked(
+                &self.pool[offset + PREFIX_SIZE..offset + PREFIX_SIZE + str_len],
+            )
+        }
     }
 
-    /// Release storage at the given offset by zeroing it out.
+    /// Release storage at the given offset by zeroing the entire entry.
     ///
     /// The freed region becomes available for future allocations when gap
-    /// reclamation runs.
+    /// reclamation runs. O(1) thanks to the length prefix — no scanning needed.
     pub fn release(&mut self, offset: usize) {
-        debug_assert!(offset < self.pool.len(), "releasing out-of-bounds offset");
+        debug_assert!(
+            offset + PREFIX_SIZE <= self.pool.len(),
+            "releasing out-of-bounds offset"
+        );
 
-        let mut i = offset;
-        while i < self.pool.len() && self.pool[i] != 0 {
-            self.pool[i] = 0;
-            i += 1;
-        }
+        let str_len = self.entry_len(offset);
+        let total = PREFIX_SIZE + str_len;
 
-        // Also clear the NUL terminator itself so the region is fully zeroed.
-        if i < self.pool.len() {
-            self.pool[i] = 0;
-        }
-
-        let freed = i - offset + 1;
-        self.used = self.used.saturating_sub(freed);
+        // Zero the entire entry (prefix + payload).
+        self.pool[offset..offset + total].fill(0);
+        self.used = self.used.saturating_sub(total);
 
         // Hint the write cursor: if this freed region starts before the
         // current cursor, move the cursor back to allow earlier reuse.
@@ -154,16 +180,39 @@ impl GraphemePool {
         self.used == 0
     }
 
+    // ── Internal helpers ───────────────────────────────────────────────
+
+    /// Read the string length from the 2-byte LE prefix at `offset`.
+    #[inline]
+    fn entry_len(&self, offset: usize) -> usize {
+        u16::from_le_bytes([self.pool[offset], self.pool[offset + 1]]) as usize
+    }
+
     // ── Allocation internals ───────────────────────────────────────────
 
     /// Allocate `needed` contiguous bytes in the pool.
     ///
-    /// Fast path: append to the end (O(1)).
+    /// Fast path: append to the end with doubling growth (amortised O(1)).
     /// Slow path: scan for a contiguous gap of freed (zero) bytes.
     fn allocate(&mut self, needed: usize) -> Result<usize, GraphemePoolError> {
         // Fast path: space to append.
         if self.pool.len() + needed <= Self::MAX_POOL_SIZE {
             let offset = self.pool.len();
+
+            // Doubling growth strategy (à la notcurses' egcpool_grow).
+            let min_capacity = offset + needed;
+            let target_capacity = self
+                .pool
+                .capacity()
+                .max(MINIMUM_ALLOC)
+                .max(self.pool.len() * 2)
+                .min(Self::MAX_POOL_SIZE)
+                .max(min_capacity);
+
+            if self.pool.capacity() < target_capacity {
+                self.pool.reserve(target_capacity - self.pool.len());
+            }
+
             self.pool.resize(offset + needed, 0);
             return Ok(offset);
         }
@@ -172,39 +221,57 @@ impl GraphemePool {
         self.find_gap(needed).ok_or(GraphemePoolError::Full)
     }
 
-    /// Scan the pool for a contiguous run of `needed` zero bytes, starting
-    /// from the write cursor and wrapping around once.
+    /// Scan the pool for a contiguous run of `needed` zero bytes.
+    ///
+    /// Scans forward from the write cursor, then from offset 0 if nothing
+    /// was found. Does **not** wrap mid-gap, avoiding the bug where a gap
+    /// straddling the pool boundary would produce a non-contiguous region.
     fn find_gap(&mut self, needed: usize) -> Option<usize> {
         let len = self.pool.len();
         if len == 0 || needed > len {
             return None;
         }
 
-        let start = self.write_cursor % len;
-        let mut scanned = 0;
-        let mut pos = start;
-        let mut gap_start: Option<usize> = None;
-        let mut gap_len = 0;
+        let start = self.write_cursor.min(len);
 
-        while scanned < len {
-            if self.pool[pos] == 0 {
-                if gap_start.is_none() {
-                    gap_start = Some(pos);
-                    gap_len = 0;
+        // Try twice: first from the cursor, then from the beginning.
+        for scan_start in [start, 0] {
+            let mut i = scan_start;
+
+            while i + needed <= len {
+                if self.pool[i] == 0 {
+                    // Count how many contiguous zero bytes starting at i.
+                    let gap_len = self.pool[i..]
+                        .iter()
+                        .take(needed)
+                        .take_while(|&&b| b == 0)
+                        .count();
+
+                    if gap_len >= needed {
+                        self.write_cursor = i + needed;
+                        return Some(i);
+                    }
+
+                    // Skip past the partial gap.
+                    i += gap_len;
+                } else {
+                    // Skip past this live entry. Read its length prefix if
+                    // it looks like a valid entry, otherwise advance byte by byte.
+                    if i + PREFIX_SIZE <= len {
+                        let entry_str_len = self.entry_len(i);
+                        if entry_str_len > 0 && i + PREFIX_SIZE + entry_str_len <= len {
+                            i += PREFIX_SIZE + entry_str_len;
+                            continue;
+                        }
+                    }
+                    i += 1;
                 }
-                gap_len += 1;
-                if gap_len >= needed {
-                    let offset = gap_start.unwrap();
-                    self.write_cursor = offset + needed;
-                    return Some(offset);
-                }
-            } else {
-                gap_start = None;
-                gap_len = 0;
             }
 
-            pos = (pos + 1) % len;
-            scanned += 1;
+            // Don't re-scan the same range.
+            if scan_start == 0 {
+                break;
+            }
         }
 
         None
@@ -227,6 +294,20 @@ impl std::fmt::Debug for GraphemePool {
     }
 }
 
+// ── GraphemePoolError ───────────────────────────────────────────────────────
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum GraphemePoolError {
+    /// Error returned when the [`GraphemePool`] cannot allocate space for an
+    /// extended grapheme cluster (pool has reached its 16 MiB limit with no
+    /// reclaimable gaps).
+    #[error("grapheme pool is full (16 MiB limit reached)")]
+    Full,
+    #[error("unknown error")]
+    Unknown,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,7 +327,7 @@ mod tests {
 
         let offset = pool.stash(s).unwrap();
         assert_eq!(pool.resolve(offset), s);
-        assert_eq!(pool.used(), s.len() + 1); // +1 for NUL
+        assert_eq!(pool.used(), PREFIX_SIZE + s.len());
     }
 
     #[test]
@@ -265,9 +346,10 @@ mod tests {
     fn release_and_reuse() {
         let mut pool = GraphemePool::new();
 
-        let s1 = "hello!"; // 6 bytes + NUL = 7
+        let s1 = "hello!"; // 6 bytes + 2 prefix = 8
         let offset1 = pool.stash(s1).unwrap();
         let used_after_s1 = pool.used();
+        assert_eq!(used_after_s1, PREFIX_SIZE + s1.len());
 
         // Release s1.
         pool.release(offset1);
@@ -317,8 +399,56 @@ mod tests {
             pool.release(offsets[i]);
         }
 
-        // Pool length unchanged but used is halved.
+        // Pool length unchanged but used is roughly halved.
         assert_eq!(pool.len(), len_when_full);
         assert!(pool.used() < len_when_full);
+    }
+
+    #[test]
+    fn doubling_growth_strategy() {
+        let mut pool = GraphemePool::new();
+
+        // First allocation should jump to at least MINIMUM_ALLOC.
+        pool.stash("hello").unwrap();
+        assert!(
+            pool.capacity() >= MINIMUM_ALLOC,
+            "expected capacity >= {MINIMUM_ALLOC}, got {}",
+            pool.capacity()
+        );
+
+        // Subsequent allocations shouldn't cause capacity to grow linearly.
+        let cap_after_first = pool.capacity();
+        for i in 0..10 {
+            pool.stash(&format!("entry-{i:04}-some-padding")).unwrap();
+        }
+        // Should have at most doubled, not grown 10 times.
+        assert!(pool.capacity() <= cap_after_first * 4);
+    }
+
+    #[test]
+    fn release_is_exact() {
+        let mut pool = GraphemePool::new();
+
+        let s1 = "alpha-entry";
+        let s2 = "bravo-entry";
+
+        let off1 = pool.stash(s1).unwrap();
+        let off2 = pool.stash(s2).unwrap();
+
+        let total_used = pool.used();
+        let s1_cost = PREFIX_SIZE + s1.len();
+        let s2_cost = PREFIX_SIZE + s2.len();
+        assert_eq!(total_used, s1_cost + s2_cost);
+
+        // Releasing s1 should subtract exactly its cost.
+        pool.release(off1);
+        assert_eq!(pool.used(), s2_cost);
+
+        // s2 should still be intact.
+        assert_eq!(pool.resolve(off2), s2);
+
+        // Releasing s2 should bring us to zero.
+        pool.release(off2);
+        assert_eq!(pool.used(), 0);
     }
 }

@@ -1,7 +1,8 @@
-use thiserror::Error;
+use std::borrow::Cow;
 use std::fmt;
+use std::ops::Deref;
 
-use super::GraphemePool;
+use super::{GraphemePool, GraphemePoolError};
 
 /// A compact grapheme-cluster handle stored in 4 bytes.
 ///
@@ -26,9 +27,12 @@ use super::GraphemePool;
 /// all zeros                            →  empty (no grapheme)
 /// ```
 ///
-/// The marker byte `0x01` (SOH) can never appear as the first byte of a valid
-/// UTF-8 sequence in byte position 3 — continuation bytes are `0x80..=0xBF`,
-/// and 4-byte leading bytes are `0xF0..=0xF7` — so the encoding is unambiguous.
+/// The marker byte `0x01` (SOH) can never appear as the *high* byte of an
+/// inline grapheme's little-endian representation. For multi-byte UTF-8: byte
+/// position 3 holds either a continuation byte (`0x80..=0xBF`) or a 4-byte
+/// leading byte (`0xF0..=0xF7`). For single-byte values like SOH itself
+/// (`0x01`), only byte 0 is non-zero while byte 3 remains `0x00`. The encoding
+/// is therefore unambiguous — unlike notcurses, SOH *can* be stored inline.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Grapheme(u32);
@@ -100,6 +104,12 @@ impl Grapheme {
         Self::from_inline_bytes(s.as_bytes())
     }
 
+    /// Create an extended grapheme from a pool offset.
+    fn from_pool_offset(offset: usize) -> Self {
+        debug_assert!(offset <= OFFSET_MASK as usize);
+        Self(EXTENDED_MARKER | (offset as u32 & OFFSET_MASK))
+    }
+
     /// Returns `true` if this grapheme is empty (no character).
     #[inline]
     pub const fn is_empty(self) -> bool {
@@ -121,26 +131,80 @@ impl Grapheme {
         (self.0 & 0xFF_00_00_00) == EXTENDED_MARKER
     }
 
-    /// Resolve this grapheme to a [`Graph`] for reading.
+    /// Execute a closure with the resolved `&str`.
     ///
-    /// The returned value borrows from the pool (for extended graphemes) or
-    /// holds inline data (for inline graphemes). Call `.as_str()` to get a `&str`.
+    /// This is the **primary** and most efficient way to read a grapheme.
+    /// For inline graphemes the string lives on the stack; for extended
+    /// graphemes it borrows directly from the pool — zero copies either way.
     ///
     /// # Example
     ///
     /// ```
     /// # use sigil::{Grapheme, GraphemePool};
-    /// let mut pool = GraphemePool::new();
+    /// let pool = GraphemePool::new();
+    /// let g = Grapheme::from_char('A');
+    /// g.with_str(&pool, |s| assert_eq!(s, "A"));
+    /// ```
+    pub fn with_str<R>(&self, pool: &GraphemePool, f: impl FnOnce(&str) -> R) -> R {
+        if self.is_empty() {
+            f("")
+        } else if self.is_inline() {
+            let bytes = self.inline_bytes();
+            let len = Grapheme::inline_len(&bytes);
+            // SAFETY: We only store valid UTF-8 via `from_inline_bytes`.
+            let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len as usize]) };
+            f(s)
+        } else {
+            f(pool.resolve(self.pool_offset()))
+        }
+    }
+
+    /// Resolve this grapheme to a `&str` without copying or closures.
+    ///
+    /// The returned reference borrows from `self` (for inline) or `pool`
+    /// (for extended), so both must outlive the result.
+    ///
+    /// # Safety note
+    ///
+    /// Requires little-endian target (compile-time enforced).
+    #[cfg(target_endian = "little")]
+    pub fn as_str<'a>(&'a self, pool: &'a GraphemePool) -> &'a str {
+        if self.is_empty() {
+            ""
+        } else if self.is_inline() {
+            let len = Grapheme::inline_len(&self.inline_bytes()) as usize;
+            // SAFETY: repr(transparent) over u32, and on LE the memory
+            // layout matches the logical byte order. We only store valid
+            // UTF-8 via from_inline_bytes. Lifetime is tied to &self.
+            unsafe {
+                let ptr = (self as *const Self).cast::<u8>();
+                std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, len))
+            }
+        } else {
+            pool.resolve(self.pool_offset())
+        }
+    }
+
+    /// Resolve this grapheme to a [`Graph`] for pattern matching or storage.
+    ///
+    /// For hot loops where you only need brief `&str` access, prefer
+    /// [`with_str`](Self::with_str) instead — it avoids the intermediate enum.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use sigil::{Grapheme, GraphemePool};
+    /// let pool = GraphemePool::new();
     /// let g = Grapheme::from_char('A');
     /// let resolved = g.resolve(&pool);
     /// assert_eq!(resolved.as_str(), "A");
     /// ```
-    pub fn resolve<'a>(&self, pool: &'a GraphemePool) -> Graph<'a> {
+    pub fn as_graph<'a>(&self, pool: &'a GraphemePool) -> Graph<'a> {
         if self.is_empty() {
             Graph::Empty
         } else if self.is_inline() {
-            let bytes = self.inline_le_bytes();
-            let len = inline_utf8_len(&bytes);
+            let bytes = self.inline_bytes();
+            let len = Grapheme::inline_len(&bytes);
             Graph::Inline { bytes, len }
         } else {
             let s = pool.resolve(self.pool_offset());
@@ -148,22 +212,23 @@ impl Grapheme {
         }
     }
 
-    /// Execute a closure with the resolved `&str`, avoiding the intermediate
-    /// [`Graph`] allocation.
+    /// Resolve this grapheme to a [`Cow<str>`].
     ///
-    /// This is the most efficient way to read a grapheme when you only need
-    /// a brief, non-escaping access to the string data.
-    pub fn with_str<R>(&self, pool: &GraphemePool, f: impl FnOnce(&str) -> R) -> R {
+    /// Inline graphemes produce `Cow::Owned` (the data lives on the stack and
+    /// must be copied). Extended graphemes produce `Cow::Borrowed` from the
+    /// pool. Useful when you need an owned-or-borrowed string without the
+    /// callback style of [`with_str`](Self::with_str).
+    pub fn as_cow<'a>(&self, pool: &'a GraphemePool) -> Cow<'a, str> {
         if self.is_empty() {
-            f("")
+            Cow::Borrowed("")
         } else if self.is_inline() {
-            let bytes = self.inline_le_bytes();
-            let len = inline_utf8_len(&bytes);
+            let bytes = self.inline_bytes();
+            let len = Grapheme::inline_len(&bytes) as usize;
             // SAFETY: We only store valid UTF-8 via `from_inline_bytes`.
-            let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len as usize]) };
-            f(s)
+            let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len]) };
+            Cow::Owned(s.to_owned())
         } else {
-            f(pool.resolve(self.pool_offset()))
+            Cow::Borrowed(pool.resolve(self.pool_offset()))
         }
     }
 
@@ -189,20 +254,31 @@ impl Grapheme {
         Self(u32::from_le_bytes(buf))
     }
 
-    /// Create an extended grapheme from a pool offset.
-    fn from_pool_offset(offset: usize) -> Self {
-        debug_assert!(offset <= OFFSET_MASK as usize);
-        Self(EXTENDED_MARKER | (offset as u32 & OFFSET_MASK))
-    }
 
     /// Get the raw little-endian bytes of an inline grapheme.
-    fn inline_le_bytes(self) -> [u8; 4] {
+    fn inline_bytes(self) -> [u8; 4] {
         self.0.to_le_bytes()
     }
 
     /// Get the pool offset of an extended grapheme.
     fn pool_offset(self) -> usize {
         (self.0 & OFFSET_MASK) as usize
+    }
+
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /// Determine the byte length of an inline UTF-8 grapheme stored as `[u8; 4]`.
+    ///
+    /// Scans for the first zero byte. Since UTF-8 continuation bytes are always
+    /// `0x80..=0xBF`, a zero byte can only appear as a NUL character (which we
+    /// treat as empty) or as padding after the grapheme data.
+    #[inline]
+    fn inline_len(bytes: &[u8; 4]) -> u8 {
+        // Use position-of-zero rather than leading-byte analysis so we correctly
+        // handle multi-codepoint grapheme clusters (e.g., base + combining mark)
+        // that happen to fit in ≤4 bytes.
+        bytes.iter().position(|&b| b == 0).unwrap_or(4) as u8
     }
 }
 
@@ -213,13 +289,22 @@ impl Default for Grapheme {
     }
 }
 
+impl From<char> for Grapheme {
+    /// Create an inline grapheme from a `char`.
+    ///
+    /// Equivalent to [`Grapheme::from_char`].
+    fn from(c: char) -> Self {
+        Self::from_char(c)
+    }
+}
+
 impl fmt::Debug for Grapheme {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_empty() {
             f.write_str("Grapheme(EMPTY)")
         } else if self.is_inline() {
-            let bytes = self.inline_le_bytes();
-            let len = inline_utf8_len(&bytes);
+            let bytes = self.inline_bytes();
+            let len = Grapheme::inline_len(&bytes);
             let s = std::str::from_utf8(&bytes[..len as usize]).unwrap_or("<invalid>");
             write!(f, "Grapheme({s:?})")
         } else {
@@ -228,12 +313,14 @@ impl fmt::Debug for Grapheme {
     }
 }
 
+
 // ── Graph ────────────────────────────────────────────────────────────
 
 /// A resolved grapheme cluster — the result of reading a [`Grapheme`] handle.
 ///
 /// For inline graphemes the data lives on the stack; for extended graphemes
-/// it borrows from the [`GraphemePool`]. Use `.as_str()` for uniform access.
+/// it borrows from the [`GraphemePool`]. Use `.as_str()` or the [`Deref`]
+/// impl for uniform `&str` access.
 pub enum Graph<'a> {
     /// No grapheme.
     Empty,
@@ -247,17 +334,6 @@ pub enum Graph<'a> {
 
 impl Graph<'_> {
     /// View this resolved grapheme as a string slice.
-    ///
-    /// For [`Inline`](Graph::Inline) variants, the returned reference
-    /// borrows from this `Graph` value, so bind it to a variable first:
-    ///
-    /// ```
-    /// # use sigil::{Grapheme, GraphemePool};
-    /// # let pool = GraphemePool::new();
-    /// # let grapheme = Grapheme::from_char('X');
-    /// let resolved = grapheme.resolve(&pool);
-    /// let s: &str = resolved.as_str();
-    /// ```
     pub fn as_str(&self) -> &str {
         match self {
             Self::Empty => "",
@@ -281,6 +357,14 @@ impl Graph<'_> {
     /// Returns `true` if this is the empty grapheme.
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::Empty)
+    }
+}
+
+impl Deref for Graph<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -308,33 +392,14 @@ impl<'a> PartialEq<&'a str> for Graph<'_> {
     }
 }
 
-// ── GraphemePoolError::Full ───────────────────────────────────────────────────────
-
-#[derive(Error, Debug)]
-pub enum GraphemePoolError {
-    /// Error returned when the [`GraphemePool`] cannot allocate space for an
-    /// extended grapheme cluster (pool has reached its 16 MiB limit with no
-    /// reclaimable gaps).
-    #[error("grapheme pool is full (16 MiB limit reached)")]
-    Full,
-    #[error("unknown error")]
-    Unknown,
+impl PartialEq for Graph<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+impl Eq for Graph<'_> {}
 
-/// Determine the byte length of an inline UTF-8 grapheme stored as `[u8; 4]`.
-///
-/// Scans for the first zero byte. Since UTF-8 continuation bytes are always
-/// `0x80..=0xBF`, a zero byte can only appear as a NUL character (which we
-/// treat as empty) or as padding after the grapheme data.
-#[inline]
-fn inline_utf8_len(bytes: &[u8; 4]) -> u8 {
-    // Use position-of-zero rather than leading-byte analysis so we correctly
-    // handle multi-codepoint grapheme clusters (e.g., base + combining mark)
-    // that happen to fit in ≤4 bytes.
-    bytes.iter().position(|&b| b == 0).unwrap_or(4) as u8
-}
 
 #[cfg(test)]
 mod tests {
@@ -355,7 +420,7 @@ mod tests {
         assert!(g.is_inline());
 
         let pool = GraphemePool::new();
-        assert_eq!(g.resolve(&pool), "A");
+        assert_eq!(g.as_graph(&pool), "A");
     }
 
     #[test]
@@ -365,12 +430,12 @@ mod tests {
         // 2-byte: Latin é (U+00E9)
         let g = Grapheme::try_inline("é").unwrap();
         assert!(g.is_inline());
-        assert_eq!(g.resolve(&pool), "é");
+        assert_eq!(g.as_graph(&pool), "é");
 
         // 3-byte: CJK 中 (U+4E2D)
         let g = Grapheme::try_inline("中").unwrap();
         assert!(g.is_inline());
-        assert_eq!(g.resolve(&pool), "中");
+        assert_eq!(g.as_graph(&pool), "中");
     }
 
     #[test]
@@ -379,7 +444,7 @@ mod tests {
         // 4-byte: party popper 🎉 (U+1F389) = F0 9F 8E 89
         let g = Grapheme::from_char('🎉');
         assert!(g.is_inline());
-        assert_eq!(g.resolve(&pool), "🎉");
+        assert_eq!(g.as_graph(&pool), "🎉");
     }
 
     #[test]
@@ -390,7 +455,7 @@ mod tests {
         assert_eq!(s.len(), 3);
         let g = Grapheme::try_inline(s).unwrap();
         assert!(g.is_inline());
-        assert_eq!(g.resolve(&pool), s);
+        assert_eq!(g.as_graph(&pool), s);
     }
 
     #[test]
@@ -403,7 +468,7 @@ mod tests {
         let g = Grapheme::new(family, &mut pool);
         assert!(!g.is_empty());
         assert!(g.is_extended());
-        assert_eq!(g.resolve(&pool), family);
+        assert_eq!(g.as_graph(&pool), family);
     }
 
     #[test]
@@ -441,6 +506,71 @@ mod tests {
     }
 
     #[test]
+    fn as_str_callback() {
+        let mut pool = GraphemePool::new();
+        let g = Grapheme::new( "👨\u{200D}👩\u{200D}👧\u{200D}👦", &mut pool);
+        let result = g.as_str(&pool);
+        assert_eq!(result, "👨\u{200D}👩\u{200D}👧\u{200D}👦");
+
+        let g2 = Grapheme::from_char('X');
+        let result2 = g2.as_str(&pool);
+        assert_eq!(result2, "X");
+    }
+
+    #[test]
+    fn to_cow() {
+        let mut pool = GraphemePool::new();
+
+        // Inline → Cow::Owned
+        let g = Grapheme::from_char('Z');
+        let cow = g.as_cow(&pool);
+        assert_eq!(&*cow, "Z");
+        assert!(matches!(cow, Cow::Owned(_)));
+
+        // Extended → Cow::Borrowed
+        let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
+        let g2 = Grapheme::new(family, &mut pool);
+        let cow2 = g2.as_cow(&pool);
+        assert_eq!(&*cow2, family);
+        assert!(matches!(cow2, Cow::Borrowed(_)));
+
+        // Empty
+        let cow3 = Grapheme::EMPTY.as_cow(&pool);
+        assert_eq!(&*cow3, "");
+    }
+
+
+    #[test]
+    fn from_char_trait() {
+        let g: Grapheme = 'A'.into();
+        assert!(g.is_inline());
+        let pool = GraphemePool::new();
+        assert_eq!(g.as_graph(&pool), "A");
+    }
+
+    #[test]
+    fn graph_deref_to_str() {
+        let pool = GraphemePool::new();
+        let g = Grapheme::from_char('H');
+        let resolved = g.as_graph(&pool);
+
+        // Deref gives us &str methods for free.
+        assert!(resolved.starts_with('H'));
+        assert_eq!(resolved.to_uppercase(), "H");
+    }
+
+    #[test]
+    fn graph_eq() {
+        let pool = GraphemePool::new();
+        let g1 = Grapheme::from_char('A').as_graph(&pool);
+        let g2 = Grapheme::from_char('A').as_graph(&pool);
+        let g3 = Grapheme::from_char('B').as_graph(&pool);
+
+        assert_eq!(g1, g2);
+        assert_ne!(g1, g3);
+    }
+
+    #[test]
     fn debug_output() {
         let g = Grapheme::from_char('Z');
         let dbg = format!("{g:?}");
@@ -449,5 +579,18 @@ mod tests {
         let g2 = Grapheme::EMPTY;
         let dbg2 = format!("{g2:?}");
         assert!(dbg2.contains("EMPTY"));
+    }
+
+    // Pin the invariant: SOH (0x01) is stored inline, not mistaken for
+    // an extended marker. Unlike notcurses, we *can* store SOH.
+    #[test]
+    fn soh_byte_is_not_extended() {
+        let g = Grapheme::from_char('\x01');
+        assert!(g.is_inline());
+        assert!(!g.is_extended());
+        assert!(!g.is_empty());
+
+        let pool = GraphemePool::new();
+        assert_eq!(g.as_graph(&pool), "\x01");
     }
 }

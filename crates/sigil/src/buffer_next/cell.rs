@@ -85,7 +85,7 @@ impl Cell {
     ///
     /// Shorthand for `self.grapheme().resolve(pool)`.
     pub fn resolve_grapheme<'a>(&self, pool: &'a GraphemePool) -> Graph<'a> {
-        self.grapheme.resolve(pool)
+        self.grapheme.as_graph(pool)
     }
 
     /// The raw width value (0 means unset).

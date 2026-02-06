@@ -65,7 +65,7 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::Rect;
+    /// # use geometry::{Rect, Point};
     /// let rect = Rect::bounds(10, 5, 20, 15);
     /// assert_eq!(rect.min, Point::new(10, 5));
     /// assert_eq!(rect.max, Point::new(30, 20));

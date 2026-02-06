@@ -872,6 +872,7 @@ dependencies = [
  "taffy",
  "terminal",
  "textwrap",
+ "thiserror 2.0.18",
  "unicode-display-width",
  "unicode-segmentation",
  "unicode-width",

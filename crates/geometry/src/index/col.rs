@@ -1,5 +1,5 @@
 use crate::Position;
-use derive_more::{AsRef, Deref, DerefMut, From, Into, Mul};
+use derive_more::{AsRef, Deref, DerefMut, From, Into};
 
 /// A column in buffer coordinates.
 #[derive(

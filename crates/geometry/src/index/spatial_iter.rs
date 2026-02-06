@@ -1,6 +1,6 @@
 use std::iter::FusedIterator;
 use std::ops::Range;
-use crate::{Point, Position, Rect, Region, Size};
+use crate::{Point, Position, Rect, Bounds, Size};
 
 /// Iterator over indexes in a 2D spatial rectangular region
 #[derive(Clone, Debug)]
@@ -13,8 +13,8 @@ pub struct SpatialIter {
 }
 
 impl SpatialIter {
-    pub fn new(region_like: impl Into<Region>) -> Self {
-        let region = region_like.into();
+    pub fn new(bounds_like: impl Into<Bounds>) -> Self {
+        let region = bounds_like.into();
 
         let width = region.width();
         let height = region.height();
@@ -30,6 +30,7 @@ impl SpatialIter {
         }
     }
 
+
     pub const fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
         let row = y..y + height;
         let col = x..x + width;
@@ -40,6 +41,14 @@ impl SpatialIter {
             index: 0,
             end: height * width,
         }
+    }
+
+    pub const fn positions(self) -> PositionsIter {
+        PositionsIter(self)
+    }
+
+    pub const fn points(self) -> PointsIter {
+        PointsIter(self)
     }
 }
 
@@ -88,7 +97,7 @@ impl FusedIterator for SpatialIter {}
 pub struct PositionsIter(SpatialIter);
 
 impl PositionsIter {
-    pub  fn new(region_like: impl Into<Region>) -> Self {
+    pub  fn new(region_like: impl Into<Bounds>) -> Self {
         Self(SpatialIter::new(region_like))
     }
 
@@ -132,7 +141,7 @@ impl ExactSizeIterator for PositionsIter {
 pub struct PointsIter(SpatialIter);
 
 impl PointsIter {
-    pub  fn new(region_like: impl Into<Region>) -> Self {
+    pub  fn new(region_like: impl Into<Bounds>) -> Self {
         Self(SpatialIter::new(region_like))
     }
 

@@ -184,73 +184,6 @@ impl BufferIndex for Position {
     }
 }
 
-impl BufferIndex for ops::Range<Position> {
-    type Output = [Cell];
-    type SliceIndex = ops::Range<usize>;
-
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start.within(buffer) && self.end.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(
-            self.start.row * buffer.width + self.start.col
-                ..self.end.row * buffer.width + self.end.col,
-        )
-    }
-}
-impl BufferIndex for ops::RangeInclusive<Position> {
-    type SliceIndex = ops::RangeInclusive<usize>;
-    type Output = [Cell];
-
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start().within(buffer) && self.end().within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(
-            self.start().row * buffer.width + self.start().col
-                ..=self.end().row * buffer.width + self.end().col,
-        )
-    }
-}
-impl BufferIndex for ops::RangeFrom<Position> {
-    type SliceIndex = ops::RangeFrom<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer)
-            .then_some(self.start.row * buffer.width + self.start.col..)
-    }
-}
-impl BufferIndex for ops::RangeTo<Position> {
-    type SliceIndex = ops::RangeTo<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.end.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer)
-            .then_some(..self.end.row * buffer.width + self.end.col)
-    }
-}
-impl BufferIndex for ops::RangeToInclusive<Position> {
-    type SliceIndex = ops::RangeToInclusive<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.end.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer)
-            .then_some(..=self.end.row * buffer.width + self.end.col)
-    }
-}
-
 impl BufferIndex for Point {
     type SliceIndex = usize;
     type Output = Cell;
@@ -262,72 +195,6 @@ impl BufferIndex for Point {
     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
         self.within(buffer)
             .then_some(self.y * buffer.width + self.x)
-    }
-}
-
-impl BufferIndex for ops::Range<Point> {
-    type SliceIndex = ops::Range<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start.within(buffer) && self.end.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(
-            self.start.y * buffer.width + self.start.x..self.end.y * buffer.width + self.end.x,
-        )
-    }
-}
-impl BufferIndex for ops::RangeInclusive<Point> {
-    type SliceIndex = ops::RangeInclusive<usize>;
-    type Output = [Cell];
-
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start().within(buffer) && self.end().within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer).then_some(
-            self.start().y * buffer.width + self.start().x
-                ..=self.end().y * buffer.width + self.end().x,
-        )
-    }
-}
-impl BufferIndex for ops::RangeFrom<Point> {
-    type SliceIndex = ops::RangeFrom<usize>;
-    type Output = [Cell];
-
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.start.within(buffer)
-    }
-
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer)
-            .then_some(self.start.y * buffer.width + self.start.x..)
-    }
-}
-impl BufferIndex for ops::RangeTo<Point> {
-    type SliceIndex = ops::RangeTo<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.end.within(buffer)
-    }
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        self.within(buffer)
-            .then_some(..self.end.y * buffer.width + self.end.x)
-    }
-}
-impl BufferIndex for ops::RangeToInclusive<Point> {
-    type SliceIndex = ops::RangeToInclusive<usize>;
-    type Output = [Cell];
-    fn within(&self, buffer: &Buffer) -> bool {
-        self.end.within(buffer)
-    }
-    fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
-        let end = &self.end;
-
-        self.within(buffer)
-            .then_some(..=end.y * buffer.width + end.x)
     }
 }
 
@@ -609,3 +476,138 @@ mod tests {
         assert!(buffer.get(Position::new(0, 0)).is_none());
     }
 }
+
+
+
+// impl BufferIndex for ops::Range<Position> {
+//     type Output = [Cell];
+//     type SliceIndex = ops::Range<usize>;
+// 
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start.within(buffer) && self.end.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer).then_some(
+//             self.start.row * buffer.width + self.start.col
+//                 ..self.end.row * buffer.width + self.end.col,
+//         )
+//     }
+// }
+// impl BufferIndex for ops::RangeInclusive<Position> {
+//     type SliceIndex = ops::RangeInclusive<usize>;
+//     type Output = [Cell];
+// 
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start().within(buffer) && self.end().within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer).then_some(
+//             self.start().row * buffer.width + self.start().col
+//                 ..=self.end().row * buffer.width + self.end().col,
+//         )
+//     }
+// }
+// impl BufferIndex for ops::RangeFrom<Position> {
+//     type SliceIndex = ops::RangeFrom<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer)
+//             .then_some(self.start.row * buffer.width + self.start.col..)
+//     }
+// }
+// impl BufferIndex for ops::RangeTo<Position> {
+//     type SliceIndex = ops::RangeTo<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.end.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer)
+//             .then_some(..self.end.row * buffer.width + self.end.col)
+//     }
+// }
+// impl BufferIndex for ops::RangeToInclusive<Position> {
+//     type SliceIndex = ops::RangeToInclusive<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.end.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer)
+//             .then_some(..=self.end.row * buffer.width + self.end.col)
+//     }
+// }
+// 
+// impl BufferIndex for ops::Range<Point> {
+//     type SliceIndex = ops::Range<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start.within(buffer) && self.end.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer).then_some(
+//             self.start.y * buffer.width + self.start.x..self.end.y * buffer.width + self.end.x,
+//         )
+//     }
+// }
+// impl BufferIndex for ops::RangeInclusive<Point> {
+//     type SliceIndex = ops::RangeInclusive<usize>;
+//     type Output = [Cell];
+// 
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start().within(buffer) && self.end().within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer).then_some(
+//             self.start().y * buffer.width + self.start().x
+//                 ..=self.end().y * buffer.width + self.end().x,
+//         )
+//     }
+// }
+// impl BufferIndex for ops::RangeFrom<Point> {
+//     type SliceIndex = ops::RangeFrom<usize>;
+//     type Output = [Cell];
+// 
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.start.within(buffer)
+//     }
+// 
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer)
+//             .then_some(self.start.y * buffer.width + self.start.x..)
+//     }
+// }
+// impl BufferIndex for ops::RangeTo<Point> {
+//     type SliceIndex = ops::RangeTo<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.end.within(buffer)
+//     }
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         self.within(buffer)
+//             .then_some(..self.end.y * buffer.width + self.end.x)
+//     }
+// }
+// impl BufferIndex for ops::RangeToInclusive<Point> {
+//     type SliceIndex = ops::RangeToInclusive<usize>;
+//     type Output = [Cell];
+//     fn within(&self, buffer: &Buffer) -> bool {
+//         self.end.within(buffer)
+//     }
+//     fn index_of(self, buffer: &Buffer) -> Option<Self::SliceIndex> {
+//         let end = &self.end;
+// 
+//         self.within(buffer)
+//             .then_some(..=end.y * buffer.width + end.x)
+//     }
+// }

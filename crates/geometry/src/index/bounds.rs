@@ -1,6 +1,7 @@
+use std::collections::Bound;
 use crate::{Point, Position, Rect, Size, PointsIter};
 use std::iter::FusedIterator;
-use std::ops::Range;
+use std::ops::{Range, RangeBounds};
 use std::ops::{Add, AddAssign, Sub};
 use super::{PositionsIter};
 
@@ -15,9 +16,9 @@ use super::{PositionsIter};
 /// # Example
 ///
 /// ```rust
-/// use geometry::{Region, Position};
+/// use geometry::{Bounds, Position};
 ///
-/// let region = Region::new(Position::new(0, 0), Position::new(2, 3));
+/// let region = Bounds::new(Position::new(0, 0), Position::new(2, 3));
 /// assert_eq!(region.width(), 3);
 /// assert_eq!(region.height(), 2);
 /// assert_eq!(region.area(), 6);
@@ -30,7 +31,7 @@ use super::{PositionsIter};
 /// assert_eq!(positions[3], Position::new(1, 0));  // Second row, first column
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Region {
+pub struct Bounds {
     /// Minimum (top-left) position (inclusive).
     pub min: Position,
 
@@ -38,7 +39,7 @@ pub struct Region {
     pub max: Position,
 }
 
-impl Region {
+impl Bounds {
     /// An empty region at the origin.
     pub const ZERO: Self = Self {
         min: Position::ZERO,
@@ -50,11 +51,15 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(5, 10), Position::new(15, 30));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(5, 10), Position::new(15, 30));
     /// ```
-    pub fn new(min: Position, max: Position) -> Self {
+    pub const fn new(min: Position, max: Position) -> Self {
         Self { min, max }
+    }
+    
+    pub const fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self::new(Position::new(x, y), Position::new(x + width, y + height))
     }
 
     /// Get the minimum (top-left) position.
@@ -84,8 +89,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(0, 5), Position::new(0, 15));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(0, 5), Position::new(0, 15));
     /// assert_eq!(region.width(), 10);
     /// ```
     pub const fn width(&self) -> usize {
@@ -99,8 +104,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(5, 0), Position::new(20, 0));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(5, 0), Position::new(20, 0));
     /// assert_eq!(region.height(), 15);
     /// ```
     pub const fn height(&self) -> usize {
@@ -112,8 +117,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(0, 0), Position::new(4, 5));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(0, 0), Position::new(4, 5));
     /// assert_eq!(region.area(), 20);  // 4 rows × 5 cols
     /// ```
     pub const fn area(&self) -> usize {
@@ -127,8 +132,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(0, 0), Position::new(10, 10));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(0, 0), Position::new(10, 10));
     ///
     /// assert!(region.contains(&Position::new(0, 0)));    // min (inclusive)
     /// assert!(region.contains(&Position::new(5, 5)));    // inside
@@ -146,8 +151,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position, Size};
-    /// let region = Region::new(Position::new(0, 0), Position::new(24, 80));
+    /// # use geometry::{Bounds, Position, Size};
+    /// let region = Bounds::new(Position::new(0, 0), Position::new(24, 80));
     /// assert_eq!(region.size(), Size::new(80, 24));  // width, height
     /// ```
     pub const fn size(&self) -> Size {
@@ -164,8 +169,8 @@ impl Region {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Region, Position};
-    /// let region = Region::new(Position::new(0, 0), Position::new(2, 2));
+    /// # use geometry::{Bounds, Position};
+    /// let region = Bounds::new(Position::new(0, 0), Position::new(2, 2));
     /// let positions: Vec<_> = region.iter().collect();
     /// assert_eq!(positions, vec![
     ///     Position::new(0, 0), Position::new(0, 1),
@@ -177,19 +182,31 @@ impl Region {
     }
 }
 
-impl From<Rect> for Region {
+impl<T: RangeBounds<Position>> From<T> for Bounds {
+    fn from(value: T) -> Self {
+        use std::ops::Bound;
+
+        let start = match value.start_bound() {
+            Bound::Unbounded => Position::new(usize::MIN, usize::MIN),
+            Bound::Included(&p) | Bound::Excluded(&p) => p,
+        };
+
+        let end = match value.end_bound() {
+            Bound::Unbounded => Position::new(usize::MAX, usize::MAX),
+            Bound::Included(&p) => Position::new(p.row + 1, p.col + 1),
+            Bound::Excluded(&p) => p,
+        };
+
+        Self::new(start, end)
+    }
+}
+impl From<Rect> for Bounds {
     fn from(value: Rect) -> Self {
         Self::new(Position::from(value.min), Position::from(value.max))
     }
 }
 
-impl From<Range<Position>> for Region {
-    fn from(value: Range<Position>) -> Self {
-        Self::new(value.start, value.end)
-    }
-}
-
-impl IntoIterator for Region {
+impl IntoIterator for Bounds {
     type Item = Position;
     type IntoIter = PositionsIter;
 
@@ -198,7 +215,7 @@ impl IntoIterator for Region {
     }
 }
 
-impl IntoIterator for &Region {
+impl IntoIterator for &Bounds {
     type Item = Position;
     type IntoIter = PositionsIter;
 
@@ -278,27 +295,27 @@ mod tests {
 
     #[test]
     fn test_region_new() {
-        let r = Region::new(Position::new(5, 10), Position::new(15, 30));
+        let r = Bounds::new(Position::new(5, 10), Position::new(15, 30));
         assert_eq!(r.min, Position::new(5, 10));
         assert_eq!(r.max, Position::new(15, 30));
     }
 
     #[test]
     fn test_region_width_height() {
-        let r = Region::new(Position::new(0, 0), Position::new(5, 10));
+        let r = Bounds::new(Position::new(0, 0), Position::new(5, 10));
         assert_eq!(r.width(), 10);
         assert_eq!(r.height(), 5);
     }
 
     #[test]
     fn test_region_area() {
-        let r = Region::new(Position::new(0, 0), Position::new(4, 5));
+        let r = Bounds::new(Position::new(0, 0), Position::new(4, 5));
         assert_eq!(r.area(), 20); // 4 * 5
     }
 
     #[test]
     fn test_region_contains() {
-        let r = Region::new(Position::new(10, 10), Position::new(20, 20));
+        let r = Bounds::new(Position::new(10, 10), Position::new(20, 20));
 
         // Inside
         assert!(r.contains(&Position::new(15, 15)));
@@ -316,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_region_size() {
-        let r = Region::new(Position::new(0, 0), Position::new(24, 80));
+        let r = Bounds::new(Position::new(0, 0), Position::new(24, 80));
         let size = r.size();
         assert_eq!(size.width, 80);
         assert_eq!(size.height, 24);
@@ -324,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_region_x_y() {
-        let r = Region::new(Position::new(15, 25), Position::new(40, 60));
+        let r = Bounds::new(Position::new(15, 25), Position::new(40, 60));
         assert_eq!(r.x(), 25); // min col
         assert_eq!(r.y(), 15); // min row
     }
@@ -332,7 +349,7 @@ mod tests {
     #[test]
     fn test_region_from_rect() {
         let rect = Rect::new((10, 5), (30, 25));
-        let region: Region = rect.into();
+        let region: Bounds = rect.into();
 
         assert_eq!(region.min, Position::new(5, 10)); // (y, x)
         assert_eq!(region.max, Position::new(25, 30));
@@ -342,7 +359,7 @@ mod tests {
     fn test_region_from_range() {
         let start = Position::new(0, 0);
         let end = Position::new(5, 10);
-        let region: Region = (start..end).into();
+        let region: Bounds = (start..end).into();
 
         assert_eq!(region.min, start);
         assert_eq!(region.max, end);
@@ -352,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_region_iter_basic() {
-        let region = Region::new(Position::new(0, 0), Position::new(2, 3));
+        let region = Bounds::new(Position::new(0, 0), Position::new(2, 3));
         let positions: Vec<_> = region.iter().collect();
 
         assert_eq!(positions.len(), 6); // 2 rows * 3 cols
@@ -368,21 +385,21 @@ mod tests {
 
     #[test]
     fn test_region_iter_empty_width() {
-        let region = Region::new(Position::new(0, 5), Position::new(2, 5));
+        let region = Bounds::new(Position::new(0, 5), Position::new(2, 5));
         let positions: Vec<_> = region.iter().collect();
         assert_eq!(positions.len(), 0);
     }
 
     #[test]
     fn test_region_iter_empty_height() {
-        let region = Region::new(Position::new(5, 0), Position::new(5, 10));
+        let region = Bounds::new(Position::new(5, 0), Position::new(5, 10));
         let positions: Vec<_> = region.iter().collect();
         assert_eq!(positions.len(), 0);
     }
 
     #[test]
     fn test_region_iter_single_cell() {
-        let region = Region::new(Position::new(5, 10), Position::new(6, 11));
+        let region = Bounds::new(Position::new(5, 10), Position::new(6, 11));
         let positions: Vec<_> = region.iter().collect();
 
         assert_eq!(positions.len(), 1);
@@ -391,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_region_iter_size_hint() {
-        let region = Region::new(Position::new(0, 0), Position::new(3, 4));
+        let region = Bounds::new(Position::new(0, 0), Position::new(3, 4));
         let iter = region.iter();
         let (min, max) = iter.size_hint();
 
@@ -401,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_region_iter_double_ended() {
-        let region = Region::new(Position::new(0, 0), Position::new(2, 2));
+        let region = Bounds::new(Position::new(0, 0), Position::new(2, 2));
         let mut iter = region.iter();
 
         // Forward
@@ -423,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_region_iter_exact_size() {
-        let region = Region::new(Position::new(0, 0), Position::new(5, 10));
+        let region = Bounds::new(Position::new(0, 0), Position::new(5, 10));
         let iter = region.iter();
 
         assert_eq!(iter.len(), 50);
@@ -431,14 +448,14 @@ mod tests {
 
     #[test]
     fn test_region_into_iter() {
-        let region = Region::new(Position::new(0, 0), Position::new(2, 2));
+        let region = Bounds::new(Position::new(0, 0), Position::new(2, 2));
         let count = region.into_iter().count();
         assert_eq!(count, 4);
     }
 
     #[test]
     fn test_region_into_iter_ref() {
-        let region = Region::new(Position::new(0, 0), Position::new(3, 3));
+        let region = Bounds::new(Position::new(0, 0), Position::new(3, 3));
         let count = (&region).into_iter().count();
         assert_eq!(count, 9);
     }

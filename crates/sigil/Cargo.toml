@@ -19,6 +19,7 @@ notcurses = "3.6.0"
 slotmap = "1.1.1"
 indextree = "4.7.4"
 taffy = "0.9.2"
+thiserror = "2.0.18"
 
 [[bin]]
 name = "sandbox"

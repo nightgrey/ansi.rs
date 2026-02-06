@@ -1,9 +1,9 @@
 use std::io::Write;
 use ansi::{Color, Style};
 use ansi::io::Write as AnsiWrite;
-use geometry::{Point, Rect};
+use geometry::{Point, Position, Rect};
 use super::{Tree, Key};
-use crate::{Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef, NodeRefMut, Secondary};
+use crate::{BufferIndex, Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef, NodeRefMut, Secondary};
 
 pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
 pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
@@ -159,7 +159,7 @@ impl Engine {
         match &element.kind {
             ElementKind::Text(content) => {
                 let layer = &mut self.layers[layer_id];
-                layer.string(rect.min.., content, Style::EMPTY);
+                layer.text(0.., content, Style::EMPTY);
             }
             ElementKind::Container { .. } => {
                 // Containers don't paint themselves, just their children

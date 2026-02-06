@@ -1,9 +1,9 @@
 mod buffer;
 mod cell;
 mod index;
-mod selector;
+mod range;
+mod range2;
 
 pub use buffer::*;
 pub use cell::*;
 pub use index::*;
-pub use selector::*;

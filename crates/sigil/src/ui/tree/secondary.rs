@@ -1,5 +1,5 @@
-use derive_more::{Deref, DerefMut, Index, IndexMut};
 use super::{Key, Node, iter::*};
+use derive_more::{Deref, DerefMut, Index, IndexMut};
 type Inner<K, V> = slotmap::SecondaryMap<K, V>;
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
@@ -20,5 +20,4 @@ impl<K: Key, V> Secondary<K, V> {
             inner: Inner::with_capacity(capacity),
         }
     }
-
 }

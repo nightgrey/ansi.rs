@@ -213,7 +213,7 @@ impl Style {
     pub fn remove(&mut self, attributes: Attribute) {
         self.attributes.remove(attributes);
     }
-    
+
     /// Set attribute flags.
     pub fn attributes(mut self, attributes: Attribute) -> Self {
         self.attributes = attributes;

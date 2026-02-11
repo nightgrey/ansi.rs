@@ -1,5 +1,5 @@
+use crate::{LayerId, NodeRef, NodeRefMut, key};
 use ansi::{Color, Style};
-use crate::{LayerId, key, NodeRef, NodeRefMut};
 use geometry::Position;
 
 key!(
@@ -15,7 +15,7 @@ pub enum Direction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ElementKind {
     Container { direction: Direction },
-    Text(String)
+    Text(String),
 }
 
 #[derive(Debug)]

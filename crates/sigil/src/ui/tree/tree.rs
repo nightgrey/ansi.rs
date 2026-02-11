@@ -305,7 +305,7 @@ impl<K: Key, V> Tree<K, V> {
         ReverseTraverse::new(self, key)
     }
 
-    pub fn iter(&self) -> slotmap::basic::Iter<K, Node<K, V>>  {
+    pub fn iter(&self) -> slotmap::basic::Iter<K, Node<K, V>> {
         self.inner.iter()
     }
 

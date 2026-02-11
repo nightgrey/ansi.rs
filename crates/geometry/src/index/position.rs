@@ -29,7 +29,9 @@ use std::ops::{Add, AddAssign, Sub};
 /// let manhattan = pos.manhattan();  // Distance from origin
 /// assert_eq!(manhattan, 15);
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+#[derive(Copy, Debug)]
+#[derive_const(Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+
 pub struct Position {
     /// Vertical position (row index, 0 = top).
     pub row: usize,
@@ -45,7 +47,11 @@ pub type PositionLike = (usize, usize);
 
 impl Position {
     /// The origin position (0, 0).
-    pub const ZERO: Self = Self { row: 0, col: 0 };
+    pub const ZERO: Self = Self::MIN;
+    /// The minimum possible position (usize::MIN, usize::MIN).
+    pub const MIN: Self = Self { row: usize::MIN, col: usize::MIN };
+    /// The maximum possible position (usize::MAX, usize::MAX).
+    pub const MAX: Self = Self { row: usize::MAX, col: usize::MAX };
 
     /// Create a new position at the given row and column.
     ///

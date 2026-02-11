@@ -2,17 +2,16 @@ use crate::{BufferIndex, Cell};
 use ansi::fmt::Write;
 use ansi::{Escape, Style};
 use derive_more::{Deref, DerefMut};
-use geometry::{Point, Position, Rect, Bounds, PositionsIter};
+use geometry::{Bounds, Point, Position, };
 use std::fmt::{Display, Formatter};
 use std::io::Write as _;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use crate::buffer::range::BufferRange;
 
 // TODO: Check https://lib.rs/crates/stable-vec
 // https://github.com/HarrisonMc555/array2d
-#[derive(Clone, PartialEq,  Deref, DerefMut, Debug)]
+#[derive(Clone, PartialEq, Deref, DerefMut, Debug)]
 pub struct Buffer {
     #[deref]
     #[deref_mut]
@@ -131,13 +130,6 @@ impl Buffer {
     }
 }
 impl Buffer {
-    pub fn range<Range: BufferRange>(
-        &self,
-        range: Range,
-    ) -> Range::Iter {
-        range.iter(self)
-    }
-
     pub fn text(
         &mut self,
         index: impl BufferIndex<Output = [Cell]>,

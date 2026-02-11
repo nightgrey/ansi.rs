@@ -1,18 +1,7 @@
+mod packing;
 #[macro_export]
-macro_rules! separator {
-    ($separate:expr) => {
-        let mut needs_separator = false;
+#[macro_use]
+mod separator;
 
-        macro_rules! separate {
-            ($action:expr) => {
-                if needs_separator {
-                    $separate;
-                }
-
-                $action;
-
-                needs_separator = true;
-            };
-        }
-    };
-}
+pub use packing::*;
+pub use separator::*;

@@ -155,7 +155,7 @@ impl Grapheme {
             let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len as usize]) };
             f(s)
         } else {
-            f(pool.resolve(self.pool_offset()))
+            f(pool.resolve_offset(self.offset()))
         }
     }
 
@@ -181,7 +181,7 @@ impl Grapheme {
                 std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, len))
             }
         } else {
-            pool.resolve(self.pool_offset())
+            pool.resolve_offset(self.offset())
         }
     }
 
@@ -207,7 +207,7 @@ impl Grapheme {
             let len = Grapheme::inline_len(&bytes);
             Graph::Inline { bytes, len }
         } else {
-            let s = pool.resolve(self.pool_offset());
+            let s = pool.resolve_offset(self.offset());
             Graph::Extended(s)
         }
     }
@@ -228,7 +228,7 @@ impl Grapheme {
             let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len]) };
             Cow::Owned(s.to_owned())
         } else {
-            Cow::Borrowed(pool.resolve(self.pool_offset()))
+            Cow::Borrowed(pool.resolve_offset(self.offset()))
         }
     }
 
@@ -238,7 +238,7 @@ impl Grapheme {
     /// otherwise the pool entry leaks. No-op for inline and empty graphemes.
     pub fn release(self, pool: &mut GraphemePool) {
         if self.is_extended() {
-            pool.release(self.pool_offset());
+            pool.release_offset(self.offset());
         }
     }
 
@@ -254,17 +254,15 @@ impl Grapheme {
         Self(u32::from_le_bytes(buf))
     }
 
-
     /// Get the raw little-endian bytes of an inline grapheme.
     fn inline_bytes(self) -> [u8; 4] {
         self.0.to_le_bytes()
     }
 
     /// Get the pool offset of an extended grapheme.
-    fn pool_offset(self) -> usize {
+    pub fn offset(self) -> usize {
         (self.0 & OFFSET_MASK) as usize
     }
-
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -308,11 +306,10 @@ impl fmt::Debug for Grapheme {
             let s = std::str::from_utf8(&bytes[..len as usize]).unwrap_or("<invalid>");
             write!(f, "Grapheme({s:?})")
         } else {
-            write!(f, "Grapheme(pool@{})", self.pool_offset())
+            write!(f, "Grapheme(pool@{})", self.offset())
         }
     }
 }
-
 
 // ── Graph ────────────────────────────────────────────────────────────
 
@@ -399,7 +396,6 @@ impl PartialEq for Graph<'_> {
 }
 
 impl Eq for Graph<'_> {}
-
 
 #[cfg(test)]
 mod tests {
@@ -508,7 +504,7 @@ mod tests {
     #[test]
     fn as_str_callback() {
         let mut pool = GraphemePool::new();
-        let g = Grapheme::new( "👨\u{200D}👩\u{200D}👧\u{200D}👦", &mut pool);
+        let g = Grapheme::new("👨\u{200D}👩\u{200D}👧\u{200D}👦", &mut pool);
         let result = g.as_str(&pool);
         assert_eq!(result, "👨\u{200D}👩\u{200D}👧\u{200D}👦");
 
@@ -538,7 +534,6 @@ mod tests {
         let cow3 = Grapheme::EMPTY.as_cow(&pool);
         assert_eq!(&*cow3, "");
     }
-
 
     #[test]
     fn from_char_trait() {

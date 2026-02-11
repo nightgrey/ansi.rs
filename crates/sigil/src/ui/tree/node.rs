@@ -201,7 +201,7 @@ impl<'a, K: Key, V> NodeRefMut<'a, K, V> {
         self.tree.predecessors(self.id)
     }
 
-    pub fn following_siblings(&self ) -> FollowingSiblings<K, V> {
+    pub fn following_siblings(&self) -> FollowingSiblings<K, V> {
         self.tree.following_siblings(self.id)
     }
 
@@ -228,6 +228,6 @@ impl<'a, K: Key, V> Deref for NodeRefMut<'a, K, V> {
 
 impl<'a, K: Key, V> DerefMut for NodeRefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-       self.node_mut()
+        self.node_mut()
     }
 }

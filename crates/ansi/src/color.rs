@@ -26,7 +26,6 @@ pub enum Color {
     BrightWhite,
     Index(u8),
     Rgb(u8, u8, u8),
-    Mono(bool),
 }
 
 impl Color {
@@ -187,7 +186,6 @@ impl Color {
     //     match target {
     //         ColorSpace::Ansi => Basic::from(self).into(),
     //         ColorSpace::Index => Indexed::from(self).into(),
-    //         ColorSpace::Mono => Mono::from(self).into(),
     //         ColorSpace::Rgb => Rgb::from(self).into(),
     //     }
     // }
@@ -195,10 +193,6 @@ impl Color {
     // pub fn clamp(self, max: ColorSpace) -> Color {
     //     if let Some(source) = self.color_space() {
     //         return match max {
-    //             ColorSpace::Mono => match source {
-    //                 ColorSpace::Mono => self,
-    //                 _ => self.convert(ColorSpace::Mono),
-    //             },
     //             ColorSpace::Ansi => match source {
     //                 ColorSpace::Rgb => self.convert(ColorSpace::Ansi),
     //                 ColorSpace::Index => self.convert(ColorSpace::Ansi),
@@ -218,10 +212,9 @@ impl Color {
     pub fn color_space(&self) -> Option<ColorSpace> {
         match self {
             Color::Default | Color::None => None,
-            Color::Index(_) => Some(ColorSpace::Index),
+            Color::Index(_) => Some(ColorSpace::Ansi),
             Color::Rgb(_, _, _) => Some(ColorSpace::Rgb),
-            Color::Mono(_) => Some(ColorSpace::Mono),
-            _ => Some(ColorSpace::Ansi),
+            _ => Some(ColorSpace::Basic),
         }
     }
 }
@@ -231,9 +224,8 @@ impl Color {
 /// Defines the color space of a color.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ColorSpace {
-    Mono,
+    Basic,
     Ansi,
-    Index,
     Rgb,
 }
 
@@ -286,10 +278,6 @@ impl Escape for Background<'_> {
             BrightMagenta => w.write_all(b"95"),
             BrightCyan => w.write_all(b"96"),
             BrightWhite => w.write_all(b"97"),
-            Mono(mono) => match mono {
-                true => w.write_all(b"37"),
-                false => w.write_all(b"40"),
-            },
             Index(index) => {
                 write!(w, "38;5;{}", index)
             }
@@ -332,10 +320,7 @@ impl Escape for Foreground<'_> {
         match self.0 {
             None => Ok(()),
             Default => w.write_all(b"39"),
-            Mono(mono) => match mono {
-                true => w.write_all(b"37"),
-                false => w.write_all(b"90"),
-            },
+
             Black => w.write_all(b"30"),
             Red => w.write_all(b"31"),
             Green => w.write_all(b"32"),
@@ -382,7 +367,6 @@ impl Escape for Underline<'_> {
         match self.0 {
             None => Ok(()),
             Default => w.write_all(b"59"),
-            Mono(is_mono) => w.write_all(if *is_mono { b"58;5;15" } else { b"58;5;0" }),
             Black => w.write_all(b"58;5;0"),
             Red => w.write_all(b"58;5;1"),
             Green => w.write_all(b"58;5;2"),

@@ -1,10 +1,10 @@
+use std::ops::{Deref, DerefMut};
 use crate::Position;
-use derive_more::{AsRef, Deref, DerefMut, From, Into};
+use derive_more::{AsRef,  From, Into};
 
 /// A column in buffer coordinates.
-#[derive(
-    Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, AsRef, Deref, DerefMut, From, Into,
-)]
+#[derive(Copy, Debug)]
+#[derive_const(Clone, Default, PartialEq, Eq, PartialOrd, Ord, AsRef, From, Into)]
 pub struct Col(pub usize);
 
 impl Col {
@@ -14,8 +14,21 @@ impl Col {
     }
 }
 
+impl const Deref for Col {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl const DerefMut for Col {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl From<Position> for Col {
     fn from(value: Position) -> Self {
-        Self::new(value.col)
+        Self::new(value.row)
     }
 }

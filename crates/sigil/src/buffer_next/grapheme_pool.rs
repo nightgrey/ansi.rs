@@ -10,7 +10,7 @@
 /// - **Append-first allocation**: new entries are appended to the end (amortised
 ///   O(1) via doubling growth).
 /// - **Gap reclamation**: when the pool approaches its 16 MiB limit, freed
-///   regions (zeroed by [`release`](Self::release)) are reclaimed via a linear
+///   regions (zeroed by [`release`](Self::release_offset)) are reclaimed via a linear
 ///   scan from a write cursor.
 /// - **Bulk clear**: calling [`clear`](Self::clear) resets the entire pool,
 ///   invalidating all outstanding grapheme handles. This is the "erase plane"
@@ -94,6 +94,7 @@ impl GraphemePool {
         Ok(offset)
     }
 
+
     /// Resolve a pool offset to a `&str`.
     ///
     /// # Safety contract
@@ -101,7 +102,18 @@ impl GraphemePool {
     /// The offset must have been returned by a prior `stash` call on this pool,
     /// and the entry must not have been released. This is upheld internally by
     /// [`Grapheme::resolve`](crate::Grapheme::resolve).
-    pub fn resolve(&self, offset: usize) -> &str {
+    pub fn resolve(&self, grapheme: &Grapheme) -> &str {
+        self.resolve_offset(grapheme.offset())
+    }
+
+    /// Resolve a pool offset to a `&str`.
+    ///
+    /// # Safety contract
+    ///
+    /// The offset must have been returned by a prior `stash` call on this pool,
+    /// and the entry must not have been released. This is upheld internally by
+    /// [`Grapheme::resolve`](crate::Grapheme::resolve).
+    pub fn resolve_offset(&self, offset: usize) -> &str {
         debug_assert!(
             offset + PREFIX_SIZE <= self.pool.len(),
             "pool offset out of bounds"
@@ -126,7 +138,15 @@ impl GraphemePool {
     ///
     /// The freed region becomes available for future allocations when gap
     /// reclamation runs. O(1) thanks to the length prefix — no scanning needed.
-    pub fn release(&mut self, offset: usize) {
+    pub fn release(&mut self, grapheme: &Grapheme) {
+        self.release_offset(grapheme.offset());
+    }
+
+    /// Release storage at the given offset by zeroing the entire entry.
+    ///
+    /// The freed region becomes available for future allocations when gap
+    /// reclamation runs. O(1) thanks to the length prefix — no scanning needed.
+    pub fn release_offset(&mut self, offset: usize) {
         debug_assert!(
             offset + PREFIX_SIZE <= self.pool.len(),
             "releasing out-of-bounds offset"
@@ -296,6 +316,7 @@ impl std::fmt::Debug for GraphemePool {
 
 // ── GraphemePoolError ───────────────────────────────────────────────────────
 use thiserror::Error;
+use crate::buffer_next::Grapheme;
 
 #[derive(Error, Debug)]
 pub enum GraphemePoolError {
@@ -326,19 +347,24 @@ mod tests {
         let s = "hello, 世界!";
 
         let offset = pool.stash(s).unwrap();
-        assert_eq!(pool.resolve(offset), s);
+        assert_eq!(pool.resolve_offset(offset), s);
         assert_eq!(pool.used(), PREFIX_SIZE + s.len());
     }
 
     #[test]
     fn stash_multiple() {
         let mut pool = GraphemePool::new();
-        let entries = ["alpha", "bravo", "charlie", "👨\u{200D}👩\u{200D}👧\u{200D}👦"];
+        let entries = [
+            "alpha",
+            "bravo",
+            "charlie",
+            "👨\u{200D}👩\u{200D}👧\u{200D}👦",
+        ];
 
         let offsets: Vec<_> = entries.iter().map(|s| pool.stash(s).unwrap()).collect();
 
         for (offset, expected) in offsets.iter().zip(entries.iter()) {
-            assert_eq!(pool.resolve(*offset), *expected);
+            assert_eq!(pool.resolve_offset(*offset), *expected);
         }
     }
 
@@ -352,7 +378,7 @@ mod tests {
         assert_eq!(used_after_s1, PREFIX_SIZE + s1.len());
 
         // Release s1.
-        pool.release(offset1);
+        pool.release_offset(offset1);
         assert_eq!(pool.used(), 0);
 
         // The pool length hasn't shrunk (we don't truncate), but the space
@@ -396,7 +422,7 @@ mod tests {
 
         // Release every other entry.
         for i in (0..100).step_by(2) {
-            pool.release(offsets[i]);
+            pool.release_offset(offsets[i]);
         }
 
         // Pool length unchanged but used is roughly halved.
@@ -441,14 +467,14 @@ mod tests {
         assert_eq!(total_used, s1_cost + s2_cost);
 
         // Releasing s1 should subtract exactly its cost.
-        pool.release(off1);
+        pool.release_offset(off1);
         assert_eq!(pool.used(), s2_cost);
 
         // s2 should still be intact.
-        assert_eq!(pool.resolve(off2), s2);
+        assert_eq!(pool.resolve_offset(off2), s2);
 
         // Releasing s2 should bring us to zero.
-        pool.release(off2);
+        pool.release_offset(off2);
         assert_eq!(pool.used(), 0);
     }
 }

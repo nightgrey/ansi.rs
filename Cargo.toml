@@ -18,4 +18,3 @@ ansi = { path = "crates/ansi" }
 utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }
 terminal = { path = "crates/terminal" }
-sigil = { path = "crates/sigil" }

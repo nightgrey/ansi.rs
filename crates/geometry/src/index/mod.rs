@@ -1,11 +1,11 @@
+mod bounds;
 mod col;
 mod position;
-mod bounds;
 mod row;
-mod spatial_iter;
+mod range;
 
+pub use bounds::*;
 pub use col::*;
 pub use position::*;
-pub use bounds::*;
 pub use row::*;
-pub use spatial_iter::*;
+pub use range::*;

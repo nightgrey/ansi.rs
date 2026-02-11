@@ -1,9 +1,9 @@
-use std::fmt::{Display, Formatter};
 use crate::text::DisplayWidth;
 use ansi::io::Write;
 use ansi::{Escape, Flags, Style};
 use compact_str::CompactString;
 use std::convert::AsRef;
+use std::fmt::{Display, Formatter};
 use unicode_width::UnicodeWidthStr;
 
 /// Represents a single terminal grid cell with display attributes.

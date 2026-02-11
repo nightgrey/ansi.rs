@@ -1,16 +1,17 @@
-use std::io::Write;
-use ansi::{Color, Style};
+use super::{Key, Tree};
+use crate::{
+    BufferIndex, Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
+    NodeRefMut, Secondary,
+};
 use ansi::io::Write as AnsiWrite;
+use ansi::{Color, Style};
 use geometry::{Point, Position, Rect};
-use super::{Tree, Key};
-use crate::{BufferIndex, Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef, NodeRefMut, Secondary};
+use std::io::Write;
 
 pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
 pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
 pub type LayerRef<'a> = NodeRef<'a, LayerId, Layer>;
 pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
-
-
 
 pub struct Engine {
     pub elements: Tree<ElementId, Element>,
@@ -49,10 +50,10 @@ impl Engine {
         if let Some(mut element) = self.elements.get_mut(id) {
             // If element creates its own layer, make one; otherwise inherit
             let layer_id = if element.promotes() {
-                Some(self.layers.insert(Layer::new(
-                    self.screen.width,
-                    self.screen.height,
-                )))
+                Some(
+                    self.layers
+                        .insert(Layer::new(self.screen.width, self.screen.height)),
+                )
             } else {
                 layer_id
             };
@@ -79,7 +80,10 @@ impl Engine {
 
     pub fn layout(&mut self) {
         if let Some(root) = self.root() {
-            self.layout_element(root, Rect::bounds(0, 0, self.screen.width, self.screen.height));
+            self.layout_element(
+                root,
+                Rect::bounds(0, 0, self.screen.width, self.screen.height),
+            );
         }
     }
 

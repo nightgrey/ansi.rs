@@ -54,9 +54,9 @@ mod notcurses {
 }
 
 mod sigil {
-    use std::io::Write;
     use geometry::Point;
     use sigil::*;
+    use std::io::Write;
 
     pub fn main() -> std::io::Result<()> {
         let mut engine = Engine::new(30, 5);
@@ -64,9 +64,15 @@ mod sigil {
         // Build a simple UI
         let root = engine.root().unwrap();
 
-        let header = engine.elements.insert(Element::text("=== Header ===".to_string()));
-        let body = engine.elements.insert(Element::text("Hello, world!".to_string()));
-        let footer = engine.elements.insert(Element::text("=== Footer ===".to_string()));
+        let header = engine
+            .elements
+            .insert(Element::text("=== Header ===".to_string()));
+        let body = engine
+            .elements
+            .insert(Element::text("Hello, world!".to_string()));
+        let footer = engine
+            .elements
+            .insert(Element::text("=== Footer ===".to_string()));
 
         engine.elements.append_child(root, header);
         engine.elements.append_child(root, body);
@@ -74,7 +80,7 @@ mod sigil {
 
         // Render
         let mut stdout = std::io::stdout();
-        write!(stdout, "\x1b[2J")?;  // Clear screen
+        write!(stdout, "\x1b[2J")?; // Clear screen
         engine.frame(&mut stdout)?;
 
         Ok(())

@@ -1,6 +1,6 @@
 use ansi::Style;
 
-use super::{Grapheme, GraphemePool, Graph};
+use super::{Graph, Grapheme, GraphemePool};
 
 /// A single terminal cell — the fundamental unit of the framebuffer.
 ///
@@ -27,7 +27,7 @@ pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
     /// 4 bytes: either inline UTF-8 or a pool offset (see [`Grapheme`]).
-    grapheme: Grapheme,
+    pub grapheme: Grapheme,
 
     /// Column width of this cell's grapheme.
     ///
@@ -40,7 +40,7 @@ pub struct Cell {
     width: u8,
 
     /// Visual style: text attributes, foreground and background colors.
-    style: Style,
+    pub(crate) style: Style,
 }
 
 impl Cell {
@@ -71,7 +71,6 @@ impl Cell {
             style,
         }
     }
-
 
     // ── Accessors ──────────────────────────────────────────────────────
 

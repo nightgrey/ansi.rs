@@ -7,6 +7,7 @@
 #![feature(const_convert)]
 #![feature(const_destruct)]
 #![feature(const_range)]
+#![feature(exact_size_is_empty)]
 
 mod edges;
 mod index;

@@ -37,7 +37,7 @@ impl Size {
     /// # use geometry::Size;
     /// let size = Size::new(40, 12);
     /// ```
-    pub fn new(width: usize, height: usize) -> Self {
+    pub const fn new(width: usize, height: usize) -> Self {
         Self { width, height }
     }
 }

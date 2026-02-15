@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 derive_more = { workspace = true }
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "region"
+harness = false

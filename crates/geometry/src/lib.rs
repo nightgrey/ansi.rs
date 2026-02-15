@@ -8,15 +8,18 @@
 #![feature(const_destruct)]
 #![feature(const_range)]
 #![feature(exact_size_is_empty)]
+#![feature(bound_copied)]
 
 mod edges;
 mod index;
 mod point;
 mod rect;
 mod size;
+mod region;
 
 pub use edges::*;
 pub use index::*;
 pub use point::*;
 pub use rect::*;
 pub use size::*;
+pub use region::*;

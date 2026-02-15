@@ -120,6 +120,7 @@ impl Cell {
     /// avoid leaking pool storage.
     #[inline]
     pub fn set_grapheme(&mut self, grapheme: Grapheme) {
+        debug_assert!(!self.grapheme.is_extended());
         self.grapheme = grapheme;
     }
 

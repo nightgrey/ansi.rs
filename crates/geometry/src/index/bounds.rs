@@ -1,12 +1,12 @@
-use crate::{Point, Position, Rect, Size, SpatialRange, SpatialRangeIter};
+use crate::{Point, Position, Rect, Size};
 use std::collections::Bound;
 use std::iter::FusedIterator;
 use std::ops::{Add, AddAssign, IntoBounds, Sub};
 use std::ops::{ RangeBounds};
 
-/// A rectangular region of buffer positions.
+/// A rectangular bounds of buffer positions.
 ///
-/// A region is defined by min and max positions, representing a half-open range:
+/// A bounds is defined by min and max positions, representing a half-open range:
 /// `[min, max)`. The min position is inclusive, the max position is exclusive.
 ///
 /// Regions are iterable and yield positions in row-major order (left-to-right,
@@ -17,13 +17,13 @@ use std::ops::{ RangeBounds};
 /// ```rust
 /// use geometry::{Bounds, Position};
 ///
-/// let region = Bounds::new(Position::new(0, 0), Position::new(2, 3));
-/// assert_eq!(region.width(), 3);
-/// assert_eq!(region.height(), 2);
-/// assert_eq!(region.area(), 6);
+/// let bounds = Bounds::new(Position::new(0, 0), Position::new(2, 3));
+/// assert_eq!(bounds.width(), 3);
+/// assert_eq!(bounds.height(), 2);
+/// assert_eq!(bounds.area(), 6);
 ///
 /// // Iterate over all positions
-/// let positions: Vec<_> = region.into_iter().collect();
+/// let positions: Vec<_> = bounds.into_iter().collect();
 /// assert_eq!(positions.len(), 6);
 /// assert_eq!(positions[0], Position::new(0, 0));  // Top-left
 /// assert_eq!(positions[2], Position::new(0, 2));  // First row, last column
@@ -39,49 +39,99 @@ pub struct Bounds {
 }
 
 impl Bounds {
-    /// An empty region at the origin.
+    /// An empty bounds at the origin.
     pub const ZERO: Self = Self {
         min: Position::ZERO,
         max: Position::ZERO,
     };
 
-    /// Create a new region from its top-left corner and size.
-    pub const fn rect(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Self::new(Position::new(x, y), Position::new(x + width, y + height))
-    }
-
-    /// Create a new region from min and max positions.
+    /// Create a new bounds from min and max positions.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(5, 10), Position::new(15, 30));
+    /// let bounds = Bounds::new(Position::new(5, 10), Position::new(15, 30));
     /// ```
     pub const fn new(min: Position, max: Position) -> Self {
         Self { min, max }
     }
 
-    /// Create a new region from min and max positions.
+    /// Create a new bounds from its top-left corner and size.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(5, 10), Position::new(15, 30));
+    /// let bounds = Bounds::rect(5, 10, 10, 20);
     /// ```
-    pub const fn range(min: Position, max: Position) -> Self {
-        Self { min, max }
+    pub const fn rect(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self::new(Position::new(x, y), Position::new(x + width, y + height))
     }
 
-    /// Get the minimum (top-left) position.
-    pub const fn min(&self) -> Position {
-        self.min
+    /// Create a new bounds from a range of positions.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use geometry::{Bounds, Position};
+    /// let bounds = Bounds::ranged((Position::new(5, 10)..Position::new(15, 30)));
+    /// ```
+    pub const fn ranged(range: impl [const] IntoBounds<Position>) -> Self {
+        let (start, end) = range.into_bounds();
+
+        let min = match start {
+            Bound::Included(p) => p,
+            Bound::Excluded(p) => Position { row: p.row, col: p.col + 1 },
+            Bound::Unbounded => Position { row: 0, col: 0 },
+        };
+
+        let max = match end {
+            Bound::Included(p) => Position { row: p.row, col: p.col + 1 },
+            Bound::Excluded(p) => p,
+            Bound::Unbounded => Position { row: usize::MAX, col: usize::MAX },
+        };
+
+        let width = min.row.saturating_sub(max.row);
+
+        Bounds { min: wrap(min, width), max: wrap(max, width) }
     }
 
-    /// Get the maximum (bottom-right) position.
-    pub const fn max(&self) -> Position {
-        self.max
+    /// Create a new bounds that is within another bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use geometry::{Bounds, Position};
+    /// let bounds = Bounds::within((Position::new(5, 10)..Position::new(15, 30)), (Position::new(0, 0)..Position::new(20, 20)));
+    /// ```
+    pub const fn within(range: impl [const] IntoBounds<Position>, within: impl [const] IntoBounds<Position>) -> Self {
+        let (start, end) = range.into_bounds();
+        let (within_start, within_end) = within.into_bounds();
+
+        let min = match start {
+            Bound::Included(p) => p,
+            Bound::Excluded(p) => Position { row: p.row, col: p.col + 1 },
+            Bound::Unbounded => match within_start {
+                Bound::Included(p) => p,
+                Bound::Excluded(p) => Position { row: p.row, col: p.col + 1 },
+                Bound::Unbounded => Position { row: 0, col: 0 },
+            },
+        };
+
+        let max = match end {
+            Bound::Included(p) => Position { row: p.row, col: p.col + 1 },
+            Bound::Excluded(p) => p,
+            Bound::Unbounded => match within_end {
+                Bound::Included(p) => Position { row: p.row, col: p.col + 1 },
+                Bound::Excluded(p) => p,
+                Bound::Unbounded => Position { row: usize::MAX, col: usize::MAX },
+            },
+        };
+
+        let width = min.row.saturating_sub(max.row);
+
+        Bounds { min: wrap(min, width), max: wrap(max, width) }
     }
 
     /// Get the starting column (left edge).
@@ -94,62 +144,62 @@ impl Bounds {
         self.min.row
     }
 
-    /// Calculate the width of the region.
+    /// Calculate the width of the bounds.
     ///
-    /// Returns 0 if the region is inverted (min.col > max.col).
+    /// Returns 0 if the bounds is inverted (min.col > max.col).
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(0, 5), Position::new(0, 15));
-    /// assert_eq!(region.width(), 10);
+    /// let bounds = Bounds::new(Position::new(0, 5), Position::new(0, 15));
+    /// assert_eq!(bounds.width(), 10);
     /// ```
     pub const fn width(&self) -> usize {
         self.max.col.saturating_sub(self.min.col)
     }
 
-    /// Calculate the height of the region.
+    /// Calculate the height of the bounds.
     ///
-    /// Returns 0 if the region is inverted (min.row > max.row).
+    /// Returns 0 if the bounds is inverted (min.row > max.row).
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(5, 0), Position::new(20, 0));
-    /// assert_eq!(region.height(), 15);
+    /// let bounds = Bounds::new(Position::new(5, 0), Position::new(20, 0));
+    /// assert_eq!(bounds.height(), 15);
     /// ```
     pub const fn height(&self) -> usize {
         self.max.row.saturating_sub(self.min.row)
     }
 
-    /// Calculate the area of the region (width × height).
+    /// Calculate the area of the bounds (width × height).
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(0, 0), Position::new(4, 5));
-    /// assert_eq!(region.area(), 20);  // 4 rows × 5 cols
+    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(4, 5));
+    /// assert_eq!(bounds.area(), 20);  // 4 rows × 5 cols
     /// ```
     pub const fn area(&self) -> usize {
         self.width().saturating_mul(self.height())
     }
 
-    /// Check if a position is contained within this region.
+    /// Check if a position is contained within this bounds.
     ///
-    /// The region is treated as half-open: `[min, max)`.
+    /// The bounds is treated as half-open: `[min, max)`.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let region = Bounds::new(Position::new(0, 0), Position::new(10, 10));
+    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(10, 10));
     ///
-    /// assert!(region.contains(&Position::new(0, 0)));    // min (inclusive)
-    /// assert!(region.contains(&Position::new(5, 5)));    // inside
-    /// assert!(!region.contains(&Position::new(10, 10))); // max (exclusive)
+    /// assert!(bounds.contains(&Position::new(0, 0)));    // min (inclusive)
+    /// assert!(bounds.contains(&Position::new(5, 5)));    // inside
+    /// assert!(!bounds.contains(&Position::new(10, 10))); // max (exclusive)
     /// ```
     pub const fn contains(&self, point: &Position) -> bool {
         self.min.col <= point.col
@@ -159,22 +209,26 @@ impl Bounds {
     }
 
 
-    /// Calculate the intersection of two regions.
-    pub const fn intersect(self, other: &Bounds) -> Bounds {
-        Bounds::new(
+    /// Calculate the intersection of two boundss.
+    pub const fn intersect(self, other: Self) -> Self {
+        Self::new(
             Position::new(self.min.col.max(other.min.col), self.min.row.max(other.min.row)),
             Position::new(self.max.col.min(other.max.col), self.max.row.min(other.max.row)),
         )
     }
-    
-    /// Get the size of the region.
+
+    /// Clip this bounds to fit within another bounds.
+    pub fn clip(self, other: Self) -> Self {
+        other.intersect(self)
+    }
+    /// Get the size of the bounds.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use geometry::{Bounds, Position, Size};
-    /// let region = Bounds::new(Position::new(0, 0), Position::new(24, 80));
-    /// assert_eq!(region.size(), Size::new(80, 24));  // width, height
+    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(24, 80));
+    /// assert_eq!(bounds.size(), Size::new(80, 24));  // width, height
     /// ```
     pub const fn size(&self) -> Size {
         Size {
@@ -184,7 +238,6 @@ impl Bounds {
     }
 }
 
-impl SpatialRange for Bounds {}
 
 impl RangeBounds<Position> for Bounds {
     fn start_bound(&self) -> Bound<&Position> {
@@ -202,19 +255,26 @@ impl IntoBounds<Position> for Bounds {
     }
 }
 
+impl From<(Bound<Position>, Bound<Position>)> for Bounds {
+    fn from(value: (Bound<Position>, Bound<Position>)) -> Self {
+        Self::ranged(value)
+    }
+}
+
 impl From<Rect> for Bounds {
     fn from(value: Rect) -> Self {
         Self::new(Position::from(value.min), Position::from(value.max))
     }
 }
 
-impl IntoIterator for Bounds {
-    type Item = Position;
-    type IntoIter = SpatialRangeIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        SpatialRangeIter::new(&self)
-    }
+// row wrapping for linear bounds
+const fn wrap(p: Position, width: usize) -> Position {
+    if p.col >= width {
+        Position {
+            row: p.row + p.col / width,
+            col: p.col % width,
+        }
+    } else { p }
 }
 
 
@@ -288,27 +348,27 @@ mod tests {
     // === Region Tests ===
 
     #[test]
-    fn test_region_new() {
+    fn test_bounds_new() {
         let r = Bounds::new(Position::new(5, 10), Position::new(15, 30));
         assert_eq!(r.min, Position::new(5, 10));
         assert_eq!(r.max, Position::new(15, 30));
     }
 
     #[test]
-    fn test_region_width_height() {
+    fn test_bounds_width_height() {
         let r = Bounds::new(Position::new(0, 0), Position::new(5, 10));
         assert_eq!(r.width(), 10);
         assert_eq!(r.height(), 5);
     }
 
     #[test]
-    fn test_region_area() {
+    fn test_bounds_area() {
         let r = Bounds::new(Position::new(0, 0), Position::new(4, 5));
         assert_eq!(r.area(), 20); // 4 * 5
     }
 
     #[test]
-    fn test_region_contains() {
+    fn test_bounds_contains() {
         let r = Bounds::new(Position::new(10, 10), Position::new(20, 20));
 
         // Inside
@@ -326,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn test_region_size() {
+    fn test_bounds_size() {
         let r = Bounds::new(Position::new(0, 0), Position::new(24, 80));
         let size = r.size();
         assert_eq!(size.width, 80);
@@ -334,89 +394,21 @@ mod tests {
     }
 
     #[test]
-    fn test_region_x_y() {
+    fn test_bounds_x_y() {
         let r = Bounds::new(Position::new(15, 25), Position::new(40, 60));
         assert_eq!(r.x(), 25); // min col
         assert_eq!(r.y(), 15); // min row
     }
 
     #[test]
-    fn test_region_from_rect() {
+    fn test_bounds_from_rect() {
         let rect = Rect::new((10, 5), (30, 25));
-        let region: Bounds = rect.into();
+        let bounds: Bounds = rect.into();
 
-        assert_eq!(region.min, Position::new(5, 10)); // (y, x)
-        assert_eq!(region.max, Position::new(25, 30));
+        assert_eq!(bounds.min, Position::new(5, 10)); // (y, x)
+        assert_eq!(bounds.max, Position::new(25, 30));
     }
 
     // === SpatialIter Tests ===
 
-    #[test]
-    fn test_region_iter_basic() {
-        let region = Bounds::new(Position::new(0, 0), Position::new(2, 3));
-        let positions: Vec<_> = region.iter().collect();
-
-        assert_eq!(positions.len(), 6); // 2 rows * 3 cols
-
-        // Check row-major order
-        assert_eq!(positions[0], Position::new(0, 0));
-        assert_eq!(positions[1], Position::new(0, 1));
-        assert_eq!(positions[2], Position::new(0, 2));
-        assert_eq!(positions[3], Position::new(1, 0));
-        assert_eq!(positions[4], Position::new(1, 1));
-        assert_eq!(positions[5], Position::new(1, 2));
-    }
-
-    #[test]
-    fn test_region_iter_empty_width() {
-        let region = Bounds::new(Position::new(0, 5), Position::new(0, 5));
-        assert_eq!(region.iter().count(), 0);
-    }
-
-    #[test]
-    fn test_region_iter_empty_height() {
-        let region = Bounds::new(Position::new(5, 0), Position::new(5, 10));
-        assert_eq!(region.iter().count(), 0);
-    }
-
-    #[test]
-    fn test_region_iter_single_cell() {
-        let region = Bounds::new(Position::new(5, 10), Position::new(6, 11));
-        let positions: Vec<_> = region.iter().collect();
-
-        assert_eq!(positions.len(), 1);
-        assert_eq!(positions[0], Position::new(5, 10));
-    }
-
-    #[test]
-    fn test_region_iter_size_hint() {
-        let region = Bounds::new(Position::new(0, 0), Position::new(3, 4));
-        let iter = region.iter();
-        let (min, max) = iter.size_hint();
-
-        assert_eq!(min, 12);
-        assert_eq!(max, Some(12));
-    }
-
-    #[test]
-    fn test_region_iter_exact_size() {
-        let region = Bounds::new(Position::new(0, 0), Position::new(5, 10));
-        let iter = region.iter();
-
-        assert_eq!(iter.len(), 50);
-    }
-
-    #[test]
-    fn test_region_into_iter() {
-        let region = Bounds::new(Position::new(0, 0), Position::new(2, 2));
-        let count = region.into_iter().count();
-        assert_eq!(count, 4);
-    }
-
-    #[test]
-    fn test_region_into_iter_ref() {
-        let region = Bounds::new(Position::new(0, 0), Position::new(3, 3));
-        let count = (region).iter().count();
-        assert_eq!(count, 9);
-    }
 }

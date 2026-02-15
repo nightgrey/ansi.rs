@@ -3,7 +3,8 @@ mod grapheme;
 mod grapheme_pool;
 mod buffer;
 mod index;
-mod range;
+mod selectors;
+mod s;
 
 pub use cell::*;
 pub use grapheme::*;

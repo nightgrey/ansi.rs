@@ -3,10 +3,11 @@ use std::slice::SliceIndex;
 use geometry::{Point, Position, Row};
 use super::{Buffer, Cell};
 
-pub const trait BufferIndex: Sized {
+pub const trait Index: Sized {
     type Output: ?Sized;
     type Index: [const] SliceIndex<[Cell], Output = Self::Output>;
 
+    #[inline]
     fn index_of(self, of: &Buffer) -> Self::Index;
 
     #[inline]
@@ -42,61 +43,62 @@ pub const trait BufferIndex: Sized {
     }
 }
 
-impl const BufferIndex for usize {
+impl const Index for usize {
     type Output = Cell;
     type Index = usize;
+
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::Range<usize> {
+impl const Index for ops::Range<usize> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::RangeTo<usize> {
+impl const Index for ops::RangeTo<usize> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::RangeFrom<usize> {
+impl const Index for ops::RangeFrom<usize> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::RangeInclusive<usize> {
+impl const Index for ops::RangeInclusive<usize> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::RangeToInclusive<usize> {
+impl const Index for ops::RangeToInclusive<usize> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for ops::RangeFull {
+impl const Index for ops::RangeFull {
     type Output = [Cell];
     type Index = ops::RangeFull;
     fn index_of(self, _: &Buffer) -> Self::Index { self }
 }
 
-impl const BufferIndex for Position {
+impl const Index for Position {
     type Output = Cell;
     type Index = usize;
     fn index_of(self, of: &Buffer) -> usize { self.row * of.width + self.col }
 }
 
-impl const BufferIndex for Point {
+impl const Index for Point {
     type Output = Cell;
     type Index = usize;
     fn index_of(self, of: &Buffer) -> usize { self.y * of.width + self.x }
 }
 
-impl const BufferIndex for Row {
+impl const Index for Row {
     type Output = [Cell];
     type Index = ops::Range<usize>;
     fn index_of(self, of: &Buffer) -> ops::Range<usize> {
@@ -104,7 +106,7 @@ impl const BufferIndex for Row {
     }
 }
 
-impl const BufferIndex for ops::Range<Row> {
+impl const Index for ops::Range<Row> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
     fn index_of(self, of: &Buffer) -> ops::Range<usize> {
@@ -112,7 +114,7 @@ impl const BufferIndex for ops::Range<Row> {
     }
 }
 
-impl const BufferIndex for ops::RangeTo<Row> {
+impl const Index for ops::RangeTo<Row> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
     fn index_of(self, of: &Buffer) -> ops::RangeTo<usize> {
@@ -120,7 +122,7 @@ impl const BufferIndex for ops::RangeTo<Row> {
     }
 }
 
-impl const BufferIndex for ops::RangeFrom<Row> {
+impl const Index for ops::RangeFrom<Row> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
     fn index_of(self, of: &Buffer) -> ops::RangeFrom<usize> {
@@ -128,7 +130,7 @@ impl const BufferIndex for ops::RangeFrom<Row> {
     }
 }
 
-impl const BufferIndex for ops::RangeInclusive<Row> {
+impl const Index for ops::RangeInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
     fn index_of(self, of: &Buffer) -> ops::RangeInclusive<usize> {
@@ -136,7 +138,7 @@ impl const BufferIndex for ops::RangeInclusive<Row> {
     }
 }
 
-impl const BufferIndex for ops::RangeToInclusive<Row> {
+impl const Index for ops::RangeToInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
     fn index_of(self, of: &Buffer) -> ops::RangeToInclusive<usize> {
@@ -144,7 +146,7 @@ impl const BufferIndex for ops::RangeToInclusive<Row> {
     }
 }
 
-impl<Idx: [const] BufferIndex> const ops::Index<Idx> for Buffer {
+impl<Idx: [const] Index> const ops::Index<Idx> for Buffer {
     type Output = Idx::Output;
 
     fn index(&self, index: Idx) -> &Self::Output {
@@ -152,16 +154,16 @@ impl<Idx: [const] BufferIndex> const ops::Index<Idx> for Buffer {
     }
 }
 
-impl<Idx: [const] BufferIndex> const ops::IndexMut<Idx> for Buffer {
+impl<Idx: [const] Index> const ops::IndexMut<Idx> for Buffer {
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
         index.index_mut(self)
     }
 }
 
-pub trait IntoBufferIndex<T>: Sized {
+pub trait IntoIndex<T>: Sized {
     fn into_index(self, of: &Buffer) -> T;
 }
 
-impl<I: BufferIndex> IntoBufferIndex<I::Index> for I {
+impl<I: Index> IntoIndex<I::Index> for I {
     fn into_index(self, of: &Buffer) -> I::Index { self.index_of(of) }
 }

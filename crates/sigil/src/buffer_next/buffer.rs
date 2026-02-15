@@ -1,8 +1,9 @@
-use std::ops::{Deref, DerefMut, RangeBounds};
+use std::collections::Bound;
+use std::ops::{Deref, DerefMut, IntoBounds, RangeBounds};
 use std::slice::SliceIndex;
 use ansi::Style;
-use geometry::{Position};
-use super::{BufferIndex, Cell, Grapheme, GraphemePool, IntoBufferIndex};
+use geometry::{Bounds, Position};
+use super::{Index, Cell, Grapheme, GraphemePool, IntoIndex};
 
 #[derive(Debug)]
 pub struct Buffer {
@@ -33,14 +34,14 @@ impl Buffer {
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub fn get<I: BufferIndex>(&self, index: I) -> Option<&<I::Index as SliceIndex<[Cell]>>::Output>
+    pub fn get<I: Index>(&self, index: I) -> Option<&<I::Index as SliceIndex<[Cell]>>::Output>
     {
         index.get(self)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub fn get_mut<I: BufferIndex>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output>
+    pub fn get_mut<I: Index>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output>
     {
         index.index_of(self).get_mut(self.as_mut_slice())
     }
@@ -52,7 +53,7 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked<I: BufferIndex>(&self, index: I) -> *const <I::Index as SliceIndex<[Cell]>>::Output
+    pub unsafe fn get_unchecked<I: Index>(&self, index: I) -> *const <I::Index as SliceIndex<[Cell]>>::Output
     {
         index.index_of(self).get_unchecked(self.as_slice())
     }
@@ -64,27 +65,27 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked_mut<I: BufferIndex>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[Cell]>>::Output
+    pub unsafe fn get_unchecked_mut<I: Index>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[Cell]>>::Output
     {
        index.get_unchecked_mut(self)
     }
 
     /// Write a char at (x, y) with the given style.
     #[inline]
-    pub fn put_char(&mut self, index: impl BufferIndex<Output = Cell>, ch: char, style: Style) {
-        // let out = self.get(index);
-        // self.inner[out].grapheme.release(&mut self.pool);
-        // self.inner[out].grapheme = Grapheme::from_char(ch);
-        // self.inner[out].style = style;
+    pub fn put_char<I: Index<Output = Cell>>(&mut self, index: I, ch: char, style: Style) {
+        let idx = index.index_of(self);
+        let cell = &mut self.inner[idx];
+        cell.replace_grapheme(Grapheme::from_char(ch), &mut self.pool);
+        cell.set_style(style);
     }
 
     /// Write a string grapheme at (x, y) with the given style.
     #[inline]
-    pub fn put_str(&mut self, index: impl BufferIndex<Output = Cell>, s: &str, style: Style) {
-        // out.grapheme.release(&mut self.pool);
-        // out.grapheme = Grapheme::new(s, &mut self.pool);
-        // out.style = style;
-        //
+    pub fn put_str(&mut self, index: impl Index<Output = Cell>, s: &str, style: Style) {
+        let idx = index.index_of(self);
+        let cell = &mut self.inner[idx];
+        cell.replace_grapheme(Grapheme::new(s, &mut self.pool), &mut self.pool);
+        cell.set_style(style);
     }
 
     /// Write a horizontal run of ASCII chars starting at (x, y).
@@ -96,9 +97,9 @@ impl Buffer {
                 break;
             }
             let idx = row_start + col;
-            self[idx].grapheme.release(&mut self.pool);
-            self[idx].grapheme = Grapheme::from_char(ch);
-            self[idx].style = style;
+            let cell = &mut self.inner[idx];
+            cell.replace_grapheme(Grapheme::from_char(ch), &mut self.pool);
+            cell.set_style(style);
         }
     }
 
@@ -106,7 +107,7 @@ impl Buffer {
     pub fn clear(&mut self) {
         // Release all extended graphemes.
         for cell in &mut self.inner {
-            cell.grapheme.release(&mut self.pool);
+            cell.release_grapheme(&mut self.pool);
             *cell = Cell::EMPTY;
         }
         self.pool.clear();
@@ -143,15 +144,24 @@ impl Buffer {
             .collect()
     }
 
-    pub fn index_of<I: IntoBufferIndex<usize>>(&self, index: I) -> usize {
+    pub fn index_of<I: IntoIndex<usize>>(&self, index: I) -> usize {
         index.into_index(self)
     }
 
-    pub fn position_of<I: IntoBufferIndex<Position>>(&self, index: I) -> Position {
+    pub fn position_of<I: IntoIndex<Position>>(&self, index: I) -> Position {
         index.into_index(self)
     }
 }
-
+impl From<&Buffer> for Bounds {
+    fn from(value: &Buffer) -> Self {
+        Bounds::new(Position::new(0, 0), Position::new(value.height, value.width))
+    }
+}
+impl From<&mut Buffer> for Bounds {
+    fn from(value: &mut Buffer) -> Self {
+        Bounds::new(Position::new(0, 0), Position::new(value.height, value.width))
+    }
+}
 impl const Deref for Buffer {
     type Target = Vec<Cell>;
 

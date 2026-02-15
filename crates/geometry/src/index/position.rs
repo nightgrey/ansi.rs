@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use crate::Point;
 use std::ops::{Add, AddAssign, Sub};
 
@@ -30,7 +31,7 @@ use std::ops::{Add, AddAssign, Sub};
 /// assert_eq!(manhattan, 15);
 /// ```
 #[derive(Copy, Debug)]
-#[derive_const(Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive_const(Clone, Default, PartialEq, Eq)]
 
 pub struct Position {
     /// Vertical position (row index, 0 = top).
@@ -48,6 +49,7 @@ pub type PositionLike = (usize, usize);
 impl Position {
     /// The origin position (0, 0).
     pub const ZERO: Self = Self::MIN;
+    pub const ONE: Self = Self { row: 1, col: 1 };
     /// The minimum possible position (usize::MIN, usize::MIN).
     pub const MIN: Self = Self { row: usize::MIN, col: usize::MIN };
     /// The maximum possible position (usize::MAX, usize::MAX).
@@ -130,6 +132,13 @@ impl Position {
         })
     }
 
+    pub const  fn saturating_sub(self, rhs: Self) -> Self {
+        Self {
+            row: self.row.saturating_sub(rhs.row),
+            col: self.col.saturating_sub(rhs.col),
+        }
+    }
+
     /// Add two positions with saturating arithmetic.
     ///
     /// If overflow would occur, saturates at `usize::MAX`.
@@ -179,5 +188,25 @@ impl Add<usize> for Position {
             row: self.row,
             col: self.col + rhs,
         }
+    }
+}
+
+impl const PartialOrd for Position {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl const Ord for Position {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.row.cmp(&other.row) {
+            std::cmp::Ordering::Equal => self.col.cmp(&other.col),
+            ord => ord,
+        }
+    }
+}
+impl  Display for Position {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.row, self.col)
     }
 }

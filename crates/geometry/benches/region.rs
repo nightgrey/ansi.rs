@@ -1,4 +1,4 @@
-use geometry::region::{Region };
+use geometry::{Region };
 use criterion::{ criterion_group, criterion_main, Criterion};
 use geometry::{Position};
 use std::hint::black_box;
@@ -47,7 +47,7 @@ fn bench_iter(c:&mut Criterion) {
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().warm_up_time(Duration::from_millis(100)).measurement_time(Duration::from_secs(2).add(Duration::from_millis(500))).with_output_color(true).with_plots();
+    config = Criterion::default().warm_up_time(Duration::from_millis(100)).measurement_time(Duration::from_secs(1).add(Duration::from_millis(500))).with_output_color(true).with_plots();
     targets = bench_iter
 );
 

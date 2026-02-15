@@ -125,12 +125,6 @@ impl Iterator for SpatialIter {
         None
     }
 
-
-    #[inline]
-    fn last(mut self) -> Option<Self::Item> {
-        self.next_back()
-    }
-
     #[inline]
     fn min(mut self) -> Option<Self::Item>
     {
@@ -138,52 +132,10 @@ impl Iterator for SpatialIter {
     }
 
     #[inline]
-    fn max(mut self) -> Option<Self::Item>
-    {
-        self.next_back()
-    }
-
-    #[inline]
     fn is_sorted(self) -> bool {
         true
     }
 }
-impl DoubleEndedIterator for SpatialIter {
-    #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-
-        let next = self.item;
-
-        match self.context.backward_checked(next, 1) {
-            Some(next) => self.item = next,
-            None => self.done = true,
-        }
-
-        Some(next)
-    }
-
-    #[inline]
-    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-
-        if let Some(minus_n) = self.context.backward_checked(self.max, n) {
-            if minus_n > self.context.min {
-                self.context.max =
-                    self.context.backward_checked(minus_n, 1).expect("`Step` invariants not upheld");
-                return Some(self.context.max.clone());
-            }
-        }
-
-        self.context.max = self.context.min;
-        None
-    }
-}
-
 impl ExactSizeIterator for SpatialIter {}
 impl FusedIterator for SpatialIter {}
 

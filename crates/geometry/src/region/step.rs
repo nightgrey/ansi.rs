@@ -3,93 +3,50 @@ use crate::{Position, Size};
 use std::ops::{IntoBounds, Bound, Bound::*, RangeBounds, Deref, DerefMut, Sub};
 use crate::region::Region;
 
-/// A trait for spatial contexts that can be stepped through with `T`.
+// ─── SpatialContext / SpatialStep ────────────────────────────────────────────
+
+/// Provides the spatial context needed to step through positions in row-major
+/// order within a bounded 2D region.
 ///
-/// This is the context required to determine valid steps for `T`.
-/// Forward stepping follows row-major order (left to right within rows, top to bottom between rows).
+/// This is the "grid" that gives meaning to forward/backward movement —
+/// without it, a bare `Position` doesn't know when to wrap to the next row.
 pub const trait SpatialContext<T = Position> {
-    /// Returns the bounds on the number of steps required to get from `start` to `end`,
-    /// following row-major order within the given bounds.
+    /// Number of row-major steps from `start` to `end`.
     ///
-    /// Returns `(usize::MAX, None)` if the number of steps would overflow `usize`,
-    /// or is infinite.
-    ///
-    /// # Invariants
-    /// * `steps_between(bounds, start, end) == (n, Some(n))` iff
-    ///   `forward_checked(bounds, start, n) == Some(end)`
-    /// * `steps_between(bounds, start, end) == (n, Some(n))` only if `start <= end` within bounds
-    /// * `steps_between(bounds, start, end) == (0, Some(0))` iff `start == end`
-    /// * `steps_between(bounds, start, end) == (0, None)` if `start > end` within bounds
-    fn steps_between(
-        &self,
-        start: &T,
-        end: &T,
-    ) -> (usize, Option<usize>);
+    /// Returns `(n, Some(n))` when `start <= end` within bounds,
+    /// or `(0, None)` when `start > end`.
+    fn steps_between(&self, start: &T, end: &T) -> (usize, Option<usize>);
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `bounds`, following row-major order.
-    ///
-    /// Returns `None` if the step would go past the bounds.
-    ///
-    /// # Invariants
-    /// * `forward_checked(bounds, a, 0) == Some(a)`
-    /// * `forward_checked(bounds, a, n).and_then(|x| forward_checked(bounds, x, m))
-    ///   == forward_checked(bounds, a, n.checked_add(m))`
-    fn forward_checked(
-        &self,
-        start: T,
-        count: usize,
-    ) -> Option<T>;
+    /// Move `count` steps forward in row-major order, or `None` if out of bounds.
+    fn forward_checked(&self, start: T, count: usize) -> Option<T>;
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `bounds`.
-    ///
-    /// # Panics
-    /// Panics if the step would overflow the bounds.
+    /// Like `forward_checked`, but panics on overflow.
     fn forward(&self, start: T, count: usize) -> T {
         self.forward_checked(start, count)
-            .expect("overflow in `SpatialStep::forward`")
+            .expect("overflow in SpatialContext::forward")
     }
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `bounds`.
+    /// Like `forward_checked`, without bounds checking.
     ///
     /// # Safety
-    /// The result must not overflow the bounds. Calling this with
-    /// parameters that would overflow is undefined behavior.
-    ///
-    /// # Invariants
-    /// If no overflow occurs, this is equivalent to `forward`.
+    /// The result must remain within bounds.
     unsafe fn forward_unchecked(&self, start: T, count: usize) -> T {
         self.forward(start, count)
     }
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `bounds`, following row-major order.
-    ///
-    /// Returns `None` if the step would go before the bounds.
-    fn backward_checked(
-        &self,
-        start: T,
-        count: usize,
-    ) -> Option<T>;
+    /// Move `count` steps backward in row-major order, or `None` if out of bounds.
+    fn backward_checked(&self, start: T, count: usize) -> Option<T>;
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `bounds`.
-    ///
-    /// # Panics
-    /// Panics if the step would overflow the bounds.
+    /// Like `backward_checked`, but panics on underflow.
     fn backward(&self, start: T, count: usize) -> T {
         self.backward_checked(start, count)
-            .expect("overflow in `SpatialStep::backward`")
+            .expect("underflow in SpatialContext::backward")
     }
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `bounds`.
+    /// Like `backward_checked`, without bounds checking.
     ///
     /// # Safety
-    /// The result must not underflow the bounds. Calling this with
-    /// parameters that would underflow is undefined behavior.
+    /// The result must remain within bounds.
     unsafe fn backward_unchecked(&self, start: T, count: usize) -> T {
         self.backward(start, count)
     }
@@ -107,99 +64,38 @@ pub const trait SpatialContext<T = Position> {
 /// # Implementation Note
 /// Implementors must ensure that all methods respect the bounds context
 /// and that forward steps always move in row-major order.
+/// A type that can be stepped through a spatial context in row-major order.
+///
+/// Delegates to [`SpatialContext`] — this trait exists so you can write
+/// `Position::forward_checked(pos, n, &region)` in a generic context.
 pub const trait SpatialStep: Clone + Sized {
-    /// The bounds type that provides stepping context.
-    type Context: [const] SpatialContext<Self>;
+    type Context: ~const SpatialContext<Self>;
 
-    /// Returns the bounds on the number of steps required to get from `start` to `end`,
-    /// following row-major order within the given bounds.
-    ///
-    /// Returns `(usize::MAX, None)` if the number of steps would overflow `usize`,
-    /// or is infinite.
-    ///
-    /// # Invariants
-    /// * `steps_between(context, start, end) == (n, Some(n))` iff
-    ///   `forward_checked(context, start, n) == Some(end)`
-    /// * `steps_between(context, start, end) == (n, Some(n))` only if `start <= end` within context
-    /// * `steps_between(context, start, end) == (0, Some(0))` iff `start == end`
-    /// * `steps_between(context, start, end) == (0, None)` if `start > end` within context
-    fn steps_between(
-        start: &Self,
-        end: &Self,
-        context: &Self::Context,
-    ) -> (usize, Option<usize>) {
-        context.steps_between(start, end)
+    fn steps_between(start: &Self, end: &Self, ctx: &Self::Context) -> (usize, Option<usize>) {
+        ctx.steps_between(start, end)
     }
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `context`, following row-major order.
-    ///
-    /// Returns `None` if the step would go past the context.
-    ///
-    /// # Invariants
-    /// * `forward_checked(context, a, 0) == Some(a)`
-    /// * `forward_checked(context, a, n).and_then(|x| forward_checked(context, x, m))
-    ///   == forward_checked(context, a, n.checked_add(m))`
-    fn forward_checked(
-        start: Self,
-        count: usize,
-        context: &Self::Context,
-    ) -> Option<Self> {
-        context.forward_checked(start, count)
+    fn forward_checked(start: Self, count: usize, ctx: &Self::Context) -> Option<Self> {
+        ctx.forward_checked(start, count)
     }
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `context`.
-    ///
-    /// # Panics
-    /// Panics if the step would overflow the context.
-    fn forward(start: Self, count: usize, context: &Self::Context) -> Self {
-        Self::forward_checked(start, count, context)
-            .expect("overflow in `SpatialStep::forward`")
+    fn forward(start: Self, count: usize, ctx: &Self::Context) -> Self {
+        ctx.forward(start, count)
     }
 
-    /// Returns the value obtained by taking `count` forward steps
-    /// from `start` within `context`.
-    ///
-    /// # Safety
-    /// The result must not overflow the context. Calling this with
-    /// parameters that would overflow is undefined behavior.
-    ///
-    /// # Invariants
-    /// If no overflow occurs, this is equivalent to `forward`.
-    unsafe fn forward_unchecked(start: Self, count: usize, context: &Self::Context) -> Self {
-        Self::forward(start, count, context)
+    unsafe fn forward_unchecked(start: Self, count: usize, ctx: &Self::Context) -> Self {
+        ctx.forward_unchecked(start, count)
     }
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `context`, following row-major order.
-    ///
-    /// Returns `None` if the step would go before the context.
-    fn backward_checked(
-        start: Self,
-        count: usize,
-        context: &Self::Context,
-    ) -> Option<Self> {
-        context.backward_checked(start, count)
+    fn backward_checked(start: Self, count: usize, ctx: &Self::Context) -> Option<Self> {
+        ctx.backward_checked(start, count)
     }
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `context`.
-    ///
-    /// # Panics
-    /// Panics if the step would overflow the context.
-    fn backward(start: Self, count: usize, context: &Self::Context) -> Self {
-        Self::backward_checked(start, count, context)
-            .expect("overflow in `SpatialStep::backward`")
+    fn backward(start: Self, count: usize, ctx: &Self::Context) -> Self {
+        ctx.backward(start, count)
     }
 
-    /// Returns the value obtained by taking `count` backward steps
-    /// from `start` within `context`.
-    ///
-    /// # Safety
-    /// The result must not underflow the context. Calling this with
-    /// parameters that would underflow is undefined behavior.
-    unsafe fn backward_unchecked(start: Self, count: usize, context: &Self::Context) -> Self {
-        Self::backward(start, count, context)
+    unsafe fn backward_unchecked(start: Self, count: usize, ctx: &Self::Context) -> Self {
+        ctx.backward_unchecked(start, count)
     }
 }

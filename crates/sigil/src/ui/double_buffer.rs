@@ -1,7 +1,7 @@
-use crate::{Buffer, BufferIndex};
+use crate::{Buffer};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct DoubleBuffer {
     pub front: Buffer,
     pub back: Buffer,
@@ -31,19 +31,5 @@ impl Deref for DoubleBuffer {
 impl DerefMut for DoubleBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.front
-    }
-}
-
-impl<I: BufferIndex> Index<I> for DoubleBuffer {
-    type Output = I::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        index.index(&self.front)
-    }
-}
-
-impl<I: BufferIndex> IndexMut<I> for DoubleBuffer {
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        index.index_mut(&mut self.front)
     }
 }

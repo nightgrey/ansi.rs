@@ -1,6 +1,6 @@
 use super::{Key, Tree};
 use crate::{
-    BufferIndex, Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
+    Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
     NodeRefMut, Secondary,
 };
 use ansi::io::Write as AnsiWrite;
@@ -163,7 +163,7 @@ impl Engine {
         match &element.kind {
             ElementKind::Text(content) => {
                 let layer = &mut self.layers[layer_id];
-                layer.text(0.., content, Style::EMPTY);
+                // layer.text(0.., content, Style::EMPTY);
             }
             ElementKind::Container { .. } => {
                 // Containers don't paint themselves, just their children
@@ -190,7 +190,7 @@ impl Engine {
             let layer = &self.layers[layer_id];
             for (i, cell) in layer.iter().enumerate() {
                 if !cell.is_empty() {
-                    self.screen.front[i].copy_from(cell);
+                    self.screen.front[i].clone_from(cell);
                 }
             }
         }
@@ -203,12 +203,13 @@ impl Engine {
             for x in 0..self.screen.width {
                 let i = (y * self.screen.width + x);
                 let front = &self.screen.front[i];
+                let pool = &self.screen.front.pool;
                 let back = &self.screen.back[i];
 
                 if front != back {
                     // Move cursor and write
                     // (In real code: track cursor pos, elide colors, etc.)
-                    write!(out, "\x1b[{};{}H{}", y + 1, x + 1, front.as_str())?;
+                    write!(out, "\x1b[{};{}H{}", y + 1, x + 1, front.as_str(pool))?;
                 }
             }
         }

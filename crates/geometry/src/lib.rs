@@ -9,17 +9,21 @@
 #![feature(const_range)]
 #![feature(exact_size_is_empty)]
 #![feature(bound_copied)]
+#![feature(step_trait)]
+#![feature(const_ops)]
+#![feature(slice_index_methods)]
 
+#![feature(const_try)]
 mod edges;
-mod index;
 mod point;
 mod rect;
 mod size;
-mod region;
+mod bounds;
+mod grid;
 
 pub use edges::*;
-pub use index::*;
 pub use point::*;
 pub use rect::*;
 pub use size::*;
-pub use region::*;
+pub use bounds::*;
+pub use grid::*;

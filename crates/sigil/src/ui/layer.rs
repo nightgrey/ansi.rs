@@ -18,8 +18,8 @@ pub struct Layer {
 }
 
 impl Layer {
-    pub const ZERO: Self = Self {
-        buffer: Buffer::ZERO,
+    pub const EMPTY: Self = Self {
+        buffer: Buffer::EMPTY,
         z_index: 0,
         is_dirty: false,
         position: Position::ZERO,

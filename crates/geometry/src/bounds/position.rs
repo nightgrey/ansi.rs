@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::Point;
+use crate::{Column, Point, Row};
 use std::ops::{Add, AddAssign, Sub};
 
 /// A position in buffer coordinates (row, column).
@@ -159,6 +159,18 @@ impl From<PositionLike> for Position {
 impl From<Point> for Position {
     fn from(value: Point) -> Self {
         Self::new(value.y, value.x)
+    }
+}
+
+impl const From<Row> for Position {
+    fn from(value: Row) -> Self {
+        Self::new(value.0, 0)
+    }
+}
+
+impl From<Column> for Position {
+    fn from(value: Column) -> Self {
+        Self::new(0, value.0)
     }
 }
 

@@ -5,6 +5,12 @@ edition = "2024"
 
 [dependencies]
 derive_more = { workspace = true }
+paste = "1.0.15"
+bilge = "0.3.0"
+flatk = "0.5.2"
+itertools = "0.14.0"
+nutype = "0.6.2"
+synonym = "0.1.6"
 
 [dev-dependencies]
 criterion = "0.8.2"

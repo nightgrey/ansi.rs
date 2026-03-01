@@ -28,8 +28,7 @@
 #![feature(range_bounds_is_empty)]
 extern crate core;
 
-mod buffer;
-pub mod buffer_next;
+pub mod buffer;
 mod text;
 pub mod ui;
 

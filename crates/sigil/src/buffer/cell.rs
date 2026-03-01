@@ -1,190 +1,237 @@
-use crate::text::DisplayWidth;
-use ansi::io::Write;
-use ansi::{Escape, Flags, Style};
-use compact_str::CompactString;
-use std::convert::AsRef;
-use std::fmt::{Display, Formatter};
-use unicode_width::UnicodeWidthStr;
+use ansi::Style;
 
-/// Represents a single terminal grid cell with display attributes.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+use super::{Graph, Grapheme, GraphemePool};
+
+/// A single terminal cell — the fundamental unit of the framebuffer.
+///
+/// Each cell holds a grapheme cluster (the visible character), its display
+/// width in terminal columns, and visual style (attributes + colors).
+///
+/// # Size target
+///
+/// When `Style` is finalized into a packed representation (attributes in a
+/// `u16`, foreground + background in a `u64` channel pair), this struct will
+/// pack to exactly **16 bytes** for cache-line efficiency:
+///
+/// ```text
+/// ┌────────────┬───────┬─────────────┬───────────────────────┐
+/// │ grapheme   │ width │ attributes  │ channels (fg|bg)      │
+/// │ 4 bytes    │ 1 B   │ 2 bytes + 1 │ 8 bytes               │
+/// └────────────┴───────┴─────────────┴───────────────────────┘
+/// = 16 bytes with repr(C) and careful alignment
+/// ```
+///
+/// For now, `Style` is a mock and the struct may be slightly larger.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
-    /// Empty string represents an empty cell.
-    content: CompactString,
-    pub(crate) width: usize,
+    ///
+    /// 4 bytes: either inline UTF-8 or a pool offset (see [`Grapheme`]).
+    grapheme: Grapheme,
+
+    /// Column width of this cell's grapheme.
+    ///
+    /// - `1` for ASCII and most single-width characters
+    /// - `2` for CJK ideographs, fullwidth forms, and most emoji
+    /// - `0` is treated as `1` by [`columns()`](Self::columns)
+    ///
+    /// Wide characters (width 2) occupy this cell and the next cell to the
+    /// right, which should be a "continuation" cell with an empty grapheme.
+    width: u8,
+
+    /// Visual style: text attributes, foreground and background colors.
     style: Style,
 }
 
 impl Cell {
-    pub const SPACE: &'static str = &" ";
-
-    pub const EMPTY: Cell = Cell {
-        content: CompactString::const_new(Self::SPACE),
-        width: 1,
+    /// An empty cell with no grapheme and default style.
+    pub const EMPTY: Self = Self {
+        grapheme: Grapheme::EMPTY,
+        width: 0,
         style: Style::EMPTY,
     };
 
-    pub const fn empty() -> Self {
-        Self::EMPTY
-    }
-
-    pub fn new<S: AsRef<str>>(grapheme: S) -> Self {
-        let grapheme = CompactString::new(grapheme);
-        let width = grapheme.cluster_display_width();
+    /// Create a new cell.
+    pub fn new(grapheme: Grapheme, width: u8, style: Style) -> Self {
         Self {
-            content: grapheme,
+            grapheme,
             width,
-            ..Self::EMPTY
+            style,
         }
     }
 
-    pub fn new_const(grapheme: &'static str) -> Self {
+    /// Create a cell from a character with the given style.
+    ///
+    /// The character is always stored inline (every Unicode scalar value fits
+    /// in 4 UTF-8 bytes).
+    pub fn from_char(grapheme: char, width: u8, style: Style) -> Self {
         Self {
-            content: CompactString::const_new(grapheme),
-            ..Self::EMPTY
+            grapheme: Grapheme::from_char(grapheme),
+            width,
+            style,
         }
     }
 
-    pub fn content(&self) -> &str {
-        &self.content
+    // ── Accessors ──────────────────────────────────────────────────────
+
+    /// The grapheme handle for this cell.
+    #[inline]
+    pub fn grapheme(&self) -> Grapheme {
+        self.grapheme
     }
 
-    pub fn width(&self) -> usize {
+    /// The raw width value (0 means unset).
+    #[inline]
+    pub fn width(&self) -> u8 {
         self.width
     }
 
+    /// The effective column count: `width`, or 1 if `width` is 0.
+    #[inline]
+    pub fn columns(&self) -> u8 {
+        if self.width == 0 { 1 } else { self.width }
+    }
+
+    /// The cell's visual style.
+    #[inline]
     pub fn style(&self) -> &Style {
         &self.style
     }
 
-    pub fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+    #[inline]
+    pub fn is_wide(&self) -> bool {
+        self.width >= 2
     }
 
-    pub fn set_content(&mut self, grapheme: impl AsRef<str>) {
-        self.content.clear();
-        self.content.insert_str(0, grapheme.as_ref());
-        self.width = self.content.cluster_display_width();
+    #[inline]
+    pub fn is_narrow(&self) -> bool {
+        self.width <= 1
     }
 
-    pub fn set_char(&mut self, char: char) {
-        self.content.clear();
-        self.content.push(char);
-        self.width = self.content.cluster_display_width();
+    #[inline]
+    pub fn is_zero(&self) -> bool {
+        self.width == 0
     }
 
-    pub fn set_space(&mut self) {
-        self.content.clear();
-        self.content.push_str(Self::SPACE);
-        self.width = self.content.cluster_display_width();
-    }
-
-    pub fn push_str(&mut self, string: impl AsRef<str>) {
-        self.content.push_str(string.as_ref());
-        self.width = self.content.cluster_display_width();
-    }
-
-    pub fn push(&mut self, char: char) {
-        self.content.push(char);
-        self.width = self.content.cluster_display_width();
-    }
-
-    pub fn set_style(&mut self, style: &Style) {
-        self.style = style.clone();
-    }
-
-    pub fn copy_from(&mut self, other: &Self) {
-        self.content.clear();
-        self.content.push_str(other.content.as_str());
-        self.width = other.width;
-        self.style = other.style;
-    }
-
-    pub fn clear(&mut self) -> &mut Self {
-        self.set_space();
-        self.style.clear();
-        self
-    }
-
+    /// Returns `true` if this cell has no grapheme (blank).
+    #[inline]
     pub fn is_empty(&self) -> bool {
-        self.content == Self::SPACE
+        self.grapheme.is_empty()
     }
 
-    pub fn is_unstyled(&self) -> bool {
-        self.style.is_empty()
+    // ── Mutators ───────────────────────────────────────────────────────
+    /// Replace the grapheme, releasing the old one from the pool if needed.
+    pub fn set(&mut self, grapheme: Grapheme, pool: &mut GraphemePool) {
+        self.grapheme.release(pool);
+        self.grapheme = grapheme;
     }
 
-    pub fn as_str(&self) -> &str {
-        self.content.as_str()
+    /// Release any pool storage held by this cell's grapheme.
+    ///
+    /// Call this before the cell is dropped or overwritten if its grapheme
+    /// may be pool-stored. No-op for inline and empty graphemes.
+    pub fn release(&mut self, pool: &mut GraphemePool) {
+        self.grapheme.release(pool);
+        self.grapheme = Grapheme::EMPTY;
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
-        self.content.as_bytes()
-    }
-}
-
-impl PartialEq<Style> for Cell {
-    fn eq(&self, other: &Style) -> bool {
-        &self.style == other
-    }
-}
-
-impl Default for Cell {
-    fn default() -> Self {
-        Cell::empty()
-    }
-}
-
-impl AsRef<str> for Cell {
-    fn as_ref(&self) -> &str {
-        self.content.as_ref()
-    }
-}
-
-impl AsRef<Style> for Cell {
-    fn as_ref(&self) -> &Style {
-        &self.style
-    }
-}
-
-impl UnicodeWidthStr for Cell {
-    fn width(&self) -> usize {
-        self.content.width()
+    /// Set the column width.
+    #[inline]
+    pub fn set_width(&mut self, width: u8) {
+        self.width = width;
     }
 
-    fn width_cjk(&self) -> usize {
-        self.content.width_cjk()
+    /// Set the visual style.
+    #[inline]
+    pub fn set_style(&mut self, style: Style) {
+        self.style = style;
     }
-}
 
-impl FromIterator<Cell> for String {
-    fn from_iter<I: IntoIterator<Item = Cell>>(iter: I) -> Self {
-        iter.into_iter()
-            .map(|cell| cell.as_str().to_string())
-            .collect::<String>()
+
+    /// Reset this cell to empty (no grapheme, default style).
+    ///
+    /// Does **not** release pool storage — call
+    /// [`release`](Self::release) first if needed.
+    pub fn clear(&mut self) {
+        *self = Self::EMPTY;
+    }
+
+    /// Resolve the grapheme to a readable string.
+    ///
+    /// Shorthand for `self.grapheme().resolve(pool)`.
+    pub fn as_str<'a>(&'a self, pool: &'a GraphemePool) -> &'a str {
+        self.grapheme.as_str(pool)
+    }
+
+    /// Resolve the grapheme to a [`Graph`].
+    pub fn as_graph<'a>(&self, pool: &'a GraphemePool) -> Graph<'a> {
+        self.grapheme.as_graph(pool)
     }
 }
 
-impl<'a> FromIterator<&'a Cell> for String {
-    fn from_iter<I: IntoIterator<Item = &'a Cell>>(iter: I) -> Self {
-        iter.into_iter()
-            .map(|cell| cell.as_str().to_string())
-            .collect::<String>()
-    }
-}
+#[cfg(test)]
+mod tests {
+    use ansi::{Attribute, Color};
 
-impl Escape for Cell {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        w.escape(&self.style)?;
-        w.write(self.as_bytes())?;
-        Ok(())
-    }
-}
+    use super::*;
 
-impl Display for Cell {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        use ansi::fmt::Write as _;
-        f.escape(self)
+    #[test]
+    fn empty_cell() {
+        let cell = Cell::EMPTY;
+        assert!(cell.is_empty());
+        assert_eq!(cell.columns(), 1);
+        assert_eq!(cell.width(), 0);
+    }
+
+    #[test]
+    fn cell_from_char() {
+        let style = Style::new()
+            .attributes(Attribute::Bold)
+            .foreground(Color::Rgb(255, 0, 0));
+
+        let cell = Cell::from_char('A', 1, style);
+        assert!(!cell.is_empty());
+        assert_eq!(cell.width(), 1);
+        assert_eq!(cell.columns(), 1);
+        assert_eq!(cell.style().fg, Color::Rgb(255, 0, 0));
+        assert!(cell.style().attributes.contains(Attribute::Bold));
+
+        let pool = GraphemePool::new();
+        assert_eq!(cell.as_str(&pool), "A");
+    }
+
+    #[test]
+    fn cell_with_wide_char() {
+        let cell = Cell::from_char('中', 2, Style::EMPTY);
+        assert_eq!(cell.columns(), 2);
+    }
+
+    #[test]
+    fn cell_replace_grapheme() {
+        let mut pool = GraphemePool::new();
+        let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
+
+        let g = Grapheme::new(family, &mut pool);
+        let mut cell = Cell::new(g, 2, Style::EMPTY);
+
+        assert_eq!(cell.as_graph(&pool), family);
+        assert!(!pool.is_empty());
+
+        // Replace with an inline grapheme — old one gets released.
+        let g2 = Grapheme::from_char('X');
+        cell.set(g2, &mut pool);
+
+        assert_eq!(cell.as_graph(&pool), "X");
+        assert!(pool.is_empty()); // Pool storage was freed.
+    }
+
+    #[test]
+    fn cell_clear() {
+        let cell_before = Cell::from_char('Z', 1, Style::new().foreground(Color::Index(1)));
+        let mut cell = cell_before;
+        cell.clear();
+        assert!(cell.is_empty());
+        assert_eq!(cell, Cell::EMPTY);
     }
 }

@@ -1,0 +1,20 @@
+use std::ops::{Add, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use synonym::Synonym;
+use crate::Position;
+
+/// A row in buffer coordinates.
+#[derive_const(Synonym)]
+#[synonym(skip(Value))]
+pub struct Row(pub usize);
+
+impl const Row {
+    pub fn value(self) -> usize {
+        self.0
+    }
+}
+
+impl From<Position> for Row {
+    fn from(value: Position) -> Self {
+        Self(value.row)
+    }
+}

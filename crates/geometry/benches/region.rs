@@ -1,4 +1,4 @@
-use geometry::{Region };
+use geometry::{Bounds};
 use criterion::{ criterion_group, criterion_main, Criterion};
 use geometry::{Position};
 use std::hint::black_box;
@@ -10,14 +10,15 @@ fn bench_iter(c:&mut Criterion) {
         .benchmark_group("iter");
 
     let end = Position::new(1024, 1024);
-    let region = Region {
+    let region = Bounds {
         min: Position::new(0, 0),
         max: end,
     };
-
-    let range = (0..end.row * end.col);
     let region = region.into_iter();
-
+    let cursor = region.cursor(Position::new(0, 0));
+    c.bench_function("cursor", |b| {
+        b.iter(|| cursor.for_each(|p| { black_box(p); }))
+    });
     c.bench_function("region", |b| {
         b.iter(|| region.clone().for_each(|p| { black_box(p); }))
     });
@@ -37,9 +38,6 @@ fn bench_iter(c:&mut Criterion) {
         })
     });
 
-    c.bench_function("flat_range", |b| {
-        b.iter(|| range.clone().for_each(|p| { black_box(p); }))
-    });
 
     c.finish();
 }
@@ -47,7 +45,7 @@ fn bench_iter(c:&mut Criterion) {
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().warm_up_time(Duration::from_millis(100)).measurement_time(Duration::from_secs(1).add(Duration::from_millis(500))).with_output_color(true).with_plots();
+    config = Criterion::default().warm_up_time(Duration::from_millis(500)).measurement_time(Duration::from_secs(1)).with_output_color(true).with_plots();
     targets = bench_iter
 );
 

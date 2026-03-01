@@ -20,11 +20,11 @@ impl const IntoLocation<Position> for Bounds {
     }
 
     fn into_row(&self, location: Position) -> Row {
-        Row((location.row - self.min.row) / self.width())
+        Row(location.row - self.min.row)
     }
 
     fn into_col(&self, location: Position) -> Column {
-        Column((location.col - self.min.col) % self.width())
+        Column(location.col - self.min.col)
     }
 }
 impl const IntoLocation<Row> for Bounds {
@@ -72,11 +72,11 @@ impl const IntoLocation<usize> for Bounds {
     }
 
     fn into_row(&self, location: usize) -> Row {
-        Row((location - self.min.row) / self.width())
+        Row(location / self.width())
     }
 
     fn into_col(&self, location: usize) -> Column {
-        Column((location - self.min.col) % self.width())
+        Column(location % self.width())
     }
 }
 

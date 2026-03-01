@@ -109,10 +109,8 @@ impl const Step<Position> for Bounds {
 }
 impl const Step<Row> for Bounds {
     fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>){
-        if start.value() > end.value() {
-
+        if start.value() <= end.value() {
             let steps = end.value() - start.value();
-
             (steps, Some(steps))
         } else {
             (0, None)
@@ -120,7 +118,7 @@ impl const Step<Row> for Bounds {
     }
 
     fn forward_checked(&self, start: Row, count: usize) -> Option<Row> {
-        let row = start.value() + count;
+        let row = start.value().checked_add(count)?;
         if row >= self.max.row {
             return None;
         }
@@ -128,7 +126,7 @@ impl const Step<Row> for Bounds {
     }
 
     fn backward_checked(&self, start: Row, count: usize) -> Option<Row> {
-        let row = start.value() - count;
+        let row = start.value().checked_sub(count)?;
         if row < self.min.row {
             return None;
         }
@@ -137,9 +135,8 @@ impl const Step<Row> for Bounds {
 }
 impl const Step<Column> for Bounds {
     fn steps_between(&self, start: Column, end: Column) -> (usize, Option<usize>) {
-        if start.value() > end.value() {
+        if start.value() <= end.value() {
             let steps = end.value() - start.value();
-
             (steps, Some(steps))
         } else {
             (0, None)
@@ -147,19 +144,19 @@ impl const Step<Column> for Bounds {
     }
 
     fn forward_checked(&self, start: Column, count: usize) -> Option<Column> {
-        let row = start.value() + count;
-        if row >= self.max.row {
+        let col = start.value().checked_add(count)?;
+        if col >= self.max.col {
             return None;
         }
-        Some(Column(row))
+        Some(Column(col))
     }
 
     fn backward_checked(&self, start: Column, count: usize) -> Option<Column> {
-        let row = start.value() - count;
-        if row < self.min.row {
+        let col = start.value().checked_sub(count)?;
+        if col < self.min.col {
             return None;
         }
-        Some(Column(row))
+        Some(Column(col))
     }
 }
 

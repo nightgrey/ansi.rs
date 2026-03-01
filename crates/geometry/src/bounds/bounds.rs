@@ -143,10 +143,10 @@ impl Bounds {
 
     /// Returns the intersection of two regions (may be empty).
     pub const fn intersect(self, other: Self) -> Self {
-        let min_row = self.min.row.min(other.min.row);
-        let min_col = self.min.col.min(other.min.col);
-        let max_row = self.max.row.max(other.max.row);
-        let max_col = self.max.col.max(other.max.col);
+        let min_row = self.min.row.max(other.min.row);
+        let min_col = self.min.col.max(other.min.col);
+        let max_row = self.max.row.min(other.max.row);
+        let max_col = self.max.col.min(other.max.col);
 
         // Clamp to empty if min overtakes max on either axis.
         let (max_row, max_col) = if min_row > max_row || min_col > max_col {

@@ -1,4 +1,4 @@
-use crate::Escape;
+use crate::{ColorSpace, Escape};
 use derive_more::{AsRef, Deref, DerefMut, From, Into};
 use std::io::Write;
 use std::marker::Destruct;
@@ -217,19 +217,9 @@ impl Color {
             Color::Default | Color::None => None,
             Color::Index(_) => Some(ColorSpace::Ansi),
             Color::Rgb(_, _, _) => Some(ColorSpace::Rgb),
-            _ => Some(ColorSpace::Basic),
+            _ => None,
         }
     }
-}
-
-/// The color space.
-///
-/// Defines the color space of a color.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum ColorSpace {
-    Basic,
-    Ansi,
-    Rgb,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]

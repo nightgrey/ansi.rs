@@ -1,16 +1,6 @@
-use crate::Color;
+/*use crate::{Color, ColorSpace};
 use bilge::prelude::*;
 use utils::{Unpack, Pack};
-
-#[bitsize(2)]
-#[derive(Default, FromBits)]
-enum ColorSpace {
-    #[default]
-    None = 0,
-    Default = 1,
-    Ansi = 2,
-    Rgb = 3,
-}
 
 #[bitsize(32)]
 #[derive(DefaultBits, FromBits)]
@@ -65,3 +55,4 @@ impl Pack<ColorBits> for Color {
 
     }
 }
+*/

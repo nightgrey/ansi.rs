@@ -1,6 +1,6 @@
 use ansi::Style;
 
-use super::{Graph, Grapheme, GraphemePool};
+use super::{Graph, Grapheme, GraphemeArena};
 
 /// A single terminal cell — the fundamental unit of the framebuffer.
 ///
@@ -122,7 +122,7 @@ impl Cell {
 
     // ── Mutators ───────────────────────────────────────────────────────
     /// Replace the grapheme, releasing the old one from the pool if needed.
-    pub fn set(&mut self, grapheme: Grapheme, pool: &mut GraphemePool) {
+    pub fn set(&mut self, grapheme: Grapheme, pool: &mut GraphemeArena) {
         self.grapheme.release(pool);
         self.grapheme = grapheme;
     }
@@ -131,7 +131,7 @@ impl Cell {
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
     /// may be pool-stored. No-op for inline and empty graphemes.
-    pub fn release(&mut self, pool: &mut GraphemePool) {
+    pub fn release(&mut self, pool: &mut GraphemeArena) {
         self.grapheme.release(pool);
         self.grapheme = Grapheme::EMPTY;
     }
@@ -160,12 +160,12 @@ impl Cell {
     /// Resolve the grapheme to a readable string.
     ///
     /// Shorthand for `self.grapheme().resolve(pool)`.
-    pub fn as_str<'a>(&'a self, pool: &'a GraphemePool) -> &'a str {
+    pub fn as_str<'a>(&'a self, pool: &'a GraphemeArena) -> &'a str {
         self.grapheme.as_str(pool)
     }
 
     /// Resolve the grapheme to a [`Graph`].
-    pub fn as_graph<'a>(&self, pool: &'a GraphemePool) -> Graph<'a> {
+    pub fn as_graph<'a>(&self, pool: &'a GraphemeArena) -> Graph<'a> {
         self.grapheme.as_graph(pool)
     }
 }
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(cell.style().fg, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
 
-        let pool = GraphemePool::new();
+        let pool = GraphemeArena::new();
         assert_eq!(cell.as_str(&pool), "A");
     }
 
@@ -209,10 +209,10 @@ mod tests {
 
     #[test]
     fn cell_replace_grapheme() {
-        let mut pool = GraphemePool::new();
+        let mut pool = GraphemeArena::new();
         let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
 
-        let g = Grapheme::new(family, &mut pool);
+        let g = Grapheme::encode(family, &mut pool);
         let mut cell = Cell::new(g, 2, Style::EMPTY);
 
         assert_eq!(cell.as_graph(&pool), family);

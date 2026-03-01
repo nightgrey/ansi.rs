@@ -2,7 +2,7 @@ use std::ops::{Deref};
 use std::slice::SliceIndex;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
 use geometry::{Grid, GridIndex, IntoLocation, Position, Bounds, Row, Column};
-use super::{ Cell, GraphemePool};
+use super::{Cell, GraphemeArena};
 
 #[derive(Debug, Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut)]
 pub struct Buffer {
@@ -13,30 +13,30 @@ pub struct Buffer {
     #[as_ref(forward)]
     #[as_mut(forward)]
     inner: Grid<Cell>,
-    pub pool: GraphemePool,
+    pub pool: GraphemeArena,
 }
 
 impl Buffer {
     pub const EMPTY: Self = Self {
         inner: Grid::EMPTY,
-        pool: GraphemePool::EMPTY,
+        pool: GraphemeArena::EMPTY,
     };
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             inner: Grid::new(width, height),
-            pool: GraphemePool::new(),
+            pool: GraphemeArena::new(),
         }
     }
 
     pub fn with_capacity(width: usize, height: usize, capacity: usize) -> Self {
         Self {
             inner: Grid::new(width, height),
-            pool: GraphemePool::with_capacity(capacity),
+            pool: GraphemeArena::with_capacity(capacity),
         }
     }
 
-    pub fn with_pool(width: usize, height: usize, pool: GraphemePool) -> Self {
+    pub fn with_pool(width: usize, height: usize, pool: GraphemeArena) -> Self {
         Self {
             inner: Grid::new(width, height),
             pool,
@@ -76,11 +76,11 @@ impl IntoLocation<Position> for Buffer {
     }
 
     fn into_row(&self, location: Position) -> Row {
-        Row((location.row) / self.width)
+        Row(location.row)
     }
 
     fn into_col(&self, location: Position) -> Column {
-        Column((location.col) % self.width)
+        Column(location.col)
     }
 }
 

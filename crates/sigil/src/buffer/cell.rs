@@ -27,7 +27,7 @@ use super::{Graph, Grapheme, GraphemeArena};
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
-    /// 4 bytes: either inline UTF-8 or a pool offset (see [`Grapheme`]).
+    /// 4 bytes: either inline UTF-8 or a arena offset (see [`Grapheme`]).
     grapheme: Grapheme,
 
     /// Column width of this cell's grapheme.
@@ -121,18 +121,18 @@ impl Cell {
     }
 
     // ── Mutators ───────────────────────────────────────────────────────
-    /// Replace the grapheme, releasing the old one from the pool if needed.
-    pub fn set(&mut self, grapheme: Grapheme, pool: &mut GraphemeArena) {
-        self.grapheme.release(pool);
+    /// Replace the grapheme, releasing the old one from the arena if needed.
+    pub fn set(&mut self, grapheme: Grapheme, arena: &mut GraphemeArena) {
+        self.grapheme.release(arena);
         self.grapheme = grapheme;
     }
 
-    /// Release any pool storage held by this cell's grapheme.
+    /// Release any arena storage held by this cell's grapheme.
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
-    /// may be pool-stored. No-op for inline and empty graphemes.
-    pub fn release(&mut self, pool: &mut GraphemeArena) {
-        self.grapheme.release(pool);
+    /// may be arena-stored. No-op for inline and empty graphemes.
+    pub fn release(&mut self, arena: &mut GraphemeArena) {
+        self.grapheme.release(arena);
         self.grapheme = Grapheme::EMPTY;
     }
 
@@ -151,7 +151,7 @@ impl Cell {
 
     /// Reset this cell to empty (no grapheme, default style).
     ///
-    /// Does **not** release pool storage — call
+    /// Does **not** release arena storage — call
     /// [`release`](Self::release) first if needed.
     pub fn clear(&mut self) {
         *self = Self::EMPTY;
@@ -159,14 +159,14 @@ impl Cell {
 
     /// Resolve the grapheme to a readable string.
     ///
-    /// Shorthand for `self.grapheme().resolve(pool)`.
-    pub fn as_str<'a>(&'a self, pool: &'a GraphemeArena) -> &'a str {
-        self.grapheme.as_str(pool)
+    /// Shorthand for `self.grapheme().resolve(arena)`.
+    pub fn as_str<'a>(&'a self, arena: &'a GraphemeArena) -> &'a str {
+        self.grapheme.as_str(arena)
     }
 
     /// Resolve the grapheme to a [`Graph`].
-    pub fn as_graph<'a>(&self, pool: &'a GraphemeArena) -> Graph<'a> {
-        self.grapheme.as_graph(pool)
+    pub fn as_graph<'a>(&self, arena: &'a GraphemeArena) -> Graph<'a> {
+        self.grapheme.as_graph(arena)
     }
 }
 
@@ -197,8 +197,8 @@ mod tests {
         assert_eq!(cell.style().fg, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
 
-        let pool = GraphemeArena::new();
-        assert_eq!(cell.as_str(&pool), "A");
+        let arena = GraphemeArena::new();
+        assert_eq!(cell.as_str(&arena), "A");
     }
 
     #[test]
@@ -209,21 +209,21 @@ mod tests {
 
     #[test]
     fn cell_replace_grapheme() {
-        let mut pool = GraphemeArena::new();
+        let mut arena = GraphemeArena::new();
         let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
 
-        let g = Grapheme::encode(family, &mut pool);
+        let g = Grapheme::encode(family, &mut arena);
         let mut cell = Cell::new(g, 2, Style::EMPTY);
 
-        assert_eq!(cell.as_graph(&pool), family);
-        assert!(!pool.is_empty());
+        assert_eq!(cell.as_graph(&arena), family);
+        assert!(!arena.is_empty());
 
         // Replace with an inline grapheme — old one gets released.
         let g2 = Grapheme::from_char('X');
-        cell.set(g2, &mut pool);
+        cell.set(g2, &mut arena);
 
-        assert_eq!(cell.as_graph(&pool), "X");
-        assert!(pool.is_empty()); // Pool storage was freed.
+        assert_eq!(cell.as_graph(&arena), "X");
+        assert!(arena.is_empty()); // Pool storage was freed.
     }
 
     #[test]

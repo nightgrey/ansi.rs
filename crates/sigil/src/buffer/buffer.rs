@@ -13,40 +13,40 @@ pub struct Buffer {
     #[as_ref(forward)]
     #[as_mut(forward)]
     inner: Grid<Cell>,
-    pub pool: GraphemeArena,
+    pub arena: GraphemeArena,
 }
 
 impl Buffer {
     pub const EMPTY: Self = Self {
         inner: Grid::EMPTY,
-        pool: GraphemeArena::EMPTY,
+        arena: GraphemeArena::EMPTY,
     };
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             inner: Grid::new(width, height),
-            pool: GraphemeArena::new(),
+            arena: GraphemeArena::new(),
         }
     }
 
     pub fn with_capacity(width: usize, height: usize, capacity: usize) -> Self {
         Self {
             inner: Grid::new(width, height),
-            pool: GraphemeArena::with_capacity(capacity),
+            arena: GraphemeArena::with_capacity(capacity),
         }
     }
 
     pub fn with_pool(width: usize, height: usize, pool: GraphemeArena) -> Self {
         Self {
             inner: Grid::new(width, height),
-            pool,
+            arena: pool,
         }
     }
 
     pub fn clone_from_region(&mut self, bounds: Bounds) -> Self {
         Self {
             inner: self.inner.clone_from_region(bounds),
-            pool: self.pool.clone(),
+            arena: self.arena.clone(),
         }
     }
 
@@ -54,15 +54,15 @@ impl Buffer {
     pub fn clear(&mut self) {
         // Release all extended graphemes.
         for cell in &mut self.inner {
-            cell.release(&mut self.pool);
+            cell.release(&mut self.arena);
             cell.clear();
         }
 
-        self.pool.clear();
+        self.arena.clear();
     }
 
     pub fn to_string(&self) -> String {
-        self.iter().map(|cell| cell.as_str(&self.pool)).collect()
+        self.iter().map(|cell| cell.as_str(&self.arena)).collect()
     }
 }
 
@@ -84,8 +84,14 @@ impl IntoLocation<Position> for Buffer {
     }
 }
 
-#[test]
-fn qwe() {
-    let buffer = Buffer::new(10, 5);
-    let idx = buffer.into_position(Position::new(3, 4));
+impl AsRef<GraphemeArena> for Buffer {
+    fn as_ref(&self) -> &GraphemeArena {
+        &self.arena
+    }
+}
+
+impl AsMut<GraphemeArena> for Buffer {
+    fn as_mut(&mut self) -> &mut GraphemeArena {
+        &mut self.arena
+    }
 }

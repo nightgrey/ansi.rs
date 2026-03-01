@@ -58,7 +58,7 @@ pub fn buffer_text_at(buffer: &Buffer, row: usize, col_start: usize, col_end: us
     for col in col_start..col_end {
         let pos = Position::new(row, col);
         if let Some(cell) = buffer.get(pos) {
-            result.push_str(cell.as_str(&buffer.pool));
+            result.push_str(cell.as_str(&buffer.arena));
         }
     }
     result

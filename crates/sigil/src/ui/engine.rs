@@ -197,19 +197,17 @@ impl Engine {
     }
 
     // Rendering
-
     pub fn render(&mut self, out: &mut impl std::io::Write) -> std::io::Result<()> {
         for y in 0..self.screen.height {
             for x in 0..self.screen.width {
                 let i = (y * self.screen.width + x);
-                let front = &self.screen.front[i];
-                let pool = &self.screen.front.pool;
-                let back = &self.screen.back[i];
-
-                if front != back {
+                let cell = &self.screen.front[i];
+                let prev = &self.screen.back[i];
+                
+                if cell != prev {
                     // Move cursor and write
                     // (In real code: track cursor pos, elide colors, etc.)
-                    write!(out, "\x1b[{};{}H{}", y + 1, x + 1, front.as_str(pool))?;
+                    write!(out, "\x1b[{};{}H{}", y + 1, x + 1, cell.as_str(&self.screen.front.arena))?;
                 }
             }
         }

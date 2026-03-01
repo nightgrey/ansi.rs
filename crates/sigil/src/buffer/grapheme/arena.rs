@@ -31,7 +31,7 @@
 #[derive(Clone)]
 pub struct GraphemeArena {
     /// Contiguous byte storage. Each entry is a length-prefixed UTF-8 string.
-    inner: Vec<ansi>,
+    inner: Vec<u8>,
 
     /// Bytes actively occupied by stored graphemes (including length prefixes).
     used: usize,
@@ -341,8 +341,6 @@ impl Offset for &Grapheme {
     }
 }
 
-use std::mem::type_info::Array;
-use std::str::pattern::CharArraySearcher;
 use packed_struct::prelude::bits::ByteArray;
 // ── GraphemePoolError ───────────────────────────────────────────────────────
 use thiserror::Error;

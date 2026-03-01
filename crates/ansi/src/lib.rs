@@ -10,6 +10,7 @@ mod color_next;
 mod escape;
 mod style;
 mod attribute_next;
+mod color2;
 
 pub use attribute::*;
 pub use color::*;

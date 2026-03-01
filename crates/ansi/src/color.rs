@@ -1,13 +1,10 @@
 use crate::Escape;
-use derive_more::{Deref, DerefMut, From, Into};
+use derive_more::{AsRef, Deref, DerefMut, From, Into};
 use std::io::Write;
 use std::marker::Destruct;
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Hash, Debug)]
 pub enum Color {
-    None,
-    #[default]
-    Default,
     Black,
     Red,
     Green,
@@ -24,8 +21,14 @@ pub enum Color {
     BrightMagenta,
     BrightCyan,
     BrightWhite,
+
     Index(u8),
     Rgb(u8, u8, u8),
+
+    #[default]
+    Default,
+
+    None,
 }
 
 impl Color {
@@ -229,37 +232,115 @@ pub enum ColorSpace {
     Rgb,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]
 #[repr(transparent)]
-pub struct Background<'a>(pub &'a Color);
+pub struct Background(Color);
 
-impl Background<'_> {
-    pub fn as_foreground(&self) -> Foreground<'_> {
+impl Background {
+    pub fn color(&self) -> Color {
+        self.0
+    }
+
+    pub fn as_foreground(self) -> Foreground {
         Foreground(self.0)
     }
 
-    pub fn as_underline(&self) -> Underline<'_> {
+    pub fn as_underline(self) -> Underline {
         Underline(self.0)
     }
 }
 
-impl AsRef<Color> for Background<'_> {
-    fn as_ref(&self) -> &Color {
-        &self.0
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]
+#[repr(transparent)]
+pub struct Foreground(Color);
+
+impl Foreground {
+    pub fn color(&self) -> Color {
+        self.0
+    }
+    pub fn as_background(self) -> Background {
+        Background(self.0)
+    }
+
+    pub fn as_underline(self) -> Underline {
+        Underline(self.0)
     }
 }
 
-impl Into<Color> for Background<'_> {
-    fn into(self) -> Color {
-        *self.0
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]
+#[repr(transparent)]
+pub struct Underline(Color);
+
+impl Underline {
+    pub fn color(&self) -> Color {
+        self.0
+    }
+
+    pub fn as_background(self) -> Background {
+        Background(self.0)
+    }
+
+    pub fn as_foreground(self) -> Foreground {
+        Foreground(self.0)
     }
 }
 
-impl Escape for Background<'_> {
+impl Color {
+    pub fn as_background(self) -> Background {
+        Background(self)
+    }
+
+    pub fn as_foreground(self) -> Foreground {
+        Foreground(self)
+    }
+
+    pub fn as_underline(self) -> Underline {
+        Underline(self)
+    }
+}
+
+impl Escape for Foreground   {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
-        match self.as_ref() {
+        match self.0 {
+            None => Ok(()),
+            Default => w.write_all(b"39"),
+            Black => w.write_all(b"30"),
+            Red => w.write_all(b"31"),
+            Green => w.write_all(b"32"),
+            Yellow => w.write_all(b"33"),
+            Blue => w.write_all(b"34"),
+            Magenta => w.write_all(b"35"),
+            Cyan => w.write_all(b"36"),
+            White => w.write_all(b"37"),
+            BrightBlack => w.write_all(b"90"),
+            BrightRed => w.write_all(b"91"),
+            BrightGreen => w.write_all(b"92"),
+            BrightYellow => w.write_all(b"93"),
+            BrightBlue => w.write_all(b"94"),
+            BrightMagenta => w.write_all(b"95"),
+            BrightCyan => w.write_all(b"96"),
+            BrightWhite => w.write_all(b"97"),
+
+            Index(i) => {
+                write!(w, "38;5;{}", i)
+            }
+            Rgb(r, g, b) => {
+                write!(w, "38;2;{};{};{}", r, g, b)
+            },
+            _ => panic!("FIX"),
+
+        }
+    }
+}
+
+impl Escape for Background {
+    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        use Color::*;
+
+        match self.color() {
             None => Ok(()),
             Default => w.write_all(b"49"),
             Black => w.write_all(b"40"),
@@ -283,85 +364,14 @@ impl Escape for Background<'_> {
             }
             Rgb(r, g, b) => {
                 write!(w, "38;2;{};{};{}", r, g, b)
-            }
+            },
+            _ => panic!("FIX"),
+
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into)]
-#[repr(transparent)]
-pub struct Foreground<'a>(pub &'a Color);
-
-impl Foreground<'_> {
-    pub fn as_background(&self) -> Background<'_> {
-        Background(self.0)
-    }
-
-    pub fn as_underline(&self) -> Underline<'_> {
-        Underline(self.0)
-    }
-}
-impl AsRef<Color> for Foreground<'_> {
-    fn as_ref(&self) -> &Color {
-        &self.0
-    }
-}
-
-impl Into<Color> for Foreground<'_> {
-    fn into(self) -> Color {
-        *self.0
-    }
-}
-
-impl Escape for Foreground<'_> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use Color::*;
-
-        match self.0 {
-            None => Ok(()),
-            Default => w.write_all(b"39"),
-
-            Black => w.write_all(b"30"),
-            Red => w.write_all(b"31"),
-            Green => w.write_all(b"32"),
-            Yellow => w.write_all(b"33"),
-            Blue => w.write_all(b"34"),
-            Magenta => w.write_all(b"35"),
-            Cyan => w.write_all(b"36"),
-            White => w.write_all(b"37"),
-            BrightBlack => w.write_all(b"90"),
-            BrightRed => w.write_all(b"91"),
-            BrightGreen => w.write_all(b"92"),
-            BrightYellow => w.write_all(b"93"),
-            BrightBlue => w.write_all(b"94"),
-            BrightMagenta => w.write_all(b"95"),
-            BrightCyan => w.write_all(b"96"),
-            BrightWhite => w.write_all(b"97"),
-            Index(i) => {
-                write!(w, "38;5;{}", i)
-            }
-            Rgb(r, g, b) => {
-                write!(w, "38;2;{};{};{}", r, g, b)
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into)]
-#[repr(transparent)]
-pub struct Underline<'a>(pub &'a Color);
-
-impl Underline<'_> {
-    pub fn as_background(&self) -> Background<'_> {
-        Background(self.0)
-    }
-
-    pub fn as_foreground(&self) -> Foreground<'_> {
-        Foreground(self.0)
-    }
-}
-
-impl Escape for Underline<'_> {
+impl Escape for Underline {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
         match self.0 {
@@ -383,38 +393,15 @@ impl Escape for Underline<'_> {
             BrightMagenta => w.write_all(b"58;5;13"),
             BrightCyan => w.write_all(b"58;5;14"),
             BrightWhite => w.write_all(b"58;5;15"),
+
             Index(i) => {
                 write!(w, "58;5;{}", i)
             }
             Rgb(r, g, b) => {
                 write!(w, "58;2;{};{};{}", r, g, b)
-            }
+            },
+            _ => panic!("FIX"),
+
         }
-    }
-}
-
-impl AsRef<Color> for Underline<'_> {
-    fn as_ref(&self) -> &Color {
-        &self.0
-    }
-}
-
-impl Into<Color> for Underline<'_> {
-    fn into(self) -> Color {
-        *self.0
-    }
-}
-
-impl Color {
-    pub fn as_background(&self) -> Background<'_> {
-        Background(self)
-    }
-
-    pub fn as_foreground(&self) -> Foreground<'_> {
-        Foreground(self)
-    }
-
-    pub fn as_underline(&self) -> Underline<'_> {
-        Underline(self)
     }
 }

@@ -1,6 +1,6 @@
-use crate::{Column,  Position, Row, Location, Bounds, Step};
+use crate::{Column, Position, Row, Location, Bounds};
 
-/// Provides the spatial context needed to convert between positions.
+/// Provides the spatial context needed to convert between location representations.
 pub const trait IntoLocation<T = Position> {
     fn into_index(&self, location: T) -> usize;
 
@@ -27,48 +27,57 @@ impl const IntoLocation<Position> for Bounds {
         Column(location.col - self.min.col)
     }
 }
+
 impl const IntoLocation<Row> for Bounds {
+    /// Index of the first cell in this row.
     fn into_index(&self, location: Row) -> usize {
         (location.value() - self.min.row) * self.width()
     }
 
+    /// Position of the first cell in this row.
     fn into_position(&self, location: Row) -> Position {
-        let w = self.width();
-        Position::new(self.min.row + location.value() / w, self.min.col)
+        Position::new(location.value(), self.min.col)
     }
 
     fn into_row(&self, location: Row) -> Row {
-        Row((location.value() - self.min.row) / self.width())
+        Row(location.value() - self.min.row)
     }
 
-    fn into_col(&self, location: Row) -> Column {
-        Column((location.value() - self.min.row) % self.width())
+    fn into_col(&self, _location: Row) -> Column {
+        Column(0)
     }
 }
+
 impl const IntoLocation<Column> for Bounds {
+    /// Index of the first cell in this column (i.e. in the first row).
     fn into_index(&self, location: Column) -> usize {
-        (location.0) * self.width()
+        location.value() - self.min.col
     }
 
+    /// Position of the first cell in this column.
     fn into_position(&self, location: Column) -> Position {
-        Position::new(self.min.row, self.min.col + location.0 % self.width())
+        Position::new(self.min.row, location.value())
     }
 
-    fn into_row(&self, location: Column) -> Row {
-        Row((location.0 - self.min.col) / self.width())
+    fn into_row(&self, _location: Column) -> Row {
+        Row(0)
     }
 
     fn into_col(&self, location: Column) -> Column {
-        Column((location.0 - self.min.col) % self.width())
+        Column(location.value() - self.min.col)
     }
 }
+
 impl const IntoLocation<usize> for Bounds {
     fn into_index(&self, location: usize) -> usize {
         location
     }
 
     fn into_position(&self, location: usize) -> Position {
-        Position::new(self.min.row + location / self.width(), self.min.col + location % self.width())
+        Position::new(
+            self.min.row + location / self.width(),
+            self.min.col + location % self.width(),
+        )
     }
 
     fn into_row(&self, location: usize) -> Row {
@@ -78,29 +87,4 @@ impl const IntoLocation<usize> for Bounds {
     fn into_col(&self, location: usize) -> Column {
         Column(location % self.width())
     }
-}
-
-pub const trait IntoLocationWithin: Sized {
-    #[inline]
-    fn into_index(self, ctx: &Bounds) -> usize where Bounds: [const] IntoLocation<Self> {
-        ctx.into_index(self)
-    }
-
-    #[inline]
-    fn into_position(self, ctx: &Bounds) -> Position where Bounds: [const] IntoLocation<Self> {
-        ctx.into_position(self)
-    }
-
-    #[inline]
-    fn into_row(self, ctx: &Bounds) -> Row where Bounds: [const] IntoLocation<Self> {
-        ctx.into_row(self)
-    }
-
-    #[inline]
-    fn into_col(self, ctx: &Bounds) -> Column where Bounds: [const] IntoLocation<Self> {
-        ctx.into_col(self)
-    }
-}
-
-impl<S: Location> const IntoLocationWithin for S {
 }

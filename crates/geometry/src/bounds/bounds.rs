@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Bound, Deref, IntoBounds, RangeBounds};
 
-use crate::{Position, Size, Iter, Step, Cursor};
+use crate::{Position, Size, Iter, Step, Cursor, Located};
 
 // ─── Region ──────────────────────────────────────────────────────────────────
 
@@ -45,9 +45,9 @@ impl Bounds {
     /// 
     /// ```rust
     /// # use geometry::{Bounds, Position};
-    /// let bounds = Bounds::rect(5, 10, 10, 20);
+    /// let bounds = Bounds::corners(5, 10, 10, 20);
     /// ```
-    pub const fn rect(x: usize, y: usize, width: usize, height: usize) -> Self {
+    pub const fn corners(x: usize, y: usize, width: usize, height: usize) -> Self {
         Self::new(Position::new(x, y), Position::new(x + width, y + height))
     }
 

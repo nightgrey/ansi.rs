@@ -2,35 +2,33 @@ use geometry::{Bounds};
 use criterion::{ criterion_group, criterion_main, Criterion};
 use geometry::{Position};
 use std::hint::black_box;
-use std::ops::Add;
 use std::time::Duration;
 
 fn bench_iter(c:&mut Criterion) {
     let mut c = c
         .benchmark_group("iter");
+    let bounds = Bounds::corners(0, 0, 1024, 1024);
 
-    let end = Position::new(1024, 1024);
-    let region = Bounds {
-        min: Position::new(0, 0),
-        max: end,
-    };
-    let region = region.into_iter();
-    let cursor = region.cursor(Position::new(0, 0));
-    c.bench_function("cursor", |b| {
+    c.bench_function("cursor_iter", |b| {
+        let cursor = bounds.cursor(Position::new(0, 0));
+
         b.iter(|| cursor.for_each(|p| { black_box(p); }))
     });
-    c.bench_function("region", |b| {
-        b.iter(|| region.clone().for_each(|p| { black_box(p); }))
+
+    c.bench_function("step_iter", |b| {
+        let iter =  bounds.into_iter();
+
+        b.iter(|| iter.for_each(|p| { black_box(p); }))
     });
 
     c.bench_function("optimal_loop", |b| {
+
         b.iter(|| {
-            let region = region.clone();
-            let mut row = region.min.row;
-            while row <= region.max.row {
-                let mut col = region.min.col;
-                while col <= region.max.col {
-                    black_box(row * region.width() + col);
+            let mut row = bounds.min.row;
+            while row <= bounds.max.row {
+                let mut col = bounds.min.col;
+                while col <= bounds.max.col {
+                    black_box(row * bounds.width() + col);
                     col += 1;
                 }
                 row += 1;

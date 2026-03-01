@@ -1,5 +1,4 @@
-use crate::{Column, IntoLocation, Position, Row, Size, Location, Bounds};
-use std::ops::{Bound::*};
+use crate::{Column, IntoLocation, Position, Row, Location, Bounds};
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -19,7 +18,7 @@ pub const trait Step<T = Position> {
     /// Like `forward_checked`, but panics on overflow.
     fn forward(&self, start: T, count: usize) -> T {
         self.forward_checked(start, count)
-            .expect("overflow in SpatialContext::forward")
+            .expect("overflow in Step::forward")
     }
 
     /// Like `forward_checked`, without bounds checking.
@@ -36,7 +35,7 @@ pub const trait Step<T = Position> {
     /// Like `backward_checked`, but panics on underflow.
     fn backward(&self, start: T, count: usize) -> T {
         self.backward_checked(start, count)
-            .expect("underflow in SpatialContext::backward")
+            .expect("underflow in Step::backward")
     }
 
     /// Like `backward_checked`, without bounds checking.
@@ -49,46 +48,37 @@ pub const trait Step<T = Position> {
 }
 
 impl const Step<Position> for Bounds {
-    fn steps_between(&self, start:  Position, end: Position) -> (usize, Option<usize>) {
+    fn steps_between(&self, start: Position, end: Position) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
         }
         let current = self.into_index(start);
         let remaining = self.into_index(end);
 
-        let dist = (remaining - current);
+        let dist = remaining - current;
 
         (dist, Some(dist))
     }
 
     fn forward_checked(&self, start: Position, count: usize) -> Option<Position> {
-        // OPTIMIZATION: Fast path for single step (Iterator usage)
-        // This mirrors the manual assembly logic: increment, then check bounds.
+        // Fast path for single step (Iterator usage).
         if count == 1 {
-
             let mut next = start;
             next.col += 1;
 
-            // Check row wrap
             if next.col >= self.max.col {
                 next.col = self.min.col;
                 next.row += 1;
 
-                // Check region end
                 if next.row >= self.max.row {
                     return None;
                 }
             }
 
-            // We need to ensure we don't start past the end (safety check for API)
-            // But for iterators, start is always valid.
-            // This logic naturally returns None if start was already invalid/past end
-            // because row >= end.row will likely trigger or already be true.
             return Some(next);
         }
 
-        // Fallback for arbitrary steps (simplified from previous)
-        // Note: This path is rarely hit by standard iterators.
+        // General path for arbitrary steps.
         let index = self.into_index(start).checked_add(count)?;
         if index >= self.area() {
             return None;
@@ -96,8 +86,9 @@ impl const Step<Position> for Bounds {
 
         Some(self.into_position(index))
     }
+
     fn backward_checked(&self, start: Position, count: usize) -> Option<Position> {
-        // Fast path: stay on the same row (only valid for in-bounds positions).
+        // Fast path: stay on the same row.
         if start.row < self.max.row && count <= start.col - self.min.col {
             return Some(Position::new(start.row, start.col - count));
         }
@@ -107,8 +98,9 @@ impl const Step<Position> for Bounds {
         Some(self.into_position(target))
     }
 }
+
 impl const Step<Row> for Bounds {
-    fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>){
+    fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
             let steps = end.value() - start.value();
             (steps, Some(steps))
@@ -133,6 +125,7 @@ impl const Step<Row> for Bounds {
         Some(Row(row))
     }
 }
+
 impl const Step<Column> for Bounds {
     fn steps_between(&self, start: Column, end: Column) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
@@ -159,39 +152,3 @@ impl const Step<Column> for Bounds {
         Some(Column(col))
     }
 }
-
-pub const trait StepWithin: Sized + Location {
-    #[inline]
-    fn forward_checked(self, count: usize, ctx: &impl [const] Step<Self>) -> Option<Self> {
-        ctx.forward_checked(self, count)
-    }
-    
-    #[inline]
-    fn forward(self, count: usize, ctx: &impl [const] Step<Self>) -> Self {
-        ctx.forward(self, count)
-    }
-    
-    #[inline]
-    unsafe fn forward_unchecked(self, count: usize, ctx: &impl [const] Step<Self>) -> Self {
-        ctx.forward_unchecked(self, count)
-    }
-    
-    #[inline]
-    fn backward_checked(self, count: usize, ctx: &impl [const] Step<Self>) -> Option<Self> {
-        ctx.backward_checked(self, count)
-    }
-    
-    #[inline]
-    fn backward(self, count: usize, ctx: &impl [const] Step<Self>) -> Self {
-        ctx.backward(self, count)
-    }
-    
-    #[inline]
-    unsafe fn backward_unchecked(self, count: usize, ctx: &impl [const] Step<Self>) -> Self {
-        ctx.backward_unchecked(self, count) 
-    }
-}
-
-impl<S: Location> const StepWithin for S {
-}
-

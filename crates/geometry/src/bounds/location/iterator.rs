@@ -1,11 +1,11 @@
-use std::iter::{FusedIterator};
-use std::marker::Destruct;
-use crate::{Location, Position};
-use std::ops::{IntoBounds, Bound::*, RangeBounds, Deref, DerefMut, Sub};
+use std::iter::FusedIterator;
+use std::ops::{Deref};
+use crate::{Location, Position, IntoLocation, Step};
 use crate::bounds::Bounds;
-use super::{Step, IntoLocation};
 
-
+/// Owned, double-ended iterator over every `Position` in a `Bounds`.
+///
+/// Created by [`Bounds::iter`].
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
 pub struct Iter<T = Position, Context = Bounds> {
@@ -16,7 +16,6 @@ pub struct Iter<T = Position, Context = Bounds> {
 
 impl Iter {
     pub const fn new(context: Bounds) -> Self {
-        // For empty regions, set front == back so is_done() is immediately true.
         let front = if context.is_empty() { context.max } else { context.min };
         Self {
             context,
@@ -38,11 +37,12 @@ impl Iterator for Iter {
 
         match self.context.forward_checked(next, 1) {
             Some(next) => self.front = next,
-            None =>  self.front = self.back
+            None => self.front = self.back,
         }
 
         Some(next)
     }
+
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         if self.front >= self.back {
@@ -59,7 +59,7 @@ impl Iterator for Iter {
         }
         let current = self.into_index(self.front);
         let remaining = self.area();
-        (remaining - current)
+        remaining - current
     }
 
     #[inline]
@@ -79,57 +79,29 @@ impl Iterator for Iter {
         None
     }
 
-    fn for_each<F>(self, mut f: F)
+    fn for_each<F>(self, f: F)
     where
         Self: Sized,
         F: FnMut(Self::Item),
     {
         if self.front >= self.back { return; }
-
-        let mut item = self.front;
-
-        while item.row < self.max.row {
-            let end_col = self.max.col;
-            while item.col < end_col {
-                f(item);
-                item.col += 1;
-            }
-            item.col = self.min.col;
-            item.row += 1;
-        }
+        traverse_row_major(self.front, self.min.col, self.max.col, self.max.row, f);
     }
 
-    fn fold<B, F>(self, init: B, mut f: F) -> B
+    fn fold<B, F>(self, init: B, f: F) -> B
     where
         F: FnMut(B, Self::Item) -> B,
     {
         if self.front >= self.back { return init; }
-
-        let mut acc = init;
-
-        let mut item = self.front;
-
-        while item.row < self.max.row {
-            let end_col = self.max.col;
-            while item.col < end_col {
-                acc = f(acc, item);
-                item.col += 1;
-            }
-            item.col = self.min.col;
-            item.row += 1;
-        }
-
-        acc
+        fold_row_major(self.front, self.min.col, self.max.col, self.max.row, init, f)
     }
 
-    fn max(mut self) -> Option<Self::Item>
-    {
+    fn max(mut self) -> Option<Self::Item> {
         self.next_back()
     }
 
     #[inline]
-    fn min(mut self) -> Option<Self::Item>
-    {
+    fn min(mut self) -> Option<Self::Item> {
         self.next()
     }
 
@@ -138,20 +110,19 @@ impl Iterator for Iter {
         true
     }
 }
+
 impl DoubleEndedIterator for Iter {
     #[inline]
     fn next_back(&mut self) -> Option<Position> {
         if self.front >= self.back {
             return None;
         }
-        // Decrement first, then yield — back is an exclusive bound.
         match self.context.backward_checked(self.back, 1) {
             Some(prev) => {
                 self.back = prev;
                 Some(prev)
             }
             None => {
-                // back was at min — yield it and mark exhausted.
                 let last = self.front;
                 self.front = self.back;
                 Some(last)
@@ -187,7 +158,12 @@ impl const Deref for Iter {
     }
 }
 
-/// A position that knows its spatial context.
+// ─── Cursor ────────────────────────────────────────────────────────────
+
+/// A position that knows its spatial context (borrowed).
+///
+/// Like [`Iter`] but borrows its `Bounds` and starts from an arbitrary position.
+/// Implements `Iterator` for forward traversal from the current position.
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
 pub struct Cursor<'a, P = Position> {
@@ -238,6 +214,7 @@ impl<'a> Cursor<'a, Position> {
         self.context.into_index(self.position)
     }
 }
+
 impl<'a> Iterator for Cursor<'a, Position> {
     type Item = Position;
 
@@ -249,58 +226,42 @@ impl<'a> Iterator for Cursor<'a, Position> {
         let current = self.position;
         match self.context.forward_checked(self.position, 1) {
             Some(next) => { self.position = next; Some(current) }
-            None => None, // could use a `done` flag for fused behavior
+            None => None,
         }
     }
 
-
-    fn for_each<F>(self, mut f: F)
+    fn for_each<F>(self, f: F)
     where
         Self: Sized,
         F: FnMut(Self::Item),
     {
         if self.position >= self.context.max { return; }
-
-        let mut item = self.position;
-
-        while item.row < self.context.max.row {
-            let end_col = self.context.max.col;
-            while item.col < end_col {
-                f(item);
-                item.col += 1;
-            }
-            item.col = self.context.min.col;
-            item.row += 1;
-        }
+        traverse_row_major(
+            self.position,
+            self.context.min.col,
+            self.context.max.col,
+            self.context.max.row,
+            f,
+        );
     }
 
-    fn fold<B, F>(self, init: B, mut f: F) -> B
+    fn fold<B, F>(self, init: B, f: F) -> B
     where
         F: FnMut(B, Self::Item) -> B,
     {
         if self.position >= self.context.max { return init; }
-
-        let mut acc = init;
-
-        let mut item = self.position;
-
-        while item.row < self.context.max.row {
-            let end_col = self.context.max.col;
-            while item.col < end_col {
-                acc = f(acc, item);
-                item.col += 1;
-            }
-            item.col = self.context.min.col;
-            item.row += 1;
-        }
-
-        acc
+        fold_row_major(
+            self.position,
+            self.context.min.col,
+            self.context.max.col,
+            self.context.max.row,
+            init,
+            f,
+        )
     }
 
-
     #[inline]
-    fn min(mut self) -> Option<Self::Item>
-    {
+    fn min(mut self) -> Option<Self::Item> {
         self.next()
     }
 
@@ -308,24 +269,74 @@ impl<'a> Iterator for Cursor<'a, Position> {
     fn is_sorted(self) -> bool {
         true
     }
-
 }
+
 impl FusedIterator for Cursor<'_, Position> {}
+
 impl const Deref for Cursor<'_, Position> {
     type Target = Position;
     fn deref(&self) -> &Self::Target {
         &self.position
     }
 }
+
 impl AsRef<Position> for Cursor<'_> {
     fn as_ref(&self) -> &Position {
         &self.position
     }
 }
+
+// ─── Shared row-major traversal ────────────────────────────────────────
+
+/// Walk every position in row-major order from `start` within `[min_col..max_col) × [..max_row)`,
+/// calling `f` for each.
+#[inline(always)]
+fn traverse_row_major(
+    start: Position,
+    min_col: usize,
+    max_col: usize,
+    max_row: usize,
+    mut f: impl FnMut(Position),
+) {
+    let mut pos = start;
+    while pos.row < max_row {
+        while pos.col < max_col {
+            f(pos);
+            pos.col += 1;
+        }
+        pos.col = min_col;
+        pos.row += 1;
+    }
+}
+
+/// Fold variant of the row-major traversal.
+#[inline(always)]
+fn fold_row_major<B>(
+    start: Position,
+    min_col: usize,
+    max_col: usize,
+    max_row: usize,
+    init: B,
+    mut f: impl FnMut(B, Position) -> B,
+) -> B {
+    let mut acc = init;
+    let mut pos = start;
+    while pos.row < max_row {
+        while pos.col < max_col {
+            acc = f(acc, pos);
+            pos.col += 1;
+        }
+        pos.col = min_col;
+        pos.row += 1;
+    }
+    acc
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[cfg(test)]
     mod off_by_one {
@@ -342,35 +353,17 @@ mod tests {
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
 
-                    dbg!(bounds);
-                    assert_eq!(area, area, "area {area} != {area}. bounds={bounds:?}");
                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area,count, "area {area} != {count}. bounds={bounds:?}");
+                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
                     assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(len, area, "len {len} != {area}. bounds={bounds:?}");
-                    assert_eq!(len, len, "len {len} != {len}. bounds={bounds:?}");
-                    assert_eq!(len, count, "len {len} != {count}. bounds={bounds:?}");
-                    assert_eq!(len, size_hint, "len {len} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(count, area, "count {count} != {area}. bounds={bounds:?}");
-                    assert_eq!(count, len, "count {count} != {len}. bounds={bounds:?}");
-                    assert_eq!(count,count, "count {count} != {count}. bounds={bounds:?}");
-                    assert_eq!(count, size_hint, "count {count} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(size_hint, area, "size_hint {size_hint} != {area}. bounds={bounds:?}");
-                    assert_eq!(size_hint, len, "size_hint {size_hint} != {len}. bounds={bounds:?}");
-                    assert_eq!(size_hint,count, "size_hint {size_hint} != {count}. bounds={bounds:?}");
-                    assert_eq!(size_hint, size_hint, "size_hint {size_hint} != {size_hint}. bounds={bounds:?}");
                 }
             }
-
         }
+
         #[test]
         fn from_1() {
             for x in 1..2 {
                 for y in 1..3 {
-
                     let bounds = Bounds::new(Position::new(1, 1), Position::new(x, y));
 
                     let area = bounds.area();
@@ -378,30 +371,13 @@ mod tests {
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
 
-                    assert_eq!(area, area, "area {area} != {area}. bounds={bounds:?}");
                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area,count, "area {area} != {count}. bounds={bounds:?}");
+                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
                     assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(len, area, "len {len} != {area}. bounds={bounds:?}");
-                    assert_eq!(len, len, "len {len} != {len}. bounds={bounds:?}");
-                    assert_eq!(len, count, "len {len} != {count}. bounds={bounds:?}");
-                    assert_eq!(len, size_hint, "len {len} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(count, area, "count {count} != {area}. bounds={bounds:?}");
-                    assert_eq!(count, len, "count {count} != {len}. bounds={bounds:?}");
-                    assert_eq!(count,count, "count {count} != {count}. bounds={bounds:?}");
-                    assert_eq!(count, size_hint, "count {count} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(size_hint, area, "size_hint {size_hint} != {area}. bounds={bounds:?}");
-                    assert_eq!(size_hint, len, "size_hint {size_hint} != {len}. bounds={bounds:?}");
-                    assert_eq!(size_hint,count, "size_hint {size_hint} != {count}. bounds={bounds:?}");
-                    assert_eq!(size_hint, size_hint, "size_hint {size_hint} != {size_hint}. bounds={bounds:?}");
                 }
             }
-
-
         }
+
         #[test]
         fn to_plus_one() {
             for x in 0..3 {
@@ -413,33 +389,14 @@ mod tests {
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
 
-                    assert_eq!(area, area, "area {area} != {area}. bounds={bounds:?}");
                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area,count, "area {area} != {count}. bounds={bounds:?}");
+                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
                     assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(len, area, "len {len} != {area}. bounds={bounds:?}");
-                    assert_eq!(len, len, "len {len} != {len}. bounds={bounds:?}");
-                    assert_eq!(len, count, "len {len} != {count}. bounds={bounds:?}");
-                    assert_eq!(len, size_hint, "len {len} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(count, area, "count {count} != {area}. bounds={bounds:?}");
-                    assert_eq!(count, len, "count {count} != {len}. bounds={bounds:?}");
-                    assert_eq!(count,count, "count {count} != {count}. bounds={bounds:?}");
-                    assert_eq!(count, size_hint, "count {count} != {size_hint}. bounds={bounds:?}");
-
-                    assert_eq!(size_hint, area, "size_hint {size_hint} != {area}. bounds={bounds:?}");
-                    assert_eq!(size_hint, len, "size_hint {size_hint} != {len}. bounds={bounds:?}");
-                    assert_eq!(size_hint,count, "size_hint {size_hint} != {count}. bounds={bounds:?}");
-                    assert_eq!(size_hint, size_hint, "size_hint {size_hint} != {size_hint}. bounds={bounds:?}");
                 }
             }
-
-
         }
-
     }
-    #[test]
+
     #[test]
     fn test_bounds_iter_basic() {
         let bounds = Bounds::new(Position::new(0, 0), Position::new(2, 3));
@@ -485,7 +442,6 @@ mod tests {
 
         assert_eq!(min, 12);
         assert_eq!(max, Some(12));
-
     }
 
     #[test]

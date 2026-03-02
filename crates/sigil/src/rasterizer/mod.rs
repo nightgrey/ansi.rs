@@ -1,5 +1,8 @@
-// TODO: Build a rasterizer after checking `./ref/review.md`.
-//   The reference for the review is `./ref/terminal_renderer.go`, which is UV's rasterizer, and `<repository-root>/docs/notcurses-architecture.md`.
-
+mod capabilities;
+mod cursor;
+mod line;
 mod rasterizer;
+pub mod sequences;
 
+pub use capabilities::Capabilities;
+pub use rasterizer::Rasterizer;

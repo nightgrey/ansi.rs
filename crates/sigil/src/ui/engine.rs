@@ -1,7 +1,7 @@
 use super::{Key, Tree};
 use crate::{
     Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
-    NodeRefMut, Secondary,
+    NodeRefMut, Rasterizer, Secondary,
 };
 use ansi::io::Write as AnsiWrite;
 use ansi::{Color, Style};
@@ -18,6 +18,7 @@ pub struct Engine {
     pub layers: Tree<LayerId, Layer>,
     pub layout: Secondary<ElementId, Rect>,
     pub screen: DoubleBuffer,
+    pub rasterizer: Rasterizer,
     pub root: ElementId,
 }
 
@@ -35,6 +36,7 @@ impl Engine {
             elements,
             layers,
             screen: DoubleBuffer::new(width, height),
+            rasterizer: Rasterizer::new(width, height),
             layout: Secondary::new(),
             root,
         }
@@ -198,23 +200,8 @@ impl Engine {
 
     // Rendering
     pub fn render(&mut self, out: &mut impl std::io::Write) -> std::io::Result<()> {
-        for y in 0..self.screen.height {
-            for x in 0..self.screen.width {
-                let i = (y * self.screen.width + x);
-                let cell = &self.screen.front[i];
-                let prev = &self.screen.back[i];
-                
-                if cell != prev {
-                    // Move cursor and write
-                    // (In real code: track cursor pos, elide colors, etc.)
-                    write!(out, "\x1b[{};{}H{}", y + 1, x + 1, cell.as_str(&self.screen.front.arena))?;
-                }
-            }
-        }
-
-        out.flush()?;
-
-        // Swap buffers
+        self.rasterizer.render(&self.screen.front);
+        self.rasterizer.flush(out)?;
         self.screen.swap();
         Ok(())
     }

@@ -1426,6 +1426,7 @@ version = "0.1.0"
 dependencies = [
  "ansi",
  "bilge",
+ "bitflags",
  "bytemuck",
  "compact_str",
  "criterion",

@@ -30,10 +30,9 @@
 extern crate core;
 
 pub mod buffer;
-mod text;
 pub mod ui;
 pub mod rasterizer;
 
 pub use buffer::*;
-pub use text::*;
+pub use rasterizer::*;
 pub use ui::*;

@@ -1,0 +1,213 @@
+use ansi::{Escape, Style};
+
+use super::capabilities::Capabilities;
+use super::sequences as seq;
+
+/// Tracks the logical cursor position and current SGR pen state.
+#[derive(Clone, Debug)]
+pub(crate) struct Cursor {
+    pub row: usize,
+    pub col: usize,
+    pub style: Style,
+}
+
+impl Cursor {
+    pub const fn new() -> Self {
+        Self {
+            row: 0,
+            col: 0,
+            style: Style::EMPTY,
+        }
+    }
+
+    /// Reset cursor to origin with empty pen.
+    pub fn reset(&mut self) {
+        self.row = 0;
+        self.col = 0;
+        self.style = Style::EMPTY;
+    }
+
+    /// Emit the shortest cursor movement sequence to reach `(target_row, target_col)`.
+    ///
+    /// Evaluates up to 4 strategies and picks the one with the fewest bytes:
+    /// 0. CUP (absolute)
+    /// 1. Relative (CUU/CUD + CUF/CUB)
+    /// 2. CR + relative vertical + CUF
+    /// 3. VPA + CHA (if capabilities allow)
+    pub fn move_to(
+        &mut self,
+        buf: &mut Vec<u8>,
+        target_row: usize,
+        target_col: usize,
+        caps: Capabilities,
+    ) {
+        if self.row == target_row && self.col == target_col {
+            return;
+        }
+
+        let dr = target_row as isize - self.row as isize;
+        let dc = target_col as isize - self.col as isize;
+
+        // Strategy 0: CUP (always available)
+        let cost_cup = seq::cup_len(target_row, target_col);
+
+        // Strategy 1: Relative moves
+        let vert_cost = seq::relative_len(dr.unsigned_abs());
+        let horiz_cost = seq::relative_len(dc.unsigned_abs());
+        let cost_relative = vert_cost + horiz_cost;
+
+        // Strategy 2: CR + relative vertical + CUF
+        // CR is 1 byte, then vertical move, then CUF to target_col
+        let cost_cr = 1 + vert_cost + seq::relative_len(target_col);
+
+        // Strategy 3: VPA + CHA (requires capabilities)
+        let cost_vpa_cha = if caps.contains(Capabilities::VPA | Capabilities::CHA) {
+            let v = if dr != 0 { seq::vpa_len(target_row) } else { 0 };
+            let h = if dc != 0 || dr != 0 {
+                seq::cha_len(target_col)
+            } else {
+                0
+            };
+            v + h
+        } else {
+            usize::MAX
+        };
+
+        // Pick the cheapest strategy.
+        let min = cost_cup.min(cost_relative).min(cost_cr).min(cost_vpa_cha);
+
+        if min == cost_relative && cost_relative > 0 {
+            // Relative moves
+            if dr > 0 {
+                seq::cud(buf, dr as usize);
+            } else if dr < 0 {
+                seq::cuu(buf, (-dr) as usize);
+            }
+            if dc > 0 {
+                seq::cuf(buf, dc as usize);
+            } else if dc < 0 {
+                seq::cub(buf, (-dc) as usize);
+            }
+        } else if min == cost_cr {
+            seq::cr(buf);
+            if dr > 0 {
+                seq::cud(buf, dr as usize);
+            } else if dr < 0 {
+                seq::cuu(buf, (-dr) as usize);
+            }
+            if target_col > 0 {
+                seq::cuf(buf, target_col);
+            }
+        } else if min == cost_vpa_cha {
+            if dr != 0 {
+                seq::vpa(buf, target_row);
+            }
+            if dc != 0 || dr != 0 {
+                seq::cha(buf, target_col);
+            }
+        } else {
+            seq::cup(buf, target_row, target_col);
+        }
+
+        self.row = target_row;
+        self.col = target_col;
+    }
+
+    /// Update the pen (SGR state) to match `target_style`, emitting only
+    /// the diff. No-op if the style is already current.
+    pub fn update_pen(&mut self, buf: &mut Vec<u8>, target_style: &Style) {
+        if self.style == *target_style {
+            return;
+        }
+
+        let diff = self.style.diff(*target_style);
+        if !diff.is_empty() {
+            diff.escape(buf).ok();
+        }
+
+        self.style = *target_style;
+    }
+
+    /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
+    pub fn reset_pen(&mut self, buf: &mut Vec<u8>) {
+        if !self.style.is_empty() {
+            seq::sgr_reset(buf);
+            self.style = Style::EMPTY;
+        }
+    }
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn move_to_same_position_is_noop() {
+        let mut cursor = Cursor::new();
+        let mut buf = Vec::new();
+        cursor.move_to(&mut buf, 0, 0, Capabilities::DEFAULT);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn move_to_picks_shortest_for_small_relative() {
+        let mut cursor = Cursor::new();
+        let mut buf = Vec::new();
+        // Moving right by 1 should use CUF (3 bytes) not CUP (6+ bytes)
+        cursor.move_to(&mut buf, 0, 1, Capabilities::DEFAULT);
+        assert_eq!(buf, b"\x1B[C");
+    }
+
+    #[test]
+    fn move_to_uses_cr_for_column_zero() {
+        let mut cursor = Cursor::new();
+        cursor.row = 5;
+        cursor.col = 10;
+        let mut buf = Vec::new();
+        // Same row, col 0 — CR (1 byte) is cheapest
+        cursor.move_to(&mut buf, 5, 0, Capabilities::DEFAULT);
+        assert_eq!(buf, b"\r");
+    }
+
+    #[test]
+    fn move_to_uses_cup_for_distant_positions() {
+        let mut cursor = Cursor::new();
+        let mut buf = Vec::new();
+        cursor.move_to(&mut buf, 50, 80, Capabilities::DEFAULT);
+        let output = String::from_utf8_lossy(&buf);
+        // Should use some form of absolute positioning
+        assert!(output.contains('\x1B'));
+        assert_eq!(cursor.row, 50);
+        assert_eq!(cursor.col, 80);
+    }
+
+    #[test]
+    fn pen_elision_no_sgr_for_same_style() {
+        let mut cursor = Cursor::new();
+        cursor.style = Style::new().bold();
+        let mut buf = Vec::new();
+        cursor.update_pen(&mut buf, &Style::new().bold());
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn pen_reset_only_when_dirty() {
+        let mut cursor = Cursor::new();
+        let mut buf = Vec::new();
+        // Clean pen — no output
+        cursor.reset_pen(&mut buf);
+        assert!(buf.is_empty());
+
+        // Dirty pen — emits SGR reset
+        cursor.style = Style::new().bold();
+        cursor.reset_pen(&mut buf);
+        assert_eq!(buf, b"\x1B[0m");
+        assert!(cursor.style.is_empty());
+    }
+}

@@ -1,6 +1,11 @@
-use crate::attribute::Attribute;
-use crate::color::Color;
+mod experimental;
+mod underline_style;
+mod attribute;
 
+pub use attribute::*;
+pub use underline_style::*;
+
+use crate::Color;
 use crate::Escape;
 use bitflags::Flags;
 use std::cmp::PartialEq;
@@ -563,7 +568,7 @@ impl Debug for Style {
         if self.is_empty() {
             return f.write_str("Style::EMPTY");
         }
-        
+
         let mut debug = f.debug_struct("Style");
 
 
@@ -662,40 +667,5 @@ impl Escape for Style {
         }
 
         w.write_all(b"m")
-    }
-}
-
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub enum UnderlineStyle {
-    None,
-    #[default]
-    Single,
-    Double,
-    Curly,
-    Dotted,
-    Dashed,
-}
-
-impl UnderlineStyle {
-    pub const MAX: Attribute = Attribute::new(
-        Attribute::UnderlineStyleSingle.bits()
-            | Attribute::UnderlineStyleDouble.bits()
-            | Attribute::UnderlineStyleCurly.bits()
-            | Attribute::UnderlineStyleDotted.bits()
-            | Attribute::UnderlineStyleDashed.bits(),
-    );
-}
-
-impl From<UnderlineStyle> for Attribute {
-    fn from(value: UnderlineStyle) -> Self {
-        match value {
-            UnderlineStyle::None => Attribute::UnderlineStyleNone,
-            UnderlineStyle::Single => Attribute::UnderlineStyleSingle,
-            UnderlineStyle::Double => Attribute::UnderlineStyleDouble,
-            UnderlineStyle::Curly => Attribute::UnderlineStyleCurly,
-            UnderlineStyle::Dotted => Attribute::UnderlineStyleDotted,
-            UnderlineStyle::Dashed => Attribute::UnderlineStyleDashed,
-        }
     }
 }

@@ -1,5 +1,3 @@
-use bilge::prelude::*;
-
 /// The color space.
 ///
 /// Defines the color space of a color.

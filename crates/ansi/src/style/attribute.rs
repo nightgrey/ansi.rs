@@ -2,7 +2,7 @@ use derive_more::{Deref, DerefMut};
 
 use crate::Escape;
 pub use ::bitflags::{Bits, Flags, bitflags, bitflags_match};
-pub use ::std::ops::{BitAnd, BitOr, BitXor, Not};
+use ::std::ops::{BitAnd, BitOr, BitXor, Not};
 use modular_bitfield::error::{InvalidBitPattern, OutOfBounds};
 use modular_bitfield::prelude::*;
 use std::io::Write;

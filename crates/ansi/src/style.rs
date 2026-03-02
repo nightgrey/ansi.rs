@@ -4,10 +4,11 @@ use crate::color::Color;
 use crate::Escape;
 use bitflags::Flags;
 use std::cmp::PartialEq;
+use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXorAssign, Sub, SubAssign};
 use utils::separator;
 
-#[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Style {
     pub attributes: Attribute,
     pub fg: Color,
@@ -554,6 +555,35 @@ impl Style {
 impl Default for Style {
     fn default() -> Self {
         Style::EMPTY
+    }
+}
+
+impl Debug for Style {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            return f.write_str("Style::EMPTY");
+        }
+        
+        let mut debug = f.debug_struct("Style");
+
+
+        if !self.fg.is_none() {
+            debug.field("foreground", &self.fg);
+        }
+
+        if !self.bg.is_none() {
+            debug.field("background", &self.bg);
+        }
+
+        if !self.ul.is_none() {
+            debug.field("underline", &self.ul);
+        }
+
+        if !self.attributes.is_empty() {
+            debug.field("attributes", &self.attributes);
+        }
+
+        debug.finish()
     }
 }
 

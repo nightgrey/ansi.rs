@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use unicode_width::UnicodeWidthChar;
 use ansi::Style;
 use crate::Offset;
 use super::{Graph, Grapheme, GraphemeArena};
@@ -22,7 +24,7 @@ use super::{Graph, Grapheme, GraphemeArena};
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 #[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
@@ -65,10 +67,10 @@ impl Cell {
     ///
     /// The character is always stored inline (every Unicode scalar value fits
     /// in 4 UTF-8 bytes).
-    pub fn from_char(grapheme: char, width: u8, style: Style) -> Self {
+    pub fn from_char(char: char, style: Style) -> Self {
         Self {
-            grapheme: Grapheme::from_char(grapheme),
-            width,
+            grapheme: Grapheme::from_char(char),
+            width: char.width().unwrap_or(0) as u8,
             style,
         }
     }
@@ -110,23 +112,32 @@ impl Cell {
     }
 
     #[inline]
-    pub fn is_zero(&self) -> bool {
+    pub fn is_continuation(&self) -> bool {
         self.width == 0
     }
 
-    /// Returns `true` if this cell has no grapheme (blank).
+    /// Returns `true` if this cell has no grapheme (blank) or style (default).
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.grapheme.is_empty()
+        self.grapheme.is_empty() && self.is_unstyled()
     }
 
-    // ── Mutators ───────────────────────────────────────────────────────
+    /// Returns `true` if this cell has no style (default).
+    #[inline]
+    pub fn is_unstyled(&self) -> bool {
+        self.style.is_empty()
+    }
+
     /// Replace the grapheme, releasing the old one from the arena if needed.
     pub fn set(&mut self, grapheme: Grapheme, arena: &mut GraphemeArena) {
         self.grapheme.release(arena);
         self.grapheme = grapheme;
     }
-
+    
+    pub fn set_char(&mut self, char: char) {
+        self.grapheme = Grapheme::from_char(char);
+    }
+    
     /// Release any arena storage held by this cell's grapheme.
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
@@ -170,6 +181,28 @@ impl Cell {
     }
 }
 
+impl Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        if self.is_empty() {
+            return f.write_str("Cell::EMPTY")
+        }
+        let mut debug = f.debug_tuple("Cell");
+
+        if self.is_continuation() {
+            debug.field(&"");
+        } else {
+            debug.field(&self.grapheme);
+        }
+
+        if !self.is_unstyled() {
+            debug.field(&self.style);
+        }
+
+        debug.finish()
+    }
+}
+
 impl Offset for Cell {
     #[inline]
     fn offset(self) -> usize {
@@ -183,12 +216,14 @@ impl Offset for &Cell {
     }
 }
 
-impl Offset for &mut Cell { 
+impl Offset for &mut Cell {
     #[inline]
     fn offset(self) -> usize {
         self.grapheme.offset()
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {
@@ -210,7 +245,7 @@ mod tests {
             .attributes(Attribute::Bold)
             .foreground(Color::Rgb(255, 0, 0));
 
-        let cell = Cell::from_char('A', 1, style);
+        let cell = Cell::from_char('A', style);
         assert!(!cell.is_empty());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.columns(), 1);
@@ -223,7 +258,7 @@ mod tests {
 
     #[test]
     fn cell_with_wide_char() {
-        let cell = Cell::from_char('中', 2, Style::EMPTY);
+        let cell = Cell::from_char('中', Style::EMPTY);
         assert_eq!(cell.columns(), 2);
     }
 
@@ -248,7 +283,7 @@ mod tests {
 
     #[test]
     fn cell_clear() {
-        let cell_before = Cell::from_char('Z', 1, Style::new().foreground(Color::Index(1)));
+        let cell_before = Cell::from_char('Z', Style::new().foreground(Color::Index(1)));
         let mut cell = cell_before;
         cell.clear();
         assert!(cell.is_empty());

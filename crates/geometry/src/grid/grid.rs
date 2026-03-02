@@ -144,6 +144,13 @@ impl<T> Grid<T> {
             self[pos] = value;
         }
     }
+
+    pub fn clear_and_resize(&mut self, width: usize, height: usize) where T: Default + Clone {
+        self.width = width;
+        self.height = height;
+        self.inner.clear();
+        self.inner.resize(width * height, T::default());
+    }
 }
 
 impl<T: Clone> Grid<T> {
@@ -168,9 +175,7 @@ impl<T: Copy> Grid<T> {
         next
     }
 
-
-    /// Resize the buffer to the given width and height.
-    pub fn resize(&mut self, width: usize, height: usize, value: T) {
+    pub fn resize_with(&mut self, width: usize, height: usize, value: T) where T: Clone {
         let (cur_w, cur_h) = (self.width, self.height);
         if cur_w == width && cur_h == height {
             return;
@@ -210,6 +215,11 @@ impl<T: Copy> Grid<T> {
             self.inner.truncate(width * height);
         }
         self.height = height;
+    }
+
+    /// Resize the buffer to the given width and height.
+    pub fn resize(&mut self, width: usize, height: usize) where T: Default {
+        self.resize_with(width, height, T::default());
     }
 }
 

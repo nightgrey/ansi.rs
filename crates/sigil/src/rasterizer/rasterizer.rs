@@ -1,118 +1,159 @@
+use std::borrow::Cow;
 use std::io;
-
+use derive_more::{Deref, DerefMut};
+use rustix::path::Arg;
 use ansi::{Escape, Style};
-use geometry::Row;
+use geometry::{Position, Row};
 
 use crate::buffer::{Buffer, Cell};
 
-use super::cursor::Cursor;
 use super::sequences as seq;
 
-pub struct Rasterizer<W: io::Write> {
-    w: W,
-    terminal: Vec<u8>,
-    prev: Option<Buffer>,
-    cursor: Cursor,
-    is_fullscreen: bool,
-    force_clear: bool,
+#[derive(Clone,  Copy, Debug, Deref, DerefMut)]
+struct Cursor {
+    #[deref]
+    #[deref_mut]
+    pos: Position,
+    style: Style,
 }
 
-impl<W: io::Write> Rasterizer<W> {
-    /// Create a new renderer writing to `writer`.
-    pub fn new(writer: W) -> Self {
+impl Cursor {
+    pub const ZERO: Self = Self {
+        pos: Position::ZERO,
+        style: Style::EMPTY,
+    };
+
+    pub fn new() -> Self {
+        Self::ZERO
+    }
+
+    pub fn to(&mut self, row: usize, col: usize) {
+        self.pos.row = row;
+        self.pos.col = col;
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::ZERO;
+    }
+
+    pub fn is_unstyled(&self) -> bool {
+        self.style.is_empty()
+    }
+
+    pub fn clear_style(&mut self) {
+        self.style.clear();
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Rasterizer {
+    buffer: Vec<u8>,
+    frame: Buffer,
+    cursor: Cursor,
+    is_fullscreen: bool,
+    clear: bool,
+}
+
+impl Rasterizer {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
-            w: writer,
-            terminal: Vec::with_capacity(4096),
-            prev: None,
+            buffer: Vec::with_capacity(4096),
+            frame: Buffer::new(width, height),
             cursor: Cursor::new(),
             is_fullscreen: false,
-            force_clear: false,
+            clear: false,
         }
     }
 
     /// Render a buffer, diffing against the previous frame.
     pub fn render(&mut self, buffer: &Buffer) {
-        let width = buffer.width;
-        let height = buffer.height;
+        let prev = &mut self.frame;
+        let next = buffer;
 
-        // Allocate or reallocate prev buffer if dimensions changed.
-        let need_full = match &self.prev {
-            Some(prev) if prev.width == width && prev.height == height && !self.force_clear => false,
-            _ => true,
-        };
-
-        if need_full {
-            if self.force_clear {
-                seq::home(&mut self.terminal);
-                seq::ed_all(&mut self.terminal);
+        match self.clear {
+            true => {
+                seq::home(&mut self.buffer);
+                seq::ed_all(&mut self.buffer);
                 self.cursor.reset();
-                self.force_clear = false;
+                self.clear = false;
+                prev.clear_and_resize(next.width, next.height);
+            },
+            false => if prev.width != next.width && prev.height != next.height {
+                prev.resize(next.width, next.height);
             }
-            self.prev = Some(Buffer::new(width, height));
         }
 
-        seq::hide_cursor(&mut self.terminal);
+        seq::hide_cursor(&mut self.buffer);
 
-        for y in 0..height {
-            self.render_line(buffer, y);
+        for y in 0..next.height {
+            self.render_line(next, y);
         }
+
+        let cursor = &mut self.cursor;
 
         // Reset pen if dirty.
-        if !self.cursor.style.is_empty() {
-            seq::sgr_reset(&mut self.terminal);
-            self.cursor.style = Style::EMPTY;
+        if !cursor.is_unstyled() {
+            seq::sgr_reset(&mut self.buffer);
+            cursor.clear_style();
         }
 
-        seq::show_cursor(&mut self.terminal);
+        seq::show_cursor(&mut self.buffer);
 
-        // Swap prev ← new (clone the buffer for next diff).
-        self.prev = Some(buffer.clone());
+        // Swap prev ← new (clone the next for next diff).
+        self.frame = next.clone();
     }
 
     /// Flush internal buffer to the underlying writer.
-    pub fn flush(&mut self) -> io::Result<()> {
-        if !self.terminal.is_empty() {
-            self.w.write_all(&self.terminal)?;
-            self.terminal.clear();
+    pub fn flush(&mut self, w: &mut impl io::Write) -> io::Result<()> {
+        if !self.buffer.is_empty() {
+            w.write_all(&self.buffer)?;
+            self.buffer.clear();
         }
-        self.w.flush()
+        w.flush()
     }
 
     /// Mark the screen for a full clear on next render.
-    pub fn erase(&mut self) {
-        self.force_clear = true;
+    pub fn redraw(&mut self) {
+        self.clear = true;
     }
 
     /// Enter alternate screen buffer.
     pub fn enter_alt_screen(&mut self) {
-        seq::enter_alt_screen(&mut self.terminal);
+        seq::enter_alt_screen(&mut self.buffer);
         self.is_fullscreen = true;
-        self.force_clear = true;
+        self.clear = true;
     }
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        seq::sgr_reset(&mut self.terminal);
-        seq::exit_alt_screen(&mut self.terminal);
+        seq::sgr_reset(&mut self.buffer);
+        seq::exit_alt_screen(&mut self.buffer);
         self.is_fullscreen = false;
-        self.prev = None;
+        self.frame.clear();
         self.cursor.reset();
-    }
-
-    /// Move cursor to absolute position.
-    pub fn move_to(&mut self, row: usize, col: usize) {
-        self.move_cursor(row, col);
     }
 
     /// Invalidate the previous buffer, forcing a full redraw.
     pub fn resize(&mut self) {
-        self.prev = None;
-        self.force_clear = true;
+        self.frame.clear();
+        self.clear = true;
     }
 
-    /// Access the internal write buffer (for testing).
-    pub fn buffer(&self) -> &[u8] {
-        &self.terminal
+    pub fn clear_buffer(&mut self) {
+        self.buffer.clear();
+    }
+
+    pub fn clear_frame(&mut self) {
+        self.frame.clear();
+    }
+    pub fn clear_cursor(&mut self) {
+        self.cursor.reset();
+    }
+
+    pub fn clear(&mut self) {
+        self.clear_frame();
+        self.clear_buffer();
+        self.clear_cursor();
     }
 
     // ── Internal ────────────────────────────────────────────────────
@@ -124,9 +165,10 @@ impl<W: io::Write> Rasterizer<W> {
         // Compute diff bounds and trailing-blank state up front, before
         // borrowing self mutably.
         let (first_diff, last_diff, need_eol) = {
-            let prev = self.prev.as_ref().expect("prev buffer must exist");
+            let prev = &self.frame;
             let new_row: &[Cell] = &buffer[Row(y)];
             let old_row: &[Cell] = &prev[Row(y)];
+
 
             let first = match (0..width).find(|&x| new_row[x] != old_row[x]) {
                 Some(col) => col,
@@ -159,10 +201,10 @@ impl<W: io::Write> Rasterizer<W> {
         // Clear to end of line if new line has trailing blanks where old didn't.
         if need_eol {
             if !self.cursor.style.is_empty() {
-                seq::sgr_reset(&mut self.terminal);
+                seq::sgr_reset(&mut self.buffer);
                 self.cursor.style = Style::EMPTY;
             }
-            seq::el(&mut self.terminal);
+            seq::el(&mut self.buffer);
         }
     }
 
@@ -174,7 +216,7 @@ impl<W: io::Write> Rasterizer<W> {
 
         let diff = self.cursor.style.diff(*style);
         if !diff.is_empty() {
-            diff.escape(&mut self.terminal).ok();
+            diff.escape(&mut self.buffer).ok();
         }
 
         self.cursor.style = *style;
@@ -191,20 +233,20 @@ impl<W: io::Write> Rasterizer<W> {
 
         // If moving to column 0, CR is cheapest.
         if col == 0 && dr == 0 {
-            seq::cr(&mut self.terminal);
+            seq::cr(&mut self.buffer);
         } else if dr == 0 && dc > 0 && dc <= 4 {
-            seq::cuf(&mut self.terminal, dc as usize);
+            seq::cuf(&mut self.buffer, dc as usize);
         } else if dr == 0 && dc < 0 && (-dc) <= 4 {
-            seq::cub(&mut self.terminal, (-dc) as usize);
+            seq::cub(&mut self.buffer, (-dc) as usize);
         } else if dc == 0 && dr > 0 && dr <= 4 {
-            seq::cud(&mut self.terminal, dr as usize);
+            seq::cud(&mut self.buffer, dr as usize);
         } else if dc == 0 && dr < 0 && (-dr) <= 4 {
-            seq::cuu(&mut self.terminal, (-dr) as usize);
+            seq::cuu(&mut self.buffer, (-dr) as usize);
         } else {
-            seq::cup(&mut self.terminal, row, col);
+            seq::cup(&mut self.buffer, row, col);
         }
 
-        self.cursor.move_to(row, col);
+        self.cursor.to(row, col);
     }
 
     /// Write a cell's content after updating the pen.
@@ -212,121 +254,135 @@ impl<W: io::Write> Rasterizer<W> {
         self.update_pen(cell.style());
 
         if cell.is_empty() {
-            self.terminal.push(b' ');
+            self.buffer.push(b' ');
         } else {
             let s = cell.as_str(&buffer.arena);
-            self.terminal.extend_from_slice(s.as_bytes());
+            self.buffer.extend_from_slice(s.as_bytes());
         }
     }
-}
 
+    fn as_bytes(&self) -> &[u8] {
+        &self.buffer
+    }
+
+    fn as_str(&self) -> Cow<'_, str> {
+        String::from_utf8_lossy(&self.buffer)
+    }
+}
 #[cfg(test)]
 mod tests {
     use ansi::{Attribute, Color};
 
     use super::*;
 
-    fn make_buffer(width: usize, height: usize, cells: &[(usize, usize, char, Style)]) -> Buffer {
-        let mut buf = Buffer::new(width, height);
-        for &(row, col, ch, style) in cells {
-            let pos = geometry::Position::new(row, col);
-            buf[pos] = Cell::from_char(ch, 1, style);
-        }
-        buf
-    }
-
     #[test]
     fn render_styled_cells_emits_sgr() {
+        let mut output = Vec::new();
         let style = Style::new()
             .bold()
             .foreground(Color::Rgb(255, 0, 0));
-
-        let buffer = make_buffer(5, 1, &[
+        let buffer = Buffer::from_chars(5, 1, &[
             (0, 0, 'H', style),
             (0, 1, 'i', style),
         ]);
 
-        let mut r = Rasterizer::new(Vec::new());
-        r.render(&buffer);
+        let mut rasterizer = Rasterizer::new(5, 1);
+        rasterizer.render(&buffer);
+        rasterizer.flush(&mut output).unwrap();
 
-        let output = String::from_utf8_lossy(r.buffer());
-
-        // Should contain SGR for bold + red fg.
-        assert!(output.contains("\x1B["), "expected SGR sequence in output: {output}");
-        // Should contain the text.
-        assert!(output.contains('H'), "expected 'H' in output: {output}");
-        assert!(output.contains('i'), "expected 'i' in output: {output}");
+        let str = String::from_utf8_lossy(&output);
+        assert!(str.contains("\x1B["), "expected SGR sequence in output: {str}");
+        assert!(str.contains('H'), "expected 'H' in output: {str}");
+        assert!(str.contains('i'), "expected 'i' in output: {str}");
     }
 
     #[test]
     fn render_identical_buffer_produces_no_diff() {
+        let mut output = io::Cursor::new(Vec::default());
         let style = Style::new().foreground(Color::Index(2));
-        let buffer = make_buffer(3, 1, &[
+        let buffer = Buffer::from_chars(3, 1, &[
             (0, 0, 'A', style),
             (0, 1, 'B', style),
             (0, 2, 'C', style),
         ]);
 
-        let mut r = Rasterizer::new(Vec::new());
-        r.render(&buffer);
-        r.terminal.clear(); // Clear first render output.
+        let mut rasterizer = Rasterizer::new(3, 1);
+        rasterizer.render(&buffer);
+        rasterizer.flush(&mut output).unwrap();
+
+        let str = String::from_utf8_lossy(&output.get_ref());
+        assert!(str.contains('A'), "should emit 'A': {str}");
+        assert!(str.contains('B'), "should emit 'B': {str}");
+        assert!(str.contains('C'), "should emit 'C': {str}");
 
         // Render same buffer again.
-        r.render(&buffer);
+        rasterizer.render(&buffer);
+        let mut next = io::Cursor::new(Vec::default());
+        rasterizer.flush(&mut next).unwrap();
 
-        let output = &r.terminal;
         // Output should only contain hide/show cursor, reset — no cell data.
-        let output_str = String::from_utf8_lossy(output);
-        assert!(!output_str.contains('A'), "should not re-emit 'A': {output_str}");
-        assert!(!output_str.contains('B'), "should not re-emit 'B': {output_str}");
-        assert!(!output_str.contains('C'), "should not re-emit 'C': {output_str}");
+        let str = String::from_utf8_lossy(&next.get_ref());
+        assert!(!str.contains('A'), "should not re-emit 'A': {str}");
+        assert!(!str.contains('B'), "should not re-emit 'B': {str}");
+        assert!(!str.contains('C'), "should not re-emit 'C': {str}");
     }
 
     #[test]
     fn render_single_cell_change_emits_only_that_cell() {
+        let mut output = io::Cursor::new(Vec::default());
+
         let style = Style::new().foreground(Color::Index(3));
-        let buf1 = make_buffer(3, 1, &[
+        let mut buffer = Buffer::from_chars(3, 1, &[
             (0, 0, 'A', style),
             (0, 1, 'B', style),
             (0, 2, 'C', style),
         ]);
 
-        let mut r = Rasterizer::new(Vec::new());
-        r.render(&buf1);
-        r.terminal.clear();
+        let mut rasterizer = Rasterizer::new(3, 1);
+        rasterizer.render(&buffer);
+        rasterizer.flush(&mut output).unwrap();
+
+        let str = String::from_utf8_lossy(&output.get_ref());
+        assert!(str.contains('A'), "should emit 'A': {str}");
+        assert!(str.contains('B'), "should emit 'B': {str}");
+        assert!(str.contains('C'), "should emit 'C': {str}");
 
         // Change only middle cell.
-        let buf2 = make_buffer(3, 1, &[
-            (0, 0, 'A', style),
-            (0, 1, 'X', style),
-            (0, 2, 'C', style),
-        ]);
+        buffer[(0, 1)] = Cell::from_char('X', style);
 
-        r.render(&buf2);
+        rasterizer.render(&buffer);
 
-        let output_str = String::from_utf8_lossy(&r.terminal);
+
+        let mut next = io::Cursor::new(Vec::default());
+        rasterizer.flush(&mut next).unwrap();
+
+        let str = String::from_utf8_lossy(&next.get_ref());
         // Should contain the new cell value.
-        assert!(output_str.contains('X'), "should emit changed cell 'X': {output_str}");
+        assert!(str.contains('X'), "should emit changed cell 'X': {str}");
         // Should not contain unchanged cells.
-        assert!(!output_str.contains('A'), "should not re-emit 'A': {output_str}");
-        assert!(!output_str.contains('C'), "should not re-emit 'C': {output_str}");
+        assert!(!str.contains('A'), "should not re-emit 'A': {str}");
+        assert!(!str.contains('C'), "should not re-emit 'C': {str}");
     }
 
     #[test]
-    fn erase_forces_full_redraw() {
+    fn redraw() {
+        let mut output = io::Cursor::new(Vec::default());
         let style = Style::EMPTY;
-        let buffer = make_buffer(2, 1, &[(0, 0, 'Z', style)]);
+        let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', style)]);
+        let mut rasterizer = Rasterizer::new(2, 1);
 
-        let mut r = Rasterizer::new(Vec::new());
-        r.render(&buffer);
-        r.terminal.clear();
+        rasterizer.render(&buffer);
+        rasterizer.flush(&mut output).unwrap();
 
-        r.erase();
-        r.render(&buffer);
+        rasterizer.redraw();
 
-        let output_str = String::from_utf8_lossy(&r.terminal);
+        rasterizer.render(&buffer);
+        rasterizer.flush(&mut output).unwrap();
+
+        let str = String::from_utf8_lossy(&output.get_ref());
+        dbg!(&str);
         // Should contain clear screen sequence and the cell.
-        assert!(output_str.contains("\x1B[2J"), "should contain ED2: {output_str}");
-        assert!(output_str.contains('Z'), "should re-emit 'Z': {output_str}");
+        assert!(str.contains("\x1B[2J"), "should contain ED2: {str}");
+        assert!(str.contains('Z'), "should re-emit 'Z': {str}");
     }
 }

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cargo run:*)",
       "Bash(find:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(grep:*)"
     ]
   }
 }

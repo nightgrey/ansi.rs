@@ -1,8 +1,10 @@
+use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
+use ansi::Style;
 use geometry::{Grid, Position, Bounds, Context};
 use super::{Cell, GraphemeArena};
 
-#[derive(Debug, Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
+#[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
 pub struct Buffer {
     #[index]
     #[index_mut]
@@ -21,6 +23,10 @@ impl Buffer {
         arena: GraphemeArena::EMPTY,
     };
 
+    pub const fn empty() -> Self {
+        Self::EMPTY
+    }
+
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             inner: Grid::new(width, height),
@@ -34,6 +40,15 @@ impl Buffer {
             arena,
         }
     }
+
+    pub(crate) fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
+        let mut buffer = Self::new(width, height);
+        for &(row, col, ch, style) in chars {
+            buffer[(row, col)] = Cell::from_char(ch, style);
+        }
+        buffer
+    }
+
 
     pub fn clone_from_region(&mut self, bounds: Bounds) -> Self {
         Self {
@@ -224,6 +239,16 @@ impl Buffer {
     }
 }
 
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Buffer")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("inner", &self.inner.as_slice())
+            .field("arena", &self.arena)
+            .finish()
+    }
+}
 impl Context for Buffer {
     fn min(&self) -> Position { Position::ZERO }
     fn max(&self) -> Position { Position::new(self.height(), self.width()) }

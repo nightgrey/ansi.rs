@@ -279,7 +279,7 @@ impl TrackingBuffer {
 
     /// Resize the buffer. Marks everything dirty and resets tracking state.
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.inner.resize(width, height, Cell::default());
+        self.inner.resize(width, height);
         self.rows = DirtyRows::new(height);
         self.cols = DirtyColumns::new(height);
         self.mark_all();
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn set_marks_dirty() {
         let mut buf = TrackingBuffer::new(80, 24);
-        let cell = Cell::from_char('A', 1, Style::EMPTY);
+        let cell = Cell::from_char('A', Style::EMPTY);
         buf[Position::new(5, 10)] = cell;
 
         assert!(buf.any());
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn index_mut_position_marks_dirty() {
         let mut buf = TrackingBuffer::new(80, 24);
-        buf[Position::new(3, 7)] = Cell::from_char('B', 1, Style::EMPTY);
+        buf[Position::new(3, 7)] = Cell::from_char('B', Style::EMPTY);
 
         assert!(buf.is_marked(3));
         assert_eq!(buf.get_marks(3), Some(7..=7));
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn multiple_writes_expand_range() {
         let mut buf = TrackingBuffer::new(80, 24);
-        let cell = Cell::from_char('X', 1, Style::EMPTY);
+        let cell = Cell::from_char('X', Style::EMPTY);
         buf[Position::new(1, 5)] = cell;
         buf[Position::new(1, 20)] = cell;
         buf[Position::new(1, 12)] = cell;
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn reset_clears_dirty_state() {
         let mut buf = TrackingBuffer::new(80, 24);
-        let cell = Cell::from_char('Z', 1, Style::EMPTY);
+        let cell = Cell::from_char('Z', Style::EMPTY);
         buf[Position::new(0, 0)] = cell;
         buf[Position::new(23, 79)] = cell;
 
@@ -441,7 +441,7 @@ mod tests {
     fn dirty_rows_iterates_only_dirty() {
         let mut buf = TrackingBuffer::new(80, 24);
         dbg!(&buf.inner);
-        let cell = Cell::from_char('A', 1, Style::EMPTY);
+        let cell = Cell::from_char('A', Style::EMPTY);
         buf[Position::new(2, 0)] = cell;
         buf[Position::new(10, 0)] = cell;
         buf[Position::new(23, 0)] = cell;
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn bitset_handles_more_than_64_rows() {
         let mut buf = TrackingBuffer::new(80, 200);
-        let cell = Cell::from_char('A', 1, Style::EMPTY);
+        let cell = Cell::from_char('A', Style::EMPTY);
         buf[Position::new(0, 0)] = cell;
         buf[Position::new(63, 0)] = cell;
         buf[Position::new(64, 0)] = cell;

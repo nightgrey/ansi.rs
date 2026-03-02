@@ -26,6 +26,7 @@
 #![feature(const_destruct)]
 #![feature(trivial_bounds)]
 #![feature(range_bounds_is_empty)]
+#![feature(bstr)]
 extern crate core;
 
 pub mod buffer;

@@ -295,7 +295,7 @@ impl Grapheme {
     /// or as padding after the grapheme data.
     #[inline]
     pub(crate) fn inline_len(bytes: &[u8; 4]) -> u8 {
-        memchr::memchr(0, bytes).map_or(4, |i| i + 1) as u8
+        memchr::memchr(0, bytes).unwrap_or(4) as u8
     }
 }
 
@@ -318,14 +318,17 @@ impl From<char> for Grapheme {
 impl fmt::Debug for Grapheme {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_empty() {
-            f.write_str("Grapheme(EMPTY)")
-        } else if self.is_inline() {
+            return f.write_str("Grapheme::EMPTY")
+        }
+
+        if self.is_inline() {
             let bytes = self.to_le_bytes();
-            let len = Self::inline_len(&bytes);
-            let s = std::str::from_utf8(&bytes[..len as usize]).unwrap_or("<invalid>");
-            write!(f, "Grapheme({s:?})")
+            let len = Self::inline_len(&bytes) as usize;
+            let s = unsafe { std::str::from_utf8_unchecked(&bytes[..len]) };
+
+            f.debug_tuple("Grapheme::Inline").field(&s).finish()
         } else {
-            write!(f, "Grapheme(arena@{})", self.offset())
+            f.debug_tuple("Grapheme::Extended").field(&self.offset()).finish()
         }
     }
 }

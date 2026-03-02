@@ -26,6 +26,7 @@ zerocopy = "0.8.39"
 bilge = "0.3.0"
 bytemuck.workspace = true
 memchr = "2.8.0"
+roaring = "0.11.3"
 
 [[bin]]
 name = "sandbox"

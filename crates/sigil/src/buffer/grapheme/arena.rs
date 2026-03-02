@@ -308,7 +308,7 @@ impl std::fmt::Debug for GraphemeArena {
     }
 }
 
-const trait Offset {
+pub const trait Offset {
     #[inline]
     fn offset(self) -> usize;
 }
@@ -337,7 +337,14 @@ impl Offset for Grapheme {
 impl Offset for &Grapheme {
     #[inline]
     fn offset(self) -> usize {
-        Offset::offset(*self)
+        Grapheme::offset(*self)
+    }
+}
+
+impl Offset for &mut Grapheme {
+    #[inline]
+    fn offset(self) -> usize {
+        Grapheme::offset(*self)
     }
 }
 

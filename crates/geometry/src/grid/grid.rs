@@ -1,6 +1,6 @@
 use std::ops;
 use std::slice::{ChunksExact, SliceIndex};
-use crate::{GridIndex};
+use crate::{SpatialIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
 use crate::{Bounds, Position};
 
@@ -11,7 +11,7 @@ pub struct Grid<T> {
     #[into_iterator(owned, ref, ref_mut)]
     #[as_ref(forward)]
     #[as_mut(forward)]
-    inner: Vec<T>,
+    pub inner: Vec<T>,
     pub width: usize,
     pub height: usize,
 }
@@ -31,8 +31,8 @@ impl<T> Grid<T> {
         self.inner.chunks_exact(self.width)
     }
 
-    /// Create a new grid with the given width and height filled with `T::default()`.
-    pub fn new(width: usize, height: usize) -> Self where T: Default + Clone {
+    /// Create a new, filled grid with the given width and height.
+    pub fn new(width: usize, height: usize) -> Self where T: Default + Copy {
         Self {
             inner: vec![T::default(); width * height],
             width,
@@ -40,13 +40,28 @@ impl<T> Grid<T> {
         }
     }
 
-    /// Create a new grid with the given width and height filled with the given value.
-    pub fn filled(width: usize, height: usize, value: T) -> Self where T: Clone {
+    /// Create a new, empty grid with a Vec with the given capacity.
+    pub fn with_capacity(width: usize, height: usize) -> Self {
         Self {
-            inner: vec![value; width * height],
+            inner: Vec::with_capacity(width * height),
             width,
             height,
         }
+    }
+
+    /// Create a clipped version of `self`.
+    ///
+    /// Note: The new [`Grid`] does not share any content.
+    pub fn clipped(&mut self, bounds: Bounds) -> Self {
+        Self::from(self.clip(bounds))
+    }
+
+    pub fn min(&self) -> Position {
+        Position::ZERO
+    }
+
+    pub fn max(&self) -> Position {
+        Position::new(self.height, self.width)
     }
 
     /// Returns the bounds of this grid.
@@ -56,14 +71,14 @@ impl<T> Grid<T> {
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub fn get<I: GridIndex<T>>(&self, index: I) -> Option<&<I::Index as SliceIndex<[T]>>::Output>
+    pub fn get<I: SpatialIndex<T>>(&self, index: I) -> Option<&<I::Index as SliceIndex<[T]>>::Output>
     {
         index.get(self)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub fn get_mut<I: GridIndex<T>>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[T]>>::Output>
+    pub fn get_mut<I: SpatialIndex<T>>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[T]>>::Output>
     {
         index.get_mut(self)
     }
@@ -75,7 +90,7 @@ impl<T> Grid<T> {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked<I: GridIndex<T>>(&self, index: I) -> *const <I::Index as SliceIndex<[T]>>::Output
+    pub unsafe fn get_unchecked<I: SpatialIndex<T>>(&self, index: I) -> *const <I::Index as SliceIndex<[T]>>::Output
     {
         index.get_unchecked(self)
     }
@@ -87,26 +102,53 @@ impl<T> Grid<T> {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked_mut<I: GridIndex<T>>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[T]>>::Output
+    pub unsafe fn get_unchecked_mut<I: SpatialIndex<T>>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[T]>>::Output
     {
         index.get_unchecked_mut(self)
     }
 
-    pub fn fill_region(&mut self, bounds: Bounds, value: T) where T: Clone {
-        for pos in &bounds {
-            self[pos] = value.clone();
+    pub fn intersect(&self, other: Bounds) -> Bounds {
+        let min_row = 0.max(other.min.row);
+        let min_col = 0.max(other.min.col);
+        let max_row = self.height.min(other.max.row);
+        let max_col = self.width.min(other.max.col);
+
+        // Clamp to empty if min overtakes max on either axis.
+        let (max_row, max_col) = if min_row > max_row || min_col > max_col {
+            (min_row, min_col)
+        } else {
+            (max_row, max_col)
+        };
+
+        Bounds { min: Position::new(min_row, min_col), max: Position::new(max_row, max_col) }
+    }
+
+    pub fn clip(&self, other: Bounds) -> Bounds {
+        let min_row = other.min.row.max(0);
+        let min_col = other.min.col.max(0);
+        let max_row = other.max.row.min(self.height);
+        let max_col = other.max.col.min(self.width);
+
+        // Clamp to empty if min overtakes max on either axis.
+        let (max_row, max_col) = if min_row > max_row || min_col > max_col {
+            (min_row, min_col)
+        } else {
+            (max_row, max_col)
+        };
+
+        Bounds { min: Position::new(min_row, min_col), max: Position::new(max_row, max_col) }
+    }
+
+    pub fn fill_area(&mut self, bounds: Bounds, value: T) where T: Copy {
+        for pos in &self.clip(bounds) {
+            self[pos] = value;
         }
     }
 }
 
-impl<T: Default> Grid<T> {
-
-}
-
-impl<T: Default + Clone> Grid<T> {
+impl<T: Clone> Grid<T> {
     pub fn clone_from_region(&mut self, bounds: Bounds) -> Self {
-        let bounds = self.bounds().clip(bounds);
-        let mut next = Self::new(bounds.width(), bounds.height());
+        let mut next = self.clipped(bounds);
 
         for position in &bounds {
             next[(position.row - bounds.min.row, position.col - bounds.min.col)] = self[position].clone();
@@ -114,11 +156,21 @@ impl<T: Default + Clone> Grid<T> {
 
         next
     }
-
 }
-impl<T: Default + Copy> Grid<T> {
+impl<T: Copy> Grid<T> {
+    pub fn copy_from_region(&mut self, bounds: Bounds) -> Self {
+        let mut next = self.clipped(bounds);
+
+        for position in &bounds {
+            next[(position.row - bounds.min.row, position.col - bounds.min.col)] = self[position];
+        }
+
+        next
+    }
+
+
     /// Resize the buffer to the given width and height.
-    pub fn resize(&mut self, width: usize, height: usize) {
+    pub fn resize(&mut self, width: usize, height: usize, value: T) {
         let (cur_w, cur_h) = (self.width, self.height);
         if cur_w == width && cur_h == height {
             return;
@@ -129,16 +181,16 @@ impl<T: Default + Copy> Grid<T> {
 
             if width > cur_w {
                 // Growing: extend first, then shift rows back-to-front
-                self.inner.resize(width * cur_h, T::default());
+                self.inner.resize(width * cur_h, value);
                 for y in (1..cur_h).rev() {
                     let src = y * cur_w;
                     let dst = y * width;
                     self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self.inner[dst + copy_w..dst + width].fill(T::default());
+                    &mut self.inner[dst + copy_w..dst + width].fill(value);
                 }
                 // Row 0: just fill the tail
-                &mut self.inner[copy_w..width].fill(T::default());
+                &mut self.inner[copy_w..width].fill(value);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
                 for y in 1..cur_h {
@@ -153,7 +205,7 @@ impl<T: Default + Copy> Grid<T> {
         }
 
         if height > cur_h {
-            self.inner.resize(width * height, T::default());
+            self.inner.resize(width * height, value);
         } else if height < cur_h {
             self.inner.truncate(width * height);
         }
@@ -161,15 +213,21 @@ impl<T: Default + Copy> Grid<T> {
     }
 }
 
-impl<T, I: GridIndex<T>>  ops::Index<I> for Grid<T> {
+impl<T, I: SpatialIndex<T>>  ops::Index<I> for Grid<T> {
     type Output = I::Output;
 
     fn index(&self, index: I) -> &Self::Output {
         index.index(self)
     }
 }
-impl<T, I: GridIndex<T>>  ops::IndexMut<I> for Grid<T> {
+impl<T, I: SpatialIndex<T>>  ops::IndexMut<I> for Grid<T> {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         index.index_mut(self)
+    }
+}
+
+impl<T> From<Bounds> for Grid<T> {
+    fn from(value: Bounds) -> Self {
+        Grid::with_capacity(value.width(), value.height())
     }
 }

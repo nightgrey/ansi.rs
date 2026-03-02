@@ -1,4 +1,4 @@
-use crate::{Bounds, Column, Index, Position, Row};
+use crate::{Bounds, Column, SpatialIndex, Position, Row, Index};
 
 mod step;
 mod into_position;
@@ -51,4 +51,24 @@ impl const Location for usize {
 
 impl const Location for Bounds {
     fn position(&self) -> Position { self.min }
+}
+
+
+/// Marker trait for types that represent an external spatial context.
+pub const trait Context {
+    fn min(&self) -> Position;
+    fn max(&self) -> Position;
+
+    fn x(&self) -> usize { self.min().col }
+    fn y(&self) -> usize { self.min().row }
+
+    fn width(&self) -> usize { self.max().col.saturating_sub(self.min().col) }
+    fn height(&self) -> usize { self.max().row.saturating_sub(self.min().row) }
+
+    fn area(&self) -> usize { self.width() * self.height() }
+}
+
+impl const Context for Bounds {
+    fn min(&self) -> Position { self.min }
+    fn max(&self) -> Position { self.max }
 }

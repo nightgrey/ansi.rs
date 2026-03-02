@@ -1,6 +1,6 @@
 use std::ops;
 use std::ops::Bound;
-use crate::{Column, Position, Row, Location, Bounds, IntoLocation};
+use crate::{Column, Position, Row, Location, Bounds, IntoLocation, Context};
 
 /// Maps a location to its linear index range within a context.
 ///
@@ -15,10 +15,8 @@ pub const trait Span<T = Position> {
     fn end(&self, location: T) -> usize;
 
     #[inline]
-    fn range(&self, location: T) -> ops::Range<usize> where T: [const] Clone {
-        let start = self.start(location.clone());
-        let end = self.end(location);
-        start..end
+    fn range(&self, location: T) -> ops::Range<usize> where T: Copy {
+        self.start(location)..self.end(location)
     }
 
     #[inline]
@@ -32,14 +30,12 @@ pub const trait Span<T = Position> {
     }
 
     #[inline]
-    fn bounds(&self, location: T) -> (Bound<usize>, Bound<usize>) where T: [const] Clone {
-        let start = self.start(location.clone());
-        let end = self.end(location);
-        (Bound::Included(start), Bound::Excluded(end))
+    fn into_bounds(&self, location: T) -> (Bound<usize>, Bound<usize>) where T: Copy {
+        (Bound::Included(self.start(location)), Bound::Excluded(self.end(location)))
     }
 }
 
-impl Span<Bounds> for Bounds {
+impl<T: [const] Context> const Span<Bounds> for T {
     fn start(&self, location: Bounds) -> usize {
         self.into_index(location.min)
     }
@@ -49,7 +45,7 @@ impl Span<Bounds> for Bounds {
     }
 }
 
-impl Span<Row> for Bounds {
+impl<T: [const] Context> const Span<Row> for T {
     fn start(&self, location: Row) -> usize {
         self.into_index(location)
     }
@@ -59,7 +55,7 @@ impl Span<Row> for Bounds {
     }
 }
 
-impl Span<Position> for Bounds {
+impl<T: [const] Context> const Span<Position> for T {
     fn start(&self, location: Position) -> usize {
         self.into_index(location)
     }
@@ -69,7 +65,7 @@ impl Span<Position> for Bounds {
     }
 }
 
-impl Span<Column> for Bounds {
+impl<T: [const] Context> const Span<Column> for T {
     fn start(&self, location: Column) -> usize {
         location.value()
     }
@@ -78,11 +74,11 @@ impl Span<Column> for Bounds {
         // A column spans `height` non-contiguous cells; as a contiguous
         // span this doesn't fully make sense, so we return the index
         // one-past the last row's cell in this column.
-        self.into_index(Position::new(self.max.row.saturating_sub(1), location.value())) + 1
+        self.into_index(Position::new(self.max().row.saturating_sub(1), location.value())) + 1
     }
 }
 
-impl Span<usize> for Bounds {
+impl<T: [const] Context> const Span<usize> for T {
     fn start(&self, location: usize) -> usize {
         location
     }

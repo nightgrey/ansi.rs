@@ -2,7 +2,7 @@ use std::ops;
 use std::slice::SliceIndex;
 use crate::{Grid, Point, Position, PositionLike, Row};
 
-pub trait GridIndex<T>: Sized {
+pub trait SpatialIndex<T>: Sized {
     type Output: ?Sized;
     type Index: SliceIndex<[T], Output = Self::Output>;
 
@@ -42,68 +42,68 @@ pub trait GridIndex<T>: Sized {
     }
 }
 
-impl<T> GridIndex<T> for usize {
+impl<T> SpatialIndex<T> for usize {
     type Output = T;
     type Index = usize;
 
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::Range<usize> {
+impl<T> SpatialIndex<T> for ops::Range<usize> {
     type Output = [T];
     type Index = ops::Range<usize>;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::RangeTo<usize> {
+impl<T> SpatialIndex<T> for ops::RangeTo<usize> {
     type Output = [T];
     type Index = ops::RangeTo<usize>;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::RangeFrom<usize> {
+impl<T> SpatialIndex<T> for ops::RangeFrom<usize> {
     type Output = [T];
     type Index = ops::RangeFrom<usize>;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::RangeInclusive<usize> {
+impl<T> SpatialIndex<T> for ops::RangeInclusive<usize> {
     type Output = [T];
     type Index = ops::RangeInclusive<usize>;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::RangeToInclusive<usize> {
+impl<T> SpatialIndex<T> for ops::RangeToInclusive<usize> {
     type Output = [T];
     type Index = ops::RangeToInclusive<usize>;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for ops::RangeFull {
+impl<T> SpatialIndex<T> for ops::RangeFull {
     type Output = [T];
     type Index = ops::RangeFull;
     fn index_of(self, _: &Grid<T>) -> Self::Index { self }
 }
 
-impl<T> GridIndex<T> for Position {
+impl<T> SpatialIndex<T> for Position {
     type Output = T;
     type Index = usize;
     fn index_of(self, of: &Grid<T>) -> usize { self.row * of.width + self.col }
 }
 
-impl<T> GridIndex<T> for PositionLike {
+impl<T> SpatialIndex<T> for PositionLike {
     type Output = T;
     type Index = usize;
     fn index_of(self, of: &Grid<T>) -> usize { self.0 * of.width + self.1 }
 }
 
-impl<T> GridIndex<T> for Point {
+impl<T> SpatialIndex<T> for Point {
     type Output = T;
     type Index = usize;
     fn index_of(self, of: &Grid<T>) -> usize { self.y * of.width + self.x }
 }
 
-impl<T> GridIndex<T> for Row {
+impl<T> SpatialIndex<T> for Row {
     type Output = [T];
     type Index = ops::Range<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::Range<usize> {
@@ -111,7 +111,7 @@ impl<T> GridIndex<T> for Row {
     }
 }
 
-impl<T> GridIndex<T> for ops::Range<Row> {
+impl<T> SpatialIndex<T> for ops::Range<Row> {
     type Output = [T];
     type Index = ops::Range<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::Range<usize> {
@@ -119,7 +119,7 @@ impl<T> GridIndex<T> for ops::Range<Row> {
     }
 }
 
-impl<T> GridIndex<T> for ops::RangeTo<Row> {
+impl<T> SpatialIndex<T> for ops::RangeTo<Row> {
     type Output = [T];
     type Index = ops::RangeTo<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::RangeTo<usize> {
@@ -127,7 +127,7 @@ impl<T> GridIndex<T> for ops::RangeTo<Row> {
     }
 }
 
-impl<T> GridIndex<T> for ops::RangeFrom<Row> {
+impl<T> SpatialIndex<T> for ops::RangeFrom<Row> {
     type Output = [T];
     type Index = ops::RangeFrom<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::RangeFrom<usize> {
@@ -135,7 +135,7 @@ impl<T> GridIndex<T> for ops::RangeFrom<Row> {
     }
 }
 
-impl<T> GridIndex<T> for ops::RangeInclusive<Row> {
+impl<T> SpatialIndex<T> for ops::RangeInclusive<Row> {
     type Output = [T];
     type Index = ops::RangeInclusive<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::RangeInclusive<usize> {
@@ -143,7 +143,7 @@ impl<T> GridIndex<T> for ops::RangeInclusive<Row> {
     }
 }
 
-impl<T> GridIndex<T> for ops::RangeToInclusive<Row> {
+impl<T> SpatialIndex<T> for ops::RangeToInclusive<Row> {
     type Output = [T];
     type Index = ops::RangeToInclusive<usize>;
     fn index_of(self, of: &Grid<T>) -> ops::RangeToInclusive<usize> {

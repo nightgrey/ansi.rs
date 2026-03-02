@@ -1,4 +1,5 @@
-use std::ops::{Add, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use derive_more::{Add, AddAssign};
 use synonym::Synonym;
 use crate::Position;
 
@@ -16,5 +17,19 @@ impl const Row {
 impl From<Position> for Row {
     fn from(value: Position) -> Self {
         Self(value.row)
+    }
+}
+
+impl Add<usize> for Row {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl AddAssign<usize> for Row {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
     }
 }

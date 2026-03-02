@@ -217,8 +217,12 @@ impl const Ord for Position {
         }
     }
 }
-impl  Display for Position {
+impl Display for Position {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.row, self.col)
     }
+}
+
+pub const fn pos(row: usize, col: usize) -> Position {
+    Position { row, col }
 }

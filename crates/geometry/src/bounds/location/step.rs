@@ -1,4 +1,4 @@
-use crate::{Column, IntoLocation, Position, Row, Location, Bounds};
+use crate::{Column, IntoLocation, Position, Row, Location, Bounds, Context};
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -47,7 +47,7 @@ pub const trait Step<T = Position> {
     }
 }
 
-impl const Step<Position> for Bounds {
+impl<T: [const] Context> const Step<Position> for T {
     fn steps_between(&self, start: Position, end: Position) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
@@ -66,11 +66,11 @@ impl const Step<Position> for Bounds {
             let mut next = start;
             next.col += 1;
 
-            if next.col >= self.max.col {
-                next.col = self.min.col;
+            if next.col >= self.max().col {
+                next.col = self.min().col;
                 next.row += 1;
 
-                if next.row >= self.max.row {
+                if next.row >= self.max().row {
                     return None;
                 }
             }
@@ -89,17 +89,17 @@ impl const Step<Position> for Bounds {
 
     fn backward_checked(&self, start: Position, count: usize) -> Option<Position> {
         // Fast path: stay on the same row.
-        if start.row < self.max.row && count <= start.col - self.min.col {
+        if start.row < self.max().row && count <= start.col - self.min().col {
             return Some(Position::new(start.row, start.col - count));
         }
         // General path: linearize through the exclusive end.
-        let idx = if start >= self.max { self.area() } else { self.into_index(start) };
+        let idx = if start >= self.max() { self.area() } else { self.into_index(start) };
         let target = idx.checked_sub(count)?;
         Some(self.into_position(target))
     }
 }
 
-impl const Step<Row> for Bounds {
+impl<T: [const] Context> const Step<Row> for T {
     fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
             let steps = end.value() - start.value();
@@ -111,7 +111,7 @@ impl const Step<Row> for Bounds {
 
     fn forward_checked(&self, start: Row, count: usize) -> Option<Row> {
         let row = start.value().checked_add(count)?;
-        if row >= self.max.row {
+        if row >= self.max().row {
             return None;
         }
         Some(Row(row))
@@ -119,14 +119,14 @@ impl const Step<Row> for Bounds {
 
     fn backward_checked(&self, start: Row, count: usize) -> Option<Row> {
         let row = start.value().checked_sub(count)?;
-        if row < self.min.row {
+        if row < self.min().row {
             return None;
         }
         Some(Row(row))
     }
 }
 
-impl const Step<Column> for Bounds {
+impl<T: [const] Context> const Step<Column> for T {
     fn steps_between(&self, start: Column, end: Column) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
             let steps = end.value() - start.value();
@@ -138,7 +138,7 @@ impl const Step<Column> for Bounds {
 
     fn forward_checked(&self, start: Column, count: usize) -> Option<Column> {
         let col = start.value().checked_add(count)?;
-        if col >= self.max.col {
+        if col >= self.max().col {
             return None;
         }
         Some(Column(col))
@@ -146,7 +146,7 @@ impl const Step<Column> for Bounds {
 
     fn backward_checked(&self, start: Column, count: usize) -> Option<Column> {
         let col = start.value().checked_sub(count)?;
-        if col < self.min.col {
+        if col < self.min().col {
             return None;
         }
         Some(Column(col))

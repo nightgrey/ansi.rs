@@ -1,5 +1,5 @@
 use ansi::Style;
-
+use crate::Offset;
 use super::{Graph, Grapheme, GraphemeArena};
 
 /// A single terminal cell — the fundamental unit of the framebuffer.
@@ -167,6 +167,26 @@ impl Cell {
     /// Resolve the grapheme to a [`Graph`].
     pub fn as_graph<'a>(&self, arena: &'a GraphemeArena) -> Graph<'a> {
         self.grapheme.as_graph(arena)
+    }
+}
+
+impl Offset for Cell {
+    #[inline]
+    fn offset(self) -> usize {
+        self.grapheme.offset()
+    }
+}
+impl Offset for &Cell {
+    #[inline]
+    fn offset(self) -> usize {
+        self.grapheme.offset()
+    }
+}
+
+impl Offset for &mut Cell { 
+    #[inline]
+    fn offset(self) -> usize {
+        self.grapheme.offset()
     }
 }
 

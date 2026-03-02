@@ -1,4 +1,4 @@
-use crate::sequence;
+use crate::{sequence, Escape};
 use derive_more::{Deref, DerefMut};
 
 sequence!(
@@ -31,7 +31,6 @@ sequence!(
         SteadyUnderline = 4,
     } => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}q", *this as u16)
 );
-
 
 sequence!(
     /// [DECTCEM] - Text Cursor Enable Mode
@@ -71,7 +70,28 @@ sequence!(
     )
 );
 
-pub type DECTCEM = Cursor;
+sequence!(
+    /// [CUP] - Cursor Position
+    ///
+    /// This control function moves the cursor to the specified line and column. The starting point for lines and columns depends on the setting of origin mode (DECOM). CUP applies only to the current page.
+    ///
+    /// ## Format
+    ///
+    /// **CSI** *PI* ; *Pc* **H**
+    ///
+    /// ## Parameters
+    /// - `PI` is the number of the line to move to. If Pl is 0 or 1, then the cursor moves to line 1.
+    ///
+    /// - `Pc` is the number of the column to move to. If Pc is 0 or 1, then the cursor moves to column 1.
+    ///
+    /// This control function moves the cursor to the left by a specified number of columns.
+    /// The cursor stops at the left border of the page.
+    ///
+    /// [`CUB`]: https://vt100.net/docs/vt510-rm/CUB.html
+    pub struct CursorPosition(pub u16, pub u16) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{};{}H", this.0 + 1, this.1 + 1)
+);
+
+pub type CUP = CursorPosition;
 
 sequence!(
     /// [CUB] - Cursor Backward

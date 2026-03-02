@@ -11,4 +11,3 @@ mod sequences;
 pub use escape::*;
 pub use style::*;
 pub use color::*;
-pub use sequences::*;

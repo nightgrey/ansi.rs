@@ -5,4 +5,4 @@ mod rasterizer;
 pub mod sequences;
 
 pub use capabilities::Capabilities;
-pub use rasterizer::Rasterizer;
+pub use rasterizer::{Rasterizer, RasterizerMode};

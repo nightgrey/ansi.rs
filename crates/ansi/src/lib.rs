@@ -6,8 +6,9 @@
 mod color;
 mod style;
 mod escape;
-mod sequences;
+pub mod sequences;
 
 pub use escape::*;
 pub use style::*;
 pub use color::*;
+pub use sequences::*;

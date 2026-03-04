@@ -1,11 +1,9 @@
-use std::io::Cursor;
 
-pub trait Escape {
+pub trait Escape: Sized + Copy {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
-    fn escape_fmt(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result
-    where
-        Self: Sized,
-    {
+    fn escape_fmt(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
+        use std::io::Cursor;
+
         // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
         // I/O errors, instead of discarding them.
         struct Adapter<'a, Inner: std::fmt::Write + 'a> {
@@ -14,7 +12,7 @@ pub trait Escape {
         }
 
         impl<Inner: std::fmt::Write> io::Write for Adapter<'_, Inner> {
-            fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
+            fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
                 let mut buf = Vec::<u8>::new();
                 let mut cursor = Cursor::new(&mut buf);
 
@@ -36,7 +34,7 @@ pub trait Escape {
             error: Ok(()),
         };
 
-        match io::Write::escape(&mut adapter, self) {
+        match io::Write::escape(&mut adapter, *self) {
             Ok(()) => Ok(()),
             Err(..) => {
                 // Check whether the error came from the underlying `Write`.
@@ -54,16 +52,20 @@ pub trait Escape {
     }
 }
 
+pub fn escape(w: &mut impl std::io::Write, escape: impl Escape) {
+    let _ = escape.escape(w);
+}
+
 pub mod io {
     use super::*;
 
     pub trait Write {
-        fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()>;
+        fn escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
     }
 
     impl<W: std::io::Write> Write for W {
         #[inline]
-        fn escape(&mut self, escape: &impl Escape) -> std::io::Result<()> {
+        fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
             escape.escape(self)
         }
     }
@@ -73,12 +75,12 @@ pub mod fmt {
     use super::*;
 
     pub trait Write {
-        fn escape(&mut self, escape: &impl Escape) -> std::fmt::Result;
+        fn escape(&mut self, escape: impl Escape) -> std::fmt::Result;
     }
 
     impl<W: std::fmt::Write> Write for W {
         #[inline]
-        fn escape(&mut self, escape: &impl Escape) -> std::fmt::Result {
+        fn escape(&mut self, escape: impl Escape) -> std::fmt::Result {
             escape.escape_fmt(self)
         }
     }

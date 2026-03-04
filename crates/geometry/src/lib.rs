@@ -18,12 +18,10 @@ mod edges;
 mod point;
 mod rect;
 mod size;
-mod bounds;
 mod grid;
 
 pub use edges::*;
 pub use point::*;
 pub use rect::*;
 pub use size::*;
-pub use bounds::*;
 pub use grid::*;

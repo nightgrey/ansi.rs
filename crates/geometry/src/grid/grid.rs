@@ -1,8 +1,9 @@
 use std::ops;
+use std::ops::Index;
 use std::slice::{ChunksExact, SliceIndex};
-use crate::{SpatialIndex};
+use super::{SpatialIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use crate::{Bounds, Position};
+use crate::{Bounds, Position, Context, Indexable};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
 pub struct Grid<T> {
@@ -223,21 +224,29 @@ impl<T: Copy> Grid<T> {
     }
 }
 
-impl<T, I: SpatialIndex<T>>  ops::Index<I> for Grid<T> {
-    type Output = I::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        index.index(self)
-    }
-}
-impl<T, I: SpatialIndex<T>>  ops::IndexMut<I> for Grid<T> {
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        index.index_mut(self)
-    }
+impl<T> Context for Grid<T> {
+    fn min(&self) -> Position { Position::ZERO }
+    fn max(&self) -> Position { Position::new(self.height, self.width) }
 }
 
 impl<T> From<Bounds> for Grid<T> {
     fn from(value: Bounds) -> Self {
         Grid::with_capacity(value.width(), value.height())
+    }
+}
+
+impl<T, I: Indexable<T>> ops::Index<I> for Grid<T> {
+    type Output = I::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        index.resolve(self).index(&self.inner)
+    }
+}
+
+impl<T, I: Indexable<T>> ops::IndexMut<I> for Grid<T> {
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        index.resolve(self).index_mut(&mut self.inner)
     }
 }

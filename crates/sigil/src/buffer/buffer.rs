@@ -249,6 +249,7 @@ impl Debug for Buffer {
             .finish()
     }
 }
+
 impl Context for Buffer {
     fn min(&self) -> Position { Position::ZERO }
     fn max(&self) -> Position { Position::new(self.height(), self.width()) }

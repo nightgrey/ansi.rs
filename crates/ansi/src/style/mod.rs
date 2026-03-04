@@ -650,15 +650,15 @@ impl Escape for Style {
         separator!({ w.write_all(b";") });
 
         if self.bg.is_some() {
-            separate!(w.escape(&self.bg.as_background())?);
+            separate!(w.escape(self.bg.as_background())?);
         }
 
         if self.fg.is_some() {
-            separate!(w.escape(&self.fg.as_foreground())?);
+            separate!(w.escape(self.fg.as_foreground())?);
         }
 
         if self.ul.is_some() {
-            separate!(w.escape(&self.ul.as_underline())?);
+            separate!(w.escape(self.ul.as_underline())?);
         }
 
         // Attributes (bold, underline, etc.)

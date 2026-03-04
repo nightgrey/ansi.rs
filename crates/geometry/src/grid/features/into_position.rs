@@ -1,4 +1,4 @@
-use crate::{Column, Position, Row, Location, Bounds, Context};
+use crate::{Column, Position, Row, Location, Bounds, Context, PositionLike};
 
 /// Provides the spatial context needed to convert between location representations.
 pub const trait IntoLocation<T = Position> {
@@ -9,6 +9,23 @@ pub const trait IntoLocation<T = Position> {
     fn into_row(&self, location: T) -> Row;
 
     fn into_col(&self, location: T) -> Column;
+}
+
+impl<T: [const] Context> const IntoLocation<PositionLike> for T {
+    fn into_index(&self, location: PositionLike) -> usize {
+        (location.0 - self.min().row) * self.width() + (location.1 - self.min().col)
+    }
+    fn into_position(&self, location: PositionLike) -> Position {
+        Position::new(location.0, location.1)
+    }
+
+    fn into_row(&self, location: PositionLike) -> Row {
+        Row(location.0 - self.min().row)
+    }
+
+    fn into_col(&self, location: PositionLike) -> Column {
+        Column(location.1 - self.min().col)
+    }
 }
 
 impl<T: [const] Context> const IntoLocation<Position> for T {

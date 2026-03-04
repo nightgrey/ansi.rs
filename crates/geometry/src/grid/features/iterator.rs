@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Deref};
 use crate::{Location, Position, IntoLocation, Step};
-use crate::bounds::Bounds;
+use super::Bounds;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
 ///

@@ -186,6 +186,20 @@ pub fn sgr_reset(buf: &mut Vec<u8>) {
     buf.extend_from_slice(b"\x1B[0m");
 }
 
+// ── Synchronized output ─────────────────────────────────────────────
+
+/// Begin synchronized update (Mode 2026).
+#[inline]
+pub fn begin_sync(buf: &mut Vec<u8>) {
+    buf.extend_from_slice(b"\x1B[?2026h");
+}
+
+/// End synchronized update (Mode 2026).
+#[inline]
+pub fn end_sync(buf: &mut Vec<u8>) {
+    buf.extend_from_slice(b"\x1B[?2026l");
+}
+
 // ── Save / restore ──────────────────────────────────────────────────
 
 /// DECSC — save cursor position.
@@ -383,6 +397,17 @@ mod tests {
         buf.clear();
         decstbm_reset(&mut buf);
         assert_eq!(buf, b"\x1B[r");
+    }
+
+    #[test]
+    fn sync_sequences() {
+        let mut buf = Vec::new();
+        begin_sync(&mut buf);
+        assert_eq!(buf, b"\x1B[?2026h");
+
+        buf.clear();
+        end_sync(&mut buf);
+        assert_eq!(buf, b"\x1B[?2026l");
     }
 
     #[test]

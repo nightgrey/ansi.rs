@@ -1,5 +1,5 @@
-use ansi::{Escape, Style};
-
+use ansi::{escape, sequences::*, Escape, Style, CUP};
+use ansi::io::Write;
 use super::capabilities::Capabilities;
 use super::sequences as seq;
 
@@ -79,34 +79,88 @@ impl Cursor {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                seq::cud(buf, dr as usize);
+                escape(buf, CursorDown(dr as usize));
             } else if dr < 0 {
-                seq::cuu(buf, (-dr) as usize);
+                escape(buf, CursorUp((-dr) as usize));
             }
             if dc > 0 {
-                seq::cuf(buf, dc as usize);
+                escape(buf, CursorForward(dc as usize));
             } else if dc < 0 {
-                seq::cub(buf, (-dc) as usize);
+                escape(buf, CursorBackward((-dc) as usize));
             }
         } else if min == cost_cr {
-            seq::cr(buf);
+            escape(buf, CarriageReturn);
             if dr > 0 {
-                seq::cud(buf, dr as usize);
+                escape(buf, CursorDown(dr as usize));
             } else if dr < 0 {
-                seq::cuu(buf, (-dr) as usize);
+                escape(buf, CursorUp((-dr) as usize));
             }
             if target_col > 0 {
-                seq::cuf(buf, target_col);
+                escape(buf, CursorForward(target_col));
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                seq::vpa(buf, target_row);
+                escape(buf, VerticalPositionAbsolute(target_row));
             }
             if dc != 0 || dr != 0 {
-                seq::cha(buf, target_col);
+                escape(buf, HorizontalPositionAbsolute(target_col));
             }
         } else {
-            seq::cup(buf, target_row, target_col);
+            escape(buf, CursorPosition(target_row, target_col));
+        }
+
+        self.row = target_row;
+        self.col = target_col;
+    }
+
+    /// Emit a relative-only cursor movement sequence (no CUP, VPA, CHA).
+    ///
+    /// Used in inline mode where the rasterizer doesn't know its absolute
+    /// screen position. Evaluates two strategies:
+    /// 1. Pure relative (CUU/CUD + CUF/CUB)
+    /// 2. CR + vertical + CUF
+    pub fn move_to_relative(
+        &mut self,
+        buf: &mut Vec<u8>,
+        target_row: usize,
+        target_col: usize,
+    ) {
+        if self.row == target_row && self.col == target_col {
+            return;
+        }
+
+        let dr = target_row as isize - self.row as isize;
+        let dc = target_col as isize - self.col as isize;
+
+        // Strategy 1: Pure relative
+        let vert_cost = seq::relative_len(dr.unsigned_abs());
+        let horiz_cost = seq::relative_len(dc.unsigned_abs());
+        let cost_relative = vert_cost + horiz_cost;
+
+        // Strategy 2: CR + vertical + CUF
+        let cost_cr = 1 + vert_cost + seq::relative_len(target_col);
+
+        if cost_cr < cost_relative {
+            escape(buf, CarriageReturn);
+            if dr > 0 {
+                escape(buf, CursorDown(dr as usize));
+            } else if dr < 0 {
+                escape(buf, CursorUp((-dr) as usize));
+            }
+            if target_col > 0 {
+                escape(buf, CursorForward(target_col));
+            }
+        } else if cost_relative > 0 {
+            if dr > 0 {
+                escape(buf, CursorDown(dr as usize));
+            } else if dr < 0 {
+                escape(buf, CursorUp((-dr) as usize));
+            }
+            if dc > 0 {
+                escape(buf, CursorForward(dc as usize));
+            } else if dc < 0 {
+                escape(buf, CursorBackward((-dc) as usize));
+            }
         }
 
         self.row = target_row;

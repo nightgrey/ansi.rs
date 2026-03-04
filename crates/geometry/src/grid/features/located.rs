@@ -19,7 +19,7 @@ use crate::{Bounds, Column, IntoLocation, Iter, Location, Position, Row, Span, S
 /// assert_eq!(next.unwrap().value, Position::new(0, 1));
 ///
 /// // Convert to index
-/// assert_eq!(loc.index(), 0);
+/// assert_eq!(loc.into_index(), 0);
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
@@ -99,22 +99,22 @@ impl<T: Copy, Ctx: ~const Step<T>> const Located<T, Ctx> where Self: Sized + [co
 
 impl<T: Copy, Ctx: ~const IntoLocation<T>> const Located<T, Ctx> where Self: Sized + [const] Destruct {
     #[inline]
-    pub fn index(&self) -> usize {
+    pub fn into_index(&self) -> usize {
         self.context.into_index(self.value)
     }
 
     #[inline]
-    pub fn to_position(&self) -> Position {
+    pub fn into_position(&self) -> Position {
         self.context.into_position(self.value)
     }
 
     #[inline]
-    pub fn to_row(&self) -> Row {
+    pub fn into_row(&self) -> Row {
         self.context.into_row(self.value)
     }
 
     #[inline]
-    pub fn to_col(&self) -> Column {
+    pub fn into_col(&self) -> Column {
         self.context.into_col(self.value)
     }
 }
@@ -164,7 +164,7 @@ impl Bounds {
 
     /// Wrap a location with an owned copy of this bounds as context.
     #[inline]
-    pub fn located<T>(self, value: T) -> Located<T, Bounds> {
+    pub fn located<T>(self, value: T) -> Located<T, Self> {
         Located::new(value, self)
     }
 }

@@ -24,7 +24,7 @@ use super::{Graph, Grapheme, GraphemeArena};
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.

@@ -1,4 +1,4 @@
-use crate::{sequence, Escape};
+use crate::{cost, decimal_width, sequence, Escape};
 use derive_more::{Deref, DerefMut};
 
 sequence!(
@@ -29,8 +29,12 @@ sequence!(
         BlinkUnderline = 3,
         /// Steady Underline
         SteadyUnderline = 4,
-    } => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}q", *this as usize)
+    } => |this, w| {
+        write!(w, "\x1B{}q", *this as usize)
+    }
 );
+
+
 
 pub type DECSCUSR = SetCursorStyle;
 
@@ -52,7 +56,9 @@ sequence!(
     /// The cursor stops at the left border of the page.
     ///
     /// [`CUB`]: https://vt100.net/docs/vt510-rm/CUB.html
-    pub struct CursorPosition(pub usize, pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{};{}H", this.0 + 1, this.1 + 1)
+    pub struct CursorPosition(pub usize, pub usize) => |this, w| {
+        write!(w, "\x1B{};{}H", this.0 + 1, this.1 + 1)
+    }
 );
 
 pub type CUP = CursorPosition;
@@ -74,10 +80,12 @@ sequence!(
     ///
     /// [`CUB`]: https://vt100.net/docs/vt510-rm/CUB.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorBackward(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}D", this.0)
+    pub struct CursorBackward(pub usize) => |this, w| { write!(w, "\x1B{}D", this.0) }
 );
 
 pub type CUB = CursorBackward;
+
+
 
 sequence!(
     /// [CUD] - Cursor Down
@@ -96,10 +104,14 @@ sequence!(
     ///
     /// [`CUD`]: https://vt100.net/docs/vt510-rm/CUD.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorDown(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}B", this.0)
+    pub struct CursorDown(pub usize) => |this, w| {
+        write!(w, "\x1B{}B", this.0)
+    }
 );
 
 pub type CUD = CursorDown;
+
+
 
 sequence!(
     /// [CUF] - Cursor Forward
@@ -117,10 +129,14 @@ sequence!(
     ///
     /// [`CUF`]: https://vt100.net/docs/vt510-rm/CUF.html
     #[derive(Deref, DerefMut)]
-    pub  struct CursorForward(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}C", this.0)
+    pub  struct CursorForward(pub usize) => |this, w| {
+        write!(w, "\x1B{}C", this.0)
+    }
 );
 
 pub type CUF = CursorForward;
+
+
 
 sequence!(
     /// [CUU] - Cursor Up
@@ -139,7 +155,9 @@ sequence!(
     ///
     /// [`CUU`]: https://vt100.net/docs/vt510-rm/CUU.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorUp(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}A", this.0)
+    pub struct CursorUp(pub usize) => |this, w| {
+        write!(w, "\x1B{}A", this.0)
+    }
 );
 
 pub type CUU = CursorUp;
@@ -158,7 +176,9 @@ sequence!(
     ///
     /// The active position is moved to the first character of the n-th preceding line.
     #[derive(Deref, DerefMut)]
-    pub struct CursorPreviousLine(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}F", this.0)
+    pub struct CursorPreviousLine(pub usize) => |this, w| {
+        write!(w, "\x1B{}F", this.0)
+    }
 );
 
 pub type CPL = CursorPreviousLine;
@@ -177,7 +197,9 @@ sequence!(
     ///
     /// The active position is moved to the first character of the n-th following line.
     #[derive(Deref, DerefMut)]
-    pub struct CursorNextLine(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}E", this.0)
+    pub struct CursorNextLine(pub usize) => |this, w| {
+        write!(w, "\x1B{}E", this.0)
+    }
 );
 
 pub type CNL = CursorNextLine;
@@ -197,7 +219,9 @@ sequence!(
     /// The active position is moved to the character position corresponding to the
     /// following n-th horizontal tabulation stop.
     #[derive(Deref, DerefMut)]
-    pub struct CursorHorizontalForwardTabulation(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}I", this.0)
+    pub struct CursorHorizontalForwardTabulation(pub usize) => |this, w| {
+        write!(w, "\x1B{}I", this.0)
+    }
 );
 pub type CHF = CursorHorizontalForwardTabulation;
 
@@ -219,7 +243,9 @@ sequence!(
     /// active position past the first character position on the line, then the active
     /// position stays at column one.
     #[derive(Deref, DerefMut)]
-    pub struct CursorBackwardTabulation(pub usize) => |this: &Self, w: &mut dyn std::io::Write| write!(w, "\x1B{}Z", this.0)
+    pub struct CursorBackwardTabulation(pub usize) => |this, w| {
+        write!(w, "\x1B{}Z", this.0)
+    }
 );
 
 type CBT = CursorBackwardTabulation;
@@ -238,7 +264,7 @@ sequence!(
     ///
     /// This control character moves the cursor to the beginning of the current line
     /// (left margin). If New Line mode (LNM) is set, it also performs a line feed.
-    pub struct CarriageReturn => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct CarriageReturn => |this, w| {
         write!(w, "\r")
     }
 );
@@ -261,7 +287,7 @@ sequence!(
     /// then the active position stops at the last position on the line.
     ///
     /// [`CHA`]: https://vt100.net/docs/vt510-rm/CHA.html
-    pub struct CursorHorizontalAbsolute(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct CursorHorizontalAbsolute(pub usize) => |this, w| {
         write!(w, "\x1B[{}G", this.0 + 1)
     }
 );
@@ -284,7 +310,7 @@ sequence!(
     /// position below the last line, then the active position stops on the last line.
     ///
     /// [`VPA`]: https://vt100.net/docs/vt510-rm/VPA.html
-    pub struct VerticalPositionAbsolute(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct VerticalPositionAbsolute(pub usize) => |this, w| {
         write!(w, "\x1B[{}d", this.0 + 1)
     }
 );
@@ -307,7 +333,7 @@ sequence!(
     /// position on the line, then the active position stops at the last position on the line.
     ///
     /// [`HPA`]: https://vt100.net/docs/vt510-rm/HPA.html
-    pub struct HorizontalPositionAbsolute(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct HorizontalPositionAbsolute(pub usize) => |this, w| {
         write!(w, "\x1B[{}`", this.0 + 1)
     }
 );
@@ -341,14 +367,16 @@ sequence!(
         Visible = 1,
         /// Makes the cursor invisible.
         Invisible = 0,
-    } => |this: &Self, w: &mut dyn std::io::Write| write!(
-                w,
-                "\x1B?25{}",
-                match this {
-                    CursorMode::Visible => 'h',
-                    CursorMode::Invisible => 'l',
-                }
-    )
+    } => |this, w| {
+        write!(
+            w,
+            "\x1B?25{}",
+            match this {
+                CursorMode::Visible => 'h',
+                CursorMode::Invisible => 'l',
+            }
+        )
+    }
 );
 
 pub type DECTCEM = CursorMode;
@@ -374,7 +402,7 @@ sequence!(
     /// - Any single shift 2 (SS2) or single shift 3 (SS3) functions sent
     ///
     /// [`DECSC`]: https://vt100.net/docs/vt510-rm/DECSC.html
-    pub struct SaveCursor => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct SaveCursor => |this, w| {
         write!(w, "\x1B7")
     }
 );
@@ -399,7 +427,7 @@ sequence!(
     /// - Maps the ASCII character set into GL, and the DEC Supplemental Graphic set into GR.
     ///
     /// [`DECRC`]: https://vt100.net/docs/vt510-rm/DECRC.html
-    pub struct RestoreCursor => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct RestoreCursor => |this, w| {
         write!(w, "\x1B8")
     }
 );

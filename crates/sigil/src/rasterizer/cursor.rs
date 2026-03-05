@@ -49,22 +49,22 @@ impl Cursor {
         let dc = target_col as isize - self.col as isize;
 
         // Strategy 0: CUP (always available)
-        let cost_cup = seq::cup_len(target_row, target_col);
+        let cost_cup = CursorPosition(target_row, target_col).cost();
 
         // Strategy 1: Relative moves
-        let vert_cost = seq::relative_len(dr.unsigned_abs());
-        let horiz_cost = seq::relative_len(dc.unsigned_abs());
+        let vert_cost = CursorUp(dr.unsigned_abs()).cost();
+        let horiz_cost = CursorForward(dc.unsigned_abs()).cost();
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + relative vertical + CUF
         // CR is 1 byte, then vertical move, then CUF to target_col
-        let cost_cr = 1 + vert_cost + seq::relative_len(target_col);
+        let cost_cr = 1 + vert_cost + CursorForward(target_col).cost();
 
         // Strategy 3: VPA + CHA (requires capabilities)
         let cost_vpa_cha = if caps.contains(Capabilities::VPA | Capabilities::CHA) {
-            let v = if dr != 0 { seq::vpa_len(target_row) } else { 0 };
+            let v = if dr != 0 { VerticalPositionAbsolute(target_row).cost() } else { 0 };
             let h = if dc != 0 || dr != 0 {
-                seq::cha_len(target_col)
+                HorizontalPositionAbsolute(target_col).cost()
             } else {
                 0
             };
@@ -133,12 +133,12 @@ impl Cursor {
         let dc = target_col as isize - self.col as isize;
 
         // Strategy 1: Pure relative
-        let vert_cost = seq::relative_len(dr.unsigned_abs());
-        let horiz_cost = seq::relative_len(dc.unsigned_abs());
+        let vert_cost = CursorUp(dr.unsigned_abs()).cost();
+        let horiz_cost = CursorForward(dc.unsigned_abs()).cost();
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + vertical + CUF
-        let cost_cr = 1 + vert_cost + seq::relative_len(target_col);
+        let cost_cr = 1 + vert_cost + CursorForward(target_col).cost();
 
         if cost_cr < cost_relative {
             escape(buf, CarriageReturn);
@@ -185,7 +185,7 @@ impl Cursor {
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
     pub fn reset_pen(&mut self, buf: &mut Vec<u8>) {
         if !self.style.is_empty() {
-            seq::sgr_reset(buf);
+            escape(buf, Reset);
             self.style = Style::EMPTY;
         }
     }

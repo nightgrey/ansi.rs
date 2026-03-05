@@ -1,5 +1,5 @@
 use std::marker::Destruct;
-use crate::{Bounds, Column, IntoLocation, Iter, Location, Position, Row, Span, Step};
+use crate::{Bounds, Column, IntoLocation, Steps, Location, Position, Row, Span, Step};
 
 /// A location paired with its spatial context.
 ///

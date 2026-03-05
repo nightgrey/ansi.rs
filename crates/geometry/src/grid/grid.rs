@@ -1,9 +1,8 @@
 use std::ops;
 use std::ops::Index;
 use std::slice::{ChunksExact, SliceIndex};
-use super::{SpatialIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use crate::{Bounds, Position, Context, Indexable};
+use crate::{Bounds, Position, Context, IntoSliceIndex, Steps, Row};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
 pub struct Grid<T> {
@@ -33,7 +32,10 @@ impl<T> Grid<T> {
     }
 
     /// Create a new, filled grid with the given width and height.
-    pub fn new(width: usize, height: usize) -> Self where T: Default + Copy {
+    pub fn new(width: usize, height: usize) -> Self
+    where
+        T: Default + Copy
+    {
         Self {
             inner: vec![T::default(); width * height],
             width,
@@ -57,31 +59,18 @@ impl<T> Grid<T> {
         Self::from(self.clip(bounds))
     }
 
-    pub fn min(&self) -> Position {
-        Position::ZERO
-    }
-
-    pub fn max(&self) -> Position {
-        Position::new(self.height, self.width)
-    }
-
-    /// Returns the bounds of this grid.
-    pub fn bounds(&self) -> Bounds {
-        Bounds::new(Position::ZERO, Position::new(self.height, self.width))
-    }
-
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub fn get<I: SpatialIndex<T>>(&self, index: I) -> Option<&<I::Index as SliceIndex<[T]>>::Output>
+    pub fn get<I: IntoSliceIndex<T>>(&self, index: I) -> Option<&<I::Index as SliceIndex<[T]>>::Output>
     {
-        index.get(self)
+        SliceIndex::get(index.into_slice_index(self), &self.inner)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub fn get_mut<I: SpatialIndex<T>>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[T]>>::Output>
+    pub fn get_mut<I: IntoSliceIndex<T>>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[T]>>::Output>
     {
-        index.get_mut(self)
+        SliceIndex::get_mut(index.into_slice_index(self), &mut self.inner)
     }
 
     /// Returns a pointer to the output at this location, without
@@ -91,9 +80,9 @@ impl<T> Grid<T> {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked<I: SpatialIndex<T>>(&self, index: I) -> *const <I::Index as SliceIndex<[T]>>::Output
+    pub unsafe fn get_unchecked<I: IntoSliceIndex<T>>(&self, index: I) -> *const <I::Index as SliceIndex<[T]>>::Output
     {
-        index.get_unchecked(self)
+        SliceIndex::get_unchecked(index.into_slice_index(self), &*self.inner)
     }
 
     /// Returns a mutable pointer to the output at this location, without
@@ -103,9 +92,9 @@ impl<T> Grid<T> {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked_mut<I: SpatialIndex<T>>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[T]>>::Output
+    pub unsafe fn get_unchecked_mut<I: IntoSliceIndex<T>>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[T]>>::Output
     {
-        index.get_unchecked_mut(self)
+        SliceIndex::get_unchecked_mut(index.into_slice_index(self), &mut *self.inner)
     }
 
     pub fn intersect(&self, other: Bounds) -> Bounds {
@@ -140,18 +129,29 @@ impl<T> Grid<T> {
         Bounds { min: Position::new(min_row, min_col), max: Position::new(max_row, max_col) }
     }
 
-    pub fn fill_area(&mut self, bounds: Bounds, value: T) where T: Copy {
+    pub fn fill_area(&mut self, bounds: Bounds, value: T)
+    where
+        T: Copy
+    {
         for pos in &self.clip(bounds) {
             self[pos] = value;
         }
     }
 
-    pub fn clear_and_resize(&mut self, width: usize, height: usize) where T: Default + Clone {
+    pub fn clear_and_resize(&mut self, width: usize, height: usize)
+    where
+        T: Default + Clone
+    {
         self.width = width;
         self.height = height;
         self.inner.clear();
         self.inner.resize(width * height, T::default());
     }
+
+    pub fn positions(&self) -> Steps {
+        Steps::new(self)
+    }
+
 }
 
 impl<T: Clone> Grid<T> {
@@ -235,18 +235,18 @@ impl<T> From<Bounds> for Grid<T> {
     }
 }
 
-impl<T, I: Indexable<T>> ops::Index<I> for Grid<T> {
+impl<T, I: IntoSliceIndex<T>> ops::Index<I> for Grid<T> {
     type Output = I::Output;
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        index.resolve(self).index(&self.inner)
+        index.into_slice_index(self).index(&self.inner)
     }
 }
 
-impl<T, I: Indexable<T>> ops::IndexMut<I> for Grid<T> {
+impl<T, I: IntoSliceIndex<T>> ops::IndexMut<I> for Grid<T> {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        index.resolve(self).index_mut(&mut self.inner)
+        index.into_slice_index(self).index_mut(&mut self.inner)
     }
 }

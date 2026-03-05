@@ -11,7 +11,7 @@ use bitflags::Flags;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXorAssign, Sub, SubAssign};
-use utils::separator;
+use utils::separate_by;
 
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Style {
@@ -647,7 +647,7 @@ impl Escape for Style {
 
         w.write_all(b"\x1B[")?;
 
-        separator!({ w.write_all(b";") });
+        separate_by!({ w.write_all(b";") });
 
         if self.bg.is_some() {
             separate!(w.escape(self.bg.as_background())?);

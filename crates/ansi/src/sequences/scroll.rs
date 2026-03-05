@@ -21,7 +21,7 @@ sequence!(
     /// - The maximum size of the scrolling region is the page size.
     ///
     /// [`DECSTBM`]: https://vt100.net/docs/vt510-rm/DECSTBM.html
-    pub struct SetMargins(pub usize, pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct SetMargins(pub usize, pub usize) => |this, w| {
         write!(w, "\x1B[{};{}r", this.0 + 1, this.1 + 1)
     }
 );
@@ -40,7 +40,7 @@ sequence!(
     /// allowing scrolling on the entire screen.
     ///
     /// [`DECSTBM`]: https://vt100.net/docs/vt510-rm/DECSTBM.html
-    pub struct ResetMargins => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct ResetMargins => |this, w| {
         write!(w, "\x1B[r")
     }
 );
@@ -64,7 +64,7 @@ sequence!(
     /// the current page.
     ///
     /// [`SU`]: https://vt100.net/docs/vt510-rm/SU.html
-    pub struct ScrollUp(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct ScrollUp(pub usize) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[S")
         } else if this.0 > 1 {
@@ -94,7 +94,7 @@ sequence!(
     /// the current page.
     ///
     /// [`SD`]: https://vt100.net/docs/vt510-rm/SD.html
-    pub struct ScrollDown(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct ScrollDown(pub usize) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[T")
         } else if this.0 > 1 {
@@ -119,7 +119,7 @@ sequence!(
     /// of the screen (line 1, column 1), which is the home position.
     ///
     /// [`CUP`]: https://vt100.net/docs/vt510-rm/CUP.html
-    pub struct Home => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct Home => |this, w| {
         write!(w, "\x1B[H")
     }
 );

@@ -1,6 +1,7 @@
 use std::iter::FusedIterator;
+use std::marker::Destruct;
 use std::ops::{Deref};
-use crate::{Location, Position, IntoLocation, Step};
+use crate::{Location, Position, IntoLocation, Step, Span, Context};
 use super::Bounds;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
@@ -8,24 +9,26 @@ use super::Bounds;
 /// Created by [`Bounds::iter`].
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
-pub struct Iter<T = Position, Context = Bounds> {
-    context: Context,
+pub struct Steps<T: Location = Position, Ctx: Context = Bounds> {
+    context: Ctx,
     front: T,
     back: T,
 }
 
-impl Iter {
-    pub const fn new(context: Bounds) -> Self {
-        let front = if context.is_empty() { context.max } else { context.min };
+impl const Steps<Position> {
+    pub fn new<C: [const] Context>(context: &C) -> Self {
+        let bounds = context.bounds();
+        let front = if bounds.is_empty() { bounds.max() } else { bounds.min() };
+        let back = bounds.max();
+
         Self {
-            context,
+            context: bounds,
             front,
-            back: context.max,
+            back
         }
     }
 }
-
-impl Iterator for Iter {
+impl Iterator for Steps<Position> {
     type Item = Position;
 
     #[inline]
@@ -79,13 +82,13 @@ impl Iterator for Iter {
         None
     }
 
-    fn for_each<F>(self, f: F)
+    fn for_each<F>(self, mut f: F)
     where
         Self: Sized,
         F: FnMut(Self::Item),
     {
         if self.front >= self.back { return; }
-        traverse_row_major(self.front, self.min.col, self.max.col, self.max.row, f);
+        for_each_row_major(self.front, self.min.col, self.max.col, self.max.row, &mut f);
     }
 
     fn fold<B, F>(self, init: B, f: F) -> B
@@ -111,7 +114,7 @@ impl Iterator for Iter {
     }
 }
 
-impl DoubleEndedIterator for Iter {
+impl DoubleEndedIterator for Steps<Position> {
     #[inline]
     fn next_back(&mut self) -> Option<Position> {
         if self.front >= self.back {
@@ -148,10 +151,10 @@ impl DoubleEndedIterator for Iter {
     }
 }
 
-impl ExactSizeIterator for Iter {}
-impl FusedIterator for Iter {}
+impl ExactSizeIterator for Steps {}
+impl FusedIterator for Steps {}
 
-impl const Deref for Iter {
+impl const Deref for Steps {
     type Target = Bounds;
     fn deref(&self) -> &Self::Target {
         &self.context
@@ -162,7 +165,7 @@ impl const Deref for Iter {
 
 /// A position that knows its spatial context (borrowed).
 ///
-/// Like [`Iter`] but borrows its `Bounds` and starts from an arbitrary position.
+/// Like [`Steps`] but borrows its `Bounds` and starts from an arbitrary position.
 /// Implements `Iterator` for forward traversal from the current position.
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
@@ -236,7 +239,7 @@ impl<'a> Iterator for Cursor<'a, Position> {
         F: FnMut(Self::Item),
     {
         if self.position >= self.context.max { return; }
-        traverse_row_major(
+        for_each_row_major(
             self.position,
             self.context.min.col,
             self.context.max.col,
@@ -287,11 +290,31 @@ impl AsRef<Position> for Cursor<'_> {
 }
 
 // ─── Shared row-major traversal ────────────────────────────────────────
+#[inline(always)]
+fn next_row_major(
+    start: Position,
+    min_col: usize,
+    max_col: usize,
+    max_row: usize,
+) -> Option<Position> {
+    let mut next = start;
+    next.col += 1;
 
+    if next.col >= max_col {
+        next.col = min_col;
+        next.row += 1;
+
+        if next.row >= max_row {
+            return None;
+        }
+    }
+
+    Some(next)
+}
 /// Walk every position in row-major order from `start` within `[min_col..max_col) × [..max_row)`,
 /// calling `f` for each.
 #[inline(always)]
-fn traverse_row_major(
+fn for_each_row_major(
     start: Position,
     min_col: usize,
     max_col: usize,

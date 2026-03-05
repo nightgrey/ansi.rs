@@ -10,12 +10,15 @@ pub const trait Step<T = Position> {
     ///
     /// Returns `(n, Some(n))` when `start <= end` within bounds,
     /// or `(0, None)` when `start > end`.
+    #[inline(always)]
     fn steps_between(&self, start: T, end: T) -> (usize, Option<usize>);
 
     /// Move `count` steps forward in row-major order, or `None` if out of bounds.
+    #[inline(always)]
     fn forward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `forward_checked`, but panics on overflow.
+    #[inline(always)]
     fn forward(&self, start: T, count: usize) -> T {
         self.forward_checked(start, count)
             .expect("overflow in Step::forward")
@@ -25,14 +28,17 @@ pub const trait Step<T = Position> {
     ///
     /// # Safety
     /// The result must remain within bounds.
+    #[inline(always)]
     unsafe fn forward_unchecked(&self, start: T, count: usize) -> T {
         self.forward(start, count)
     }
 
     /// Move `count` steps backward in row-major order, or `None` if out of bounds.
+    #[inline(always)]
     fn backward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `backward_checked`, but panics on underflow.
+    #[inline(always)]
     fn backward(&self, start: T, count: usize) -> T {
         self.backward_checked(start, count)
             .expect("underflow in Step::backward")
@@ -42,6 +48,7 @@ pub const trait Step<T = Position> {
     ///
     /// # Safety
     /// The result must remain within bounds.
+    #[inline(always)]
     unsafe fn backward_unchecked(&self, start: T, count: usize) -> T {
         self.backward(start, count)
     }

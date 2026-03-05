@@ -13,7 +13,7 @@ sequence!(
     /// EL works inside or outside the scrolling margins.
     ///
     /// [`EL`]: https://vt100.net/docs/vt510-rm/EL.html
-    pub struct EraseLineToEnd => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct EraseLineToEnd => |this, w| {
         write!(w, "\x1B[K")
     }
 );
@@ -32,7 +32,7 @@ sequence!(
     /// the cursor position. EL clears all character attributes from erased character positions.
     ///
     /// [`EL`]: https://vt100.net/docs/vt510-rm/EL.html
-    pub struct EraseLineToStart => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct EraseLineToStart => |this, w| {
         write!(w, "\x1B[1K")
     }
 );
@@ -52,7 +52,7 @@ sequence!(
     /// with all visual character attributes cleared. ED works inside or outside the scrolling margins.
     ///
     /// [`ED`]: https://vt100.net/docs/vt510-rm/ED.html
-    pub struct EraseDisplayToEnd => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct EraseDisplayToEnd => |this, w| {
         write!(w, "\x1B[J")
     }
 );
@@ -75,7 +75,7 @@ sequence!(
     /// Use this to erase the complete display in a fast, efficient manner.
     ///
     /// [`ED`]: https://vt100.net/docs/vt510-rm/ED.html
-    pub struct EraseDisplay => |_this: &Self, w: &mut dyn std::io::Write| {
+    pub struct EraseDisplay => |this, w| {
         write!(w, "\x1B[2J")
     }
 );
@@ -95,7 +95,7 @@ sequence!(
     /// ## Description
     /// This control function repeats the preceding graphic character n times.
     /// If the count is 0, nothing is emitted.
-    pub struct Repeat(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct Repeat(pub usize) => |this, w| {
         if this.0 > 0 {
             write!(w, "\x1B[{}b", this.0)
         } else {
@@ -122,7 +122,7 @@ sequence!(
     /// ECH works inside or outside the scrolling margins.
     ///
     /// [`ECH`]: https://vt100.net/docs/vt510-rm/ECH.html
-    pub struct EraseCharacter(pub usize) => |this: &Self, w: &mut dyn std::io::Write| {
+    pub struct EraseCharacter(pub usize) => |this, w| {
         if this.0 > 0 {
             write!(w, "\x1B[{}X", this.0)
         } else {

@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Bound, Deref, IntoBounds, RangeBounds};
 
-use crate::{Position, Size, Iter, Step, Cursor, Located};
+use crate::{Position, Size, Steps, Step, Cursor, Located};
 
 // ─── Region ──────────────────────────────────────────────────────────────────
 
@@ -179,8 +179,8 @@ impl Bounds {
     }
 
     /// Row-major iterator over every position in the region.
-    pub const fn iter(&self) -> Iter {
-        Iter::new(*self)
+    pub const fn iter(&self) -> Steps {
+        Steps::new(self)
     }
 
     /// Cursor over every position in the region.
@@ -192,9 +192,9 @@ impl Bounds {
 
 impl IntoIterator for &Bounds {
     type Item = Position;
-    type IntoIter = Iter;
+    type IntoIter = Steps;
     fn into_iter(self) -> Self::IntoIter {
-        Iter::new(*self)
+        Steps::new(self)
     }
 }
 

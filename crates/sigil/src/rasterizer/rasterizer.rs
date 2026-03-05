@@ -1,6 +1,7 @@
 use std::hash::{Hash, Hasher};
 use std::io;
 use ansi::escape;
+use ansi::io::Write;
 use ansi::sequences::*;
 use geometry::Row;
 
@@ -93,7 +94,7 @@ impl Rasterizer {
         let height = buffer.height;
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            seq::begin_sync(&mut self.output);
+            escape(&mut self.output, SynchronizedOutput::Disable);
         }
 
         // Handle dimension change or forced clear.
@@ -162,7 +163,7 @@ impl Rasterizer {
         escape(&mut self.output, CursorMode::Visible);
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            seq::end_sync(&mut self.output);
+            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
         }
 
         // Swap prev ← new.
@@ -192,15 +193,14 @@ impl Rasterizer {
 
     /// Enter alternate screen buffer.
     pub fn enter_alt_screen(&mut self) {
-        seq::enter_alt_screen(&mut self.output);
+        escape!(&mut self.output, AlternateScreen::Enable);
         self.is_fullscreen = true;
         self.force_clear = true;
     }
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        seq::sgr_reset(&mut self.output);
-        seq::exit_alt_screen(&mut self.output);
+        escape!(&mut self.output, Reset, AlternateScreen::Disable);
         self.is_fullscreen = false;
         self.cursor.reset();
         self.force_clear = true;
@@ -226,7 +226,7 @@ impl Rasterizer {
         let inline = self.inline.as_mut().expect("inline state required");
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            seq::begin_sync(&mut self.output);
+            escape!(&mut self.output, SynchronizedOutput::Enable);
         }
 
         escape(&mut self.output, CursorMode::Invisible);
@@ -274,9 +274,9 @@ impl Rasterizer {
 
             // Move to the top of our owned region.
             if self.cursor.row > 0 {
-                seq::cuu(&mut self.output, self.cursor.row);
+                escape(&mut self.output, CursorUp(self.cursor.row));
             }
-            seq::cr(&mut self.output);
+            escape(&mut self.output, CarriageReturn);
             self.cursor.row = 0;
             self.cursor.col = 0;
 
@@ -318,7 +318,7 @@ impl Rasterizer {
         escape(&mut self.output, CursorMode::Visible);
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            seq::end_sync(&mut self.output);
+            escape!(&mut self.output, SynchronizedOutput::Disable);
         }
 
         self.prev = buffer.clone();
@@ -378,7 +378,7 @@ impl Rasterizer {
         let _ = new_hashes; // hashes are updated below
 
         // Set scroll region to full screen.
-        seq::decstbm(&mut self.output, 0, height - 1);
+        escape!(&mut self.output, SetTopBottomMargins::Some(0, height - 1));
 
         // Move cursor into the scroll region.
         if offset > 0 {
@@ -392,7 +392,7 @@ impl Rasterizer {
         }
 
         // Reset scroll region.
-        seq::decstbm_reset(&mut self.output);
+        escape(&mut self.output, SetTopBottomMargins::None);
 
         // Update self.prev to reflect what the terminal now shows.
         let abs_offset = offset.unsigned_abs();
@@ -468,19 +468,12 @@ mod tests {
 
     use super::*;
 
-    fn make_buffer(width: usize, height: usize, cells: &[(usize, usize, char, Style)]) -> Buffer {
-        let mut buf = Buffer::new(width, height);
-        for &(row, col, ch, style) in cells {
-            buf[(row, col)] = Cell::from_char(ch, style);
-        }
-        buf
-    }
 
     #[test]
     fn render_styled_cells_emits_sgr() {
         let style = Style::new().bold().foreground(Color::Rgb(255, 0, 0));
 
-        let buffer = make_buffer(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
+        let buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Rasterizer::new(5, 1);
         r.render(&buffer);
@@ -494,7 +487,7 @@ mod tests {
     #[test]
     fn render_identical_buffer_produces_no_diff() {
         let style = Style::new().foreground(Color::Index(2));
-        let buffer = make_buffer(
+        let buffer = Buffer::from_chars(
             3,
             1,
             &[
@@ -520,7 +513,7 @@ mod tests {
     #[test]
     fn render_single_cell_change_emits_only_that_cell() {
         let style = Style::new().foreground(Color::Index(3));
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             3,
             1,
             &[
@@ -535,7 +528,7 @@ mod tests {
         r.clear_output();
 
         // Change only middle cell.
-        let buf2 = make_buffer(
+        let buf2 = Buffer::from_chars(
             3,
             1,
             &[
@@ -555,7 +548,7 @@ mod tests {
 
     #[test]
     fn invalidate_forces_full_redraw() {
-        let buffer = make_buffer(2, 1, &[(0, 0, 'Z', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::EMPTY)]);
 
         let mut r = Rasterizer::new(2, 1);
         r.render(&buffer);
@@ -574,7 +567,7 @@ mod tests {
         let style = Style::new().foreground(Color::Index(1));
 
         // First frame: full row of content.
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             5,
             1,
             &[
@@ -593,7 +586,7 @@ mod tests {
         // Second frame: change cell 1 and clear cells 2-4.
         // Cell 0 stays the same, cell 1 changes (triggers diff), cells 2-4
         // are empty while old had content → trailing EL.
-        let buf2 = make_buffer(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
+        let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
 
         r.render(&buf2);
 
@@ -608,7 +601,7 @@ mod tests {
         let style = Style::new().foreground(Color::Index(1));
 
         // First frame: content on all 3 rows.
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             3,
             3,
             &[
@@ -623,7 +616,7 @@ mod tests {
         r.clear_output();
 
         // Second frame: only first row has content.
-        let buf2 = make_buffer(3, 3, &[(0, 0, 'A', style)]);
+        let buf2 = Buffer::from_chars(3, 3, &[(0, 0, 'A', style)]);
 
         r.render(&buf2);
 
@@ -637,7 +630,7 @@ mod tests {
     #[test]
     fn sync_output_wraps_render() {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
-        let buffer = make_buffer(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
         let mut r = Rasterizer::with_capabilities(3, 1, caps);
         r.render(&buffer);
 
@@ -648,7 +641,7 @@ mod tests {
 
     #[test]
     fn no_sync_without_cap() {
-        let buffer = make_buffer(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer);
 
@@ -662,7 +655,7 @@ mod tests {
     #[test]
     fn row_hash_skips_identical_frame() {
         let style = Style::new().foreground(Color::Index(2));
-        let buffer = make_buffer(
+        let buffer = Buffer::from_chars(
             3,
             2,
             &[
@@ -688,7 +681,7 @@ mod tests {
     #[test]
     fn row_hash_only_emits_changed_row() {
         let style = Style::new().foreground(Color::Index(3));
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             3,
             3,
             &[
@@ -703,7 +696,7 @@ mod tests {
         r.clear_output();
 
         // Change only row 1.
-        let buf2 = make_buffer(
+        let buf2 = Buffer::from_chars(
             3,
             3,
             &[
@@ -730,7 +723,7 @@ mod tests {
         let style = Style::EMPTY;
 
         // Frame 1: rows A, B, C, D, E
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             3, 5,
             &[
                 (0, 0, 'a', style),
@@ -746,7 +739,7 @@ mod tests {
         r.clear_output();
 
         // Frame 2: rows B, C, D, E, F (scroll up by 1)
-        let buf2 = make_buffer(
+        let buf2 = Buffer::from_chars(
             3, 5,
             &[
                 (0, 0, 'b', style),
@@ -771,7 +764,7 @@ mod tests {
         let style = Style::EMPTY;
 
         // Frame 1: rows A, B, C, D, E
-        let buf1 = make_buffer(
+        let buf1 = Buffer::from_chars(
             3, 5,
             &[
                 (0, 0, 'a', style),
@@ -787,7 +780,7 @@ mod tests {
         r.clear_output();
 
         // Frame 2: rows F, A, B, C, D (scroll down by 1)
-        let buf2 = make_buffer(
+        let buf2 = Buffer::from_chars(
             3, 5,
             &[
                 (0, 0, 'f', style),
@@ -811,7 +804,7 @@ mod tests {
         let caps = Capabilities::DEFAULT | Capabilities::SCROLL_REGION | Capabilities::SCROLL;
         let style = Style::EMPTY;
 
-        let buf1 = make_buffer(3, 5, &[
+        let buf1 = Buffer::from_chars(3, 5, &[
             (0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style),
             (3, 0, 'd', style), (4, 0, 'e', style),
         ]);
@@ -821,7 +814,7 @@ mod tests {
         r.clear_output();
 
         // Completely different content.
-        let buf2 = make_buffer(3, 5, &[
+        let buf2 = Buffer::from_chars(3, 5, &[
             (0, 0, 'v', style), (1, 0, 'w', style), (2, 0, 'x', style),
             (3, 0, 'y', style), (4, 0, 'z', style),
         ]);
@@ -838,7 +831,7 @@ mod tests {
     fn no_scroll_without_caps() {
         let style = Style::EMPTY;
 
-        let buf1 = make_buffer(3, 5, &[
+        let buf1 = Buffer::from_chars(3, 5, &[
             (0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style),
             (3, 0, 'd', style), (4, 0, 'e', style),
         ]);
@@ -848,7 +841,7 @@ mod tests {
         r.render(&buf1);
         r.clear_output();
 
-        let buf2 = make_buffer(3, 5, &[
+        let buf2 = Buffer::from_chars(3, 5, &[
             (0, 0, 'b', style), (1, 0, 'c', style), (2, 0, 'd', style),
             (3, 0, 'e', style), (4, 0, 'f', style),
         ]);
@@ -868,7 +861,7 @@ mod tests {
 
         // 20 identical 'X' cells.
         let cells: Vec<_> = (0..20).map(|col| (0usize, col, 'X', style)).collect();
-        let buffer = make_buffer(20, 1, &cells);
+        let buffer = Buffer::from_chars(20, 1, &cells);
 
         let mut r = Rasterizer::with_capabilities(20, 1, caps);
         r.render(&buffer);
@@ -884,7 +877,7 @@ mod tests {
         let style = Style::EMPTY;
 
         // Only 3 identical cells — below threshold.
-        let buffer = make_buffer(3, 1, &[(0, 0, 'X', style), (0, 1, 'X', style), (0, 2, 'X', style)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'X', style), (0, 1, 'X', style), (0, 2, 'X', style)]);
 
         let mut r = Rasterizer::with_capabilities(3, 1, caps);
         r.render(&buffer);
@@ -900,7 +893,7 @@ mod tests {
     fn rep_not_emitted_without_cap() {
         let style = Style::EMPTY;
         let cells: Vec<_> = (0..20).map(|col| (0usize, col, 'X', style)).collect();
-        let buffer = make_buffer(20, 1, &cells);
+        let buffer = Buffer::from_chars(20, 1, &cells);
 
         let mut r = Rasterizer::new(20, 1);
         r.render(&buffer);
@@ -917,7 +910,7 @@ mod tests {
         let style = Style::EMPTY;
 
         // Wide character '中' (width 2) repeated — should not trigger REP.
-        let buffer = make_buffer(
+        let buffer = Buffer::from_chars(
             10,
             1,
             &[
@@ -947,7 +940,7 @@ mod tests {
         let style = Style::new().foreground(Color::Rgb(0, 255, 0));
 
         // Two adjacent cells with the same style.
-        let buffer = make_buffer(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer);
@@ -966,7 +959,7 @@ mod tests {
     #[test]
     fn inline_first_render_no_cup() {
         let style = Style::EMPTY;
-        let buffer = make_buffer(5, 2, &[
+        let buffer = Buffer::from_chars(5, 2, &[
             (0, 0, 'h', style), (0, 1, 'i', style),
             (1, 0, 'l', style), (1, 1, 'o', style),
         ]);
@@ -997,7 +990,7 @@ mod tests {
     #[test]
     fn inline_second_render_starts_with_cuu() {
         let style = Style::EMPTY;
-        let buffer = make_buffer(5, 3, &[
+        let buffer = Buffer::from_chars(5, 3, &[
             (0, 0, 'a', style),
             (1, 0, 'b', style),
             (2, 0, 'c', style),
@@ -1008,7 +1001,7 @@ mod tests {
         r.clear_output();
 
         // Change middle row.
-        let buf2 = make_buffer(5, 3, &[
+        let buf2 = Buffer::from_chars(5, 3, &[
             (0, 0, 'a', style),
             (1, 0, 'X', style),
             (2, 0, 'c', style),
@@ -1026,7 +1019,7 @@ mod tests {
     #[test]
     fn inline_no_alt_screen_sequences() {
         let style = Style::EMPTY;
-        let buffer = make_buffer(3, 1, &[(0, 0, 'z', style)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Rasterizer::inline(3, 1);
         r.render(&buffer);
@@ -1039,7 +1032,7 @@ mod tests {
     #[test]
     fn inline_no_ed_on_first_render() {
         let style = Style::EMPTY;
-        let buffer = make_buffer(3, 2, &[
+        let buffer = Buffer::from_chars(3, 2, &[
             (0, 0, 'x', style),
             (1, 0, 'y', style),
         ]);

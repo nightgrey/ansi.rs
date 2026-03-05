@@ -1,6 +1,6 @@
 mod grid;
 mod bounds;
-mod features;
+mod location_context;
 mod row;
 mod column;
 mod position;
@@ -8,7 +8,7 @@ mod index;
 mod spatial_index;
 
 pub use bounds::*;
-pub use features::*;
+pub use location_context::*;
 pub use row::*;
 pub use column::*;
 pub use position::*;

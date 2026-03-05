@@ -32,7 +32,6 @@ use std::ops::{Add, AddAssign, Sub};
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-
 pub struct Position {
     /// Vertical position (row index, 0 = top).
     pub row: usize,

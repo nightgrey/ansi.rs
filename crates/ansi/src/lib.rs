@@ -5,6 +5,8 @@
 
 mod color;
 mod style;
+
+#[macro_use]
 mod escape;
 pub mod sequences;
 

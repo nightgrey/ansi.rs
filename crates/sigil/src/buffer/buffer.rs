@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use geometry::{Grid, Position, Bounds, Context};
+use geometry::{Grid, Position, Bounds, Context, };
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
@@ -41,6 +41,9 @@ impl Buffer {
         }
     }
 
+    /// Create a buffer from a slice of fixed elements.
+    ///
+    /// A convenience constructor mostly used for tests.
     pub(crate) fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
@@ -249,6 +252,7 @@ impl Debug for Buffer {
             .finish()
     }
 }
+
 
 impl Context for Buffer {
     fn min(&self) -> Position { Position::ZERO }

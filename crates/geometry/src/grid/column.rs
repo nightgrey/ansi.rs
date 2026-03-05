@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use std::ops::{Add, Div, Mul,  Rem, RemAssign, Sub, SubAssign};
 use synonym::Synonym;
 use crate::Position;
 

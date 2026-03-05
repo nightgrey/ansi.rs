@@ -1,3 +1,5 @@
+use ansi::io::Write;
+use ansi::{escape, EraseLineToEnd, Repeat};
 use geometry::Row;
 
 use crate::buffer::{Buffer, Cell};
@@ -69,7 +71,7 @@ pub(crate) fn transform_line(
                 }
                 // REP threshold: `\x1B[Nb` is 4+ bytes, so only worth it for 4+.
                 if rep_count >= 4 {
-                    seq::rep(buf, rep_count);
+                    escape!(buf, Repeat(rep_count)).unwrap();
                     col += rep_count;
                     cursor.col += rep_count;
                 }
@@ -80,7 +82,7 @@ pub(crate) fn transform_line(
     // Clear to end of line.
     if need_eol {
         cursor.reset_pen(buf);
-        seq::el(buf);
+        escape!(buf, EraseLineToEnd).unwrap();
     }
 }
 
@@ -138,7 +140,7 @@ pub(crate) fn transform_line_relative(
                     rep_count += 1;
                 }
                 if rep_count >= 4 {
-                    seq::rep(buf, rep_count);
+                    escape!(buf, Repeat(rep_count)).unwrap();
                     col += rep_count;
                     cursor.col += rep_count;
                 }
@@ -148,7 +150,7 @@ pub(crate) fn transform_line_relative(
 
     if need_eol {
         cursor.reset_pen(buf);
-        seq::el(buf);
+        escape!(buf, EraseLineToEnd).unwrap();
     }
 }
 

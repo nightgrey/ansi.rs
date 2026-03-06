@@ -120,14 +120,6 @@ impl<T> IntoSliceIndex<T> for ops::RangeFull {
 }
 
 
-impl<T> IntoSliceIndex<T> for usize {
-    type Output = T;
-    type Index = usize;
-
-    #[inline]
-    fn into_slice_index(self, _: &impl Context) -> Self::Index { self }
-}
-
 impl<T> IntoSliceIndex<T> for ops::Range<usize> {
     type Output = [T];
     type Index = ops::Range<usize>;

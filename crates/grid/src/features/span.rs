@@ -1,6 +1,6 @@
 use std::ops;
 use std::ops::Bound;
-use crate::{Column, Position, Row, Location, Bounds, IntoLocation, Context};
+use crate::{Column, Position, Row, Location, Bounds, IntoLocation, Context, Index};
 
 /// Maps a location to its linear index range within a context.
 ///
@@ -78,12 +78,12 @@ impl<T: [const] Context> const Span<Column> for T {
     }
 }
 
-impl<T: [const] Context> const Span<usize> for T {
-    fn start(&self, location: usize) -> usize {
-        location
+impl<T: [const] Context> const Span<Index> for T {
+    fn start(&self, location: Index) -> usize {
+        location.value()
     }
 
-    fn end(&self, location: usize) -> usize {
-        location + 1
+    fn end(&self, location: Index) -> usize {
+        location.value() + 1
     }
 }

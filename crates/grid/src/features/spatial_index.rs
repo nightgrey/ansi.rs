@@ -43,11 +43,11 @@ pub trait SpatialIndex<T>: Sized {
     }
 }
 
-impl<T> SpatialIndex<T> for usize {
+impl<T> SpatialIndex<T> for Index {
     type Output = T;
     type Index = usize;
 
-    fn index_of(self, _: &Grid<T>) -> Self::Index { self }
+    fn index_of(self, _: &Grid<T>) -> Self::Index { self.value() }
 }
 
 impl<T> SpatialIndex<T> for ops::Range<usize> {

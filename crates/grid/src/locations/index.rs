@@ -9,4 +9,6 @@ impl const Index {
     pub fn value(self) -> usize {
         self.0
     }
-}   
+}
+
+pub type IndexLike = usize;

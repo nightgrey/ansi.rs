@@ -6,13 +6,13 @@ fn step(c:&mut Criterion) {
     let mut g = c
         .benchmark_group("step");
 
-    g.bench_function("map", |b| {
+    g.bench_function("iter.map", |b| {
         let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| iter.map(|p| black_box(p)))
     });
 
-    g.bench_function("for_each", |b| {
+    g.bench_function("iter.for_each", |b| {
         let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| {
@@ -24,7 +24,7 @@ fn step(c:&mut Criterion) {
 
 
 
-    g.bench_function("fold", |b| {
+    g.bench_function("iter.fold", |b| {
         let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| {
@@ -36,11 +36,11 @@ fn step(c:&mut Criterion) {
 
     g.finish();
 }
-fn hand(c:&mut Criterion) {
+fn manual(c:&mut Criterion) {
     let mut g = c
-        .benchmark_group("hand");
+        .benchmark_group("manual");
 
-    g.bench_function("map", |b| {
+    g.bench_function("iter.map", |b| {
         let bounds =  Bounds::corners(0, 0, 1024, 1024);
 
         b.iter(|| {
@@ -48,7 +48,7 @@ fn hand(c:&mut Criterion) {
         })
     });
 
-    g.bench_function("for_each", |b| {
+    g.bench_function("iter.for_each", |b| {
         let bounds =  Bounds::corners(0, 0, 1024, 1024);
 
         b.iter(|| {
@@ -59,7 +59,7 @@ fn hand(c:&mut Criterion) {
     });
 
 
-    g.bench_function("fold", |b| {
+    g.bench_function("iter.fold", |b| {
         let bounds =  Bounds::corners(0, 0, 1024, 1024);
 
         b.iter(|| {
@@ -75,7 +75,7 @@ fn hand(c:&mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default().with_output_color(true).with_plots();
-    targets = step, hand
+    targets = step, manual
 );
 
 criterion_main!(benches);

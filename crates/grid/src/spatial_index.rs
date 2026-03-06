@@ -2,6 +2,7 @@ use std::ops;
 use std::slice::SliceIndex;
 use crate::{Grid, Position, PositionLike, Row};
 use geometry::{Point};
+
 pub trait SpatialIndex<T>: Sized {
     type Output: ?Sized;
     type Index: SliceIndex<[T], Output = Self::Output>;

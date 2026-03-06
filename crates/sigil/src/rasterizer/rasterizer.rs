@@ -10,7 +10,6 @@ use crate::buffer::Buffer;
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
 use super::line::{transform_line, transform_line_relative};
-use super::sequences as seq;
 
 /// Whether the rasterizer operates in fullscreen or inline mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

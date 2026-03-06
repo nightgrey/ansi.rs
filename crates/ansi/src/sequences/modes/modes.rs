@@ -38,11 +38,13 @@ impl Escape for SetMode<Mode> {
         }
     }
 }
+
 impl Escape for SetMode<AnsiMode> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B{}h", self.0)
     }
 }
+
 impl Escape for SetMode<DecMode> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[?{}h", self.0)
@@ -106,11 +108,13 @@ impl Escape for ResetMode<Mode> {
         }
     }
 }
+
 impl Escape for ResetMode<AnsiMode> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B{}l", self.0)
     }
 }
+
 impl Escape for ResetMode<DecMode> {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[?{}l", self.0)

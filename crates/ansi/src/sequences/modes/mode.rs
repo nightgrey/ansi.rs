@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
-use crate::Escape;
+use crate::{Escape, ResetMode, SetMode};
 
 /// Mode
 ///
@@ -11,11 +11,12 @@ pub enum Mode {
     Dec(DecMode),
 }
 
+
 /// Mode Setting
 ///
 /// Indicates the mode setting for [`AnsiMode`] and [`DecMode`]s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[repr(u16)]
+#[repr(u8)]
 pub enum ModeSetting {
     /// Mode not recognized
     #[default]
@@ -389,8 +390,9 @@ pub enum DecMode {
     /// (2004) Bracketed Paste Mode is a mode that determines whether pasted text is
     /// bracketed with escape sequences.
     ///
-    /// See https://cirw.in/blog/bracketed-paste
-    /// See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Bracketed-Paste-Mode
+    /// See:
+    /// - https://cirw.in/blog/bracketed-paste
+    /// - https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Bracketed-Paste-Mode
     BracketedPaste = 2004,
     /// (2005) Readline Char Quoting Mode
     ReadlineCharQuoting = 2005,

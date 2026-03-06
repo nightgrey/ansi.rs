@@ -1,8 +1,8 @@
 //! Common modes
 //!
-//! Provides convenient access to enable and disable common modes.
+//! Provides shortcuts to set ([`SetMode`]) and reset ([`ResetMode`]) common modes.
 //!
-//! For all modes and sequences beyond [`SM`] and [`RM`], check out [`super::modes`].
+//! For anything beyond, check out [`super::modes`].
 use super::*;
 use crate::Escape;
 use crate::io::Write;

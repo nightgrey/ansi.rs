@@ -1,7 +1,7 @@
 mod modes;
-mod common;
+mod shortcuts;
 mod mode;
 
 pub use modes::*;
-pub use common::*;    
+pub use shortcuts::*;    
 pub use mode::*;

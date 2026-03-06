@@ -12,7 +12,6 @@
 #![feature(step_trait)]
 #![feature(const_ops)]
 #![feature(slice_index_methods)]
-
 #![feature(const_try)]
 mod edges;
 mod point;

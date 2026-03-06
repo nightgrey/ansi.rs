@@ -4,7 +4,7 @@ mod span;
 mod iterator;
 mod located;
 mod into_slice_index;
-pub use step::*;
+
 pub use into_location::*;
 pub use span::*;
 pub use iterator::*;

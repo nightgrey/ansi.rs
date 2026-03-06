@@ -1,23 +1,8 @@
 use std::iter::FusedIterator;
 use std::ops::{Deref, IntoBounds, RangeBounds};
-use geometry::Size;
-use crate::{Position, Steps, Step, Cursor, Context};
+use crate::{Position, Steps, Step, Cursor, Context, Intersect, Contains};
 
-// ─── Region ──────────────────────────────────────────────────────────────────
-
-/// A half-open rectangular region in row-major (row, col) space.
-///
-/// `min` is inclusive, `max` is exclusive — the same convention as `Range`.
-/// A region where `min == max` (or any axis is equal) is empty.
-///
-/// # Coordinate system
-/// Positions are (row, col) with row 0 at the top.
-/// Iteration proceeds in row-major order: left→right within a row,
-/// then top→bottom across rows.
-///
-/// # Invariants
-/// * `min.row <= max.row`
-/// * `min.col <= max.col`
+/// Half-open (min..=max) rectangular bounds in row-major space.
 #[derive(Copy, Debug)]
 #[derive_const(Default, Clone, Eq, PartialEq)]
 pub struct Bounds {
@@ -42,7 +27,7 @@ impl Bounds {
     /// Create a new bounds from its top-left corner and size.
     ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// # use geometry::{Bounds, Position};
     /// let bounds = Bounds::corners(5, 10, 10, 20);
@@ -51,136 +36,9 @@ impl Bounds {
         Self::new(Position::new(x, y), Position::new(x + width, y + height))
     }
 
-    /// Get the starting column (left edge).
-    pub const fn x(&self) -> usize {
-        self.min.col
-    }
-
-    /// Get the starting row (top edge).
-    pub const fn y(&self) -> usize {
-        self.min.row
-    }
-
-    /// Calculate the width of the bounds.
-    ///
-    /// Returns 0 if the bounds is inverted (min.col > max.col).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Bounds, Position};
-    /// let bounds = Bounds::new(Position::new(0, 5), Position::new(0, 15));
-    /// assert_eq!(bounds.width(), 10);
-    /// ```
-    pub const fn width(&self) -> usize {
-        self.max.col.saturating_sub(self.min.col)
-    }
-
-    /// Calculate the height of the bounds.
-    ///
-    /// Returns 0 if the bounds is inverted (min.row > max.row).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Bounds, Position};
-    /// let bounds = Bounds::new(Position::new(5, 0), Position::new(20, 0));
-    /// assert_eq!(bounds.height(), 15);
-    /// ```
-    pub const fn height(&self) -> usize {
-        self.max.row.saturating_sub(self.min.row)
-    }
-
-    /// Calculate the area of the bounds (width × height).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Bounds, Position};
-    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(4, 5));
-    /// assert_eq!(bounds.area(), 20);  // 4 rows × 5 cols
-    /// ```
-    pub const fn area(&self) -> usize {
-        self.width().saturating_mul(self.height())
-    }
-
-    /// Check if a position is contained within this bounds.
-    ///
-    /// The bounds is treated as half-open: `[min, max)`.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Bounds, Position};
-    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(10, 10));
-    ///
-    /// assert!(bounds.contains(&Position::new(0, 0)));    // min (inclusive)
-    /// assert!(bounds.contains(&Position::new(5, 5)));    // inside
-    /// assert!(!bounds.contains(&Position::new(10, 10))); // max (exclusive)
-    /// ```
-    pub const fn contains(&self, point: &Position) -> bool {
-        self.min.col <= point.col
-            && point.col < self.max.col
-            && self.min.row <= point.row
-            && point.row < self.max.row
-    }
-
-    /// Get the size of the bounds.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Bounds, Position, Size};
-    /// let bounds = Bounds::new(Position::new(0, 0), Position::new(24, 80));
-    /// assert_eq!(bounds.size(), Size::new(80, 24));  // width, height
-    /// ```
-    pub const fn size(&self) -> Size {
-        Size {
-            width: self.max.col.saturating_sub(self.min.col),
-            height: self.max.row.saturating_sub(self.min.row),
-        }
-    }
-
-    /// Returns the intersection of two regions (may be empty).
-    pub const fn intersect(self, other: Self) -> Self {
-        let min_row = self.min.row.max(other.min.row);
-        let min_col = self.min.col.max(other.min.col);
-        let max_row = self.max.row.min(other.max.row);
-        let max_col = self.max.col.min(other.max.col);
-
-        // Clamp to empty if min overtakes max on either axis.
-        let (max_row, max_col) = if min_row > max_row || min_col > max_col {
-            (min_row, min_col)
-        } else {
-            (max_row, max_col)
-        };
-
-        Self {
-            min: Position::new(min_row, min_col),
-            max: Position::new(max_row, max_col),
-        }
-    }
-
-    /// Clips `self` to fit within `other`. Alias for `other.intersect(self)`.
-    pub const fn clip(self, other: Self) -> Self {
-        other.intersect(self)
-    }
-
-    /// Alias for [`area`](Self::area).
-    #[inline]
-    pub const fn len(&self) -> usize {
-        self.area()
-    }
-
-    /// Whether this region contains zero cells.
-    #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.area() == 0
-    }
-
     /// Row-major iterator over every position in the region.
     pub const fn iter(&self) -> Steps {
-        Steps::new(self)
+       self.positions()
     }
 }
 
@@ -199,10 +57,10 @@ impl const Context for Bounds {
     fn bounds(&self) -> Bounds { *self }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    // === Region Tests ===
 
     #[test]
     fn test_bounds_new() {
@@ -249,16 +107,4 @@ mod tests {
         assert_eq!(size.width, 80);
         assert_eq!(size.height, 24);
     }
-
-    // #[test]
-    // fn test_bounds_from_rect() {
-    //     let rect = Rect::new((10, 5), (30, 25));
-    //     let bounds: Region = rect.into();
-    //
-    //     assert_eq!(bounds.min, Position::new(5, 10)); // (y, x)
-    //     assert_eq!(bounds.max, Position::new(25, 30));
-    // }
-
-    // === SpatialIter Tests ===
-
 }

@@ -1,7 +1,7 @@
 use std::ops;
 use std::slice::{ChunksExact, SliceIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use crate::{Bounds, Position, Context, IntoSliceIndex, Steps, Row};
+use crate::{Bounds, Position, Context, IntoSliceIndex, Steps, Row, Intersect};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
 pub struct Grid<T> {
@@ -33,7 +33,7 @@ impl<T> Grid<T> {
     /// Create a new, filled grid with the given width and height.
     pub fn new(width: usize, height: usize) -> Self
     where
-        T: Default + Copy
+        T: Default + Clone,
     {
         Self {
             inner: vec![T::default(); width * height],
@@ -49,13 +49,6 @@ impl<T> Grid<T> {
             width,
             height,
         }
-    }
-
-    /// Create a clipped version of `self`.
-    ///
-    /// Note: The new [`Grid`] does not share any content.
-    pub fn clipped(&mut self, bounds: Bounds) -> Self {
-        Self::from(self.clip(bounds))
     }
 
     /// Returns a shared reference to the output at this location, if in
@@ -96,43 +89,12 @@ impl<T> Grid<T> {
         SliceIndex::get_unchecked_mut(index.into_slice_index(self), &mut *self.inner)
     }
 
-    pub fn intersect(&self, other: Bounds) -> Bounds {
-        let min_row = 0.max(other.min.row);
-        let min_col = 0.max(other.min.col);
-        let max_row = self.height.min(other.max.row);
-        let max_col = self.width.min(other.max.col);
-
-        // Clamp to empty if min overtakes max on either axis.
-        let (max_row, max_col) = if min_row > max_row || min_col > max_col {
-            (min_row, min_col)
-        } else {
-            (max_row, max_col)
-        };
-
-        Bounds { min: Position::new(min_row, min_col), max: Position::new(max_row, max_col) }
-    }
-
-    pub fn clip(&self, other: Bounds) -> Bounds {
-        let min_row = other.min.row.max(0);
-        let min_col = other.min.col.max(0);
-        let max_row = other.max.row.min(self.height);
-        let max_col = other.max.col.min(self.width);
-
-        // Clamp to empty if min overtakes max on either axis.
-        let (max_row, max_col) = if min_row > max_row || min_col > max_col {
-            (min_row, min_col)
-        } else {
-            (max_row, max_col)
-        };
-
-        Bounds { min: Position::new(min_row, min_col), max: Position::new(max_row, max_col) }
-    }
 
     pub fn fill_area(&mut self, bounds: Bounds, value: T)
     where
         T: Copy
     {
-        for pos in &self.clip(bounds) {
+        for pos in &self.clip(&bounds) {
             self[pos] = value;
         }
     }
@@ -153,11 +115,11 @@ impl<T> Grid<T> {
 }
 
 impl<T: Clone> Grid<T> {
-    pub fn clone_from_region(&mut self, bounds: Bounds) -> Self {
-        let mut next = self.clipped(bounds);
+    pub fn clone_from_region(&mut self, bounds: &impl Context) -> Self {
+        let mut next = Self::from(self.clip(bounds));
 
-        for position in &bounds {
-            next[(position.row - bounds.min.row, position.col - bounds.min.col)] = self[position].clone();
+        for position in bounds.positions() {
+            next[(position.row - bounds.min().row, position.col - bounds.min().col)] = self[position].clone();
         }
 
         next
@@ -165,7 +127,7 @@ impl<T: Clone> Grid<T> {
 }
 impl<T: Copy> Grid<T> {
     pub fn copy_from_region(&mut self, bounds: Bounds) -> Self {
-        let mut next = self.clipped(bounds);
+        let mut next = Self::from(self.clip(&bounds));
 
         for position in &bounds {
             next[(position.row - bounds.min.row, position.col - bounds.min.col)] = self[position];

@@ -93,7 +93,7 @@ impl Rasterizer {
         let height = buffer.height;
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape(&mut self.output, SynchronizedOutput::Disable);
+            escape(&mut self.output, SynchronizedOutput::Enable);
         }
 
         // Handle dimension change or forced clear.

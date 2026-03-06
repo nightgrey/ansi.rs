@@ -101,7 +101,7 @@ pub mod fmt {
 ///     escape!(&mut w, CursorUp(1))?;
 ///     escape!(&mut w, CursorDown(1), CursorForward(1))?;
 ///
-///     assert_eq!(w, b"\x1B1A\x1B1B\x1B1C");
+///     assert_eq!(w, b"\x1B[A\x1B[B\x1B[C");
 ///     Ok(())
 /// }
 /// ```

@@ -91,12 +91,14 @@ impl Cost for CursorUp {
 
 impl Cost for HorizontalPositionAbsolute {
     fn cost(&self) -> usize {
-        relative_cursor_cost(self.value())
+        // \x1B [ digits `
+        2 + decimal_width(self.0 + 1) + 1
     }
 }
 
 impl Cost for VerticalPositionAbsolute {
     fn cost(&self) -> usize {
-        relative_cursor_cost(self.value())
+        // \x1B [ digits d
+        2 + decimal_width(self.0 + 1) + 1
     }
 }

@@ -14,7 +14,7 @@ sequence!(
     ///
     /// [`REP`]: https://vt100.net/docs/vt510-rm/REP.html
     pub struct Repeat(pub usize) => |this, w| {
-        write!(w, "\x1B{}b", this.0)
+        write!(w, "\x1B[{}b", this.0)
     }
 );
 

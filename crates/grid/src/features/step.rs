@@ -5,7 +5,7 @@ use crate::{Column, IntoLocation, Position, Row, Location, Bounds, Context};
 ///
 /// This is the "grid" that gives meaning to forward/backward movement —
 /// without it, a bare `Position` doesn't know when to wrap to the next row.
-pub const trait Stwep<T = Position> {
+pub const trait Step<T = Position> {
     /// Number of row-major steps from `start` to `end`.
     ///
     /// Returns `(n, Some(n))` when `start <= end` within bounds,

@@ -1,4 +1,4 @@
-use geometry::{Bounds, Position};
+use grid::{Bounds, Position};
 use criterion::{ criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 

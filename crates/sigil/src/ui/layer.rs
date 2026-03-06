@@ -1,7 +1,7 @@
 use crate::{Buffer, NodeRef, NodeRefMut, key};
 use compact_str::CompactString;
 use derive_more::{Deref, DerefMut, From, Into};
-use geometry::Position;
+use grid::Position;
 
 key!(
     pub struct LayerId;

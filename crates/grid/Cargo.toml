@@ -1,0 +1,21 @@
+[package]
+name = "grid"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+geometry = { workspace = true }
+synonym = "0.1.6"
+bilge = "0.3.0"
+flatk = "0.5.2"
+itertools = "0.14.0"
+paste = "1.0.15"
+derive_more = { workspace = true }
+
+[dev-dependencies]
+criterion = "0.8.2"
+geometry = { workspace = true }
+
+[[bench]]
+name = "step"
+harness = false

@@ -3,9 +3,7 @@ use crate::{
     Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
     NodeRefMut, Rasterizer, Secondary,
 };
-use ansi::io::Write as AnsiWrite;
-use ansi::{Color, Style};
-use geometry::{Point, Position, Rect};
+use geometry::{Rect};
 use std::io::Write;
 
 pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use geometry::{Grid, Position, Bounds, Context, };
+use grid::{Grid, Position, Bounds, Context, };
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]

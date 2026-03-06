@@ -1,6 +1,7 @@
 //! Custom assertions for testing.
 
-use geometry::{Position, Rect};
+use grid::{Position};
+use geometry::{Rect};
 use sigil::Buffer;
 
 macro_rules! assert_rect {

@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
-use crate::{Column, Point, Row};
+use crate::{Column, Row};
+use geometry::{Point, Size};
 use std::ops::{Add, AddAssign, Sub};
 
 /// A position in buffer coordinates (row, column).
@@ -216,6 +217,13 @@ impl const Ord for Position {
         }
     }
 }
+
+impl From<Position> for Point {
+    fn from(value: Position) -> Self {
+        Self::new(value.row, value.col)
+    }
+}
+
 impl Display for Position {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.row, self.col)

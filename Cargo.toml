@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/ansi", "crates/geometry",
+    "crates/ansi", "crates/geometry", "crates/grid",
     "crates/sigil", "crates/terminal", "crates/utils",
 ]
 
@@ -18,3 +18,4 @@ ansi = { path = "crates/ansi" }
 utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }
 terminal = { path = "crates/terminal" }
+grid = { path = "crates/grid" }

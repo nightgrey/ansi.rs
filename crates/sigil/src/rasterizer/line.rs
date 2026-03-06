@@ -1,6 +1,6 @@
 use ansi::io::Write;
 use ansi::{escape, EraseLineToEnd, Repeat};
-use geometry::Row;
+use grid::Row;
 
 use crate::buffer::{Buffer, Cell};
 

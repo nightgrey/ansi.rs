@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Bound, Deref, IntoBounds, RangeBounds};
-
-use crate::{Position, Size, Steps, Step, Cursor, Located};
+use geometry::Size;
+use crate::{Position, Steps, Step, Cursor};
 
 // ─── Region ──────────────────────────────────────────────────────────────────
 

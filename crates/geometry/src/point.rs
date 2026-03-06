@@ -1,4 +1,4 @@
-use crate::{Position, Size};
+use crate::{Size};
 use std::ops::{Add, AddAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
@@ -67,12 +67,6 @@ impl From<Size> for Point {
 impl From<PointLike> for Point {
     fn from(value: PointLike) -> Self {
         Self::new(value.0, value.1)
-    }
-}
-
-impl From<Position> for Point {
-    fn from(value: Position) -> Self {
-        Self::new(value.col, value.row)
     }
 }
 

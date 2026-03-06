@@ -3,7 +3,7 @@ use std::io;
 use ansi::escape;
 use ansi::io::Write;
 use ansi::sequences::*;
-use geometry::Row;
+use grid::Row;
 
 use crate::buffer::Buffer;
 
@@ -93,13 +93,13 @@ impl Rasterizer {
         let height = buffer.height;
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape(&mut self.output, SynchronizedOutput::Enable);
+            escape!(&mut self.output, SynchronizedOutput::Enable).unwrap();
         }
 
         // Handle dimension change or forced clear.
         if self.prev.width != width || self.prev.height != height || self.force_clear {
-            escape(&mut self.output, Home);
-            escape(&mut self.output, EraseDisplay);
+            escape!(&mut self.output, Home).unwrap();
+            escape!(&mut self.output, EraseDisplay).unwrap();
             self.cursor.reset();
             self.prev = Buffer::new(width, height);
             self.row_hashes.clear();
@@ -125,7 +125,7 @@ impl Rasterizer {
             }
         }
 
-        escape(&mut self.output, TextCursor::Enable);
+        escape!(&mut self.output, TextCursor::Enable).unwrap();
 
         // Clear-to-bottom optimization: scan from bottom upward for contiguous
         // all-empty new lines where old has content.
@@ -136,7 +136,7 @@ impl Rasterizer {
                 // Everything from ed_row down can be erased in one shot.
                 self.cursor.move_to(&mut self.output, ed_row, 0, self.caps);
                 self.cursor.reset_pen(&mut self.output);
-                escape(&mut self.output, EraseDisplayToEnd);
+                escape(&mut self.output, EraseDisplayToEnd).unwrap();
                 break;
             }
 
@@ -159,7 +159,7 @@ impl Rasterizer {
         self.row_hashes = new_hashes;
 
         self.cursor.reset_pen(&mut self.output);
-        escape(&mut self.output, TextCursor::Enable);
+        escape(&mut self.output, TextCursor::Enable).unwrap();
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
             escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
@@ -228,7 +228,7 @@ impl Rasterizer {
             escape!(&mut self.output, SynchronizedOutput::Enable);
         }
 
-        escape(&mut self.output, TextCursor::Disable);
+        escape!(&mut self.output, TextCursor::Disable).unwrap();
 
         if inline.first_render {
             // First render: emit each row with \n separators and EL.
@@ -252,7 +252,7 @@ impl Rasterizer {
                     }
                 }
                 self.cursor.reset_pen(&mut self.output);
-                escape(&mut self.output, EraseLineToEnd);
+                escape!(&mut self.output, EraseLineToEnd).unwrap();
             }
 
             self.cursor.row = height - 1;
@@ -273,9 +273,9 @@ impl Rasterizer {
 
             // Move to the top of our owned region.
             if self.cursor.row > 0 {
-                escape(&mut self.output, CursorUp(self.cursor.row));
+                escape!(&mut self.output, CursorUp(self.cursor.row)).unwrap();
             }
-            escape(&mut self.output, CarriageReturn);
+            escape!(&mut self.output, CarriageReturn).unwrap();
             self.cursor.row = 0;
             self.cursor.col = 0;
 
@@ -301,12 +301,12 @@ impl Rasterizer {
             if height < old_owned {
                 for _ in height..old_owned {
                     self.cursor.move_to_relative(&mut self.output, self.cursor.row + 1, 0);
-                    escape(&mut self.output, EraseLineToEnd);
+                    escape!(&mut self.output, EraseLineToEnd).unwrap();
                 }
                 // Move back to last row of content.
                 if self.cursor.row > height - 1 {
                     let up = self.cursor.row - (height - 1);
-                    escape(&mut self.output, CursorUp(up));
+                    escape!(&mut self.output, CursorUp(up)).unwrap();
                     self.cursor.row = height - 1;
                 }
                 inline.owned_rows = height;
@@ -314,10 +314,10 @@ impl Rasterizer {
         }
 
         self.cursor.reset_pen(&mut self.output);
-        escape(&mut self.output, TextCursor::Enable);
+        escape!(&mut self.output, TextCursor::Enable).unwrap();
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Disable);
+            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
         }
 
         self.prev = buffer.clone();
@@ -382,16 +382,16 @@ impl Rasterizer {
         // Move cursor into the scroll region.
         if offset > 0 {
             // Content moved up → scroll up (old rows shifted up by `offset`).
-            escape(&mut self.output, CursorPosition(0, 0));
-            escape(&mut self.output, ScrollUp(offset as usize));
+            escape!(&mut self.output, CursorPosition(0, 0)).unwrap();
+            escape!(&mut self.output, ScrollUp(offset as usize)).unwrap();
         } else {
             // Content moved down → scroll down.
-            escape(&mut self.output, CursorPosition(0, 0));
-            escape(&mut self.output, ScrollDown((-offset) as usize));
+            escape!(&mut self.output, CursorPosition(0, 0)).unwrap();
+            escape!(&mut self.output, ScrollDown((-offset) as usize)).unwrap();
         }
 
         // Reset scroll region.
-        escape(&mut self.output, SetTopBottomMargins::None);
+        escape!(&mut self.output, SetTopBottomMargins::None).unwrap();
 
         // Update self.prev to reflect what the terminal now shows.
         let abs_offset = offset.unsigned_abs();
@@ -463,10 +463,7 @@ impl Rasterizer {
 mod tests {
     use ansi::{Color, Style};
 
-    use crate::buffer::Cell;
-
     use super::*;
-
 
     #[test]
     fn render_styled_cells_emits_sgr() {

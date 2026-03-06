@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 bitflags = { workspace = true }
 utils = { workspace = true }
+grid = { workspace = true }
+geometry = { workspace = true }
 modular-bitfield = "0.13.1"
 
 derive_more.workspace = true

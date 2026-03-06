@@ -258,9 +258,6 @@ impl Context for Buffer {
     fn min(&self) -> Position { Position::ZERO }
     fn max(&self) -> Position { Position::new(self.height(), self.width()) }
 
-    fn x(&self) -> usize { 0 }
-    fn y(&self) -> usize { 0 }
-
     fn width(&self) -> usize { self.width }
     fn height(&self) -> usize { self.height }
 }

@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
-use std::ops::{Bound, Deref, IntoBounds, RangeBounds};
+use std::ops::{Deref, IntoBounds, RangeBounds};
 use geometry::Size;
-use crate::{Position, Steps, Step, Cursor};
+use crate::{Position, Steps, Step, Cursor, Context};
 
 // ─── Region ──────────────────────────────────────────────────────────────────
 
@@ -182,12 +182,6 @@ impl Bounds {
     pub const fn iter(&self) -> Steps {
         Steps::new(self)
     }
-
-    /// Cursor over every position in the region.
-    pub const fn cursor(&self, position: Position) -> Cursor<'_, Position> {
-        Cursor::new(self, position)
-    }
-
 }
 
 impl IntoIterator for &Bounds {
@@ -198,24 +192,12 @@ impl IntoIterator for &Bounds {
     }
 }
 
-impl RangeBounds<Position> for Bounds {
-    #[inline]
-    fn start_bound(&self) -> Bound<&Position> {
-        Bound::Included(&self.min)
-    }
-    #[inline]
-    fn end_bound(&self) -> Bound<&Position> {
-        Bound::Excluded(&self.max)
-    }
-}
+impl const Context for Bounds {
+    fn min(&self) -> Position { self.min }
+    fn max(&self) -> Position { self.max }
 
-impl IntoBounds<Position> for Bounds {
-    #[inline]
-    fn into_bounds(self) -> (Bound<Position>, Bound<Position>) {
-        (Bound::Included(self.min), Bound::Excluded(self.max))
-    }
+    fn bounds(&self) -> Bounds { *self }
 }
-
 
 #[cfg(test)]
 mod tests {

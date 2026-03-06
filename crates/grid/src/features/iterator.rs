@@ -2,7 +2,7 @@ use std::iter::FusedIterator;
 use std::marker::Destruct;
 use std::ops::{Deref};
 use crate::{Location, Position, IntoLocation, Step, Span, Context};
-use super::Bounds;
+use crate::Bounds;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
 ///

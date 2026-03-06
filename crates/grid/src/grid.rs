@@ -1,5 +1,4 @@
 use std::ops;
-use std::ops::Index;
 use std::slice::{ChunksExact, SliceIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
 use crate::{Bounds, Position, Context, IntoSliceIndex, Steps, Row};
@@ -144,8 +143,7 @@ impl<T> Grid<T> {
     {
         self.width = width;
         self.height = height;
-        self.inner.clear();
-        self.inner.resize(width * height, T::default());
+        self.inner = vec![T::default(); width * height];
     }
 
     pub fn positions(&self) -> Steps {

@@ -16,19 +16,14 @@
 
 mod grid;
 mod bounds;
-mod location_context;
-mod row;
-mod column;
-mod position;
-mod index;
-mod spatial_index;
+mod features;
+mod location;
+mod locations;
+mod context;
 
 pub use bounds::*;
-pub use location_context::*;
-pub use row::*;
-pub use column::*;
-pub use position::*;
+pub use features::*;
 pub use grid::*;
-pub use index::*;
-
-pub use spatial_index::*;
+pub use location::*;
+pub use locations::*;
+pub use context::*;

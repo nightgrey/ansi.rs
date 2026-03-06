@@ -118,11 +118,11 @@ impl Display for AnsiMode {
     }
 }
 
-impl Into<Mode> for AnsiMode {
-    fn into(self) -> Mode {
-        Mode::Ansi(self)
+impl From<AnsiMode> for Mode {
+    fn from(mode: AnsiMode) -> Self {
+        Mode::Ansi(mode)
     }
-}
+}  
 
 /// DEC modes
 ///
@@ -189,7 +189,7 @@ pub enum DecMode {
     /// (25) Text Cursor Enable Mode (DECTCEM) is a mode that shows/hides the cursor.
     ///
     /// See https://vt100.net/docs/vt510-rm/DECTCEM.html
-    ShowCursor = 25,
+    Cursor = 25,
     /// (30) Show Scrollbar Mode
     ShowScrollbar = 30,
     /// (34) Cursor Direction Right to Left Mode (DECRLM)
@@ -412,14 +412,8 @@ impl Display for DecMode {
     }
 }
 
-impl Into<Mode> for DecMode {
-    fn into(self) -> Mode {
-        Mode::Dec(self)
-    }
-}
-
-impl Escape for DecMode {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[?{}h", *self as u16)
+impl From<DecMode> for Mode {
+    fn from(mode: DecMode) -> Self {
+        Mode::Dec(mode)
     }
 }

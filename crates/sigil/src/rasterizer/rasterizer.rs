@@ -125,7 +125,7 @@ impl Rasterizer {
             }
         }
 
-        escape(&mut self.output, CursorMode::Invisible);
+        escape(&mut self.output, TextCursor::Enable);
 
         // Clear-to-bottom optimization: scan from bottom upward for contiguous
         // all-empty new lines where old has content.
@@ -159,7 +159,7 @@ impl Rasterizer {
         self.row_hashes = new_hashes;
 
         self.cursor.reset_pen(&mut self.output);
-        escape(&mut self.output, CursorMode::Visible);
+        escape(&mut self.output, TextCursor::Enable);
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
             escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
@@ -228,7 +228,7 @@ impl Rasterizer {
             escape!(&mut self.output, SynchronizedOutput::Enable);
         }
 
-        escape(&mut self.output, CursorMode::Invisible);
+        escape(&mut self.output, TextCursor::Disable);
 
         if inline.first_render {
             // First render: emit each row with \n separators and EL.
@@ -314,7 +314,7 @@ impl Rasterizer {
         }
 
         self.cursor.reset_pen(&mut self.output);
-        escape(&mut self.output, CursorMode::Visible);
+        escape(&mut self.output, TextCursor::Enable);
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
             escape!(&mut self.output, SynchronizedOutput::Disable);

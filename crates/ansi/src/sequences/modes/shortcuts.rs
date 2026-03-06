@@ -42,3 +42,23 @@ sequence!(
         }
     }
 );
+
+
+
+sequence!(
+    #[derive(Default)]
+    pub enum TextCursor {
+        /// Makes the cursor visible.
+        #[default]
+        Enable,
+        /// Makes the cursor invisible.
+        Disable,
+    } => |this, w| {
+        match this {
+            TextCursor::Enable => SetMode(DecMode::Cursor).escape(w),
+            TextCursor::Disable => ResetMode(DecMode::Cursor).escape(w),
+        }
+    }
+);
+
+pub type DECTCEM = TextCursor;

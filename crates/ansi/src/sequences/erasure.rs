@@ -81,30 +81,6 @@ sequence!(
 );
 
 sequence!(
-    /// [REP] — Repeat
-    ///
-    /// Repeat the preceding character n times.
-    ///
-    /// ## Format
-    ///
-    /// **CSI** *Pn* **b**
-    ///
-    /// ## Parameters
-    /// - `Pn` is the number of times to repeat the character (0 means 1).
-    ///
-    /// ## Description
-    /// This control function repeats the preceding graphic character n times.
-    /// If the count is 0, nothing is emitted.
-    pub struct Repeat(pub usize) => |this, w| {
-        if this.0 > 0 {
-            write!(w, "\x1B[{}b", this.0)
-        } else {
-            Ok(())
-        }
-    }
-);
-
-sequence!(
     /// [ECH] — Erase Character
     ///
     /// Erase n characters at the cursor position (without moving cursor).

@@ -365,48 +365,6 @@ sequence!(
 );
 
 
-sequence!(
-    /// [DECTCEM] - Text Cursor Enable Mode
-    ///
-    /// This control function makes the cursor visible or invisible.
-    ///
-    /// ## Format
-    ///
-    /// **CSI** **?** **25** **h** (Set)
-    ///
-    /// **CSI** **?** **25** **l** (Reset)
-    ///
-    /// ## Description
-    ///
-    /// Controls the visibility of the text cursor.
-    ///
-    /// - **Set**: Makes the cursor visible.
-    /// - **Reset**: Makes the cursor invisible.
-    ///
-    /// Default: Visible.
-    ///
-    /// [`DECTCEM`]: https://vt100.net/docs/vt510-rm/DECTCEM.html
-    #[derive(Default)]
-    pub enum CursorMode {
-        /// Makes the cursor visible.
-        #[default]
-        Visible = 1,
-        /// Makes the cursor invisible.
-        Invisible = 0,
-    } => |this, w| {
-        write!(
-            w,
-            "\x1B[?25{}",
-            match this {
-                CursorMode::Visible => 'h',
-                CursorMode::Invisible => 'l',
-            }
-        )
-    }
-);
-
-pub type DECTCEM = CursorMode;
-
 
 sequence!(
     /// [DECSC] — Save Cursor

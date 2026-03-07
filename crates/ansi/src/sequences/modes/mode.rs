@@ -1,11 +1,12 @@
 use std::fmt;
 use std::fmt::Display;
-use crate::{Escape, ResetMode, SetMode};
+use derive_more::{Display, From, Into};
+use crate::{ResetMode, SetMode};
 
 /// Mode
 ///
 /// Indicates the mode for [`SetMode`], [`ResetMode`], [`RequestMode`] and [`ReportMode`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
 pub enum Mode {
     Ansi(AnsiMode),
     Dec(DecMode),
@@ -15,7 +16,7 @@ pub enum Mode {
 /// Mode Setting
 ///
 /// Indicates the mode setting for [`AnsiMode`] and [`DecMode`]s.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
 #[repr(u8)]
 pub enum ModeSetting {
     /// Mode not recognized
@@ -31,12 +32,43 @@ pub enum ModeSetting {
     PermanentlyReset = 4,
 }
 
-impl Display for ModeSetting {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self as u16)
+impl ModeSetting {
+    pub fn set(&mut self) {
+        *self = Self::Set;
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::Reset;
+    }
+
+    pub fn reset_permanently(&mut self) {
+        *self = Self::PermanentlyReset;
+    }
+
+    pub fn set_permanently(&mut self) {
+        *self = Self::PermanentlySet;
+    }
+
+    pub fn is_not_recognized(&self) -> bool {
+        matches!(self, Self::NotRecognized)
+    }
+
+    pub fn is_set(&self) -> bool {
+        matches!(self, Self::Set | Self::PermanentlySet)
+    }
+
+    pub fn is_permanently_set(&self) -> bool {
+        matches!(self, Self::PermanentlySet)
+    }
+
+    pub fn is_reset(&self) -> bool {
+        matches!(self, Self::Reset | Self::PermanentlyReset)
+    }
+
+    pub fn is_permanently_reset(&self) -> bool {
+        matches!(self, Self::PermanentlyReset)
     }
 }
-
 
 
 /// ANSI modes
@@ -49,7 +81,7 @@ impl Display for ModeSetting {
 /// [DECRPM]: https://vt100.net/docs/vt510-rm/DECRPM.html
 /// [SM]: https://vt100.net/docs/vt510-rm/SM.html
 /// [RM]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
 #[repr(u16)]
 pub enum AnsiMode {
     /// (1) Guarded Area Transfer Mode (GATM)
@@ -112,12 +144,6 @@ pub enum AnsiMode {
     AutomaticNewline = 20,
 }
 
-impl Display for AnsiMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self as u16)
-    }
-}
-
 impl From<AnsiMode> for Mode {
     fn from(mode: AnsiMode) -> Self {
         Mode::Ansi(mode)
@@ -134,7 +160,7 @@ impl From<AnsiMode> for Mode {
 /// [DECRPM]: https://vt100.net/docs/vt510-rm/DECRPM.html
 /// [SM]: https://vt100.net/docs/vt510-rm/SM.html
 /// [RM]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
 #[repr(u16)]
 pub enum DecMode {
     /// (1) Cursor Keys Mode (DECCKM) is a mode that determines whether the cursor keys
@@ -406,11 +432,6 @@ pub enum DecMode {
     SynchronizedOutput = 2026,
 }
 
-impl Display for DecMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self as u16)
-    }
-}
 
 impl From<DecMode> for Mode {
     fn from(mode: DecMode) -> Self {

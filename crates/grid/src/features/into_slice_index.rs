@@ -1,6 +1,6 @@
 use std::ops;
 use std::slice::{SliceIndex};
-use crate::{Bounds, Position, Context, IntoLocation, Row, Span, PositionLike, Index, Column};
+use crate::{Area, Position, Context, IntoLocation, Row, Span, PositionLike, Index, Column};
 
 /// Resolves a spatial location into a linear `SliceIndex` via a `Context`.
 pub trait IntoSliceIndex<T>: Sized {
@@ -80,7 +80,7 @@ impl<T> IntoSliceIndex<T> for Row {
     }
 }
 
-impl<T> IntoSliceIndex<T> for Bounds {
+impl<T> IntoSliceIndex<T> for Area {
     type Output = [T];
     type Index = ops::Range<usize>;
 

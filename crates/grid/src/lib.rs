@@ -15,13 +15,13 @@
 #![feature(const_try)]
 
 mod grid;
-mod bounds;
+mod area;
 mod features;
 mod location;
 mod locations;
 mod context;
 
-pub use bounds::*;
+pub use area::*;
 pub use features::*;
 pub use grid::*;
 pub use location::*;

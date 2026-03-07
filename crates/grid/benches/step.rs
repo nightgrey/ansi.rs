@@ -1,4 +1,4 @@
-use grid::{Bounds, Position};
+use grid::{Area, Position};
 use criterion::{ criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
@@ -7,13 +7,13 @@ fn step(c:&mut Criterion) {
         .benchmark_group("step");
 
     g.bench_function("iter.map", |b| {
-        let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
+        let iter =  Area::bounds(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| iter.map(|p| black_box(p)))
     });
 
     g.bench_function("iter.for_each", |b| {
-        let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
+        let iter =  Area::bounds(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| {
             iter.for_each(|p| {
@@ -25,7 +25,7 @@ fn step(c:&mut Criterion) {
 
 
     g.bench_function("iter.fold", |b| {
-        let iter =  Bounds::corners(0, 0, 1024, 1024).into_iter();
+        let iter =  Area::bounds(0, 0, 1024, 1024).into_iter();
 
         b.iter(|| {
             iter.fold(Position::ZERO, |acc, init| {
@@ -41,7 +41,7 @@ fn manual(c:&mut Criterion) {
         .benchmark_group("manual");
 
     g.bench_function("iter.map", |b| {
-        let bounds =  Bounds::corners(0, 0, 1024, 1024);
+        let bounds =  Area::bounds(0, 0, 1024, 1024);
 
         b.iter(|| {
             (bounds.min.col..bounds.max.col).flat_map(|x| (bounds.min.row..bounds.max.row).map(move |y| Position::new(x, y)))
@@ -49,7 +49,7 @@ fn manual(c:&mut Criterion) {
     });
 
     g.bench_function("iter.for_each", |b| {
-        let bounds =  Bounds::corners(0, 0, 1024, 1024);
+        let bounds =  Area::bounds(0, 0, 1024, 1024);
 
         b.iter(|| {
             (bounds.min.col..bounds.max.col).flat_map(|x| (bounds.min.row..bounds.max.row).map(move |y| Position::new(x, y))).for_each(|p| {
@@ -60,7 +60,7 @@ fn manual(c:&mut Criterion) {
 
 
     g.bench_function("iter.fold", |b| {
-        let bounds =  Bounds::corners(0, 0, 1024, 1024);
+        let bounds =  Area::bounds(0, 0, 1024, 1024);
 
         b.iter(|| {
             (bounds.min.col..bounds.max.col).flat_map(|x| (bounds.min.row..bounds.max.row).map(move |y| Position::new(x, y))).fold(Position::ZERO, |acc, init| {

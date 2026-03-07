@@ -1,4 +1,4 @@
-use crate::{Column, IntoLocation, Position, Row, Location, Bounds, Context};
+use crate::{Column, IntoLocation, Position, Row, Location, Area, Context};
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -87,7 +87,7 @@ impl<T: [const] Context> const Step<Position> for T {
 
         // General path for arbitrary steps.
         let index = self.into_index(start).checked_add(count)?;
-        if index >= self.area() {
+        if index >= self.len() {
             return None;
         }
 
@@ -100,7 +100,7 @@ impl<T: [const] Context> const Step<Position> for T {
             return Some(Position::new(start.row, start.col - count));
         }
         // General path: linearize through the exclusive end.
-        let idx = if start >= self.max() { self.area() } else { self.into_index(start) };
+        let idx = if start >= self.max() { self.len() } else { self.into_index(start) };
         let target = idx.checked_sub(count)?;
         Some(self.into_position(target))
     }

@@ -2,22 +2,22 @@ use std::iter::FusedIterator;
 use std::marker::Destruct;
 use std::ops::{Deref};
 use crate::{Location, Position, IntoLocation, Step, Span, Context};
-use crate::Bounds;
+use crate::Area;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
 ///
-/// Created by [`Bounds::iter`].
+/// Created by [`Area::iter`].
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
-pub struct Steps<T: Location = Position, Ctx: Context = Bounds> {
-    context: Ctx,
+pub struct Steps<T: Location = Position> {
+    context: Area,
     front: T,
     back: T,
 }
 
 impl const Steps<Position> {
     pub fn new<C: [const] Context>(context: &C) -> Self {
-        let bounds = context.bounds();
+        let bounds = context.area();
         let front = if bounds.is_empty() { bounds.max() } else { bounds.min() };
         let back = bounds.max();
 
@@ -61,7 +61,7 @@ impl Iterator for Steps<Position> {
             return 0;
         }
         let current = self.into_index(self.front);
-        let remaining = self.area();
+        let remaining = self.len();
         remaining - current
     }
 
@@ -155,7 +155,7 @@ impl ExactSizeIterator for Steps {}
 impl FusedIterator for Steps {}
 
 impl const Deref for Steps {
-    type Target = Bounds;
+    type Target = Area;
     fn deref(&self) -> &Self::Target {
         &self.context
     }
@@ -170,12 +170,12 @@ impl const Deref for Steps {
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
 pub struct Cursor<'a, P = Position> {
-    context: &'a Bounds,
+    context: &'a Area,
     position: P,
 }
 
 impl<'a> Cursor<'a, Position> {
-    pub const fn new(ctx: &'a Bounds, pos: Position) -> Self {
+    pub const fn new(ctx: &'a Area, pos: Position) -> Self {
         Self { context: ctx, position: pos }
     }
 
@@ -369,9 +369,9 @@ mod tests {
         fn from_0() {
             for x in 0..2 {
                 for y in 0..2 {
-                    let bounds = Bounds::new(Position::new(0, 0), Position::new(x, y));
+                    let bounds = Area::new(Position::new(0, 0), Position::new(x, y));
 
-                    let area = bounds.area();
+                    let area = bounds.len();
                     let len = bounds.iter().collect::<Vec<_>>().len();
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
@@ -387,9 +387,9 @@ mod tests {
         fn from_1() {
             for x in 1..2 {
                 for y in 1..3 {
-                    let bounds = Bounds::new(Position::new(1, 1), Position::new(x, y));
+                    let bounds = Area::new(Position::new(1, 1), Position::new(x, y));
 
-                    let area = bounds.area();
+                    let area = bounds.len();
                     let len = bounds.iter().collect::<Vec<_>>().len().saturating_sub(1);
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
@@ -405,9 +405,9 @@ mod tests {
         fn to_plus_one() {
             for x in 0..3 {
                 for y in 0..3 {
-                    let bounds = Bounds::new(Position::new(x, y), Position::new(x + 1, y + 1));
+                    let bounds = Area::new(Position::new(x, y), Position::new(x + 1, y + 1));
 
-                    let area = bounds.area();
+                    let area = bounds.len();
                     let len = bounds.iter().collect::<Vec<_>>().len();
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_bounds_iter_basic() {
-        let bounds = Bounds::new(Position::new(0, 0), Position::new(2, 3));
+        let bounds = Area::new(Position::new(0, 0), Position::new(2, 3));
         let positions: Vec<_> = bounds.iter().collect();
 
         assert_eq!(positions.len(), 6); // 2 rows * 3 cols
@@ -438,19 +438,19 @@ mod tests {
 
     #[test]
     fn test_bounds_iter_empty_width() {
-        let bounds = Bounds::new(Position::new(0, 5), Position::new(0, 5));
+        let bounds = Area::new(Position::new(0, 5), Position::new(0, 5));
         assert_eq!(bounds.iter().count(), 0);
     }
 
     #[test]
     fn test_bounds_iter_empty_height() {
-        let bounds = Bounds::new(Position::new(5, 0), Position::new(5, 1));
+        let bounds = Area::new(Position::new(5, 0), Position::new(5, 1));
         assert_eq!(bounds.iter().count(), 0);
     }
 
     #[test]
     fn test_bounds_iter_single_cell() {
-        let bounds = Bounds::new(Position::new(5, 10), Position::new(6, 11));
+        let bounds = Area::new(Position::new(5, 10), Position::new(6, 11));
         let positions: Vec<_> = bounds.iter().collect();
 
         assert_eq!(positions.len(), 1);
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_bounds_iter_size_hint() {
-        let bounds = Bounds::new(Position::new(0, 0), Position::new(3, 4));
+        let bounds = Area::new(Position::new(0, 0), Position::new(3, 4));
         let iter = bounds.iter();
         let (min, max) = iter.size_hint();
 
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn test_bounds_iter_exact_size() {
-        let bounds = Bounds::new(Position::new(0, 0), Position::new(5, 10));
+        let bounds = Area::new(Position::new(0, 0), Position::new(5, 10));
         let iter = bounds.iter();
 
         assert_eq!(iter.count(), 50);
@@ -477,14 +477,14 @@ mod tests {
 
     #[test]
     fn test_bounds_into_iter() {
-        let bounds = Bounds::new(Position::new(0, 0), Position::new(2, 2));
+        let bounds = Area::new(Position::new(0, 0), Position::new(2, 2));
         let count = bounds.iter().count();
         assert_eq!(count, 4);
     }
 
     #[test]
     fn test_bounds_into_iter_ref() {
-        let bounds = Bounds::new(Position::new(0, 0), Position::new(3, 3));
+        let bounds = Area::new(Position::new(0, 0), Position::new(3, 3));
         let count = (bounds).iter().count();
         assert_eq!(count, 9);
     }

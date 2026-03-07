@@ -1,7 +1,7 @@
 use std::ops;
 use std::slice::{ChunksExact, SliceIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use crate::{Bounds, Position, Context, IntoSliceIndex, Steps, Row, Intersect};
+use crate::{Area, Position, Context, IntoSliceIndex, Steps, Row, Intersect};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
 pub struct Grid<T> {
@@ -90,7 +90,7 @@ impl<T> Grid<T> {
     }
 
 
-    pub fn fill_area(&mut self, bounds: Bounds, value: T)
+    pub fn fill_area(&mut self, bounds: Area, value: T)
     where
         T: Copy
     {
@@ -126,7 +126,7 @@ impl<T: Clone> Grid<T> {
     }
 }
 impl<T: Copy> Grid<T> {
-    pub fn copy_from_region(&mut self, bounds: Bounds) -> Self {
+    pub fn copy_from_region(&mut self, bounds: Area) -> Self {
         let mut next = Self::from(self.clip(&bounds));
 
         for position in &bounds {
@@ -189,8 +189,8 @@ impl<T> Context for Grid<T> {
     fn max(&self) -> Position { Position::new(self.height, self.width) }
 }
 
-impl<T> From<Bounds> for Grid<T> {
-    fn from(value: Bounds) -> Self {
+impl<T> From<Area> for Grid<T> {
+    fn from(value: Area) -> Self {
         Grid::with_capacity(value.width(), value.height())
     }
 }

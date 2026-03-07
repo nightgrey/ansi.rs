@@ -3,10 +3,11 @@ use crate::{Column, Row};
 use geometry::{Point, Size};
 use std::ops::{Add, AddAssign, Sub};
 
-/// A position in buffer coordinates (row, column).
+/// A position in row/column coordinates.
 ///
-/// Unlike [`Point`] which uses (x, y) screen coordinates, `Position` uses
-/// (row, col) buffer indexing where:
+/// Unlike [`Point`] which uses (x, y) screen coordinates,
+/// `Position` uses row and column:
+/// 
 /// - `row` is the vertical position (0 = top)
 /// - `col` is the horizontal position (0 = left)
 ///

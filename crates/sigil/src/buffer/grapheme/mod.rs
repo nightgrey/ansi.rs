@@ -66,6 +66,12 @@ pub struct Grapheme {
 }
 
 impl Grapheme {
+    /// A grapheme representing [`char::REPLACEMENT_CHARACTER`] (�).
+    pub const REPLACEMENT_CHARACTER: Self = Self {
+        value: u32::from_le_bytes([0xEF, 0xBF, 0xBD, 0x00])
+    };
+
+
     /// An empty grapheme (no character). This is the default for blank cells.
     pub const EMPTY: Self = Self { value: 0 };
     /// The sentinel tag value marking an extended (arena-stored) grapheme.

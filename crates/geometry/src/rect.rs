@@ -20,7 +20,7 @@ use crate::{Edges, Point};
 /// let rect = Rect::new((10, 5), (30, 25));
 /// assert_eq!(rect.width(), 20);
 /// assert_eq!(rect.height(), 20);
-/// assert_eq!(rect.area(), 400);
+/// assert_eq!(rect.len(), 400);
 ///
 /// let point = Point::new(15, 10);
 /// assert!(rect.contains(&point));
@@ -121,59 +121,6 @@ impl Rect {
     /// ```
     pub const fn height(&self) -> usize {
         self.max.y.saturating_sub(self.min.y)
-    }
-
-    /// Calculate the area of the rectangle.
-    ///
-    /// Returns `width() * height()`. For inverted rectangles, returns 0.
-    /// Uses saturating multiplication to prevent overflow.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::Rect;
-    /// let rect = Rect::new((0, 0), (10, 5));
-    /// assert_eq!(rect.area(), 50);
-    /// ```
-    pub const fn area(&self) -> usize {
-        self.width().saturating_mul(self.height())
-    }
-
-    /// Check if a point is contained within the rectangle.
-    ///
-    /// The rectangle is treated as a half-open range: `[min, max)`.
-    /// Points on the min edges are included, points on the max edges are excluded.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Rect, Point};
-    /// let rect = Rect::new((0, 0), (10, 10));
-    ///
-    /// assert!(rect.contains(&Point::new(0, 0)));    // min edge (inclusive)
-    /// assert!(rect.contains(&Point::new(5, 5)));    // inside
-    /// assert!(!rect.contains(&Point::new(10, 10))); // max edge (exclusive)
-    /// assert!(!rect.contains(&Point::new(15, 5)));  // outside
-    /// ```
-    pub const fn contains(&self, point: &Point) -> bool {
-        self.min.x <= point.x
-            && point.x < self.max.x
-            && self.min.y <= point.y
-            && point.y < self.max.y
-    }
-
-    /// Shrink the rectangle by the given edges.
-    pub const fn shrink(&self, edges: &Edges) -> Self {
-        Self {
-            min: Point {
-                x: self.min.x + edges.left,
-                y: self.min.y + edges.top,
-            },
-            max: Point {
-                x: self.max.x.saturating_sub(edges.right),
-                y: self.max.y.saturating_sub(edges.bottom),
-            },
-        }
     }
 
     /// Get the size of the rectangle as a [`Size`] struct.

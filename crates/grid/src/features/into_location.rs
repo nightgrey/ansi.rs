@@ -1,4 +1,4 @@
-use crate::{Column, Position, Row, Location, Bounds, Context, PositionLike};
+use crate::{Column, Position, Row, Location, Area, Context, PositionLike};
 
 /// Provides the spatial context needed to convert between location representations.
 pub const trait IntoLocation<T = Position> {

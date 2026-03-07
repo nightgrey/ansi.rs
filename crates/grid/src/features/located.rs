@@ -1,5 +1,5 @@
 use std::marker::Destruct;
-use crate::{Bounds, Column, IntoLocation, Steps, Location, Position, Row, Span, Step};
+use crate::{Area, Column, IntoLocation, Steps, Location, Position, Row, Span, Step};
 
 /// A location paired with its spatial context.
 ///
@@ -23,7 +23,7 @@ use crate::{Bounds, Column, IntoLocation, Steps, Location, Position, Row, Span, 
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone)]
-pub struct Located<T = Position, Ctx = Bounds> {
+pub struct Located<T = Position, Ctx = Area> {
     pub value: T,
     pub context: Ctx,
 }
@@ -155,7 +155,7 @@ impl<T, Ctx> AsRef<T> for Located<T, Ctx> {
 
 // ─── Convenience constructors on Bounds ────────────────────────────────
 
-impl Bounds {
+impl Area {
     /// Wrap a location with this bounds as context.
     #[inline]
     pub fn locate<T>(&self, value: T) -> Located<T, &Self> {

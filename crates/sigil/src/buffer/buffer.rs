@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use grid::{Grid, Position, Bounds, Context, Intersect};
+use grid::{Grid, Position, Area, Context, Intersect};
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
@@ -44,13 +44,14 @@ impl Buffer {
     /// Create a buffer from a slice of fixed elements.
     ///
     /// A convenience constructor mostly used for tests.
-    pub(crate) fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
+    pub fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
             buffer[(row, col)] = Cell::from_char(ch, style);
         }
         buffer
     }
+    
 
 
     pub fn clone_from_region(&mut self, bounds: impl Context) -> Self {
@@ -63,25 +64,25 @@ impl Buffer {
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.insert_line_area(y, n, cell, self.bounds());
+        self.insert_line_area(y, n, cell, self.area());
     }
 
     /// Delete `n` lines at row `y`, shifting remaining lines up (ANSI DL).
     /// Operates on the full buffer width.
     pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.delete_line_area(y, n, cell, &self.bounds());
+        self.delete_line_area(y, n, cell, &self.area());
     }
 
     /// Insert `n` cells at `(x, y)`, shifting cells right (ANSI ICH).
     /// Operates on the full buffer width.
     pub fn insert_cell(&mut self, x: usize, y: usize, n: usize, cell: Cell) {
-        self.insert_cell_area(x, y, n, cell, &self.bounds());
+        self.insert_cell_area(x, y, n, cell, &self.area());
     }
 
     /// Delete `n` cells at `(x, y)`, shifting cells left (ANSI DCH).
     /// Operates on the full buffer width.
     pub fn delete_cell(&mut self, x: usize, y: usize, n: usize, cell: Cell) {
-        self.delete_cell_area(x, y, n, cell, &self.bounds());
+        self.delete_cell_area(x, y, n, cell, &self.area());
     }
 
     /// Insert `n` lines at row `y` within specific bounds.

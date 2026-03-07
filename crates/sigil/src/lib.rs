@@ -32,6 +32,7 @@ extern crate core;
 pub mod buffer;
 pub mod ui;
 pub mod rasterizer;
+mod painter;
 
 pub use buffer::*;
 pub use rasterizer::*;

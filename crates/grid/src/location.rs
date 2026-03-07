@@ -1,4 +1,4 @@
-use crate::{Bounds, Column, Index, Position, Row};
+use crate::{Area, Column, Index, Position, Row};
 
 /// Marker trait for types that represent a spatial location.
 pub const trait Location: Copy { }
@@ -11,4 +11,4 @@ impl const Location for Row { }
 
 impl const Location for Column { }
 
-impl const Location for Bounds { }
+impl const Location for Area { }

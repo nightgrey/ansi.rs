@@ -1,6 +1,6 @@
 use std::marker::Destruct;
 use geometry::Size;
-use crate::{Bounds, Column, Index, Position, Row, Steps};
+use crate::{Area, Column, Index, Position, Row, Steps};
 
 /// Type that represents a spatial context.
 pub const trait Context {
@@ -30,16 +30,13 @@ pub const trait Context {
     }
 
     #[inline]
-    fn area(&self) -> usize { self.width() * self.height() }
+    fn len(&self) -> usize { self.width() * self.height() }
 
     #[inline]
-    fn len(&self) -> usize { self.area() }
+    fn is_empty(&self) -> bool { self.len() == 0 }
 
     #[inline]
-    fn is_empty(&self) -> bool { self.area() == 0 }
-
-    #[inline]
-    fn bounds(&self) -> Bounds { Bounds::new(self.min(), self.max()) }
+    fn area(&self) -> Area { Area::new(self.min(), self.max()) }
 
     fn positions(&self) -> Steps where Self: Sized {
         Steps::new(self)
@@ -52,8 +49,8 @@ pub const trait Intersect<Rhs = Self, Output = Self>: Context {
     fn clip(&self, other: &Rhs) -> Output;
 }
 
-impl<C: [const] Context + [const] Destruct, Rhs: [const] Context + [const] Destruct> const Intersect<Rhs, Bounds> for C {
-    fn intersect(&self, other: &Rhs) -> Bounds {
+impl<C: [const] Context + [const] Destruct, Rhs: [const] Context + [const] Destruct> const Intersect<Rhs, Area> for C {
+    fn intersect(&self, other: &Rhs) -> Area {
         let min_row = self.min().row.max(other.min().row);
         let min_col = self.min().col.max(other.min().col);
         let max_row = self.max().row.min(other.max().row);
@@ -66,14 +63,14 @@ impl<C: [const] Context + [const] Destruct, Rhs: [const] Context + [const] Destr
             (max_row, max_col)
         };
 
-        Bounds {
+        Area {
             min: Position::new(min_row, min_col),
             max: Position::new(max_row, max_col),
         }
     }
 
-    fn clip(&self, other: &Rhs) -> Bounds {
-        other.intersect(&self.bounds())
+    fn clip(&self, other: &Rhs) -> Area {
+        other.intersect(&self.area())
     }
 }
 
@@ -102,7 +99,7 @@ impl<C: [const] Context> const Contains<Column> for C {
 
 impl<C: [const] Context> const Contains<Index> for C {
     fn contains(&self, other: &Index) -> bool {
-        self.area() <= other.value()
+        self.len() <= other.value()
     }
 }
 

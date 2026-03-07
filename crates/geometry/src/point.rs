@@ -90,6 +90,7 @@ impl AddAssign for Point {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Bounded, Contains};
     use super::*;
     use crate::rect::Rect;
     use crate::size::Size;
@@ -188,10 +189,10 @@ mod tests {
     #[test]
     fn test_rect_area() {
         let r = Rect::new((0, 0), (10, 5));
-        assert_eq!(r.area(), 50);
+        assert_eq!(r.len(), 50);
 
         let empty = Rect::new((5, 5), (5, 5));
-        assert_eq!(empty.area(), 0);
+        assert_eq!(empty.len(), 0);
     }
 
     #[test]
@@ -213,7 +214,7 @@ mod tests {
     fn test_rect_zero() {
         assert_eq!(Rect::ZERO.width(), 0);
         assert_eq!(Rect::ZERO.height(), 0);
-        assert_eq!(Rect::ZERO.area(), 0);
+        assert_eq!(Rect::ZERO.len(), 0);
     }
 
     #[test]
@@ -222,6 +223,6 @@ mod tests {
         let r = Rect::new((10, 10), (5, 5)); // Inverted
         assert_eq!(r.width(), 0); // saturating_sub prevents underflow
         assert_eq!(r.height(), 0);
-        assert_eq!(r.area(), 0); // saturating_mul
+        assert_eq!(r.len(), 0); // saturating_mul
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Provides shortcuts to set ([`SetMode`]) and reset ([`ResetMode`]) common modes.
 //!
-//! For anything beyond, check out [`super::modes`].
+//! For anything beyond, check out [`super::sequences`].
 use super::*;
 use crate::Escape;
 use crate::io::Write;

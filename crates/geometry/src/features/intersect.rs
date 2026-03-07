@@ -3,28 +3,21 @@ use crate::{Contains, Point, Rect, Sides, Size};
 pub trait Intersect<Rhs = Self> {
     type Output;
 
-    fn intersect(&self, rhs: &Rhs) -> Option<Self::Output>;
+    fn intersect(&self, rhs: &Rhs) -> Self::Output;
 
-    fn intersect_or(&self, rhs: &Rhs, default: Self::Output) -> Self::Output {
-        self.intersect(rhs).unwrap_or(default)
-    }
-
-    fn intersect_or_default(&self, rhs: &Rhs) -> Self::Output
-    where
-        Self::Output: Default,
-    {
-        self.intersect(rhs).unwrap_or_default()
+    fn clip(&self, rhs: &Rhs) -> Rhs::Output where Rhs: Intersect<Self>, Self: Sized {
+        rhs.intersect(self)
     }
 }
 
 impl Intersect<Point> for Rect {
     type Output = Point;
 
-    fn intersect(&self, other: &Point) -> Option<Self::Output> {
+    fn intersect(&self, other: &Point) -> Self::Output {
         if self.contains(other) {
-            Some(*other)
+            *other
         } else {
-            None
+            Point::ZERO
         }
     }
 }
@@ -32,7 +25,7 @@ impl Intersect<Point> for Rect {
 impl Intersect<Size> for Rect {
     type Output = Self;
 
-    fn intersect(&self, other: &Size) -> Option<Self::Output> {
+    fn intersect(&self, other: &Size) -> Self::Output {
         self.intersect(&Rect::new(Point::ZERO, *other))
     }
 }
@@ -40,16 +33,43 @@ impl Intersect<Size> for Rect {
 impl Intersect for Rect {
     type Output = Self;
 
-    fn intersect(&self, other: &Rect) -> Option<Self::Output> {
-        let left = self.left().max(other.left());
-        let top = self.top().max(other.top());
-        let right = self.right().min(other.right());
-        let bottom = self.bottom().min(other.bottom());
-
-        if left < right && top < bottom {
-            Some(Self::new((left, top), (right, bottom)))
-        } else {
-            None
+    fn intersect(&self, other: &Rect) -> Self::Output {
+        if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
+            return Rect::ZERO;
         }
+
+        let mut r = Rect::ZERO;
+
+        let x1 = self.min.x.max(other.min.x);
+        let y1 = self.min.y.max(other.min.y);
+        let x2 = self.max.x.min(other.max.x);
+        let y2 = self.max.y.min(other.max.y);
+
+        r.min.x = x1;
+        r.min.y = y1;
+
+        let mut w = x2 - x1;
+        let mut h = y2 - y1;
+
+        if w < 0 {
+            w = 0;
+        }
+
+        if h < 0 {
+            h = 0;
+        }
+
+        if w > usize::MAX {
+            w = usize::MAX;
+        }
+
+        if h > usize::MAX {
+            h = usize::MAX;
+        }
+
+        r.max.x = r.min.x + w;
+        r.max.y = r.min.y + h;
+
+        r
     }
 }

@@ -25,7 +25,8 @@ use crate::{Edges, Point};
 /// let point = Point::new(15, 10);
 /// assert!(rect.contains(&point));
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Copy, Debug)]
+#[derive_const(Default, Clone, Eq, PartialEq)]
 pub struct Rect {
     /// Minimum (top-left) point (inclusive).
     pub min: Point,

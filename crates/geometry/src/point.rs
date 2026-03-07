@@ -30,7 +30,8 @@ pub type PointLike = (usize, usize);
 ///
 /// assert_eq!(sum, Point::new(13, 7));
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Copy, Debug)]
+#[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Point {
     /// Horizontal position (column).
     pub x: usize,

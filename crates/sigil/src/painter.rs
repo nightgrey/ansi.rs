@@ -59,7 +59,7 @@ impl<'a> Painter<'a> {
 
     /// Push `rect` intersected with the current clip and buffer bounds.
     pub fn push(&mut self, rect: Rect) {
-        let next = self.bounds().intersect_or_default(&rect).intersect_or_default(&self.current());
+        let next = self.bounds().intersect(&rect).intersect(&self.current());
         self.stack.push(next);
     }
 
@@ -216,8 +216,8 @@ impl<'a> Painter<'a> {
     /// Fill `rect` with spaces in the given style.
     pub fn fill(&mut self, rect: Rect, style: Style) {
         let effective = self.bounds()
-            .intersect_or_default(&self.current())
-            .intersect_or_default(&rect);
+            .intersect(&self.current())
+            .intersect(&rect);
         if effective.is_empty() {
             return;
         }

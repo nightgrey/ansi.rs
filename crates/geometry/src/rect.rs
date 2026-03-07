@@ -54,10 +54,10 @@ impl Rect {
     /// let rect2 = Rect::new(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
     /// ```
-    pub fn new(min: impl Into<Point>, max: impl Into<Point>) -> Self {
+    pub fn new(min: Point, max: Point) -> Self {
         Self {
-            min: min.into(),
-            max: max.into(),
+            min,
+            max,
         }
     }
 

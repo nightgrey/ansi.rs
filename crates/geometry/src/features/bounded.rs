@@ -47,7 +47,7 @@ impl Bounded for Rect {
 }
 impl Bounded for Size {
     fn bounds(&self) -> Rect {
-        Rect::new(Point::ZERO, (self.width, self.height))
+        Rect::new(Point::ZERO, Point::new(self.width, self.height))
     }
 
     fn min(&self) -> Point {

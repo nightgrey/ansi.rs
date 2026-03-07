@@ -149,14 +149,14 @@ mod tests {
 
     #[test]
     fn test_rect_new() {
-        let r = Rect::new((10, 5), (30, 25));
+        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
         assert_eq!(r.min, Point::new(10, 5));
         assert_eq!(r.max, Point::new(30, 25));
     }
 
     #[test]
     fn test_rect_width_height() {
-        let r = Rect::new((10, 5), (30, 25));
+        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
         assert_eq!(r.width(), 20);
         assert_eq!(r.height(), 20);
     }
@@ -164,14 +164,14 @@ mod tests {
     #[test]
     fn test_rect_inverted_returns_zero() {
         // Inverted rectangle should return 0 width/height
-        let r = Rect::new((30, 25), (10, 5));
+        let r = Rect::new(Point::new(30, 25), Point::new(10, 5));
         assert_eq!(r.width(), 0);
         assert_eq!(r.height(), 0);
     }
 
     #[test]
     fn test_rect_contains_point() {
-        let r = Rect::new((10, 10), (20, 20));
+        let r = Rect::new(Point::new(10, 10), Point::new(20, 20));
 
         // Inside
         assert!(r.contains(&Point::new(15, 15)));
@@ -189,16 +189,16 @@ mod tests {
 
     #[test]
     fn test_rect_area() {
-        let r = Rect::new((0, 0), (10, 5));
+        let r = Rect::new(Point::new(0, 0), Point::new(10, 5));
         assert_eq!(r.len(), 50);
 
-        let empty = Rect::new((5, 5), (5, 5));
+        let empty = Rect::new(Point::new(5, 5), Point::new(5, 5));
         assert_eq!(empty.len(), 0);
     }
 
     #[test]
     fn test_rect_size() {
-        let r = Rect::new((10, 5), (30, 25));
+        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
         let size = r.size();
         assert_eq!(size.width, 20);
         assert_eq!(size.height, 20);
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_rect_x_y() {
-        let r = Rect::new((15, 25), (40, 60));
+        let r = Rect::new(Point::new(15, 25), Point::new(40, 60));
         assert_eq!(r.x(), 15);
         assert_eq!(r.y(), 25);
     }
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_rect_saturating_operations() {
         // Test that operations use saturating arithmetic
-        let r = Rect::new((10, 10), (5, 5)); // Inverted
+        let r = Rect::new(Point::new(10, 10), Point::new(5, 5)); // Inverted
         assert_eq!(r.width(), 0); // saturating_sub prevents underflow
         assert_eq!(r.height(), 0);
         assert_eq!(r.len(), 0); // saturating_mul

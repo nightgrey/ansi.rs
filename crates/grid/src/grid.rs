@@ -1,6 +1,7 @@
 use std::ops;
 use std::slice::{ChunksExact, SliceIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
+use geometry::{Point, Rect, Size};
 use crate::{Area, Position, Spatial, IntoSliceIndex, Steps, Row, Intersect, Bounded, Sides};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
@@ -26,9 +27,6 @@ impl<T> Grid<T> {
         Self::EMPTY
     }
 
-    pub fn rows(&self) -> ChunksExact<'_, T> {
-        self.inner.chunks_exact(self.width)
-    }
 
     /// Create a new, filled grid with the given width and height.
     pub fn new(width: usize, height: usize) -> Self
@@ -89,12 +87,11 @@ impl<T> Grid<T> {
         SliceIndex::get_unchecked_mut(index.into_slice_index(self), &mut *self.inner)
     }
 
-
-    pub fn fill_area(&mut self, bounds: Area, value: T)
+    pub fn fill_area(&mut self, area: Area, value: T)
     where
         T: Copy
     {
-        for pos in &self.clip(&bounds) {
+        for pos in &self.clip(&area) {
             self[pos] = value;
         }
     }
@@ -112,25 +109,36 @@ impl<T> Grid<T> {
         Steps::new(self)
     }
 
+    pub fn rows(&self) -> ChunksExact<'_, T> {
+        self.inner.chunks_exact(self.width)
+    }
+    
+    pub fn area(&self) -> Area {
+        Area::new(Position::ZERO, Position::new(self.width, self.height))
+    }
+    
+    pub fn bounds(&self) -> Rect {
+        Rect::new(Point::ZERO, Point::new(self.width, self.height))
+    }
 }
 
 impl<T: Clone> Grid<T> {
-    pub fn clone_from_region(&mut self, bounds: &impl Spatial) -> Self {
-        let mut next = Self::from(self.clip(bounds));
+    pub fn clone_from_area(&mut self, area: &Area) -> Self {
+        let mut next = Self::from(self.clip(area));
 
-        for position in bounds.positions() {
-            next[(position.row - bounds.min().row, position.col - bounds.min().col)] = self[position].clone();
+        for position in area.positions() {
+            next[(position.row - area.min().row, position.col - area.min().col)] = self[position].clone();
         }
 
         next
     }
 }
 impl<T: Copy> Grid<T> {
-    pub fn copy_from_region(&mut self, bounds: Area) -> Self {
-        let mut next = Self::from(self.clip(&bounds));
+    pub fn copy_from_area(&mut self, area: &Area) -> Self {
+        let mut next = Self::from(self.clip(area));
 
-        for position in &bounds {
-            next[(position.row - bounds.min.row, position.col - bounds.min.col)] = self[position];
+        for position in area {
+            next[(position.row - area.min.row, position.col - area.min.col)] = self[position];
         }
 
         next

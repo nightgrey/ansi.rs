@@ -455,8 +455,9 @@ mod tests {
     fn painter_put() {
         let mut buffer = Buffer::new(10, 22);
         let mut painter = Painter::new(&mut buffer);
-        painter.draw_text(0, 0, "Hello World, we are testing!", Style::default());
+        painter.hline(0, 0, 10, '-', Style::default());
+        painter.vline(1, 0, 2, '|', Style::default());
 
-        dbg!(&buffer.to_string());
+        println!("{}", buffer.to_string());
     }
 }

@@ -26,7 +26,7 @@ impl Intersect<Size> for Rect {
     type Output = Self;
 
     fn intersect(&self, other: &Size) -> Self::Output {
-        self.intersect(&Rect::new(Point::ZERO, *other))
+        self.intersect(&Rect::new(Point::ZERO, Point::new(other.width, other.height)))
     }
 }
 

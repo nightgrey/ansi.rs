@@ -2,14 +2,13 @@ use std::ops;
 use std::slice::{SliceIndex};
 use crate::{Area, Position, Spatial, IntoLocation, Row, Range, PositionLike, Index, Column};
 
-/// Resolves a spatial location into a linear `SliceIndex` via a `Context`.
+/// Resolves a spatial location into a linear `SliceIndex` via a spatial area.
 pub trait IntoSliceIndex<T>: Sized {
     type Output: ?Sized;
     type Index: SliceIndex<[T], Output = Self::Output>;
 
-    /// Resolves a spatial location into a linear `SliceIndex` via a `Context`.
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> Self::Index;
+    fn into_slice_index(self, area: &impl Spatial) -> Self::Index;
 }
 
 impl<T> IntoSliceIndex<T> for Index {
@@ -65,8 +64,8 @@ impl<T> IntoSliceIndex<T> for Position {
     type Index = usize;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> usize {
-        ctx.into_index(self)
+    fn into_slice_index(self, area: &impl Spatial) -> usize {
+        area.into_index(self)
     }
 }
 
@@ -75,8 +74,8 @@ impl<T> IntoSliceIndex<T> for Row {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::Range<usize> {
-        ctx.start(self)..ctx.end(self)
+    fn into_slice_index(self, area: &impl Spatial) -> ops::Range<usize> {
+        area.start(self)..area.end(self)
     }
 }
 
@@ -85,8 +84,8 @@ impl<T> IntoSliceIndex<T> for Area {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::Range<usize> {
-        ctx.start(self.min)..ctx.end(self.max)
+    fn into_slice_index(self, area: &impl Spatial) -> ops::Range<usize> {
+        area.start(self.min)..area.end(self.max)
     }
 }
 
@@ -95,8 +94,8 @@ impl<T> IntoSliceIndex<T> for ops::Range<Row> {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::Range<usize> {
-        ctx.start(self.start)..ctx.end(self.end)
+    fn into_slice_index(self, area: &impl Spatial) -> ops::Range<usize> {
+        area.start(self.start)..area.end(self.end)
     }
 }
 
@@ -105,8 +104,8 @@ impl<T> IntoSliceIndex<T> for ops::RangeTo<Row> {
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::RangeTo<usize> {
-        ..ctx.end(self.end)
+    fn into_slice_index(self, area: &impl Spatial) -> ops::RangeTo<usize> {
+        ..area.end(self.end)
     }
 }
 
@@ -115,8 +114,8 @@ impl<T> IntoSliceIndex<T> for ops::RangeFrom<Row> {
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::RangeFrom<usize> {
-        ctx.start(self.start)..
+    fn into_slice_index(self, area: &impl Spatial) -> ops::RangeFrom<usize> {
+        area.start(self.start)..
     }
 }
 
@@ -125,8 +124,8 @@ impl<T> IntoSliceIndex<T> for ops::RangeInclusive<Row> {
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::RangeInclusive<usize> {
-        ctx.start(*self.start())..=ctx.end(*self.end())
+    fn into_slice_index(self, area: &impl Spatial) -> ops::RangeInclusive<usize> {
+        area.start(*self.start())..=area.end(*self.end())
     }
 }
 
@@ -135,8 +134,8 @@ impl<T> IntoSliceIndex<T> for ops::RangeToInclusive<Row> {
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> ops::RangeToInclusive<usize> {
-        ..=ctx.end(self.end)
+    fn into_slice_index(self, area: &impl Spatial) -> ops::RangeToInclusive<usize> {
+        ..=area.end(self.end)
     }
 }
 
@@ -205,7 +204,7 @@ impl<T> IntoSliceIndex<T> for PositionLike {
     type Index = usize;
 
     #[inline]
-    fn into_slice_index(self, ctx: &impl Spatial) -> usize {
-        ctx.into_index(self)
+    fn into_slice_index(self, area: &impl Spatial) -> usize {
+        area.into_index(self)
     }
 }

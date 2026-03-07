@@ -27,6 +27,7 @@
 #![feature(trivial_bounds)]
 #![feature(range_bounds_is_empty)]
 #![feature(bstr)]
+#![feature(iter_intersperse)]
 extern crate core;
 
 pub mod buffer;

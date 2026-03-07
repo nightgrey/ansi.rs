@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use grid::{Grid, Position, Area, Spatial, Intersect};
+use grid::{Grid, Position, Area, Spatial, Intersect, Row};
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
@@ -53,50 +53,48 @@ impl Buffer {
         buffer
     }
     
-
-
-    pub fn clone_from_region(&mut self, bounds: impl Spatial) -> Self {
+    pub fn copy_from_area(&mut self, area: &Area) -> Self {
         Self {
-            inner: self.inner.clone_from_region(&bounds),
+            inner: self.inner.copy_from_area(area),
             arena: self.arena.clone(),
         }
     }
 
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
-    pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
+    pub fn insert_line(&mut self, y: Row, n: usize, cell: Cell) {
         self.insert_line_area(y, n, cell, self.area());
     }
 
     /// Delete `n` lines at row `y`, shifting remaining lines up (ANSI DL).
     /// Operates on the full buffer width.
-    pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
+    pub fn delete_line(&mut self, y: Row, n: usize, cell: Cell) {
         self.delete_line_area(y, n, cell, &self.area());
     }
 
     /// Insert `n` cells at `(x, y)`, shifting cells right (ANSI ICH).
     /// Operates on the full buffer width.
-    pub fn insert_cell(&mut self, x: usize, y: usize, n: usize, cell: Cell) {
-        self.insert_cell_area(x, y, n, cell, &self.area());
+    pub fn insert_cell(&mut self, position: Position, n: usize, cell: Cell) {
+        self.insert_cell_area(position, n, cell, &self.area());
     }
 
     /// Delete `n` cells at `(x, y)`, shifting cells left (ANSI DCH).
     /// Operates on the full buffer width.
-    pub fn delete_cell(&mut self, x: usize, y: usize, n: usize, cell: Cell) {
-        self.delete_cell_area(x, y, n, cell, &self.area());
+    pub fn delete_cell(&mut self, position: Position, n: usize, cell: Cell) {
+        self.delete_cell_area(position, n, cell, &self.area());
     }
 
     /// Insert `n` lines at row `y` within specific bounds.
     /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.row` are lost.
     /// New lines are filled with `cell`.
-    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: impl Spatial) {
+    pub fn insert_line_area(&mut self, y: Row, n: usize, cell: Cell, bounds: impl Spatial) {
         if n == 0 {
             return;
         }
 
         // Clip to buffer bounds and ensure y is within bounds
         let bounds = self.clip(&bounds);
-        let y = y.clamp(bounds.min.row, bounds.max.row);
+        let y = (y.value()).clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -123,13 +121,13 @@ impl Buffer {
 
     /// Delete `n` lines at row `y` within specific bounds.
     /// Lines below shift up; new blank lines appear at bottom of bounds.
-    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn delete_line_area(&mut self, y: Row, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
 
         let bounds = self.clip(bounds);
-        let y = y.clamp(bounds.min.row, bounds.max.row);
+        let y = (y.value()).clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -156,7 +154,7 @@ impl Buffer {
 
     /// Insert `n` cells at `(x, y)` within specific bounds (ANSI ICH).
     /// Cells shift right; cells pushed beyond right margin are lost.
-    pub fn insert_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn insert_cell_area(&mut self, position: Position, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
@@ -164,18 +162,18 @@ impl Buffer {
         let bounds = self.clip(bounds);
 
         // Validate y is within vertical bounds
-        if y < bounds.min.row || y >= bounds.max.row {
+        if position.row < bounds.min.row || position.row >= bounds.max.row {
             return;
         }
 
-        let x = x.clamp(bounds.min.col, bounds.max.col);
+        let x = position.col.clamp(bounds.min.col, bounds.max.col);
         let n = n.min(bounds.max.col - x);
 
         if n == 0 {
             return;
         }
 
-        let row_offset = y * self.width;
+        let row_offset = position.row * self.width;
 
         // Shift cells right: [x, max-n) -> [x+n, max)
         if x + n < bounds.max.col {
@@ -193,18 +191,18 @@ impl Buffer {
 
     /// Delete `n` cells at `(x, y)` within specific bounds (ANSI DCH).
     /// Cells shift left; new blank cells appear at right margin.
-    pub fn delete_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn delete_cell_area(&mut self, position: Position,  n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
 
         let bounds = self.clip(bounds);
 
-        if y < bounds.min.row || y >= bounds.max.row {
+        if position.row < bounds.min.row || position.row >= bounds.max.row {
             return;
         }
 
-        let x = x.clamp(bounds.min.col, bounds.max.col);
+        let x = position.col.clamp(bounds.min.col, bounds.max.col);
         let n = n.min(bounds.max.col - x);
 
         if n == 0 {
@@ -212,7 +210,7 @@ impl Buffer {
         }
 
         let fill_cell = cell;
-        let row_offset = y * self.width;
+        let row_offset = position.row * self.width;
 
         // Shift cells left: [x+n, max) -> [x, max-n)
         if x + n < bounds.max.col {
@@ -240,7 +238,7 @@ impl Buffer {
 
 
     pub fn to_string(&self) -> String {
-        self.iter().map(|cell| cell.as_str(&self.arena)).collect()
+        self.rows().map(|row| row.iter().map(|cell| cell.as_str(&self.arena)).collect::<String>()).intersperse(String::from("\n")).collect()
     }
 }
 

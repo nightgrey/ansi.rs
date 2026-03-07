@@ -213,7 +213,7 @@ impl Grapheme {
     #[cfg(target_endian = "little")]
     pub fn as_str<'a>(&'a self, arena: &'a GraphemeArena) -> &'a str {
         if self.is_empty() {
-            ""
+            " "
         } else if self.is_inline() {
             let bytes = self.to_le_bytes();
             let len = Self::inline_len(&bytes) as usize;

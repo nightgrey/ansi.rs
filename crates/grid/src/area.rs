@@ -1,6 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Deref, IntoBounds, RangeBounds};
-use crate::{Position, Steps, Step, Context};
+use geometry::{Point, Rect};
+use crate::{Position, Steps, Step, Spatial, Sides};
 
 /// Half-open (min..=max) area.
 #[derive(Copy, Debug)]
@@ -58,17 +59,57 @@ impl IntoIterator for &Area {
     }
 }
 
-impl const Context for Area {
-    fn min(&self) -> Position { self.min }
-    fn max(&self) -> Position { self.max }
 
-    fn area(&self) -> Area { *self }
+impl const Spatial for Area {
+    fn area(&self) -> Area {
+        *self
+    }
+
+    fn min(&self) -> Position {
+        self.min
+    }
+
+    fn max(&self) -> Position {
+        self.max
+    }
+
+    fn width(&self) -> usize {
+        self.max.col.saturating_sub(self.min.col)
+    }
+
+    fn height(&self) -> usize {
+        self.max.row.saturating_sub(self.min.row)
+    }
+
+    fn len(&self) -> usize {
+        self.width().saturating_mul(self.height())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.min == self.max
+    }
 }
 
+impl From<Rect> for Area {
+    fn from(value: Rect) -> Self {
+        Area::new(
+            Position::from(value.min),
+            Position::from(value.max),
+        )
+    }
+}
 
+impl From<Area> for Rect {
+    fn from(value: Area) -> Self {
+        Rect::new(
+            Point::from(value.min),
+            Point::from(value.max),
+        )
+    }
+}
 #[cfg(test)]
 mod tests {
-    use crate::Contains;
+    use crate::{Bounded, Contains};
     use super::*;
 
     #[test]

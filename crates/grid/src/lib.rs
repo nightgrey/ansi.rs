@@ -16,14 +16,15 @@
 
 mod grid;
 mod area;
-mod features;
 mod location;
 mod locations;
-mod context;
+mod spatial;
+mod features;
+
 
 pub use area::*;
-pub use features::*;
 pub use grid::*;
 pub use location::*;
 pub use locations::*;
-pub use context::*;
+pub use spatial::*;
+pub use features::*;

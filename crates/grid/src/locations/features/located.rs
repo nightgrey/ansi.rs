@@ -1,5 +1,5 @@
 use std::marker::Destruct;
-use crate::{Area, Column, IntoLocation, Steps, Location, Position, Row, Span, Step};
+use crate::{Area, Column, IntoLocation, Steps, Location, Position, Row, Range, Step};
 
 /// A location paired with its spatial context.
 ///
@@ -121,7 +121,7 @@ impl<T: Copy, Ctx: ~const IntoLocation<T>> const Located<T, Ctx> where Self: Siz
 
 // ─── Span (index ranges) ──────────────────────────────────────────────
 
-impl<T: Copy, Ctx: ~const Span<T>> const Located<T, Ctx> where Self: Sized + [const] Destruct {
+impl<T: Copy, Ctx: ~const Range<T>> const Located<T, Ctx> where Self: Sized + [const] Destruct {
     #[inline]
     pub fn start(&self) -> usize {
         self.context.start(self.value)

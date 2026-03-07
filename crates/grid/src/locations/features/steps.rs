@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::marker::Destruct;
 use std::ops::{Deref};
-use crate::{Location, Position, IntoLocation, Step, Span, Context};
+use crate::{Location, Position, IntoLocation, Step, Range, Spatial, Bounded};
 use crate::Area;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
@@ -16,7 +16,7 @@ pub struct Steps<T: Location = Position> {
 }
 
 impl const Steps<Position> {
-    pub fn new<C: [const] Context>(context: &C) -> Self {
+    pub fn new<C: [const] Spatial>(context: &C) -> Self {
         let bounds = context.area();
         let front = if bounds.is_empty() { bounds.max() } else { bounds.min() };
         let back = bounds.max();

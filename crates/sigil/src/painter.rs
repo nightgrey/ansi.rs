@@ -6,6 +6,9 @@
 //! the neighbor is outside the current clip (the one exception to clip
 //! enforcement — required for correctness).
 
+use derive_more::{Deref, DerefMut, Index, IndexMut};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 use ansi::Style;
 use geometry::{Point, Rect};
 use geometry::prelude::*;
@@ -20,8 +23,12 @@ use crate::{Buffer, Grapheme};
 /// Created via [`Painter::new`], which pushes the full framebuffer bounds as
 /// the initial clip. All subsequent drawing is intersected with the current
 /// clip rectangle.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 pub struct Painter<'a> {
+    #[deref]
+    #[deref_mut]
+    #[index]
+    #[index_mut]
     buffer: &'a mut Buffer,
     stack: Vec<Rect>,
 }
@@ -39,7 +46,7 @@ impl<'a> Painter<'a> {
     /// The buffer dimensions as a [`Rect`].
     #[inline]
     fn bounds(&self) -> Rect {
-        Rect::bounds(0, 0, self.buffer.width, self.buffer.height)
+        Rect::bounds(0, 0, self.width, self.height)
     }
 
     /// Current effective clip rectangle.
@@ -79,7 +86,7 @@ impl<'a> Painter<'a> {
             return false;
         }
         let (c, r) = (col as usize, row as usize);
-        if c >= self.buffer.width || r >= self.buffer.height {
+        if c >= self.width || r >= self.height {
             return false;
         }
         let clip = self.current();
@@ -109,7 +116,7 @@ impl<'a> Painter<'a> {
         grapheme: Grapheme,
         style: Style,
     ) -> bool {
-        if col >= self.buffer.width || row >= self.buffer.height {
+        if col >= self.width || row >= self.height {
             return false;
         }
         if !self.can_touch(col as i32, row as i32) {
@@ -117,26 +124,26 @@ impl<'a> Painter<'a> {
         }
 
         // If target is a continuation cell, its lead (col-1) is now orphaned.
-        if self.buffer[(row, col)].is_continuation() {
+        if self[(row, col)].is_continuation() {
             if col > 0 {
-                self.buffer[(row, col - 1)].set_space(style);
+                self[(row, col - 1)].set_space(style);
             }
         }
 
         // If target is a wide lead, its continuation (col+1) is now orphaned.
-        if self.buffer[(row, col)].is_wide() {
-            if col + 1 < self.buffer.width {
-                self.buffer[(row, col + 1)].set_space(style);
+        if self[(row, col)].is_wide() {
+            if col + 1 < self.width {
+                self[(row, col + 1)].set_space(style);
             }
         }
 
         // If *next* cell is a continuation whose lead we're about to erase,
         // clear it too.
-        if col + 1 < self.buffer.width && self.buffer[(row, col + 1)].is_continuation() {
-            self.buffer[(row, col + 1)].set_space(style);
+        if col + 1 < self.width && self[(row, col + 1)].is_continuation() {
+            self[(row, col + 1)].set_space(style);
         }
 
-        self.buffer[(row, col)].set(grapheme, 1, style);
+        self[(row, col)].set(grapheme, 1, style);
         true
     }
 
@@ -164,8 +171,8 @@ impl<'a> Painter<'a> {
         }
 
         // Now install the wide pair.
-        self.buffer[(row, col)].set(grapheme, 2, style);
-        self.buffer[(row, col + 1)].set_continuation(style);
+        self[(row, col)].set(grapheme, 2, style);
+        self[(row, col + 1)].set_continuation(style);
         true
     }
 
@@ -188,7 +195,7 @@ impl<'a> Painter<'a> {
             return;
         }
         let (uc, ur) = (col as usize, row as usize);
-        if uc >= self.buffer.width || ur >= self.buffer.height {
+        if uc >= self.width || ur >= self.height {
             return;
         }
 
@@ -232,20 +239,18 @@ impl<'a> Painter<'a> {
         if row < 0 || text.is_empty() {
             return;
         }
-        if row as usize >= self.buffer.height {
+        if row as usize >= self.height {
             return;
         }
 
         let mut cx: i64 = col as i64;
 
-        // Assumes: `grapheme_clusters(text)` yields `(cluster_str, display_width)`.
-        // Use unicode-segmentation + unicode-width, or your own zr_grapheme/zr_width.
-        for (cluster, width) in grapheme_clusters(text) {
+        for (cluster, width) in text.graphemes(true).map(|g| (g, g.width())) {
             if width == 0 {
                 continue;
             }
 
-            let grapheme = Grapheme::encode(cluster, &mut self.buffer.arena);
+            let grapheme = Grapheme::encode(cluster, &mut self.arena);
 
             if width == 2 {
                 // Wide: need both cells touchable, else replace.
@@ -367,11 +372,11 @@ impl<'a> Painter<'a> {
                 if !clip.contains(&Point::new(dx, dy)) {
                     continue;
                 }
-                if sx >= self.buffer.width || sy >= self.buffer.height {
+                if sx >= self.width || sy >= self.height {
                     continue;
                 }
 
-                let cell = self.buffer[(sy, sx)];
+                let cell = self[(sy, sx)];
 
                 // Continuations are installed by their lead; skip.
                 if cell.is_continuation() {
@@ -387,18 +392,6 @@ impl<'a> Painter<'a> {
                 }
             }
         }
-    }
-
-    /// Access the underlying buffer (e.g. for reading cells or direct arena ops).
-    #[inline]
-    pub fn buffer(&self) -> &Buffer {
-        self.buffer
-    }
-
-    /// Mutable access to the underlying buffer. Use sparingly — bypasses clip.
-    #[inline]
-    pub fn buffer_mut(&mut self) -> &mut Buffer {
-        self.buffer
     }
 }
 
@@ -454,19 +447,16 @@ impl Iterator for IterRange {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Grapheme cluster iteration (stub — plug in your own segmentation)
-// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// Yields `(cluster_str, display_width)` for each grapheme cluster in `text`.
-///
-/// Replace this with your `zr_grapheme` + `zr_width` pipeline.
-fn grapheme_clusters(text: &str) -> impl Iterator<Item = (&str, u8)> {
-    use unicode_segmentation::UnicodeSegmentation;
-    use unicode_width::UnicodeWidthStr;
+    #[test]
+    fn painter_put() {
+        let mut buffer = Buffer::new(10, 22);
+        let mut painter = Painter::new(&mut buffer);
+        painter.draw_text(0, 0, "Hello World, we are testing!", Style::default());
 
-    text.graphemes(true).map(|g| {
-        let w = UnicodeWidthStr::width(g).min(2) as u8;
-        (g, if w == 0 { 1 } else { w })
-    })
+        dbg!(&buffer.to_string());
+    }
 }

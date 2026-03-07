@@ -1,4 +1,4 @@
-use crate::{Column, IntoLocation, Position, Row, Location, Area, Context};
+use crate::{Column, IntoLocation, Position, Row, Location, Area, Spatial};
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -54,7 +54,7 @@ pub const trait Step<T = Position> {
     }
 }
 
-impl<T: [const] Context> const Step<Position> for T {
+impl<T: [const] Spatial> const Step<Position> for T {
     fn steps_between(&self, start: Position, end: Position) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
@@ -106,7 +106,7 @@ impl<T: [const] Context> const Step<Position> for T {
     }
 }
 
-impl<T: [const] Context> const Step<Row> for T {
+impl<T: [const] Spatial> const Step<Row> for T {
     fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
             let steps = end.value() - start.value();
@@ -133,7 +133,7 @@ impl<T: [const] Context> const Step<Row> for T {
     }
 }
 
-impl<T: [const] Context> const Step<Column> for T {
+impl<T: [const] Spatial> const Step<Column> for T {
     fn steps_between(&self, start: Column, end: Column) -> (usize, Option<usize>) {
         if start.value() <= end.value() {
             let steps = end.value() - start.value();

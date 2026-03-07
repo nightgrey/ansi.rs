@@ -1,13 +1,13 @@
 use std::ops;
 use std::ops::Bound;
-use crate::{Column, Position, Row, Location, Area, IntoLocation, Context, Index};
+use crate::{Column, Position, Row, Location, Area, IntoLocation, Spatial, Index};
 
 /// Maps a location to its linear index range within a context.
 ///
 /// Unlike `std::ops::RangeBounds` (which describes range endpoints),
 /// `Span` answers: "what contiguous slice of indices does this location
 /// occupy within this context?"
-pub const trait Span<T = Position> {
+pub const trait Range<T = Position> {
     #[inline]
     fn start(&self, location: T) -> usize;
 
@@ -35,7 +35,7 @@ pub const trait Span<T = Position> {
     }
 }
 
-impl<T: [const] Context> const Span<Area> for T {
+impl<T: [const] Spatial> const Range<Area> for T {
     fn start(&self, location: Area) -> usize {
         self.into_index(location.min)
     }
@@ -45,7 +45,7 @@ impl<T: [const] Context> const Span<Area> for T {
     }
 }
 
-impl<T: [const] Context> const Span<Row> for T {
+impl<T: [const] Spatial> const Range<Row> for T {
     fn start(&self, location: Row) -> usize {
         self.into_index(location)
     }
@@ -55,7 +55,7 @@ impl<T: [const] Context> const Span<Row> for T {
     }
 }
 
-impl<T: [const] Context> const Span<Position> for T {
+impl<T: [const] Spatial> const Range<Position> for T {
     fn start(&self, location: Position) -> usize {
         self.into_index(location)
     }
@@ -65,7 +65,7 @@ impl<T: [const] Context> const Span<Position> for T {
     }
 }
 
-impl<T: [const] Context> const Span<Column> for T {
+impl<T: [const] Spatial> const Range<Column> for T {
     fn start(&self, location: Column) -> usize {
         location.value()
     }
@@ -78,7 +78,7 @@ impl<T: [const] Context> const Span<Column> for T {
     }
 }
 
-impl<T: [const] Context> const Span<Index> for T {
+impl<T: [const] Spatial> const Range<Index> for T {
     fn start(&self, location: Index) -> usize {
         location.value()
     }

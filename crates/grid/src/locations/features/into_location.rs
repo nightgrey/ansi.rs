@@ -1,4 +1,4 @@
-use crate::{Column, Position, Row, Location, Area, Context, PositionLike};
+use crate::{Column, Position, Row, Location, Area, Spatial, PositionLike};
 
 /// Provides the spatial context needed to convert between location representations.
 pub const trait IntoLocation<T = Position> {
@@ -11,7 +11,7 @@ pub const trait IntoLocation<T = Position> {
     fn into_col(&self, location: T) -> Column;
 }
 
-impl<T: [const] Context> const IntoLocation<PositionLike> for T {
+impl<T: [const] Spatial> const IntoLocation<PositionLike> for T {
     fn into_index(&self, location: PositionLike) -> usize {
         (location.0 - self.min().row) * self.width() + (location.1 - self.min().col)
     }
@@ -28,7 +28,7 @@ impl<T: [const] Context> const IntoLocation<PositionLike> for T {
     }
 }
 
-impl<T: [const] Context> const IntoLocation<Position> for T {
+impl<T: [const] Spatial> const IntoLocation<Position> for T {
     fn into_index(&self, location: Position) -> usize {
         (location.row - self.min().row) * self.width() + (location.col - self.min().col)
     }
@@ -45,7 +45,7 @@ impl<T: [const] Context> const IntoLocation<Position> for T {
     }
 }
 
-impl<T: [const] Context> const IntoLocation<Row> for T {
+impl<T: [const] Spatial> const IntoLocation<Row> for T {
     /// Index of the first cell in this row.
     fn into_index(&self, location: Row) -> usize {
         (location.value() - self.min().row) * self.width()
@@ -65,7 +65,7 @@ impl<T: [const] Context> const IntoLocation<Row> for T {
     }
 }
 
-impl<T: [const] Context> const IntoLocation<Column> for T {
+impl<T: [const] Spatial> const IntoLocation<Column> for T {
     /// Index of the first cell in this column (i.e. in the first row).
     fn into_index(&self, location: Column) -> usize {
         location.value() - self.min().col
@@ -85,7 +85,7 @@ impl<T: [const] Context> const IntoLocation<Column> for T {
     }
 }
 
-impl<T: [const] Context> const IntoLocation<usize> for T {
+impl<T: [const] Spatial> const IntoLocation<usize> for T {
     fn into_index(&self, location: usize) -> usize {
         location
     }

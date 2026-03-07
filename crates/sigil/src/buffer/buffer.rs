@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use grid::{Grid, Position, Area, Context, Intersect};
+use grid::{Grid, Position, Area, Spatial, Intersect};
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
@@ -55,7 +55,7 @@ impl Buffer {
     
 
 
-    pub fn clone_from_region(&mut self, bounds: impl Context) -> Self {
+    pub fn clone_from_region(&mut self, bounds: impl Spatial) -> Self {
         Self {
             inner: self.inner.clone_from_region(&bounds),
             arena: self.arena.clone(),
@@ -89,7 +89,7 @@ impl Buffer {
     /// Insert `n` lines at row `y` within specific bounds.
     /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.row` are lost.
     /// New lines are filled with `cell`.
-    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: impl Context) {
+    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: impl Spatial) {
         if n == 0 {
             return;
         }
@@ -123,7 +123,7 @@ impl Buffer {
 
     /// Delete `n` lines at row `y` within specific bounds.
     /// Lines below shift up; new blank lines appear at bottom of bounds.
-    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: &impl Context) {
+    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
@@ -156,7 +156,7 @@ impl Buffer {
 
     /// Insert `n` cells at `(x, y)` within specific bounds (ANSI ICH).
     /// Cells shift right; cells pushed beyond right margin are lost.
-    pub fn insert_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Context) {
+    pub fn insert_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
@@ -193,7 +193,7 @@ impl Buffer {
 
     /// Delete `n` cells at `(x, y)` within specific bounds (ANSI DCH).
     /// Cells shift left; new blank cells appear at right margin.
-    pub fn delete_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Context) {
+    pub fn delete_cell_area(&mut self, x: usize, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
@@ -244,7 +244,7 @@ impl Buffer {
     }
 }
 
-impl Context for Buffer {
+impl Spatial for Buffer {
     fn min(&self) -> Position { Position::ZERO }
     fn max(&self) -> Position { Position::new(self.height(), self.width()) }
 

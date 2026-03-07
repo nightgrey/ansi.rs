@@ -1,12 +1,12 @@
 use std::fmt;
-use std::fmt::Display;
+use std::fmt::{Display, Write};
 use derive_more::{Display, From, Into};
 use crate::{ResetMode, SetMode};
 
 /// Mode
 ///
 /// Indicates the mode for [`SetMode`], [`ResetMode`], [`RequestMode`] and [`ReportMode`].
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum Mode {
     Ansi(AnsiMode),
     Dec(DecMode),
@@ -16,7 +16,7 @@ pub enum Mode {
 /// Mode Setting
 ///
 /// Indicates the mode setting for [`AnsiMode`] and [`DecMode`]s.
-#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
+#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Hash)]
 #[repr(u8)]
 pub enum ModeSetting {
     /// Mode not recognized
@@ -70,7 +70,11 @@ impl ModeSetting {
     }
 }
 
-
+impl Display for ModeSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self as u8)
+    }
+}
 /// ANSI modes
 ///
 /// Indicates the mode for [`SetMode`], [`ResetMode`], [`RequestMode`] and [`ReportMode`].
@@ -81,7 +85,7 @@ impl ModeSetting {
 /// [DECRPM]: https://vt100.net/docs/vt510-rm/DECRPM.html
 /// [SM]: https://vt100.net/docs/vt510-rm/SM.html
 /// [RM]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 #[repr(u16)]
 pub enum AnsiMode {
     /// (1) Guarded Area Transfer Mode (GATM)
@@ -148,8 +152,13 @@ impl From<AnsiMode> for Mode {
     fn from(mode: AnsiMode) -> Self {
         Mode::Ansi(mode)
     }
-}  
+}
 
+impl Display for AnsiMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self as u16)
+    }
+}
 /// DEC modes
 ///
 /// Indicates the mode for [`SetMode`], [`ResetMode`], [`RequestMode`] and [`ReportMode`].
@@ -160,7 +169,7 @@ impl From<AnsiMode> for Mode {
 /// [DECRPM]: https://vt100.net/docs/vt510-rm/DECRPM.html
 /// [SM]: https://vt100.net/docs/vt510-rm/SM.html
 /// [RM]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 #[repr(u16)]
 pub enum DecMode {
     /// (1) Cursor Keys Mode (DECCKM) is a mode that determines whether the cursor keys
@@ -436,5 +445,11 @@ pub enum DecMode {
 impl From<DecMode> for Mode {
     fn from(mode: DecMode) -> Self {
         Mode::Dec(mode)
+    }
+}
+
+impl Display for DecMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self as u16)
     }
 }

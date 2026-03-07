@@ -64,16 +64,15 @@ pub struct Grapheme {
     /// High byte: `0x01` = extended marker; otherwise the 4th byte of inline UTF-8.
     tag: u8,
 }
-
 impl Grapheme {
     /// A grapheme representing [`char::REPLACEMENT_CHARACTER`] (�).
-    pub const REPLACEMENT_CHARACTER: Self = Self {
-        value: u32::from_le_bytes([0xEF, 0xBF, 0xBD, 0x00])
-    };
+    pub const REPLACEMENT_CHARACTER: Self = Self::from_char(char::REPLACEMENT_CHARACTER);
 
+    /// A space grapheme (U+0020).
+    pub const SPACE: Self = Self::from_char(' ');
 
     /// An empty grapheme (no character). This is the default for blank cells.
-    pub const EMPTY: Self = Self { value: 0 };
+    pub const EMPTY: Self = Self::from_char(char::MIN);
     /// The sentinel tag value marking an extended (arena-stored) grapheme.
     pub const EXTENDED_TAG: u8 = 0x01;
 
@@ -84,7 +83,8 @@ impl Grapheme {
     /// The caller must ensure `offset` refers to a valid, live entry in a
     /// [`GraphemeArena`]. This is now memory-safe (no UB), but a bogus offset
     /// will produce garbage when resolved.
-    pub fn from_offset(offset: usize) -> Self {
+    pub fn from_offset(offset: impl Offset) -> Self {
+        let offset = offset.offset();
         debug_assert!(offset <= <u24 as Bitsized>::MAX.value() as usize);
         Self::new(u24::new(offset as u32), Self::EXTENDED_TAG)
     }
@@ -114,7 +114,7 @@ impl Grapheme {
         }
 
         if bytes.len() <= 4 {
-            Ok(Self::from_inline_bytes(bytes))
+            Ok(Self::from_bytes(bytes))
         } else {
             Ok(arena.stash(s)?)
         }
@@ -134,8 +134,8 @@ impl Grapheme {
         let bytes = s.as_bytes();
         if bytes.is_empty() {
             Some(Self::EMPTY)
-        } else if bytes.len() <= 4 {
-            Some(Self::from_inline_bytes(bytes))
+        } else if bytes.len() <= char::MAX_LEN_UTF8 {
+            Some(Self::from_bytes(bytes))
         } else {
             None
         }
@@ -143,15 +143,36 @@ impl Grapheme {
 
     /// Create an inline grapheme from a single `char`.
     ///
-    /// Every Unicode scalar value encodes to at most 4 UTF-8 bytes, so this
-    /// always succeeds and never needs a arena.
-    ///
-    /// Note: `'\0'` produces [`EMPTY`](Self::EMPTY) since NUL is
-    /// indistinguishable from padding in the inline encoding.
-    pub fn from_char(c: char) -> Self {
-        let mut buf = [0u8; 4];
-        let s = c.encode_utf8(&mut buf);
-        Self::from_inline_bytes(s.as_bytes())
+    /// Note:
+    /// - `'\0'` produces [`EMPTY`](Self::EMPTY) since NUL is
+    ///   indistinguishable from padding in the inline encoding.
+    /// - Performs manual UTF-8 encoding since `char::encode_utf8` is not
+    ///   available in `const fn`. Every Unicode scalar value fits in ≤4
+    ///   UTF-8 bytes, so this always produces an inline grapheme.
+    pub const fn from_char(c: char) -> Self {
+        let code = c as u32;
+        let bytes = match code {
+            0x00..=0x7F => [code as u8, 0, 0, 0],
+            0x80..=0x7FF => [
+                (0xC0 | (code >> 6)) as u8,
+                (0x80 | (code & 0x3F)) as u8,
+                0,
+                0,
+            ],
+            0x800..=0xFFFF => [
+                (0xE0 | (code >> 12)) as u8,
+                (0x80 | ((code >> 6) & 0x3F)) as u8,
+                (0x80 | (code & 0x3F)) as u8,
+                0,
+            ],
+            _ => [
+                (0xF0 | (code >> 18)) as u8,
+                (0x80 | ((code >> 12) & 0x3F)) as u8,
+                (0x80 | ((code >> 6) & 0x3F)) as u8,
+                (0x80 | (code & 0x3F)) as u8,
+            ],
+        };
+        Self { value: u32::from_le_bytes(bytes) }
     }
 
     /// Returns `true` if this grapheme is empty (no character).
@@ -273,9 +294,9 @@ impl Grapheme {
     /// Pack up to 4 UTF-8 bytes into a `u32` via little-endian interpretation.
     /// Unused trailing bytes are zero, and the high byte cannot be `0x01` for
     /// any valid UTF-8 input ≤4 bytes.
-    pub(crate) fn from_inline_bytes(bytes: &[u8]) -> Self {
-        debug_assert!(bytes.len() <= 4 && !bytes.is_empty());
-        let mut buf = [0u8; 4];
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() <= char::MAX_LEN_UTF8 && !bytes.is_empty());
+        let mut buf = [0u8; char::MAX_LEN_UTF8];
         buf[..bytes.len()].copy_from_slice(bytes);
         Self::from(u32::from_le_bytes(buf))
     }
@@ -284,7 +305,7 @@ impl Grapheme {
 
     /// Get the raw little-endian bytes of this grapheme's `u32`.
     #[inline]
-    pub fn to_le_bytes(self) -> [u8; 4] {
+    pub fn to_le_bytes(self) -> [u8; char::MAX_LEN_UTF8] {
         self.value.to_le_bytes()
     }
 
@@ -300,8 +321,8 @@ impl Grapheme {
     /// `0x80..=0xBF`, a zero byte can only appear as NUL (treated as empty)
     /// or as padding after the grapheme data.
     #[inline]
-    pub(crate) fn inline_len(bytes: &[u8; 4]) -> u8 {
-        memchr::memchr(0, bytes).unwrap_or(4) as u8
+    pub(crate) fn inline_len(bytes: &[u8; char::MAX_LEN_UTF8]) -> u8 {
+        memchr::memchr(0, bytes).unwrap_or(char::MAX_LEN_UTF8) as u8
     }
 }
 
@@ -522,5 +543,13 @@ mod tests {
         let ext = Grapheme::from_offset(42);
         assert_eq!(ext.tag(), Grapheme::EXTENDED_TAG);
         assert_eq!(u32::from(ext.payload()), 42);
+    }
+
+    #[test]
+    fn replacement_char() {
+        let c = char::REPLACEMENT_CHARACTER;
+        dbg!(Grapheme::REPLACEMENT_CHARACTER.value, c as u32);
+        dbg!(c.encode_utf8(&mut [0; 4]));
+
     }
 }

@@ -34,6 +34,7 @@ impl Buffer {
         }
     }
 
+
     pub fn with_arena(width: usize, height: usize, arena: GraphemeArena) -> Self {
         Self {
             inner: Grid::new(width, height),

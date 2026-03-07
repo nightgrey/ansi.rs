@@ -129,9 +129,30 @@ impl Cell {
     }
 
     /// Replace the grapheme, releasing the old one from the arena if needed.
-    pub fn set(&mut self, grapheme: Grapheme, arena: &mut GraphemeArena) {
+    pub fn set_grapheme(&mut self, grapheme: Grapheme, arena: &mut GraphemeArena) {
         self.grapheme.release(arena);
         self.grapheme = grapheme;
+    }
+
+    /// Set grapheme, width, and style atomically.
+    pub fn set(&mut self, grapheme: Grapheme, width: u8, style: Style) {
+        self.grapheme = grapheme;
+        self.width = width;
+        self.style = style;
+    }
+
+    /// Set this cell to a width-1 space with the given style.
+    pub fn set_space(&mut self, style: Style) {
+        self.grapheme = Grapheme::SPACE;
+        self.width = 1;
+        self.style = style;
+    }
+
+    /// Set this cell as a width-0 continuation cell with the given style.
+    pub fn set_continuation(&mut self, style: Style) {
+        self.grapheme = Grapheme::EMPTY;
+        self.width = 0;
+        self.style = style;
     }
     
     pub fn set_char(&mut self, char: char) {
@@ -275,7 +296,7 @@ mod tests {
 
         // Replace with an inline grapheme — old one gets released.
         let g2 = Grapheme::from_char('X');
-        cell.set(g2, &mut arena);
+        cell.set_grapheme(g2, &mut arena);
 
         assert_eq!(cell.as_graph(&arena), "X");
         assert!(arena.is_empty()); // Pool storage was freed.

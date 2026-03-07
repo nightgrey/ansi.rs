@@ -221,7 +221,7 @@ impl const Ord for Position {
 
 impl From<Position> for Point {
     fn from(value: Position) -> Self {
-        Self::new(value.row, value.col)
+        Self::new(value.col, value.row)
     }
 }
 

@@ -1,5 +1,5 @@
 use std::marker::Destruct;
-use geometry::Size;
+use geometry::{Rect, Size};
 use crate::{Area, Column, Index, Position, Row, Steps};
 
 /// Type that represents a spatial context.
@@ -107,5 +107,28 @@ impl<C: [const] Context, Rhs: [const] Context + [const] Destruct> const Contains
     fn contains(&self, other: &Rhs) -> bool {
         self.min().row <= other.min().row && self.max().row >= other.max().row &&
             self.min().col <= other.min().col && self.max().col >= other.max().col
+    }
+}
+
+impl Context for Rect {
+    fn min(&self) -> Position { Position::new(self.min.y, self.min.x) }
+    fn max(&self) -> Position { Position::new(self.max.y, self.max.x) }
+}
+
+impl From<Rect> for Area {
+    fn from(r: Rect) -> Self {
+        Area::new(
+            Position::new(r.min.y, r.min.x),
+            Position::new(r.max.y, r.max.x),
+        )
+    }
+}
+
+impl From<Area> for Rect {
+    fn from(a: Area) -> Self {
+        Rect::new(
+            (a.min.col, a.min.row),
+            (a.max.col, a.max.row),
+        )
     }
 }

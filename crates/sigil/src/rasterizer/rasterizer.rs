@@ -29,7 +29,7 @@ struct InlineState {
 }
 
 pub struct Rasterizer {
-    output: Vec<u8>,
+    internal: Vec<u8>,
     prev: Buffer,
     cursor: Cursor,
     caps: Capabilities,
@@ -44,7 +44,7 @@ impl Rasterizer {
     /// Create a new rasterizer with the given screen dimensions.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            output: Vec::with_capacity(4096),
+            internal: Vec::with_capacity(4096),
             prev: Buffer::new(width, height),
             cursor: Cursor::new(),
             caps: Capabilities::default(),
@@ -93,13 +93,13 @@ impl Rasterizer {
         let height = buffer.height;
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Enable).unwrap();
+            escape!(&mut self.internal, SynchronizedOutput::Enable).unwrap();
         }
 
         // Handle dimension change or forced clear.
         if self.prev.width != width || self.prev.height != height || self.force_clear {
-            escape!(&mut self.output, Home).unwrap();
-            escape!(&mut self.output, EraseDisplay).unwrap();
+            escape!(&mut self.internal, Home).unwrap();
+            escape!(&mut self.internal, EraseDisplay).unwrap();
             self.cursor.reset();
             self.prev = Buffer::new(width, height);
             self.row_hashes.clear();
@@ -125,7 +125,7 @@ impl Rasterizer {
             }
         }
 
-        escape!(&mut self.output, TextCursor::Enable).unwrap();
+        escape!(&mut self.internal, TextCursor::Enable).unwrap();
 
         // Clear-to-bottom optimization: scan from bottom upward for contiguous
         // all-empty new lines where old has content.
@@ -134,9 +134,9 @@ impl Rasterizer {
         for y in 0..height {
             if y >= ed_row {
                 // Everything from ed_row down can be erased in one shot.
-                self.cursor.move_to(&mut self.output, ed_row, 0, self.caps);
-                self.cursor.reset_pen(&mut self.output);
-                escape(&mut self.output, EraseDisplayToEnd).unwrap();
+                self.cursor.move_to(&mut self.internal, ed_row, 0, self.caps);
+                self.cursor.reset_pen(&mut self.internal);
+                escape(&mut self.internal, EraseDisplayToEnd).unwrap();
                 break;
             }
 
@@ -146,7 +146,7 @@ impl Rasterizer {
             }
 
             transform_line(
-                &mut self.output,
+                &mut self.internal,
                 &mut self.cursor,
                 buffer,
                 &self.prev,
@@ -158,11 +158,11 @@ impl Rasterizer {
 
         self.row_hashes = new_hashes;
 
-        self.cursor.reset_pen(&mut self.output);
-        escape(&mut self.output, TextCursor::Enable).unwrap();
+        self.cursor.reset_pen(&mut self.internal);
+        escape(&mut self.internal, TextCursor::Enable).unwrap();
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
+            escape!(&mut self.internal, SynchronizedOutput::Disable).unwrap();
         }
 
         // Swap prev ← new.
@@ -171,9 +171,9 @@ impl Rasterizer {
 
     /// Flush the accumulated output to a writer and clear the buffer.
     pub fn flush(&mut self, w: &mut impl io::Write) -> io::Result<()> {
-        if !self.output.is_empty() {
-            w.write_all(&self.output)?;
-            self.output.clear();
+        if !self.internal.is_empty() {
+            w.write_all(&self.internal)?;
+            self.internal.clear();
         }
         w.flush()
     }
@@ -192,14 +192,14 @@ impl Rasterizer {
 
     /// Enter alternate screen buffer.
     pub fn enter_alt_screen(&mut self) {
-        escape!(&mut self.output, AlternateScreen::Enable);
+        escape!(&mut self.internal, AlternateScreen::Enable);
         self.is_fullscreen = true;
         self.force_clear = true;
     }
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        escape!(&mut self.output, Reset, AlternateScreen::Disable);
+        escape!(&mut self.internal, Reset, AlternateScreen::Disable);
         self.is_fullscreen = false;
         self.cursor.reset();
         self.force_clear = true;
@@ -207,12 +207,12 @@ impl Rasterizer {
 
     /// Access the internal output buffer (for testing).
     pub fn output(&self) -> &[u8] {
-        &self.output
+        &self.internal
     }
 
     /// Clear the output buffer without flushing.
     pub fn clear_output(&mut self) {
-        self.output.clear();
+        self.internal.clear();
     }
 
     // ── Inline rendering ───────────────────────────────────────────
@@ -225,10 +225,10 @@ impl Rasterizer {
         let inline = self.inline.as_mut().expect("inline state required");
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Enable);
+            escape!(&mut self.internal, SynchronizedOutput::Enable);
         }
 
-        escape!(&mut self.output, TextCursor::Disable).unwrap();
+        escape!(&mut self.internal, TextCursor::Disable).unwrap();
 
         if inline.first_render {
             // First render: emit each row with \n separators and EL.
@@ -238,21 +238,21 @@ impl Rasterizer {
 
             for y in 0..height {
                 if y > 0 {
-                    self.output.push(b'\n');
+                    self.internal.push(b'\n');
                 }
                 let row = &buffer[Row(y)];
                 for col in 0..width {
                     let cell = &row[col];
-                    self.cursor.update_pen(&mut self.output, cell.style());
+                    self.cursor.update_pen(&mut self.internal, cell.style());
                     if cell.is_empty() {
-                        self.output.push(b' ');
+                        self.internal.push(b' ');
                     } else {
                         let s = cell.as_str(&buffer.arena);
-                        self.output.extend_from_slice(s.as_bytes());
+                        self.internal.extend_from_slice(s.as_bytes());
                     }
                 }
-                self.cursor.reset_pen(&mut self.output);
-                escape!(&mut self.output, EraseLineToEnd).unwrap();
+                self.cursor.reset_pen(&mut self.internal);
+                escape!(&mut self.internal, EraseLineToEnd).unwrap();
             }
 
             self.cursor.row = height - 1;
@@ -265,7 +265,7 @@ impl Rasterizer {
                 // Growing: emit newlines to claim more rows.
                 let extra = height - old_owned;
                 for _ in 0..extra {
-                    self.output.push(b'\n');
+                    self.internal.push(b'\n');
                 }
                 self.cursor.row += extra;
                 inline.owned_rows = height;
@@ -273,9 +273,9 @@ impl Rasterizer {
 
             // Move to the top of our owned region.
             if self.cursor.row > 0 {
-                escape!(&mut self.output, CursorUp(self.cursor.row)).unwrap();
+                escape!(&mut self.internal, CursorUp(self.cursor.row)).unwrap();
             }
-            escape!(&mut self.output, CarriageReturn).unwrap();
+            escape!(&mut self.internal, CarriageReturn).unwrap();
             self.cursor.row = 0;
             self.cursor.col = 0;
 
@@ -287,7 +287,7 @@ impl Rasterizer {
             // Diff each row using relative movement.
             for y in 0..height {
                 transform_line_relative(
-                    &mut self.output,
+                    &mut self.internal,
                     &mut self.cursor,
                     buffer,
                     &self.prev,
@@ -300,24 +300,24 @@ impl Rasterizer {
             // If we shrank, clear extra rows.
             if height < old_owned {
                 for _ in height..old_owned {
-                    self.cursor.move_to_relative(&mut self.output, self.cursor.row + 1, 0);
-                    escape!(&mut self.output, EraseLineToEnd).unwrap();
+                    self.cursor.move_to_relative(&mut self.internal, self.cursor.row + 1, 0);
+                    escape!(&mut self.internal, EraseLineToEnd).unwrap();
                 }
                 // Move back to last row of content.
                 if self.cursor.row > height - 1 {
                     let up = self.cursor.row - (height - 1);
-                    escape!(&mut self.output, CursorUp(up)).unwrap();
+                    escape!(&mut self.internal, CursorUp(up)).unwrap();
                     self.cursor.row = height - 1;
                 }
                 inline.owned_rows = height;
             }
         }
 
-        self.cursor.reset_pen(&mut self.output);
-        escape!(&mut self.output, TextCursor::Enable).unwrap();
+        self.cursor.reset_pen(&mut self.internal);
+        escape!(&mut self.internal, TextCursor::Enable).unwrap();
 
         if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
+            escape!(&mut self.internal, SynchronizedOutput::Disable).unwrap();
         }
 
         self.prev = buffer.clone();
@@ -377,21 +377,21 @@ impl Rasterizer {
         let _ = new_hashes; // hashes are updated below
 
         // Set scroll region to full screen.
-        escape!(&mut self.output, SetTopBottomMargins::Some(0, height - 1));
+        escape!(&mut self.internal, SetTopBottomMargins::Some(0, height - 1));
 
         // Move cursor into the scroll region.
         if offset > 0 {
             // Content moved up → scroll up (old rows shifted up by `offset`).
-            escape!(&mut self.output, CursorPosition(0, 0)).unwrap();
-            escape!(&mut self.output, ScrollUp(offset as usize)).unwrap();
+            escape!(&mut self.internal, CursorPosition(0, 0)).unwrap();
+            escape!(&mut self.internal, ScrollUp(offset as usize)).unwrap();
         } else {
             // Content moved down → scroll down.
-            escape!(&mut self.output, CursorPosition(0, 0)).unwrap();
-            escape!(&mut self.output, ScrollDown((-offset) as usize)).unwrap();
+            escape!(&mut self.internal, CursorPosition(0, 0)).unwrap();
+            escape!(&mut self.internal, ScrollDown((-offset) as usize)).unwrap();
         }
 
         // Reset scroll region.
-        escape!(&mut self.output, SetTopBottomMargins::None).unwrap();
+        escape!(&mut self.internal, SetTopBottomMargins::None).unwrap();
 
         // Update self.prev to reflect what the terminal now shows.
         let abs_offset = offset.unsigned_abs();
@@ -495,10 +495,13 @@ mod tests {
 
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer);
+        dbg!(&String::from_utf8_lossy(&r.internal));
+
         r.clear_output();
 
         // Render same buffer again.
         r.render(&buffer);
+        dbg!(&String::from_utf8_lossy(&r.internal));
 
         let output_str = String::from_utf8_lossy(r.output());
         assert!(!output_str.contains('A'), "should not re-emit 'A': {output_str}");

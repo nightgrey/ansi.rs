@@ -313,6 +313,12 @@ pub const trait Offset {
     fn offset(self) -> usize;
 }
 
+impl Offset for i32 {
+    #[inline]
+    fn offset(self) -> usize {
+        self as usize
+    }
+}
 impl Offset for u32 {
     #[inline]
     fn offset(self) -> usize {

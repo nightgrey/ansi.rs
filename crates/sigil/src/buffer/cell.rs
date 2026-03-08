@@ -195,6 +195,10 @@ impl Cell {
     pub fn as_str<'a>(&'a self, arena: &'a GraphemeArena) -> &'a str {
         self.grapheme.as_str(arena)
     }
+    
+    pub fn as_bytes<'a>(&'a self, arena: &'a GraphemeArena) -> &'a [u8] {
+        self.grapheme.as_bytes(arena)
+    }
 
     /// Resolve the grapheme to a [`Graph`].
     pub fn as_graph<'a>(&self, arena: &'a GraphemeArena) -> Graph<'a> {

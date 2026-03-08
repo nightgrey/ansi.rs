@@ -228,7 +228,7 @@ impl Grapheme {
             arena.resolve(self)
         }
     }
-
+    
     /// Resolve this grapheme to a `&str` (big-endian fallback).
     ///
     /// Inline graphemes are copied to `buf` and the returned reference borrows
@@ -252,6 +252,11 @@ impl Grapheme {
         } else {
             arena.resolve(self)
         }
+    }
+
+    /// Resolve this grapheme to a byte slice.
+    pub fn as_bytes<'a>(&'a self, arena: &'a GraphemeArena) -> &'a [u8] {
+        self.as_str(arena).as_bytes()
     }
 
     /// Resolve this grapheme to a [`Graph`] for pattern matching.

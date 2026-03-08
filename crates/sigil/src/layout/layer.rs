@@ -1,8 +1,8 @@
-use crate::{Buffer, key};
+use crate::{Buffer, tree_id};
 use derive_more::{Deref, DerefMut, From, Into};
 use grid::Position;
 
-key!(
+tree_id!(
     pub struct LayerId;
 );
 

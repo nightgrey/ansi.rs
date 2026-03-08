@@ -1,4 +1,4 @@
-use super::{Key, Node, iter::*};
+use super::{TreeId, Node, iter::*};
 use super::{NodeRef, NodeRefMut};
 use derive_more::{Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
@@ -8,12 +8,12 @@ type Inner<K, V> = slotmap::SlotMap<K, V>;
 
 #[derive(Debug, Index, IndexMut, IntoIterator)]
 #[repr(transparent)]
-pub struct Tree<K: Key, V> {
+pub struct Tree<K: TreeId, V> {
     #[into_iterator(owned, ref, ref_mut)]
     inner: Inner<K, Node<K, V>>,
 }
 
-impl<K: Key, V> Tree<K, V> {
+impl<K: TreeId, V> Tree<K, V> {
     pub fn new() -> Self {
         Self {
             inner: Inner::with_capacity_and_key(16),
@@ -327,7 +327,7 @@ mod tests {
     use super::*;
 
     // Setup
-    crate::key! {
+    crate::tree_id! {
         pub struct Id;
     }
 

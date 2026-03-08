@@ -2,7 +2,7 @@ use ansi::{escape, sequences::*, Escape, Style, CUP};
 use ansi::io::Write;
 use super::capabilities::Capabilities;
 
-/// Tracks the logical cursor position and current SGR pen state.
+/// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
 pub(crate) struct Cursor {
     pub row: usize,
@@ -33,22 +33,22 @@ impl Cursor {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn move_to(
+    pub fn to(
         &mut self,
-        buf: &mut Vec<u8>,
-        target_row: usize,
-        target_col: usize,
+        row: usize,
+        col: usize,
+        output: &mut Vec<u8>,
         caps: Capabilities,
     ) {
-        if self.row == target_row && self.col == target_col {
+        if self.row == row && self.col == col {
             return;
         }
 
-        let dr = target_row as isize - self.row as isize;
-        let dc = target_col as isize - self.col as isize;
+        let dr = row as isize - self.row as isize;
+        let dc = col as isize - self.col as isize;
 
         // Strategy 0: CUP (always available)
-        let cost_cup = CursorPosition(target_row, target_col).cost();
+        let cost_cup = CursorPosition(row, col).cost();
 
         // Strategy 1: Relative moves
         let vert_cost = CursorUp(dr.unsigned_abs()).cost();
@@ -57,13 +57,13 @@ impl Cursor {
 
         // Strategy 2: CR + relative vertical + CUF
         // CR is 1 byte, then vertical move, then CUF to target_col
-        let cost_cr = 1 + vert_cost + CursorForward(target_col).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         // Strategy 3: VPA + CHA (requires capabilities)
         let cost_vpa_cha = if caps.contains(Capabilities::VPA | Capabilities::CHA) {
-            let v = if dr != 0 { VerticalPositionAbsolute(target_row).cost() } else { 0 };
+            let v = if dr != 0 { VerticalPositionAbsolute(row).cost() } else { 0 };
             let h = if dc != 0 || dr != 0 {
-                HorizontalPositionAbsolute(target_col).cost()
+                HorizontalPositionAbsolute(col).cost()
             } else {
                 0
             };
@@ -78,38 +78,38 @@ impl Cursor {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                escape(buf, CursorDown(dr as usize));
+                escape(output, CursorDown(dr as usize));
             } else if dr < 0 {
-                escape(buf, CursorUp((-dr) as usize));
+                escape(output, CursorUp((-dr) as usize));
             }
             if dc > 0 {
-                escape(buf, CursorForward(dc as usize));
+                escape(output, CursorForward(dc as usize));
             } else if dc < 0 {
-                escape(buf, CursorBackward((-dc) as usize));
+                escape(output, CursorBackward((-dc) as usize));
             }
         } else if min == cost_cr {
-            escape(buf, CarriageReturn);
+            escape(output, CarriageReturn);
             if dr > 0 {
-                escape(buf, CursorDown(dr as usize));
+                escape(output, CursorDown(dr as usize));
             } else if dr < 0 {
-                escape(buf, CursorUp((-dr) as usize));
+                escape(output, CursorUp((-dr) as usize));
             }
-            if target_col > 0 {
-                escape(buf, CursorForward(target_col));
+            if col > 0 {
+                escape(output, CursorForward(col));
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                escape(buf, VerticalPositionAbsolute(target_row));
+                escape(output, VerticalPositionAbsolute(row));
             }
             if dc != 0 || dr != 0 {
-                escape(buf, HorizontalPositionAbsolute(target_col));
+                escape(output, HorizontalPositionAbsolute(col));
             }
         } else {
-            escape(buf, CursorPosition(target_row, target_col));
+            escape(output, CursorPosition(row, col));
         }
 
-        self.row = target_row;
-        self.col = target_col;
+        self.row = row;
+        self.col = col;
     }
 
     /// Emit a relative-only cursor movement sequence (no CUP, VPA, CHA).
@@ -118,18 +118,18 @@ impl Cursor {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(
+    pub fn to_relative(
         &mut self,
-        buf: &mut Vec<u8>,
-        target_row: usize,
-        target_col: usize,
+        row: usize,
+        col: usize,
+        output: &mut Vec<u8>,
     ) {
-        if self.row == target_row && self.col == target_col {
+        if self.row == row && self.col == col {
             return;
         }
 
-        let dr = target_row as isize - self.row as isize;
-        let dc = target_col as isize - self.col as isize;
+        let dr = row as isize - self.row as isize;
+        let dc = col as isize - self.col as isize;
 
         // Strategy 1: Pure relative
         let vert_cost = CursorUp(dr.unsigned_abs()).cost();
@@ -137,52 +137,52 @@ impl Cursor {
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + vertical + CUF
-        let cost_cr = 1 + vert_cost + CursorForward(target_col).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
-            escape(buf, CarriageReturn);
+            escape(output, CarriageReturn);
             if dr > 0 {
-                escape(buf, CursorDown(dr as usize));
+                escape(output, CursorDown(dr as usize));
             } else if dr < 0 {
-                escape(buf, CursorUp((-dr) as usize));
+                escape(output, CursorUp((-dr) as usize));
             }
-            if target_col > 0 {
-                escape(buf, CursorForward(target_col));
+            if col > 0 {
+                escape(output, CursorForward(col));
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                escape(buf, CursorDown(dr as usize));
+                escape(output, CursorDown(dr as usize));
             } else if dr < 0 {
-                escape(buf, CursorUp((-dr) as usize));
+                escape(output, CursorUp((-dr) as usize));
             }
             if dc > 0 {
-                escape(buf, CursorForward(dc as usize));
+                escape(output, CursorForward(dc as usize));
             } else if dc < 0 {
-                escape(buf, CursorBackward((-dc) as usize));
+                escape(output, CursorBackward((-dc) as usize));
             }
         }
 
-        self.row = target_row;
-        self.col = target_col;
+        self.row = row;
+        self.col = col;
     }
 
     /// Update the pen (SGR state) to match `target_style`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn update_pen(&mut self, buf: &mut Vec<u8>, target_style: &Style) {
-        if self.style == *target_style {
+    pub fn update_style(&mut self, output: &mut Vec<u8>, style: &Style) {
+        if self.style == *style {
             return;
         }
 
-        let diff = self.style.diff(*target_style);
+        let diff = self.style.diff(*style);
         if !diff.is_empty() {
-            diff.escape(buf).ok();
+            diff.escape(output).ok();
         }
 
-        self.style = *target_style;
+        self.style = *style;
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
-    pub fn reset_pen(&mut self, buf: &mut Vec<u8>) {
+    pub fn reset_style(&mut self, buf: &mut Vec<u8>) {
         if !self.style.is_empty() {
             escape(buf, Reset);
             self.style = Style::EMPTY;
@@ -204,7 +204,7 @@ mod tests {
     fn move_to_same_position_is_noop() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.move_to(&mut buf, 0, 0, Capabilities::DEFAULT);
+        cursor.to(0, 0, &mut buf, Capabilities::DEFAULT);
         assert!(buf.is_empty());
     }
 
@@ -213,7 +213,7 @@ mod tests {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
         // Moving right by 1 should use CUF (3 bytes) not CUP (6+ bytes)
-        cursor.move_to(&mut buf, 0, 1, Capabilities::DEFAULT);
+        cursor.to(0, 1, &mut buf, Capabilities::DEFAULT);
         assert_eq!(buf, b"\x1B[C");
     }
 
@@ -224,7 +224,7 @@ mod tests {
         cursor.col = 10;
         let mut buf = Vec::new();
         // Same row, col 0 — CR (1 byte) is cheapest
-        cursor.move_to(&mut buf, 5, 0, Capabilities::DEFAULT);
+        cursor.to(5, 0, &mut buf, Capabilities::DEFAULT);
         assert_eq!(buf, b"\r");
     }
 
@@ -232,7 +232,7 @@ mod tests {
     fn move_to_uses_cup_for_distant_positions() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.move_to(&mut buf, 50, 80, Capabilities::DEFAULT);
+        cursor.to(50, 80, &mut buf, Capabilities::DEFAULT);
         let output = String::from_utf8_lossy(&buf);
         // Should use some form of absolute positioning
         assert!(output.contains('\x1B'));
@@ -245,7 +245,7 @@ mod tests {
         let mut cursor = Cursor::new();
         cursor.style = Style::new().bold();
         let mut buf = Vec::new();
-        cursor.update_pen(&mut buf, &Style::new().bold());
+        cursor.update_style(&mut buf, &Style::new().bold());
         assert!(buf.is_empty());
     }
 
@@ -254,12 +254,12 @@ mod tests {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
         // Clean pen — no output
-        cursor.reset_pen(&mut buf);
+        cursor.reset_style(&mut buf);
         assert!(buf.is_empty());
 
         // Dirty pen — emits SGR reset
         cursor.style = Style::new().bold();
-        cursor.reset_pen(&mut buf);
+        cursor.reset_style(&mut buf);
         assert_eq!(buf, b"\x1B[0m");
         assert!(cursor.style.is_empty());
     }

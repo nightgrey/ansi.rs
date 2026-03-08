@@ -1,8 +1,40 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
-
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
+use derive_more::{Deref, DerefMut};
 use ansi::{Color, Style};
 use sigil::buffer::{Buffer, Cell};
-use sigil::rasterizer::{Capabilities, Rasterizer};
+use sigil::GraphemeArena;
+use sigil::rasterizer::{Capabilities};
+
+#[derive(Clone, Debug, Deref, DerefMut)]
+struct Rasterizer(
+    #[deref]
+    #[deref_mut]
+    sigil::Rasterizer,
+    GraphemeArena
+);
+impl Rasterizer {
+    fn new(width: usize, height: usize) -> Self {
+        Self(sigil::Rasterizer::new(width, height), GraphemeArena::new())
+    }
+
+    fn with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
+        Self(sigil::Rasterizer::with_capabilities(width, height, caps), GraphemeArena::new())
+    }
+    
+    fn inline(width: usize, height: usize) -> Self {
+        Self(sigil::Rasterizer::inline(width, height), GraphemeArena::new())
+    }
+
+    /// Create an inline rasterizer with explicit capabilities.
+    fn inline_with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
+        Self(sigil::Rasterizer::inline_with_capabilities(width, height, caps), GraphemeArena::new())
+    }
+
+    fn render(&mut self, buffer: &Buffer) {
+        self.0.render(buffer, &self.1);
+    }
+}
 
 /// Standard terminal size matching Rezi's benchmark suite.
 const W: usize = 120;
@@ -160,6 +192,7 @@ fn terminal_rerender(c: &mut Criterion) {
     // Change a single cell in the middle of the screen.
     let mut buf2 = buf1.clone();
     buf2[(H / 2, W / 2)] = Cell::from_char('!', style);
+
 
     let mut r = Rasterizer::new(W, H);
     r.render(&buf1);

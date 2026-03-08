@@ -1,7 +1,7 @@
-use crate::{LayerId, key};
+use crate::{LayerId, tree_id};
 use ansi::{Color, Style};
 
-key!(
+tree_id!(
     pub struct ElementId;
 );
 

@@ -1,4 +1,4 @@
-use crate::{Tree, Key, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer};
+use crate::{Tree, TreeId, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer};
 use geometry::{Rect};
 use std::io::Write;
 

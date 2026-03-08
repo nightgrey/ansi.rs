@@ -1,14 +1,14 @@
-use super::{Key, Node, iter::*};
+use super::{TreeId, Node, iter::*};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
 type Inner<K, V> = slotmap::SecondaryMap<K, V>;
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 #[repr(transparent)]
-pub struct Secondary<K: Key, V> {
+pub struct Secondary<K: TreeId, V> {
     inner: Inner<K, V>,
 }
 
-impl<K: Key, V> Secondary<K, V> {
+impl<K: TreeId, V> Secondary<K, V> {
     pub fn new() -> Self {
         Self {
             inner: Inner::new(),

@@ -1,18 +1,25 @@
 use crate::{Point, Rect, Size};
 /// Provides the bounds of a geometry.
 pub trait Bounded {
+    #[inline]
     fn bounds(&self) -> Rect;
 
+    #[inline]
     fn min(&self) -> Point;
 
+    #[inline]
     fn max(&self) -> Point;
 
+    #[inline]
     fn width(&self) -> usize;
 
+    #[inline]
     fn height(&self) -> usize;
 
+    #[inline]
     fn len(&self) -> usize;
 
+    #[inline]
     fn is_empty(&self) -> bool;
 }
 

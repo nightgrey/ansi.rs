@@ -1,10 +1,15 @@
-use crate::{Point, Rect, Size};
+use crate::{Point, PointLike, Rect, Size};
 
 /// Tests if a geometry is completely contained within another geometry.
 pub trait Contains<Rhs = Self> {
     fn contains(&self, rhs: &Rhs) -> bool;
 }
 
+impl Contains<PointLike> for Rect {
+    fn contains(&self, rhs: &PointLike) -> bool {
+        rhs.0 >= self.min.x && rhs.0 < self.max.x && rhs.1 >= self.min.y && rhs.1 < self.max.y
+    }
+}
 impl Contains<Point> for Rect {
     fn contains(&self, rhs: &Point) -> bool {
         rhs.x >= self.min.x && rhs.x < self.max.x && rhs.y >= self.min.y && rhs.y < self.max.y

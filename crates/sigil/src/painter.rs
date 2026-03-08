@@ -81,17 +81,16 @@ impl<'a> Painter<'a> {
         if col < 0 || row < 0 {
             return false;
         }
-        let (c, r) = (col as usize, row as usize);
-        if c >= self.width || r >= self.height {
+        let (col, row) = (col as usize, row as usize);
+        if col >= self.width || row >= self.height {
             return false;
         }
-        let clip = self.clip();
-        c >= clip.left() && c < clip.right() && r >= clip.top() && r < clip.bottom()
+        self.clip().contains(&(col, row))
     }
 
     /// True when *both* `col` and `col+1` can be touched (needed for wide writes).
     #[inline]
-    fn can_touch_wide(&self, row: i32, col: i32) -> bool {
+    fn contains_wide(&self, row: i32, col: i32) -> bool {
         self.contains(row, col) && self.contains(row, col + 1)
     }
 
@@ -105,7 +104,7 @@ impl<'a> Painter<'a> {
     ///
     /// **Clip exception**: the paired half of a broken wide glyph is cleared
     /// even when that neighbor is outside the current clip.
-    fn write_w1(
+    fn write_grapheme(
         &mut self,
         row: usize,
         col: usize,
@@ -146,23 +145,23 @@ impl<'a> Painter<'a> {
     /// Write a width-2 grapheme at `(col, row)` + `(col+1, row)`.
     ///
     /// Both cells must be touchable; returns `false` otherwise.
-    fn write_w2(
+    fn write_grapheme_wide(
         &mut self,
         row: usize,
         col: usize,
         grapheme: Grapheme,
         style: Style,
     ) -> bool {
-        if !self.can_touch_wide(row as i32, col as i32) {
+        if !self.contains_wide(row as i32, col as i32) {
             return false;
         }
 
         // Clear both cells first (this repairs any overlapping wide glyphs).
         let space = Grapheme::SPACE;
-        if !self.write_w1(row, col, space, style) {
+        if !self.write_grapheme(row, col, space, style) {
             return false;
         }
-        if !self.write_w1(row, col + 1, space, style) {
+        if !self.write_grapheme(row, col + 1, space, style) {
             return false;
         }
 
@@ -197,12 +196,12 @@ impl<'a> Painter<'a> {
 
         match width {
             1 => {
-                self.write_w1(ur, uc, grapheme, style);
+                self.write_grapheme(ur, uc, grapheme, style);
             }
             2 => {
-                if !self.write_w2(ur, uc, grapheme, style) {
+                if !self.write_grapheme_wide(ur, uc, grapheme, style) {
                     // Can't fit wide — deterministic replacement, never half-glyph.
-                    self.write_w1(ur, uc, Grapheme::REPLACEMENT_CHARACTER, style);
+                    self.write_grapheme(ur, uc, Grapheme::REPLACEMENT_CHARACTER, style);
                 }
             }
             _ => {}
@@ -219,9 +218,9 @@ impl<'a> Painter<'a> {
         }
 
         let space = Grapheme::SPACE;
-        for row in effective.top()..effective.bottom() {
-            for col in effective.left()..effective.right() {
-                self.write_w1(row, col, space, style);
+        for row in effective.vertical() {
+            for col in effective.horizontal() {
+                self.write_grapheme(row, col, space, style);
             }
         }
     }
@@ -252,7 +251,7 @@ impl<'a> Painter<'a> {
                 // Wide: need both cells touchable, else replace.
                 if cx >= 0 && cx + 1 <= i32::MAX as i64 {
                     let ix = cx as i32;
-                    if self.can_touch_wide(row, ix) {
+                    if self.contains_wide(row, ix) {
                         self.put(row, ix, grapheme, 2, style);
                     } else if self.contains(row, ix) {
                         // Lead visible, continuation clipped → replacement.

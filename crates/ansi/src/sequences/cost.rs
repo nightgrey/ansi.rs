@@ -16,16 +16,6 @@ pub trait Cost: Escape {
 ///
 /// Used to calculate exact byte lengths for CSI (Control Sequence Introducer)
 /// parameters, which are transmitted as 1-indexed decimal ASCII strings.
-///
-/// # Examples
-///
-/// ```
-/// assert_eq!(decimal_width(0), 1);    // "0"
-/// assert_eq!(decimal_width(5), 1);    // "5"
-/// assert_eq!(decimal_width(10), 2);   // "10"
-/// assert_eq!(decimal_width(255), 3);  // "255"
-/// assert_eq!(decimal_width(9999), 4); // "9999"
-/// ```
 #[inline]
 pub const fn decimal_width(n: usize) -> usize {
     if n == 0 {

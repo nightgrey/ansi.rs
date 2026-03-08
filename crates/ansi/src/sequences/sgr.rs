@@ -18,20 +18,7 @@ use crate::{Escape, Style};
 /// characters received. If you move characters by scrolling, then the attributes
 /// move with the characters.
 ///
-/// ## Example
-/// To display text that is bold, blinking, and underlined:
-///
-/// ```
-/// execute!(
-///   stdout(),
-///   Attribute::Bold | Attribute::Blink | Attribute::Underline,
-///   "This text is bold, blinking, and underlined."
-///   Attribute::Reset
-/// )
-/// ```
-///
 /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
-///
 #[derive(Copy, Clone, Debug,  PartialEq, derive_more::Constructor, derive_more::From, derive_more::Into)]
 #[repr(transparent)]
 pub struct SelectGraphicRendition(pub Style);

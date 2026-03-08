@@ -17,7 +17,6 @@
 #![feature(iter_advance_by)]
 #![feature(fmt_arguments_from_str)]
 #![feature(panic_internals)]
-#![feature(rustc_attrs)]
 #![feature(new_range_api)]
 #![feature(step_trait)]
 #![feature(const_convert)]

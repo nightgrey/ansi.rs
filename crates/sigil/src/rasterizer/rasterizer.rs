@@ -324,7 +324,7 @@ impl Rasterizer {
         }
 
         // Swap prev ← new.
-        self.previous = buffer.clone();
+        self.previous.copy_from_slice(buffer);
     }
 
     /// Flush the accumulated output to a writer and clear the buffer.

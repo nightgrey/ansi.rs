@@ -59,6 +59,70 @@ sequence!(
 );
 
 sequence!(
+    /// [IL] — Insert Line
+    ///
+    /// Inserts `Pn` blank lines at the cursor position. Existing lines are pushed down.
+    ///
+    /// ## Format
+    ///
+    /// **CSI** *Pn* **L**
+    ///
+    /// ## Parameters
+    /// - `Pn` is the number of lines to insert. Default: 1.
+    ///
+    /// [`IL`]: https://vt100.net/docs/vt510-rm/IL.html
+    pub struct InsertLine(pub usize) => |this, w| {
+        if this.0 == 1 {
+            write!(w, "\x1B[L")
+        } else if this.0 > 1 {
+            write!(w, "\x1B[{}L", this.0)
+        } else {
+            Ok(())
+        }
+    }
+);
+
+sequence!(
+    /// [DL] — Delete Line
+    ///
+    /// Deletes `Pn` lines at the cursor position. Lines below are pulled up.
+    ///
+    /// ## Format
+    ///
+    /// **CSI** *Pn* **M**
+    ///
+    /// ## Parameters
+    /// - `Pn` is the number of lines to delete. Default: 1.
+    ///
+    /// [`DL`]: https://vt100.net/docs/vt510-rm/DL.html
+    pub struct DeleteLine(pub usize) => |this, w| {
+        if this.0 == 1 {
+            write!(w, "\x1B[M")
+        } else if this.0 > 1 {
+            write!(w, "\x1B[{}M", this.0)
+        } else {
+            Ok(())
+        }
+    }
+);
+
+sequence!(
+    /// [RI] — Reverse Index
+    ///
+    /// Moves the cursor up one line in the same column. If the cursor is at the
+    /// top margin, the page scrolls down.
+    ///
+    /// ## Format
+    ///
+    /// **ESC** **M**
+    ///
+    /// [`RI`]: https://vt100.net/docs/vt510-rm/RI.html
+    pub struct ReverseIndex => |this, w| {
+        write!(w, "\x1BM")
+    }
+);
+
+sequence!(
     /// [CUP] — Cursor Position (Home)
     ///
     /// Moves the cursor to the home position (1,1).

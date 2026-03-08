@@ -21,6 +21,10 @@ bitflags! {
         const SCROLL        = 1 << 6;
         /// Synchronized output (mode 2026).
         const SYNC_OUTPUT   = 1 << 7;
+        /// Insert Line (`\x1B[L`).
+        const INSERT_LINE   = 1 << 10;
+        /// Delete Line (`\x1B[M`).
+        const DELETE_LINE   = 1 << 11;
         /// 24-bit true color.
         const TRUECOLOR     = 1 << 8;
         /// 256 indexed colors.

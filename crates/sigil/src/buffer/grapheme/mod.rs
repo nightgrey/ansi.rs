@@ -228,7 +228,7 @@ impl Grapheme {
             arena.resolve(self)
         }
     }
-    
+
     /// Resolve this grapheme to a `&str` (big-endian fallback).
     ///
     /// Inline graphemes are copied to `buf` and the returned reference borrows
@@ -548,13 +548,5 @@ mod tests {
         let ext = Grapheme::from_offset(42);
         assert_eq!(ext.tag(), Grapheme::EXTENDED_TAG);
         assert_eq!(u32::from(ext.payload()), 42);
-    }
-
-    #[test]
-    fn replacement_char() {
-        let c = char::REPLACEMENT_CHARACTER;
-        dbg!(Grapheme::REPLACEMENT_CHARACTER.value, c as u32);
-        dbg!(c.encode_utf8(&mut [0; 4]));
-
     }
 }

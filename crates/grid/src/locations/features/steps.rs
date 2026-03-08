@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::marker::Destruct;
 use std::ops::{Deref};
-use crate::{Location, Position, IntoLocation, Step, Range, Spatial, Bounded};
+use crate::{Location, Position, IntoLocation, Step, Range, Spatial};
 use crate::Area;
 
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
@@ -365,7 +365,7 @@ mod tests {
     mod off_by_one {
         use super::*;
 
-        // #[test] 
+        // #[test]
         // @TODO: Fix this test
         fn from_0() {
             for x in 0..2 {

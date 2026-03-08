@@ -2,7 +2,7 @@ use std::ops;
 use std::slice::{ChunksExact, SliceIndex};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
 use geometry::{Point, Rect, Size};
-use crate::{Area, Position, Spatial, IntoSliceIndex, Steps, Row, Intersect, Bounded, Sides};
+use crate::{Area, Position, Spatial, IntoSliceIndex, Steps, Row, Intersect, Sides};
 
 #[derive(Debug, Clone, Eq, PartialEq, Deref, DerefMut, IntoIterator, AsRef, AsMut)]
 pub struct Grid<T> {

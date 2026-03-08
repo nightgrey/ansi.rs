@@ -45,15 +45,9 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// The buffer dimensions as a [`Rect`].
-    #[inline]
-    fn bounds(&self) -> Rect {
-        Rect::bounds(0, 0, self.width, self.height)
-    }
-
     /// Current effective clip rectangle.
     #[inline]
-    pub fn current(&self) -> Rect {
+    pub fn clip(&self) -> Rect {
         // SAFETY: clips is never empty — `new` pushes one, `pop` refuses to
         // remove the last.
         *self.stack.last().unwrap()
@@ -61,7 +55,7 @@ impl<'a> Painter<'a> {
 
     /// Push `rect` intersected with the current clip and buffer bounds.
     pub fn push(&mut self, rect: Rect) {
-        let next = self.bounds().intersect(&rect).intersect(&self.current());
+        let next = self.bounds().intersect(&rect).intersect(&self.clip());
         self.stack.push(next);
     }
 
@@ -73,7 +67,7 @@ impl<'a> Painter<'a> {
 
     /// Push `rect` as a clip, run `f`, then pop. Strictly scoped alternative
     /// to manual push/pop.
-    pub fn push_and_pop(&mut self, rect: Rect, f: impl FnOnce(&mut Painter<'_>)) {
+    pub fn push_and_then(&mut self, rect: Rect, f: impl FnOnce(&mut Painter<'_>)) {
         self.push(rect);
         f(self);
         self.pop();
@@ -83,7 +77,7 @@ impl<'a> Painter<'a> {
 
     /// True when `(col, row)` is inside both the buffer and the current clip.
     #[inline]
-    fn can_touch(&self, col: i32, row: i32) -> bool {
+    fn contains(&self, row: i32, col: i32) -> bool {
         if col < 0 || row < 0 {
             return false;
         }
@@ -91,14 +85,14 @@ impl<'a> Painter<'a> {
         if c >= self.width || r >= self.height {
             return false;
         }
-        let clip = self.current();
+        let clip = self.clip();
         c >= clip.left() && c < clip.right() && r >= clip.top() && r < clip.bottom()
     }
 
     /// True when *both* `col` and `col+1` can be touched (needed for wide writes).
     #[inline]
-    fn can_touch_wide(&self, col: i32, row: i32) -> bool {
-        self.can_touch(col, row) && self.can_touch(col + 1, row)
+    fn can_touch_wide(&self, row: i32, col: i32) -> bool {
+        self.contains(row, col) && self.contains(row, col + 1)
     }
 
     // -- Invariant-safe cell writes -----------------------------------------
@@ -113,15 +107,15 @@ impl<'a> Painter<'a> {
     /// even when that neighbor is outside the current clip.
     fn write_w1(
         &mut self,
-        col: usize,
         row: usize,
+        col: usize,
         grapheme: Grapheme,
         style: Style,
     ) -> bool {
         if col >= self.width || row >= self.height {
             return false;
         }
-        if !self.can_touch(col as i32, row as i32) {
+        if !self.contains(row as i32, col as i32) {
             return false;
         }
 
@@ -154,21 +148,21 @@ impl<'a> Painter<'a> {
     /// Both cells must be touchable; returns `false` otherwise.
     fn write_w2(
         &mut self,
-        col: usize,
         row: usize,
+        col: usize,
         grapheme: Grapheme,
         style: Style,
     ) -> bool {
-        if !self.can_touch_wide(col as i32, row as i32) {
+        if !self.can_touch_wide(row as i32, col as i32) {
             return false;
         }
 
         // Clear both cells first (this repairs any overlapping wide glyphs).
         let space = Grapheme::SPACE;
-        if !self.write_w1(col, row, space, style) {
+        if !self.write_w1(row, col, space, style) {
             return false;
         }
-        if !self.write_w1(col + 1, row, space, style) {
+        if !self.write_w1(row, col + 1, space, style) {
             return false;
         }
 
@@ -187,8 +181,8 @@ impl<'a> Painter<'a> {
     /// - grapheme bytes exceed inline capacity and arena stash fails → `U+FFFD`
     pub fn put(
         &mut self,
-        col: i32,
         row: i32,
+        col: i32,
         grapheme: Grapheme,
         width: u8,
         style: Style,
@@ -203,12 +197,12 @@ impl<'a> Painter<'a> {
 
         match width {
             1 => {
-                self.write_w1(uc, ur, grapheme, style);
+                self.write_w1(ur, uc, grapheme, style);
             }
             2 => {
-                if !self.write_w2(uc, ur, grapheme, style) {
+                if !self.write_w2(ur, uc, grapheme, style) {
                     // Can't fit wide — deterministic replacement, never half-glyph.
-                    self.write_w1(uc, ur, Grapheme::REPLACEMENT_CHARACTER, style);
+                    self.write_w1(ur, uc, Grapheme::REPLACEMENT_CHARACTER, style);
                 }
             }
             _ => {}
@@ -218,7 +212,7 @@ impl<'a> Painter<'a> {
     /// Fill `rect` with spaces in the given style.
     pub fn fill(&mut self, rect: Rect, style: Style) {
         let effective = self.bounds()
-            .intersect(&self.current())
+            .intersect(&self.clip())
             .intersect(&rect);
         if effective.is_empty() {
             return;
@@ -227,7 +221,7 @@ impl<'a> Painter<'a> {
         let space = Grapheme::SPACE;
         for row in effective.top()..effective.bottom() {
             for col in effective.left()..effective.right() {
-                self.write_w1(col, row, space, style);
+                self.write_w1(row, col, space, style);
             }
         }
     }
@@ -237,7 +231,7 @@ impl<'a> Painter<'a> {
     ///
     /// Cursor advance is **stable**: clipping affects what's drawn, not how
     /// far the cursor moves. This keeps layout deterministic.
-    pub fn draw_text(&mut self, col: i32, row: i32, text: &str, style: Style) {
+    pub fn draw_text(&mut self, row: i32, col: i32, text: &str, style: Style) {
         if row < 0 || text.is_empty() {
             return;
         }
@@ -258,19 +252,19 @@ impl<'a> Painter<'a> {
                 // Wide: need both cells touchable, else replace.
                 if cx >= 0 && cx + 1 <= i32::MAX as i64 {
                     let ix = cx as i32;
-                    if self.can_touch_wide(ix, row) {
-                        self.put(ix, row, grapheme, 2, style);
-                    } else if self.can_touch(ix, row) {
+                    if self.can_touch_wide(row, ix) {
+                        self.put(row, ix, grapheme, 2, style);
+                    } else if self.contains(row, ix) {
                         // Lead visible, continuation clipped → replacement.
                         let repl = Grapheme::REPLACEMENT_CHARACTER;
-                        self.put(ix, row, repl, 1, style);
+                        self.put(row, ix, repl, 1, style);
                     }
                     // else: fully clipped, draw nothing.
                 }
                 cx += 2;
             } else {
                 if cx >= 0 && cx <= i32::MAX as i64 {
-                    self.put(cx as i32, row, grapheme, 1, style);
+                    self.put(row, cx as i32, grapheme, 1, style);
                 }
                 cx += 1;
             }
@@ -282,24 +276,24 @@ impl<'a> Painter<'a> {
     }
 
     /// Repeat `ch` horizontally for `len` cells starting at `(col, row)`.
-    pub fn hline(&mut self, col: i32, row: i32, len: i32, ch: char, style: Style) {
+    pub fn hline(&mut self, row: i32, col: i32, len: i32, ch: char, style: Style) {
         if len <= 0 {
             return;
         }
         let g = Grapheme::from_char(ch);
         for i in 0..len {
-            self.put(col.saturating_add(i), row, g, 1, style);
+            self.put(row, col.saturating_add(i), g, 1, style);
         }
     }
 
     /// Repeat `ch` vertically for `len` cells starting at `(col, row)`.
-    pub fn vline(&mut self, col: i32, row: i32, len: i32, ch: char, style: Style) {
+    pub fn vline(&mut self, row: i32, col: i32, len: i32, ch: char, style: Style) {
         if len <= 0 {
             return;
         }
         let g = Grapheme::from_char(ch);
         for i in 0..len {
-            self.put(col, row.saturating_add(i), g, 1, style);
+            self.put(row.saturating_add(i), col, g, 1, style);
         }
     }
 
@@ -316,7 +310,7 @@ impl<'a> Painter<'a> {
         );
 
         if w == 1 && h == 1 {
-            self.put(x, y, Grapheme::from_char('+'), 1, style);
+            self.put(y, x, Grapheme::from_char('+'), 1, style);
             return;
         }
 
@@ -325,21 +319,21 @@ impl<'a> Painter<'a> {
 
         // Corners
         let corner = Grapheme::from_char('+');
-        self.put(x, y, corner, 1, style);
-        self.put(right, y, corner, 1, style);
-        self.put(x, bottom, corner, 1, style);
-        self.put(right, bottom, corner, 1, style);
+        self.put(y, x, corner, 1, style);
+        self.put(y, right, corner, 1, style);
+        self.put(bottom, x, corner, 1, style);
+        self.put(bottom, right, corner, 1, style);
 
         // Horizontal edges (inner)
         if w > 2 {
-            self.hline(x + 1, y, w - 2, '-', style);
-            self.hline(x + 1, bottom, w - 2, '-', style);
+            self.hline(y, x + 1, w - 2, '-', style);
+            self.hline(bottom, x + 1, w - 2, '-', style);
         }
 
         // Vertical edges (inner)
         if h > 2 {
-            self.vline(x, y + 1, h - 2, '|', style);
-            self.vline(right, y + 1, h - 2, '|', style);
+            self.vline(y + 1, x, h - 2, '|', style);
+            self.vline(y + 1, right, h - 2, '|', style);
         }
     }
 
@@ -347,29 +341,29 @@ impl<'a> Painter<'a> {
     ///
     /// Wide glyphs that don't fully fit in the effective copy region are
     /// replaced with `U+FFFD`. Clip-aware for the destination.
-    pub fn blit(&mut self, dst: Rect, src: Rect) {
-        if dst.is_empty() || src.is_empty() {
+    pub fn blit_within(&mut self, src: Rect, dest: Rect) {
+        if dest.is_empty() || src.is_empty() {
             return;
         }
 
-        let w = dst.width().min(src.width());
-        let h = dst.height().min(src.height());
+        let w = dest.width().min(src.width());
+        let h = dest.height().min(src.height());
         if w == 0 || h == 0 {
             return;
         }
 
         // Determine iteration order for overlap safety (memmove semantics).
-        let (y_range, x_range) = blit_order(dst, src, w, h);
+        let (y_range, x_range) = blit_order(dest, src, w, h);
 
-        let clip = self.current();
+        let clip = self.clip();
 
         for oy in y_range.clone() {
             let sy = src.top() + oy;
-            let dy = dst.top() + oy;
+            let dy = dest.top() + oy;
 
             for ox in x_range.clone() {
                 let sx = src.left() + ox;
-                let dx = dst.left() + ox;
+                let dx = dest.left() + ox;
 
                 if !clip.contains(&Point::new(dx, dy)) {
                     continue;
@@ -388,18 +382,14 @@ impl<'a> Painter<'a> {
                 if cell.is_wide() && ox + 1 >= w {
                     // Wide lead doesn't fully fit in copy region → replace.
                     let repl = Grapheme::REPLACEMENT_CHARACTER;
-                    self.put(dx as i32, dy as i32, repl, 1, *cell.style());
+                    self.put(dy as i32, dx as i32, repl, 1, *cell.style());
                 } else {
-                    self.put(dx as i32, dy as i32, cell.grapheme(), cell.width(), *cell.style());
+                    self.put(dy as i32, dx as i32, cell.grapheme(), cell.width(), *cell.style());
                 }
             }
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Blit iteration order
-// ---------------------------------------------------------------------------
 
 /// Compute forward/reverse iteration ranges for overlap-safe copy.
 fn blit_order(
@@ -459,7 +449,7 @@ mod tests {
         let mut arena = GraphemeArena::new();
         let mut painter = Painter::new(&mut buffer, &mut arena);
         painter.hline(0, 0, 10, '-', Style::default());
-        painter.vline(1, 0, 2, '|', Style::default());
+        painter.vline(0, 1, 2, '|', Style::default());
 
         println!("{}", buffer.to_string(&arena));
     }

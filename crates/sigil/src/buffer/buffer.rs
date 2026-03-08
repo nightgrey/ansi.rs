@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
 use ansi::Style;
-use grid::{Grid, Position, Area, Spatial, Intersect, Row};
+use grid::{Grid, Position, Area, Spatial, Intersect};
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
@@ -38,39 +38,39 @@ impl Buffer {
 
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
-    pub fn insert_line(&mut self, y: Row, n: usize, cell: Cell) {
+    pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
         self.insert_line_area(y, n, cell, self.area());
     }
 
     /// Delete `n` lines at row `y`, shifting remaining lines up (ANSI DL).
     /// Operates on the full buffer width.
-    pub fn delete_line(&mut self, y: Row, n: usize, cell: Cell) {
+    pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
         self.delete_line_area(y, n, cell, &self.area());
     }
 
     /// Insert `n` cells at `(x, y)`, shifting cells right (ANSI ICH).
     /// Operates on the full buffer width.
-    pub fn insert_cell(&mut self, position: Position, n: usize, cell: Cell) {
-        self.insert_cell_area(position, n, cell, &self.area());
+    pub fn insert_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
+        self.insert_cell_area(row, col, n, cell, &self.area());
     }
 
     /// Delete `n` cells at `(x, y)`, shifting cells left (ANSI DCH).
     /// Operates on the full buffer width.
-    pub fn delete_cell(&mut self, position: Position, n: usize, cell: Cell) {
-        self.delete_cell_area(position, n, cell, &self.area());
+    pub fn delete_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
+        self.delete_cell_area(row, col, n, cell, &self.area());
     }
 
     /// Insert `n` lines at row `y` within specific bounds.
     /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.row` are lost.
     /// New lines are filled with `cell`.
-    pub fn insert_line_area(&mut self, y: Row, n: usize, cell: Cell, bounds: impl Spatial) {
+    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: impl Spatial) {
         if n == 0 {
             return;
         }
 
         // Clip to buffer bounds and ensure y is within bounds
         let bounds = self.clip(&bounds);
-        let y = y.value().clamp(bounds.min.row, bounds.max.row);
+        let y = y.clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -78,32 +78,31 @@ impl Buffer {
             return;
         }
 
-        let row_stride = self.width;
 
         // Move lines down (backwards to prevent overwriting)
         // Source: [y, max-n) -> Dest: [y+n, max)
         for row in (y..(bounds.max.row - n)).rev() {
-            let src_start = row * row_stride + bounds.min.col;
-            let dst_start = (row + n) * row_stride + bounds.min.col;
+            let src_start = row * self.width + bounds.min.col;
+            let dst_start = (row + n) * self.width + bounds.min.col;
             self.copy_within(src_start..src_start + width, dst_start);
         }
 
         // Fill new lines with the provided cell
         for row in y..(y + n) {
-            let start = row * row_stride + bounds.min.col;
+            let start = row * self.width + bounds.min.col;
             self[start..start + width].fill(cell);
         }
     }
 
     /// Delete `n` lines at row `y` within specific bounds.
     /// Lines below shift up; new blank lines appear at bottom of bounds.
-    pub fn delete_line_area(&mut self, y: Row, n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
 
         let bounds = self.clip(bounds);
-        let y = y.value().clamp(bounds.min.row, bounds.max.row);
+        let y = y.clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -130,7 +129,7 @@ impl Buffer {
 
     /// Insert `n` cells at `(x, y)` within specific bounds (ANSI ICH).
     /// Cells shift right; cells pushed beyond right margin are lost.
-    pub fn insert_cell_area(&mut self, position: Position, n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn insert_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
@@ -138,18 +137,18 @@ impl Buffer {
         let bounds = self.clip(bounds);
 
         // Validate y is within vertical bounds
-        if position.row < bounds.min.row || position.row >= bounds.max.row {
+        if row < bounds.min.row || row >= bounds.max.row {
             return;
         }
 
-        let x = position.col.clamp(bounds.min.col, bounds.max.col);
+        let x = col.clamp(bounds.min.col, bounds.max.col);
         let n = n.min(bounds.max.col - x);
 
         if n == 0 {
             return;
         }
 
-        let row_offset = position.row * self.width;
+        let row_offset = row * self.width;
 
         // Shift cells right: [x, max-n) -> [x+n, max)
         if x + n < bounds.max.col {
@@ -167,18 +166,18 @@ impl Buffer {
 
     /// Delete `n` cells at `(x, y)` within specific bounds (ANSI DCH).
     /// Cells shift left; new blank cells appear at right margin.
-    pub fn delete_cell_area(&mut self, position: Position,  n: usize, cell: Cell, bounds: &impl Spatial) {
+    pub fn delete_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: &impl Spatial) {
         if n == 0 {
             return;
         }
 
         let bounds = self.clip(bounds);
 
-        if position.row < bounds.min.row || position.row >= bounds.max.row {
+        if row < bounds.min.row || row >= bounds.max.row {
             return;
         }
 
-        let x = position.col.clamp(bounds.min.col, bounds.max.col);
+        let x = col.clamp(bounds.min.col, bounds.max.col);
         let n = n.min(bounds.max.col - x);
 
         if n == 0 {
@@ -186,7 +185,7 @@ impl Buffer {
         }
 
         let fill_cell = cell;
-        let row_offset = position.row * self.width;
+        let row_offset = row * self.width;
 
         // Shift cells left: [x+n, max) -> [x, max-n)
         if x + n < bounds.max.col {

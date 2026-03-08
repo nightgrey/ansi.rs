@@ -1,5 +1,5 @@
 use geometry::Size;
-use crate::{Position, Area, Row, Column, Index, Bounded, Spatial};
+use crate::{Position, Area, Row, Column, Index, Spatial};
 
 /// Tests if a geometry is completely contained within another geometry.
 pub trait Contains<Rhs = Self> {

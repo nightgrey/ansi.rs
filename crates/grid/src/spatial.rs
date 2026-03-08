@@ -1,5 +1,5 @@
 use geometry::{Rect, Bounded as GeometryBounded, Size};
-use crate::{Area, Position, Steps, Bounded, Sides};
+use crate::{Area, Position, Steps, Sides};
 
 /// Type that represents a spatial area.
 pub const trait Spatial: [const] Sides {

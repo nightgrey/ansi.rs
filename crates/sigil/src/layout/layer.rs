@@ -1,5 +1,4 @@
-use crate::{Buffer, NodeRef, NodeRefMut, key};
-use compact_str::CompactString;
+use crate::{Buffer, key};
 use derive_more::{Deref, DerefMut, From, Into};
 use grid::Position;
 

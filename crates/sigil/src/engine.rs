@@ -1,8 +1,4 @@
-use super::{Key, Tree};
-use crate::{
-    Direction, DoubleBuffer, Element, ElementId, ElementKind, Layer, LayerId, NodeRef,
-    NodeRefMut, Rasterizer, Secondary,
-};
+use crate::{Tree, Key, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer};
 use geometry::{Rect};
 use std::io::Write;
 
@@ -15,9 +11,11 @@ pub struct Engine {
     pub elements: Tree<ElementId, Element>,
     pub layers: Tree<LayerId, Layer>,
     pub layout: Secondary<ElementId, Rect>,
-    pub screen: DoubleBuffer,
+    pub arena: GraphemeArena,
     pub rasterizer: Rasterizer,
     pub root: ElementId,
+    pub front: Buffer,
+    pub back: Buffer,
 }
 
 impl Engine {
@@ -33,7 +31,9 @@ impl Engine {
         Self {
             elements,
             layers,
-            screen: DoubleBuffer::new(width, height),
+            front: Buffer::new(width, height),
+            back: Buffer::new(width, height),
+            arena: GraphemeArena::new(),
             rasterizer: Rasterizer::new(width, height),
             layout: Secondary::new(),
             root,
@@ -41,7 +41,7 @@ impl Engine {
     }
 
     pub fn root(&self) -> Option<ElementId> {
-        self.root.option()
+        self.root.as_option()
     }
 
     // Layering
@@ -52,7 +52,7 @@ impl Engine {
             let layer_id = if element.promotes() {
                 Some(
                     self.layers
-                        .insert(Layer::new(self.screen.width, self.screen.height)),
+                        .insert(Layer::new(self.front.width, self.front.height)),
                 )
             } else {
                 layer_id
@@ -82,7 +82,7 @@ impl Engine {
         if let Some(root) = self.root() {
             self.layout_element(
                 root,
-                Rect::bounds(0, 0, self.screen.width, self.screen.height),
+                Rect::bounds(0, 0, self.front.width, self.front.height),
             );
         }
     }
@@ -156,7 +156,6 @@ impl Engine {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let rect = self.layout[id];
         let element = &self.elements[id];
         let layer_id = element.layer_id.expect("element without layer");
 
@@ -183,24 +182,28 @@ impl Engine {
         layers.sort_by_key(|id| self.layers[*id].z_index);
 
         // Clear front buffer
-        self.screen.front.clear();
+        self.front.clear();
 
         // Composite back-to-front
         for layer_id in layers {
             let layer = &self.layers[layer_id];
             for (i, cell) in layer.iter().enumerate() {
                 if !cell.is_empty() {
-                    self.screen.front[i].clone_from(cell);
+                    self.front[i].clone_from(cell);
                 }
             }
         }
     }
+    
+    pub fn swap(&mut self) {
+        std::mem::swap(&mut self.front, &mut self.back);
+    }
 
     // Rendering
     pub fn render(&mut self, out: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.rasterizer.render(&self.screen.front);
+        self.rasterizer.render(&self.front, &self.arena);
         self.rasterizer.flush(out)?;
-        self.screen.swap();
+        self.swap();
         Ok(())
     }
 

@@ -34,7 +34,7 @@ impl<'a, K: Key, V> Iterator for Ancestors<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
-        match self.0.node.option() {
+        match self.0.node.as_option() {
             Some(node) => {
                 self.0.node = self.0.tree[node].parent;
                 Some(node)
@@ -92,7 +92,7 @@ impl<'a, K: Key, V> DoubleEndedIter<'a, K, V> {
 }
 impl<'a, K: Key, V> DoubleEndedIter<'a, K, V> {
     fn advance_head(&mut self, advance: impl FnOnce(&Tree<K, V>, K) -> K) -> Option<K> {
-        match (self.head.option(), self.tail.option()) {
+        match (self.head.as_option(), self.tail.as_option()) {
             (Some(head), Some(tail)) if head == tail => {
                 self.head = K::null();
                 self.tail = K::null();
@@ -107,7 +107,7 @@ impl<'a, K: Key, V> DoubleEndedIter<'a, K, V> {
     }
 
     fn advance_tail(&mut self, advance: impl FnOnce(&Tree<K, V>, K) -> K) -> Option<K> {
-        match (self.head.option(), self.tail.option()) {
+        match (self.head.as_option(), self.tail.as_option()) {
             (Some(h), Some(t)) if h == t => {
                 self.head = K::null();
                 self.tail = K::null();
@@ -145,7 +145,7 @@ impl<'a, K: Key, V> Iterator for Children<'a, K, V> {
 
 impl<'a, K: Key, V> DoubleEndedIterator for Children<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        match (self.0.head.option(), self.0.tail.option()) {
+        match (self.0.head.as_option(), self.0.tail.as_option()) {
             (Some(head), Some(tail)) if head == tail => {
                 let result = head;
                 self.0.head = K::null();
@@ -339,8 +339,8 @@ pub enum NodeEdge<K> {
 impl<K: Key> NodeEdge<K> {
     pub fn option(&self) -> NodeEdge<Option<K>> {
         match self {
-            NodeEdge::Start(key) => NodeEdge::Start(key.option()),
-            NodeEdge::End(key) => NodeEdge::End(key.option()),
+            NodeEdge::Start(key) => NodeEdge::Start(key.as_option()),
+            NodeEdge::End(key) => NodeEdge::End(key.as_option()),
         }
     }
     pub fn key(&self) -> Option<K> {

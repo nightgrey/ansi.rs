@@ -5,7 +5,7 @@ use ansi::io::Write;
 use ansi::sequences::*;
 use grid::Row;
 
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, GraphemeArena};
 
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
@@ -85,9 +85,9 @@ impl Rasterizer {
     }
 
     /// Render a buffer, diffing against the previous frame.
-    pub fn render(&mut self, buffer: &Buffer) {
+    pub fn render(&mut self, buffer: &Buffer, arena: &GraphemeArena) {
         if self.mode == RasterizerMode::Inline {
-            return self.render_inline(buffer);
+            return self.render_inline(buffer, arena);
         }
         let width = buffer.width;
         let height = buffer.height;
@@ -153,6 +153,7 @@ impl Rasterizer {
                 y,
                 width,
                 self.caps,
+                arena,
             );
         }
 
@@ -218,7 +219,7 @@ impl Rasterizer {
     // ── Inline rendering ───────────────────────────────────────────
 
     /// Render in inline mode (no alternate screen, relative cursor only).
-    fn render_inline(&mut self, buffer: &Buffer) {
+    fn render_inline(&mut self, buffer: &Buffer, arena: &GraphemeArena) {
         let width = buffer.width;
         let height = buffer.height;
 
@@ -247,7 +248,7 @@ impl Rasterizer {
                     if cell.is_empty() {
                         self.internal.push(b' ');
                     } else {
-                        let s = cell.as_str(&buffer.arena);
+                        let s = cell.as_str(arena);
                         self.internal.extend_from_slice(s.as_bytes());
                     }
                 }
@@ -294,6 +295,7 @@ impl Rasterizer {
                     y,
                     width,
                     self.caps,
+                    arena,
                 );
             }
 
@@ -462,6 +464,7 @@ impl Rasterizer {
 #[cfg(test)]
 mod tests {
     use ansi::{Color, Style};
+    use crate::buffer::GraphemeArena;
 
     use super::*;
 
@@ -472,7 +475,7 @@ mod tests {
         let buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Rasterizer::new(5, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(output.contains("\x1B["), "expected SGR sequence: {output}");
@@ -494,13 +497,13 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
         dbg!(&String::from_utf8_lossy(&r.internal));
 
         r.clear_output();
 
         // Render same buffer again.
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
         dbg!(&String::from_utf8_lossy(&r.internal));
 
         let output_str = String::from_utf8_lossy(r.output());
@@ -523,7 +526,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 1);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Change only middle cell.
@@ -537,7 +540,7 @@ mod tests {
             ],
         );
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
         assert!(output_str.contains('X'), "should emit 'X': {output_str}");
@@ -550,11 +553,11 @@ mod tests {
         let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::EMPTY)]);
 
         let mut r = Rasterizer::new(2, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
         r.clear_output();
 
         r.invalidate();
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
         assert!(output_str.contains("\x1B[2J"), "should contain ED2: {output_str}");
@@ -579,7 +582,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(5, 1);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Second frame: change cell 1 and clear cells 2-4.
@@ -587,7 +590,7 @@ mod tests {
         // are empty while old had content → trailing EL.
         let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
         // The diff region is [1..1] (only cell 1 changed: B→X).
@@ -611,13 +614,13 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 3);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Second frame: only first row has content.
         let buf2 = Buffer::from_chars(3, 3, &[(0, 0, 'A', style)]);
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
         // Should use ED to clear from row 1 downward.
@@ -631,7 +634,7 @@ mod tests {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
         let mut r = Rasterizer::with_capabilities(3, 1, caps);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(output.starts_with("\x1B[?2026h"), "should start with begin_sync: {output}");
@@ -642,7 +645,7 @@ mod tests {
     fn no_sync_without_cap() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
         let mut r = Rasterizer::new(3, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(!output.contains("\x1B[?2026h"), "should not contain begin_sync: {output}");
@@ -665,11 +668,11 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 2);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
         r.clear_output();
 
         // Second render — identical buffer.
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Only hide/show cursor, no cell content.
@@ -691,7 +694,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 3);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Change only row 1.
@@ -705,7 +708,7 @@ mod tests {
             ],
         );
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(output.contains('X'), "should emit changed cell: {output}");
@@ -734,7 +737,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::with_capabilities(3, 5, caps);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Frame 2: rows B, C, D, E, F (scroll up by 1)
@@ -749,7 +752,7 @@ mod tests {
             ],
         );
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Should contain SU (scroll up) sequence: \x1B[S
@@ -775,7 +778,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::with_capabilities(3, 5, caps);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Frame 2: rows F, A, B, C, D (scroll down by 1)
@@ -790,7 +793,7 @@ mod tests {
             ],
         );
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Should contain SD (scroll down) sequence: \x1B[T
@@ -809,7 +812,7 @@ mod tests {
         ]);
 
         let mut r = Rasterizer::with_capabilities(3, 5, caps);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         // Completely different content.
@@ -818,7 +821,7 @@ mod tests {
             (3, 0, 'y', style), (4, 0, 'z', style),
         ]);
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // No scroll should be detected.
@@ -837,7 +840,7 @@ mod tests {
 
         // Default caps don't include SCROLL_REGION.
         let mut r = Rasterizer::new(3, 5);
-        r.render(&buf1);
+        r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 5, &[
@@ -845,7 +848,7 @@ mod tests {
             (3, 0, 'e', style), (4, 0, 'f', style),
         ]);
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(!output.contains("\x1B[S"), "should not use scroll without caps: {output}");
@@ -863,7 +866,7 @@ mod tests {
         let buffer = Buffer::from_chars(20, 1, &cells);
 
         let mut r = Rasterizer::with_capabilities(20, 1, caps);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Should contain a REP sequence (\x1B[...b).
@@ -879,7 +882,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'X', style), (0, 1, 'X', style), (0, 2, 'X', style)]);
 
         let mut r = Rasterizer::with_capabilities(3, 1, caps);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // REP needs 4+ repeats, so no REP here.
@@ -895,7 +898,7 @@ mod tests {
         let buffer = Buffer::from_chars(20, 1, &cells);
 
         let mut r = Rasterizer::new(20, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = r.output();
         let has_rep = output.windows(2).any(|w| w[1] == b'b' && w[0].is_ascii_digit());
@@ -922,7 +925,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::with_capabilities(10, 1, caps);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = r.output();
         // REP sequence ends with 'b'. Count how many output bytes are 'b'
@@ -942,7 +945,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Rasterizer::new(3, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = r.output();
         let output_str = String::from_utf8_lossy(output);
@@ -964,7 +967,7 @@ mod tests {
         ]);
 
         let mut r = Rasterizer::inline(5, 2);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = r.output();
         // Check for CUP sequences (\x1B[row;colH) — look for `;` followed
@@ -996,7 +999,7 @@ mod tests {
         ]);
 
         let mut r = Rasterizer::inline(5, 3);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
         r.clear_output();
 
         // Change middle row.
@@ -1006,7 +1009,7 @@ mod tests {
             (2, 0, 'c', style),
         ]);
 
-        r.render(&buf2);
+        r.render(&buf2, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Should start with hide_cursor then CUU (to move back up to our owned region).
@@ -1021,7 +1024,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Rasterizer::inline(3, 1);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         assert!(!output.contains("\x1B[?1049h"), "should not enter alt screen: {output}");
@@ -1037,7 +1040,7 @@ mod tests {
         ]);
 
         let mut r = Rasterizer::inline(3, 2);
-        r.render(&buffer);
+        r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
         // Inline first render should not clear screen.

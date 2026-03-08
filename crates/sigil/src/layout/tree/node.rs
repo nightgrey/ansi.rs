@@ -29,23 +29,23 @@ impl<K: Key, V> Node<K, V> {
     }
 
     pub fn parent(&self) -> Option<K> {
-        (self.parent.option())
+        (self.parent.as_option())
     }
 
     pub fn first_child(&self) -> Option<K> {
-        self.first_child.option()
+        self.first_child.as_option()
     }
 
     pub fn last_child(&self) -> Option<K> {
-        self.last_child.option()
+        self.last_child.as_option()
     }
 
     pub fn next_sibling(&self) -> Option<K> {
-        self.next_sibling.option()
+        self.next_sibling.as_option()
     }
 
     pub fn previous_sibling(&self) -> Option<K> {
-        self.previous_sibling.option()
+        self.previous_sibling.as_option()
     }
 }
 

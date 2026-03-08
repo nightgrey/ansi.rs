@@ -1,6 +1,5 @@
-use crate::{LayerId, NodeRef, NodeRefMut, key};
+use crate::{LayerId, key};
 use ansi::{Color, Style};
-use grid::Position;
 
 key!(
     pub struct ElementId;

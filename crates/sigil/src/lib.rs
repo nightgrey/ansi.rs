@@ -31,10 +31,12 @@
 extern crate core;
 
 pub mod buffer;
-pub mod ui;
+pub mod layout;
 pub mod rasterizer;
-mod painter;
+pub mod painter;
+pub mod engine;
 
 pub use buffer::*;
 pub use rasterizer::*;
-pub use ui::*;
+pub use layout::*;
+pub use engine::*;

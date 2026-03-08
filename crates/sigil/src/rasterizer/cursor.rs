@@ -1,7 +1,6 @@
 use ansi::{escape, sequences::*, Escape, Style, CUP};
 use ansi::io::Write;
 use super::capabilities::Capabilities;
-use super::sequences as seq;
 
 /// Tracks the logical cursor position and current SGR pen state.
 #[derive(Clone, Debug)]

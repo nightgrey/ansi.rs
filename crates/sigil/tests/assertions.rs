@@ -2,7 +2,7 @@
 
 use grid::{Position};
 use geometry::{Rect};
-use sigil::Buffer;
+use sigil::{Buffer, GraphemeArena};
 
 macro_rules! assert_rect {
     ($rect: tt) => {};
@@ -54,20 +54,20 @@ pub fn assert_rect_position(rect: &Rect, x: usize, y: usize) {
 /// Extract text from a buffer at a specific position range.
 ///
 /// Useful for comparing rendered text output.
-pub fn buffer_text_at(buffer: &Buffer, row: usize, col_start: usize, col_end: usize) -> String {
+pub fn buffer_text_at(buffer: &Buffer, arena: &GraphemeArena, row: usize, col_start: usize, col_end: usize) -> String {
     let mut result = String::new();
     for col in col_start..col_end {
         let pos = Position::new(row, col);
         if let Some(cell) = buffer.get(pos) {
-            result.push_str(cell.as_str(&buffer.arena));
+            result.push_str(cell.as_str(arena));
         }
     }
     result
 }
 
 /// Assert that a buffer contains the expected text at a specific row.
-pub fn assert_buffer_text(buffer: &Buffer, row: usize, expected: &str) {
-    let actual = buffer_text_at(buffer, row, 0, buffer.width);
+pub fn assert_buffer_text(buffer: &Buffer, arena: &GraphemeArena, row: usize, expected: &str) {
+    let actual = buffer_text_at(buffer, arena, row, 0, buffer.width);
     let trimmed = actual.trim_end();
     assert_eq!(
         trimmed, expected,

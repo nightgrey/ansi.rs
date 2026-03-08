@@ -7,7 +7,7 @@ pub trait Key: slotmap::Key {
         !self.is_none()
     }
 
-    fn option(self) -> Option<Self> {
+    fn as_option(self) -> Option<Self> {
         match self.is_null() {
             true => None,
             false => Some(self),

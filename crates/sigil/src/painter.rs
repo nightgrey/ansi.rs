@@ -12,7 +12,7 @@ use unicode_width::UnicodeWidthStr;
 use ansi::Style;
 use geometry::{Point, Rect};
 use geometry::prelude::*;
-use crate::{Buffer, Grapheme};
+use crate::{Buffer, Grapheme, GraphemeArena};
 
 // ---------------------------------------------------------------------------
 // Painter
@@ -30,15 +30,17 @@ pub struct Painter<'a> {
     #[index]
     #[index_mut]
     buffer: &'a mut Buffer,
+    arena: &'a mut GraphemeArena,
     stack: Vec<Rect>,
 }
 
 impl<'a> Painter<'a> {
     /// Begin painting on `buf`. The initial clip is the full buffer bounds.
-    pub fn new(buf: &'a mut Buffer) -> Self {
+    pub fn new(buf: &'a mut Buffer, arena: &'a mut GraphemeArena) -> Self {
         let bounds = Rect::bounds(0, 0, buf.width, buf.height);
         Self {
             buffer: buf,
+            arena,
             stack: vec![bounds],
         }
     }
@@ -454,10 +456,11 @@ mod tests {
     #[test]
     fn painter_put() {
         let mut buffer = Buffer::new(10, 22);
-        let mut painter = Painter::new(&mut buffer);
+        let mut arena = GraphemeArena::new();
+        let mut painter = Painter::new(&mut buffer, &mut arena);
         painter.hline(0, 0, 10, '-', Style::default());
         painter.vline(1, 0, 2, '|', Style::default());
 
-        println!("{}", buffer.to_string());
+        println!("{}", buffer.to_string(&arena));
     }
 }

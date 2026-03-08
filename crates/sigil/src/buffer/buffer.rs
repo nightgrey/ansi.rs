@@ -5,41 +5,20 @@ use grid::{Grid, Position, Area, Spatial, Intersect, Row};
 use super::{Cell, GraphemeArena};
 
 #[derive(Clone, Index, IndexMut, Deref, DerefMut, AsRef, AsMut, IntoIterator)]
-pub struct Buffer {
-    #[index]
-    #[index_mut]
-    #[deref]
-    #[deref_mut]
-    #[as_ref(forward)]
-    #[as_mut(forward)]
-    #[into_iterator(owned, ref, ref_mut)]
-    inner: Grid<Cell>,
-    pub arena: GraphemeArena,
-}
+#[as_ref(forward)]
+#[as_mut(forward)]
+#[into_iterator(owned, ref, ref_mut)]
+pub struct Buffer(Grid<Cell>);
 
 impl Buffer {
-    pub const EMPTY: Self = Self {
-        inner: Grid::EMPTY,
-        arena: GraphemeArena::EMPTY,
-    };
+    pub const EMPTY: Self = Self(Grid::EMPTY);
 
     pub const fn empty() -> Self {
         Self::EMPTY
     }
 
     pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            inner: Grid::new(width, height),
-            arena: GraphemeArena::new(),
-        }
-    }
-
-
-    pub fn with_arena(width: usize, height: usize, arena: GraphemeArena) -> Self {
-        Self {
-            inner: Grid::new(width, height),
-            arena,
-        }
+        Self(Grid::new(width, height))
     }
 
     /// Create a buffer from a slice of fixed elements.
@@ -54,10 +33,7 @@ impl Buffer {
     }
     
     pub fn copy_from_area(&mut self, area: &Area) -> Self {
-        Self {
-            inner: self.inner.copy_from_area(area),
-            arena: self.arena.clone(),
-        }
+        Self(self.0.copy_from_area(area))
     }
 
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
@@ -94,7 +70,7 @@ impl Buffer {
 
         // Clip to buffer bounds and ensure y is within bounds
         let bounds = self.clip(&bounds);
-        let y = (y.value()).clamp(bounds.min.row, bounds.max.row);
+        let y = y.value().clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -127,7 +103,7 @@ impl Buffer {
         }
 
         let bounds = self.clip(bounds);
-        let y = (y.value()).clamp(bounds.min.row, bounds.max.row);
+        let y = y.value().clamp(bounds.min.row, bounds.max.row);
         let n = n.min(bounds.max.row - y);
         let width = bounds.width();
 
@@ -226,19 +202,8 @@ impl Buffer {
         self[clear_start..clear_end].fill(fill_cell);
     }
 
-    pub fn clear(&mut self) {
-        // Release all extended graphemes.
-        for cell in &mut self.inner {
-            cell.release(&mut self.arena);
-            cell.clear();
-        }
-
-        self.arena.clear();
-    }
-
-
-    pub fn to_string(&self) -> String {
-        self.rows().map(|row| row.iter().map(|cell| cell.as_str(&self.arena)).collect::<String>()).intersperse(String::from("\n")).collect()
+    pub fn to_string(&self, arena: &GraphemeArena) -> String {
+        self.rows().map(|row| row.iter().map(|cell| cell.as_str(arena)).collect::<String>()).intersperse(String::from("\n")).collect()
     }
 }
 
@@ -252,11 +217,9 @@ impl Spatial for Buffer {
 
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Buffer")
-            .field("width", &self.width)
-            .field("height", &self.height)
-            .field("inner", &self.inner.as_slice())
-            .field("arena", &self.arena)
+        f.debug_tuple("Buffer")
+            .field(&self.as_slice())
+            .field(&self.size())
             .finish()
     }
 }

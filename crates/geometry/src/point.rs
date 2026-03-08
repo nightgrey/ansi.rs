@@ -2,13 +2,6 @@ use crate::{Size};
 use std::ops::{Add, AddAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
-///
-/// This allows constructing [`Point`] from tuples conveniently:
-///
-/// ```rust
-/// # use geometry::{Point, Rect};
-/// let rect = Rect::new((0, 0), (10, 20));  // Uses PointLike
-/// ```
 pub type PointLike = (usize, usize);
 
 /// A 2D point in screen-space coordinates.

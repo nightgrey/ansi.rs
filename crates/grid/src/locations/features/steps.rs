@@ -48,7 +48,7 @@ impl Iterator for Steps<Position> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.front >= self.back {
+        if  self.front >= self.back {
             return (0, Some(0));
         }
         let count = self.count();
@@ -61,7 +61,7 @@ impl Iterator for Steps<Position> {
             return 0;
         }
         let current = self.into_index(self.front);
-        let remaining = self.len();
+        let remaining = self.context.len();
         remaining - current
     }
 
@@ -376,9 +376,9 @@ mod tests {
                     let count = bounds.iter().count();
                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
 
-                    assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
-                    assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
+                    assert_eq!(area, len, "Area len mismatch: {area} != {len}. bounds={bounds:?}");
+                    assert_eq!(area, count, "Area count mismatch: {area} != {count}. bounds={bounds:?}");
+                    assert_eq!(area, size_hint, "Area size hint mismatch: {area} != {size_hint}. bounds={bounds:?}");
                 }
             }
         }

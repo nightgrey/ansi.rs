@@ -10,9 +10,9 @@ use crate::{Area, Column, IntoLocation, Steps, Location, Position, Row, Range, S
 /// # Examples
 ///
 /// ```rust
-/// # use geometry::{Bounds, Position, Located};
-/// let bounds = Bounds::corners(0, 0, 80, 24);
-/// let loc = Located::new(Position::new(0, 0), bounds);
+/// # use grid::{Area, Position, Located};
+/// let area = Area::bounds(0, 0, 80, 24);
+/// let loc = Located::new(Position::new(0, 0), area);
 ///
 /// // Step forward
 /// let next = loc.forward_checked(1);

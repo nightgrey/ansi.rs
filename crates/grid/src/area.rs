@@ -30,7 +30,7 @@ impl Area {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::{Area, Position};
+    /// # use grid::{Area, Position};
     /// let area = Area::bounds(5, 10, 10, 20);
     /// ```
     pub const fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
@@ -74,11 +74,11 @@ impl const Spatial for Area {
     }
 
     fn width(&self) -> usize {
-        self.max.col.saturating_sub(self.min.col)
+        self.max.col - self.min.col
     }
 
     fn height(&self) -> usize {
-        self.max.row.saturating_sub(self.min.row)
+        self.max.row - self.min.row
     }
 
     fn len(&self) -> usize {

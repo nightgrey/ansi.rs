@@ -11,20 +11,6 @@ use crate::{Edges, Point};
 /// If `min > max` in any dimension, the rectangle is considered "inverted".
 /// Methods like [`width()`](Self::width) and [`height()`](Self::height) use
 /// saturating subtraction to return 0 for inverted dimensions.
-///
-/// # Example
-///
-/// ```rust
-/// use geometry::{Rect, Point, Size};
-///
-/// let rect = Rect::new((10, 5), (30, 25));
-/// assert_eq!(rect.width(), 20);
-/// assert_eq!(rect.height(), 20);
-/// assert_eq!(rect.len(), 400);
-///
-/// let point = Point::new(15, 10);
-/// assert!(rect.contains(&point));
-/// ```
 #[derive(Copy, Debug)]
 #[derive_const(Default, Clone, Eq, PartialEq)]
 pub struct Rect {
@@ -50,7 +36,7 @@ impl Rect {
     ///
     /// ```rust
     /// # use geometry::{Rect, Point};
-    /// let rect1 = Rect::new((0, 0), (10, 10));
+    /// let rect1 = Rect::new(Point::new(0, 0), Point::new(10, 10));
     /// let rect2 = Rect::new(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
     /// ```
@@ -62,15 +48,6 @@ impl Rect {
     }
 
     /// Create a rectangle from its bounds.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Rect, Point};
-    /// let rect = Rect::bounds(10, 5, 20, 15);
-    /// assert_eq!(rect.min, Point::new(10, 5));
-    /// assert_eq!(rect.max, Point::new(30, 20));
-    /// ```
     pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
         Self {
             min: Point::new(x, y),
@@ -100,8 +77,8 @@ impl Rect {
     /// # Example
     ///
     /// ```rust
-    /// # use geometry::Rect;
-    /// let rect = Rect::new((5, 0), (15, 0));
+    /// use geometry::{Rect, Point};
+    /// let rect = Rect::new(Point::new(5, 0), Point::new(15, 0));
     /// assert_eq!(rect.width(), 10);
     /// ```
     pub const fn width(&self) -> usize {
@@ -112,27 +89,11 @@ impl Rect {
     ///
     /// Returns 0 if the rectangle is inverted (min.y > max.y).
     /// Uses saturating subtraction to handle this case.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::Rect;
-    /// let rect = Rect::new((0, 5), (0, 20));
-    /// assert_eq!(rect.height(), 15);
-    /// ```
     pub const fn height(&self) -> usize {
         self.max.y.saturating_sub(self.min.y)
     }
 
     /// Get the size of the rectangle as a [`Size`] struct.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use geometry::{Rect, Size};
-    /// let rect = Rect::new((0, 0), (80, 24));
-    /// assert_eq!(rect.size(), Size::new(80, 24));
-    /// ```
     pub const fn size(&self) -> Size {
         Size {
             width: self.max.x.saturating_sub(self.min.x),

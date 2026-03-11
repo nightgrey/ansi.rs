@@ -1,5 +1,12 @@
-pub trait Escape: Sized + Copy {
+
+pub trait Escape {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
+}
+
+impl<T: AsRef<str>> Escape for T {
+    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        w.write_all(self.as_ref().as_bytes())
+    }
 }
 
 pub mod io {
@@ -98,8 +105,7 @@ pub mod fmt {
 ///     use ansi::escape;
 ///
 ///     let mut w = Vec::new();
-///     escape!(&mut w, CursorUp(1))?;
-///     escape!(&mut w, CursorDown(1), CursorForward(1))?;
+///     escape!(&mut w, CursorUp(1), CursorDown(1), CursorForward(1))?;
 ///
 ///     assert_eq!(w, b"\x1B[A\x1B[B\x1B[C");
 ///     Ok(())
@@ -126,16 +132,19 @@ pub mod fmt {
 /// - No intermediate allocations are required; output is written directly
 #[macro_export]
 macro_rules! escape {
-    ($dst:expr, $($arg:expr),* $(,)?) => ({
-        let mut w = std::io::Write::by_ref($dst);
-        let mut r: std::io::Result<()> = Ok(());
+    ($dst:expr, $arg: expr) => {
+           $dst.escape($arg)
+    };
+    ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
+        use $crate::Escape as _;
+        let mut result: std::io::Result<()> = $dst.escape($first);
         $(
-            if r.is_ok() {
-                r = $crate::io::Write::escape(&mut w, $arg);
-            }
+                if result.is_ok() {
+                  result = $dst.escape($args);
+                }
         )*
-        r
-    });
+        result
+    }};
 }
 
 /// Writes escaped value to the writer.

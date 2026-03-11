@@ -109,7 +109,7 @@ impl From<Area> for Rect {
 }
 #[cfg(test)]
 mod tests {
-    use crate::{Bounded, Contains};
+    use crate::{Contains};
     use super::*;
 
     #[test]

@@ -1,4 +1,4 @@
-use ansi::{escape, sequences::*, Escape, Style, CUP};
+use ansi::{escape, sequences::*, Escape, Style,};
 use ansi::io::Write;
 use super::capabilities::Capabilities;
 
@@ -33,7 +33,7 @@ impl Cursor {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn to(
+    pub fn move_to(
         &mut self,
         row: usize,
         col: usize,
@@ -78,34 +78,34 @@ impl Cursor {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                escape(output, CursorDown(dr as usize));
+                output.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                escape(output, CursorUp((-dr) as usize));
+                output.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if dc > 0 {
-                escape(output, CursorForward(dc as usize));
+                output.escape(CursorForward(dc as usize)).unwrap();
             } else if dc < 0 {
-                escape(output, CursorBackward((-dc) as usize));
+                output.escape(CursorBackward((-dc) as usize)).unwrap();
             }
         } else if min == cost_cr {
-            escape(output, CarriageReturn);
+            output.escape(CarriageReturn).unwrap();
             if dr > 0 {
-                escape(output, CursorDown(dr as usize));
+                output.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                escape(output, CursorUp((-dr) as usize));
+                output.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if col > 0 {
-                escape(output, CursorForward(col));
+                output.escape(CursorForward(col)).unwrap();
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                escape(output, VerticalPositionAbsolute(row));
+                output.escape(VerticalPositionAbsolute(row)).unwrap();
             }
             if dc != 0 || dr != 0 {
-                escape(output, HorizontalPositionAbsolute(col));
+                output.escape(HorizontalPositionAbsolute(col)).unwrap();
             }
         } else {
-            escape(output, CursorPosition(row, col));
+            output.escape(CursorPosition(row, col)).unwrap();
         }
 
         self.row = row;
@@ -118,7 +118,7 @@ impl Cursor {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn to_relative(
+    pub fn move_to_relative(
         &mut self,
         row: usize,
         col: usize,
@@ -140,25 +140,25 @@ impl Cursor {
         let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
-            escape(output, CarriageReturn);
+            output.escape(CarriageReturn).unwrap();
             if dr > 0 {
-                escape(output, CursorDown(dr as usize));
+                output.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                escape(output, CursorUp((-dr) as usize));
+                output.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if col > 0 {
-                escape(output, CursorForward(col));
+                output.escape(CursorForward(col)).unwrap();
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                escape(output, CursorDown(dr as usize));
+                output.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                escape(output, CursorUp((-dr) as usize));
+                output.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if dc > 0 {
-                escape(output, CursorForward(dc as usize));
+                output.escape(CursorForward(dc as usize)).unwrap();
             } else if dc < 0 {
-                escape(output, CursorBackward((-dc) as usize));
+                output.escape(CursorBackward((-dc) as usize)).unwrap();
             }
         }
 
@@ -204,7 +204,7 @@ mod tests {
     fn move_to_same_position_is_noop() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.to(0, 0, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(0, 0, &mut buf, Capabilities::DEFAULT);
         assert!(buf.is_empty());
     }
 
@@ -213,7 +213,7 @@ mod tests {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
         // Moving right by 1 should use CUF (3 bytes) not CUP (6+ bytes)
-        cursor.to(0, 1, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(0, 1, &mut buf, Capabilities::DEFAULT);
         assert_eq!(buf, b"\x1B[C");
     }
 
@@ -224,7 +224,7 @@ mod tests {
         cursor.col = 10;
         let mut buf = Vec::new();
         // Same row, col 0 — CR (1 byte) is cheapest
-        cursor.to(5, 0, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(5, 0, &mut buf, Capabilities::DEFAULT);
         assert_eq!(buf, b"\r");
     }
 
@@ -232,7 +232,7 @@ mod tests {
     fn move_to_uses_cup_for_distant_positions() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.to(50, 80, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(50, 80, &mut buf, Capabilities::DEFAULT);
         let output = String::from_utf8_lossy(&buf);
         // Should use some form of absolute positioning
         assert!(output.contains('\x1B'));

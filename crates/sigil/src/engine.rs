@@ -1,6 +1,7 @@
-use crate::{Tree, TreeId, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer};
+use crate::{Tree, TreeId, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer, RootTree};
 use geometry::{Rect};
 use std::io::Write;
+use crate::painter::Painter;
 
 pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
 pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
@@ -8,23 +9,22 @@ pub type LayerRef<'a> = NodeRef<'a, LayerId, Layer>;
 pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
 
 pub struct Engine {
-    pub elements: Tree<ElementId, Element>,
-    pub layers: Tree<LayerId, Layer>,
+    pub elements: RootTree<ElementId, Element>,
+    pub layers: RootTree<LayerId, Layer>,
     pub layout: Secondary<ElementId, Rect>,
     pub arena: GraphemeArena,
     pub rasterizer: Rasterizer,
-    pub root: ElementId,
     pub front: Buffer,
     pub back: Buffer,
 }
 
 impl Engine {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut elements = Tree::new();
-        let root = elements.insert(Element::container(Direction::Vertical));
+        let mut elements = RootTree::new(Element::container(Direction::Vertical));
+        let root = elements.root;
 
-        let mut layers = Tree::new();
-        let layer_id = layers.insert(Layer::new(width, height));
+        let mut layers = RootTree::new(Layer::new(width, height));
+        let layer_id = layers.root;
 
         elements[root].layer_id = Some(layer_id);
 
@@ -36,24 +36,24 @@ impl Engine {
             arena: GraphemeArena::new(),
             rasterizer: Rasterizer::new(width, height),
             layout: Secondary::new(),
-            root,
         }
     }
 
-    pub fn root(&self) -> Option<ElementId> {
-        self.root.as_option()
+    pub fn root(&self) -> ElementId {
+        self.elements.root
+    }
+
+    pub fn swap(&mut self) {
+        std::mem::swap(&mut self.front, &mut self.back);
     }
 
     // Layering
-
     fn layer_element(&mut self, id: ElementId, layer_id: Option<LayerId>) {
         if let Some(mut element) = self.elements.get_mut(id) {
             // If element creates its own layer, make one; otherwise inherit
             let layer_id = if element.promotes() {
-                Some(
-                    self.layers
-                        .insert(Layer::new(self.front.width, self.front.height)),
-                )
+                    Some(self.layers
+                        .insert(Layer::new(self.front.width, self.front.height)))
             } else {
                 layer_id
             };
@@ -70,21 +70,17 @@ impl Engine {
     }
 
     pub fn layer(&mut self) {
-        if let Some(root) = self.root() {
-            let root_layer = self.elements[root].layer_id;
-            self.layer_element(root, root_layer);
-        }
+            let root_layer = self.elements[self.root()].layer_id;
+            self.layer_element(self.root(), root_layer);
     }
 
     // Layouting
 
     pub fn layout(&mut self) {
-        if let Some(root) = self.root() {
             self.layout_element(
-                root,
+                self.root(),
                 Rect::bounds(0, 0, self.front.width, self.front.height),
             );
-        }
     }
 
     fn layout_element(&mut self, id: ElementId, bounds: Rect) {
@@ -145,9 +141,7 @@ impl Engine {
         }
 
         // Paint all elements
-        if let Some(root) = self.root() {
-            self.paint_element(root);
-        }
+        self.paint_element(self.root());
 
         // Mark layers clean
         for (_, layer) in &mut self.layers {
@@ -159,10 +153,11 @@ impl Engine {
         let element = &self.elements[id];
         let layer_id = element.layer_id.expect("element without layer");
 
+        let mut painter = Painter::new(&mut self.layers[layer_id], &mut self.arena);
+
         match &element.kind {
             ElementKind::Text(content) => {
-                let layer = &mut self.layers[layer_id];
-                // layer.text(0.., content, Style::EMPTY);
+                painter.draw_text(0, 0, content, element.style);
             }
             ElementKind::Container { .. } => {
                 // Containers don't paint themselves, just their children
@@ -193,10 +188,6 @@ impl Engine {
                 }
             }
         }
-    }
-    
-    pub fn swap(&mut self) {
-        std::mem::swap(&mut self.front, &mut self.back);
     }
 
     // Rendering

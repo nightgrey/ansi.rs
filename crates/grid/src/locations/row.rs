@@ -1,11 +1,11 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
-use derive_more::{Add, AddAssign};
+use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
 use synonym::Synonym;
 use crate::Position;
 
 /// A row in buffer coordinates.
 #[derive_const(Synonym)]
 #[synonym(skip(Value))]
+#[repr(transparent)]
 pub struct Row(pub usize);
 
 impl const Row {

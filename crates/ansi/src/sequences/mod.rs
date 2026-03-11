@@ -8,6 +8,7 @@ mod sgr;
 mod misc;
 mod modes;
 mod area;
+mod common_modes;
 
 pub use cursor::*;
 pub use erasure::*;
@@ -17,3 +18,4 @@ pub use sgr::*;
 pub use misc::*;
 pub use modes::*;
 pub use area::*;
+pub use common_modes::*;

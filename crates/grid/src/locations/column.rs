@@ -5,6 +5,7 @@ use crate::Position;
 /// A column in buffer coordinates.
 #[derive_const(Synonym)]
 #[synonym(skip(Value))]
+#[repr(transparent)]
 pub struct Column(pub usize);
 
 impl const Column {

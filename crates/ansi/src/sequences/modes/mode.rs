@@ -1,6 +1,5 @@
 use std::fmt;
 use std::fmt::{Display, Write};
-use derive_more::{Display, From, Into};
 use crate::{ResetMode, SetMode};
 
 /// Mode
@@ -224,7 +223,7 @@ pub enum DecMode {
     /// (25) Text Cursor Enable Mode (DECTCEM) is a mode that shows/hides the cursor.
     ///
     /// See https://vt100.net/docs/vt510-rm/DECTCEM.html
-    Cursor = 25,
+    TextCursorEnable = 25,
     /// (30) Show Scrollbar Mode
     ShowScrollbar = 30,
     /// (34) Cursor Direction Right to Left Mode (DECRLM)

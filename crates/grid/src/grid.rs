@@ -96,15 +96,6 @@ impl<T> Grid<T> {
         }
     }
 
-    pub fn clear_and_resize(&mut self, width: usize, height: usize)
-    where
-        T: Default + Clone
-    {
-        self.width = width;
-        self.height = height;
-        self.inner = vec![T::default(); width * height];
-    }
-
     pub fn positions(&self) -> Steps {
         Steps::new(self)
     }
@@ -120,6 +111,7 @@ impl<T> Grid<T> {
     pub fn bounds(&self) -> Rect {
         Rect::new(Point::ZERO, Point::new(self.width, self.height))
     }
+
 }
 
 impl<T: Clone> Grid<T> {
@@ -131,6 +123,16 @@ impl<T: Clone> Grid<T> {
         }
 
         next
+    }
+    
+    pub fn resize_inner(&mut self, width: usize, height: usize) where T: Default {
+        self.inner.resize(width * height, T::default());
+        self.width = width;
+        self.height = height;
+    }
+    
+    pub fn clear(&mut self) where T: Default {
+        self.inner.fill(T::default());
     }
 }
 impl<T: Copy> Grid<T> {

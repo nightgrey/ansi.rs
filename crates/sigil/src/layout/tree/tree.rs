@@ -1,6 +1,6 @@
 use super::{TreeId, Node, iter::*};
 use super::{NodeRef, NodeRefMut};
-use derive_more::{Index, IndexMut, IntoIterator};
+use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
@@ -60,7 +60,7 @@ impl<K: TreeId, V> Tree<K, V> {
         self.inner.insert_with_key(|k| Node::new(f(k)))
     }
 
-    pub fn try_insert_with<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+    pub fn try_insert_with<E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
         self.inner.try_insert_with_key(|k| f(k).map(Node::new))
     }
 
@@ -319,6 +319,85 @@ impl<K: TreeId, V> Tree<K, V> {
 
     pub fn values(&self) -> slotmap::basic::Values<K, Node<K, V>> {
         self.inner.values()
+    }
+}
+
+#[derive(Debug, Index, IndexMut, IntoIterator, Deref, DerefMut)]
+pub struct RootTree<K: TreeId, V> {
+    #[deref]
+    #[deref_mut]
+    #[index]
+    #[index_mut]
+    #[into_iterator(owned, ref, ref_mut)]
+    pub inner: Tree<K, V>,
+    pub root: K,
+}
+
+impl<K: TreeId, V> RootTree<K, V> {
+    pub fn new(root: V) -> Self {
+        let mut tree = Tree::new();
+        let root = tree.insert(root);
+
+        Self {
+            root,
+            inner: tree,
+        }
+    }
+
+    pub fn with_capacity(root: V, capacity: usize) -> Self {
+        let mut tree = Tree::with_capacity(capacity);
+        let root = tree.insert(root);
+
+        Self { root, inner: tree }
+    }
+
+
+    pub fn get_root(&self) -> Option<NodeRef<K, V>> {
+        self.inner.get(self.root)
+    }
+
+    pub fn get_root_mut(&mut self) -> Option<NodeRefMut<K, V>> {
+        self.inner.get_mut(self.root)
+    }
+
+    pub fn get_root_node(&self) -> Option<&Node<K, V>> {
+        self.inner.get_node(self.root)
+    }
+
+    pub fn get_root_node_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
+        self.inner.get_node_mut(self.root)
+    }
+
+    pub fn root(&self) -> K {
+        self.root
+    }
+
+    pub fn insert(&mut self, value: V) -> K {
+        let root = self.root;
+        let id  = self.inner.insert(value);
+        self.append_child(root, id);
+        id
+    }
+
+    pub fn insert_with(&mut self, f: impl FnOnce(K) -> V) -> K {
+        let root = self.root;
+        let id = self.inner.insert_with(f);
+        self.append_child(root, id);
+        id
+    }
+
+    pub fn try_insert_with<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+        let root = self.root;
+        let id = self.inner.try_insert_with(f)?;
+        self.append_child(root, id);
+        Ok(id)
+    }
+
+    pub fn insert_with_children(&mut self, value: V, children: &[K]) -> K {
+        let root = self.root;
+        let id = self.inner.insert_with_children(value, children);
+        self.append_child(root, id);
+        id
     }
 }
 

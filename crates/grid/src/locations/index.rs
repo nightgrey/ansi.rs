@@ -4,6 +4,7 @@ use synonym::Synonym;
 /// A row in buffer coordinates.
 #[derive(Synonym)]
 #[synonym(skip(Value))]
+#[repr(transparent)]
 pub struct Index(pub usize);
 impl const Index {
     pub fn value(self) -> usize {

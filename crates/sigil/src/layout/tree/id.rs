@@ -1,3 +1,5 @@
+use crate::{Children, Tree};
+
 pub trait TreeId: slotmap::Key {
     #[inline]
     fn none() -> Self {
@@ -21,6 +23,28 @@ pub trait TreeId: slotmap::Key {
             false => Some(self),
         }
     }
+
+    fn insert(&mut self, value: Self) -> &mut Self {
+        *self = value;
+
+        self
+    }
+
+    fn get_or_insert(&mut self, value: Self) -> &mut Self {
+        self.get_or_insert_with(|| value)
+    }
+
+    fn get_or_insert_with<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce() -> Self,
+    {
+        if self.is_none() {
+            *self = f();
+        }
+
+        self
+    }
+
 
     #[inline]
     fn and_then<F: FnOnce(Self) -> Self>(self, f: F) -> Self {
@@ -46,6 +70,7 @@ pub trait TreeId: slotmap::Key {
         }
     }
 }
+
 #[macro_export]
 #[macro_use]
 macro_rules! tree_id {

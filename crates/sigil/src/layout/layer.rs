@@ -1,5 +1,5 @@
 use crate::{Buffer, tree_id};
-use derive_more::{Deref, DerefMut, From, Into};
+use derive_more::{Deref, DerefMut};
 use grid::Position;
 
 tree_id!(

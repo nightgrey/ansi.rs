@@ -42,7 +42,7 @@ impl Element {
     }
 
     /// Whether this element should be promoted to its own compositing layer.
-    pub fn promotes(&self) -> bool {
+    pub fn is_promoting(&self) -> bool {
         // For now, only root containers are promoted.
         false
     }

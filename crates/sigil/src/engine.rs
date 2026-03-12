@@ -40,19 +40,13 @@ impl Engine {
         }
     }
 
-    fn layer(&mut self, id: ElementId, layer_id: Option<LayerId>) {
+    fn layer(&mut self, id: ElementId, layer_id: LayerId) {
         if self.elements.contains(id) {
-            let element = self.elements.get_mut(id).unwrap();
+            let element = &mut self.elements[id];
+            element.layer_id = element.is_promoting().then(|| self.layers.insert(Layer::new(self.front.width, self.front.height))).unwrap_or(layer_id);
 
-            // // If element creates its own layer, make one; otherwise inherit
-            // let layer_id = if element.promotes() {
-            //         self.layers
-            //             .insert(Layer::new(self.front.width, self.front.height))
-            // } else {
-            //     layer_id.unwrap_or(LayerId::none())
-            // };
-
-            for child in element.children().collect::<Vec<_>>() {
+            let layer_id = self.elements[id].layer_id;
+            for child in  self.elements.children(id).collect::<Vec<_>>() {
                 self.layer(child, layer_id);
             }
         }
@@ -109,7 +103,6 @@ impl Engine {
     // Painting
     fn paint(&mut self, id: ElementId) {
         let element = &self.elements[id];
-        let layer_id = element.layer_id;
 
         match &element.kind {
             ElementKind::Text(content) => {
@@ -164,7 +157,7 @@ impl Engine {
         let layout = self.layout[element];
 
         // Layering
-        self.layer(element, layer.as_option());
+        self.layer(element, layer);
 
         // Layouting
         self.layout(

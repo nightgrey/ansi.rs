@@ -309,6 +309,10 @@ impl<K: TreeId, V> Tree<K, V> {
         self.inner.iter()
     }
 
+    pub fn iter_mut(&mut self) -> slotmap::basic::IterMut<K, TreeNode<K, V>> {
+        self.inner.iter_mut()
+    }
+
     pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<K, TreeNode<K, V>> {
         self.inner.values_mut()
     }
@@ -320,6 +324,10 @@ impl<K: TreeId, V> Tree<K, V> {
     pub fn values(&self) -> slotmap::basic::Values<K, TreeNode<K, V>> {
         self.inner.values()
     }
+
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
 }
 
 #[derive(Debug, Index, IndexMut, IntoIterator, Deref, DerefMut)]
@@ -330,7 +338,7 @@ pub struct RootTree<K: TreeId, V> {
     #[index_mut]
     #[into_iterator(owned, ref, ref_mut)]
     pub inner: Tree<K, V>,
-    pub root: K,
+    root: K,
 }
 
 impl<K: TreeId, V> RootTree<K, V> {
@@ -351,49 +359,48 @@ impl<K: TreeId, V> RootTree<K, V> {
         Self { root, inner: tree }
     }
 
-
-    pub fn get_root(&self) -> Option<TreeNodeRef<K, V>> {
-        self.inner.get(self.root)
-    }
-
-    pub fn get_root_mut(&mut self) -> Option<TreeNodeRefMut<K, V>> {
-        self.inner.get_mut(self.root)
-    }
-
-    pub fn get_root_node(&self) -> Option<&TreeNode<K, V>> {
-        self.inner.get_node(self.root)
-    }
-
-    pub fn get_root_node_mut(&mut self, key: K) -> Option<&mut TreeNode<K, V>> {
-        self.inner.get_node_mut(self.root)
-    }
-
     pub fn root(&self) -> K {
         self.root
     }
 
-    pub fn insert(&mut self, value: V) -> K {
+    pub fn get_root(&self) -> TreeNodeRef<K, V> {
+        TreeNodeRef::new(self.root, self)
+    }
+
+    pub fn get_root_mut(&mut self) -> TreeNodeRefMut<K, V> {
+        TreeNodeRefMut::new(self.root, self)
+    }
+
+    pub fn get_root_node(&self) -> &TreeNode<K, V> {
+        &self.inner[self.root]
+    }
+
+    pub fn get_root_node_mut(&mut self) -> &mut TreeNode<K, V> {
+        &mut self.inner[self.root]
+    }
+
+    pub fn append_root(&mut self, value: V) -> K {
         let root = self.root;
         let id  = self.inner.insert(value);
         self.append_child(root, id);
         id
     }
 
-    pub fn insert_with(&mut self, f: impl FnOnce(K) -> V) -> K {
+    pub fn append_root_with(&mut self, f: impl FnOnce(K) -> V) -> K {
         let root = self.root;
         let id = self.inner.insert_with(f);
         self.append_child(root, id);
         id
     }
 
-    pub fn try_insert_with<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
+    pub fn try_append_root_with<F, E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
         let root = self.root;
         let id = self.inner.try_insert_with(f)?;
         self.append_child(root, id);
         Ok(id)
     }
 
-    pub fn insert_with_children(&mut self, value: V, children: &[K]) -> K {
+    pub fn append_root_with_children(&mut self, value: V, children: &[K]) -> K {
         let root = self.root;
         let id = self.inner.insert_with_children(value, children);
         self.append_child(root, id);

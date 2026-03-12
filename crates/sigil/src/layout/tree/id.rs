@@ -1,5 +1,3 @@
-use crate::{Children, Tree};
-
 pub trait TreeId: slotmap::Key {
     #[inline]
     fn none() -> Self {
@@ -76,12 +74,14 @@ pub trait TreeId: slotmap::Key {
 macro_rules! tree_id {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
         use slotmap::Key as _;
+        use $crate::TreeId as _;
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;
 
         }
 
-        impl $crate::TreeId for $name {}
+        impl $crate::TreeId for $name {
+        }
     };
 }

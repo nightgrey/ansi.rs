@@ -30,20 +30,20 @@ pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
     /// 4 bytes: either inline UTF-8 or a arena offset (see [`Grapheme`]).
-    grapheme: Grapheme,
+    pub grapheme: Grapheme,
 
     /// Column width of this cell's grapheme.
     ///
     /// - `1` for ASCII and most single-width characters
     /// - `2` for CJK ideographs, fullwidth forms, and most emoji
-    /// - `0` is treated as `1` by [`columns()`](Self::columns)
+    /// - `0` is treated as `1` by [`columns()`](Self::width)
     ///
     /// Wide characters (width 2) occupy this cell and the next cell to the
     /// right, which should be a "continuation" cell with an empty grapheme.
-    width: u8,
+    pub width: u8,
 
     /// Visual style: text attributes, foreground and background colors.
-    style: Style,
+    pub style: Style,
 }
 
 impl Cell {
@@ -87,12 +87,6 @@ impl Cell {
     #[inline]
     pub fn width(&self) -> u8 {
         self.width
-    }
-
-    /// The effective column count: `width`, or 1 if `width` is 0.
-    #[inline]
-    pub fn columns(&self) -> u8 {
-        if self.width == 0 { 1 } else { self.width }
     }
 
     /// The cell's visual style.
@@ -260,7 +254,7 @@ mod tests {
     fn empty_cell() {
         let cell = Cell::EMPTY;
         assert!(cell.is_empty());
-        assert_eq!(cell.columns(), 1);
+        assert_eq!(cell.width(), 0);
         assert_eq!(cell.width(), 0);
     }
 
@@ -273,7 +267,6 @@ mod tests {
         let cell = Cell::from_char('A', style);
         assert!(!cell.is_empty());
         assert_eq!(cell.width(), 1);
-        assert_eq!(cell.columns(), 1);
         assert_eq!(cell.style().fg, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
 
@@ -284,7 +277,7 @@ mod tests {
     #[test]
     fn cell_with_wide_char() {
         let cell = Cell::from_char('中', Style::EMPTY);
-        assert_eq!(cell.columns(), 2);
+        assert_eq!(cell.width(), 2);
     }
 
     #[test]

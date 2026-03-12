@@ -126,6 +126,7 @@ impl<T: Clone> Grid<T> {
     }
     
     pub fn resize_inner(&mut self, width: usize, height: usize) where T: Default {
+        self.inner.clear();
         self.inner.resize(width * height, T::default());
         self.width = width;
         self.height = height;

@@ -118,7 +118,7 @@ impl Rasterizer {
                 while col <= emit_end {
                     let cell = &next[col];
                     Self::render_cell(cell, output, cursor, arena);
-                    let w = cell.columns() as usize;
+                    let w = cell.width() as usize;
                     col += w;
                     cursor.col += w;
                 }
@@ -189,6 +189,13 @@ impl Rasterizer {
             self.output.clear();
         }
         out.flush()
+    }
+
+    pub fn clear(&mut self) {
+        self.output.clear();
+        self.shadow.clear();
+        self.pen.reset();
+        self.invalidated = true;
     }
 
     /// Mark the screen for a full clear on next render.

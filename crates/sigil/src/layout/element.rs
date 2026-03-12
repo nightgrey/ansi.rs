@@ -1,4 +1,4 @@
-use crate::{LayerId, tree_id, TreeId};
+use crate::{tree_id, LayerId};
 use ansi::{Color, Style};
 
 tree_id!(
@@ -20,25 +20,30 @@ pub enum ElementKind {
 #[derive(Debug)]
 pub struct Element {
     pub kind: ElementKind,
-    pub layer_id: LayerId,
     pub style: Style,
+    pub layer_id: LayerId,
 }
 
 impl Element {
-    pub  fn container(direction: Direction) -> Self {
+    pub fn container(direction: Direction) -> Self {
         Self {
             kind: ElementKind::Container { direction },
-            layer_id: LayerId::none(),
             style: Style::EMPTY,
+            layer_id: LayerId::none(),
         }
     }
 
     pub fn text(content: String) -> Self {
         Self {
             kind: ElementKind::Text(content),
-            layer_id: LayerId::none(),
             style: Style::new().foreground(Color::Red),
+            layer_id: LayerId::none(),
         }
+    }
+    
+    pub fn on(mut self, layer_id: LayerId) -> Self {
+        self.layer_id = layer_id;
+        self
     }
 
     /// Whether this element should be promoted to its own compositing layer.

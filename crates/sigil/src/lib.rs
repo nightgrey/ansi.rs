@@ -35,8 +35,12 @@ pub mod layout;
 pub mod rasterizer;
 pub mod painter;
 pub mod engine;
+mod scene;
+mod renderer;
 
 pub use buffer::*;
 pub use rasterizer::*;
 pub use layout::*;
 pub use engine::*;
+pub use scene::*;
+pub use renderer::*;

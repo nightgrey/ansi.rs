@@ -40,10 +40,10 @@ impl Engine {
         }
     }
 
-    fn layer_element(&mut self, id: ElementId, layer_id: Option<LayerId>) {
+    fn layer(&mut self, id: ElementId, layer_id: Option<LayerId>) {
         if self.elements.contains(id) {
-            let element = &mut self.elements[id];
-            
+            let element = self.elements.get_mut(id).unwrap();
+
             // // If element creates its own layer, make one; otherwise inherit
             // let layer_id = if element.promotes() {
             //         self.layers
@@ -52,17 +52,14 @@ impl Engine {
             //     layer_id.unwrap_or(LayerId::none())
             // };
 
-            element.layer_id = layer_id.unwrap_or_default();
-
-            let layer_id = element.layer_id.as_option();
-            for child in self.elements.children(id).collect::<Vec<_>>() {
-                self.layer_element(child, layer_id);
+            for child in element.children().collect::<Vec<_>>() {
+                self.layer(child, layer_id);
             }
         }
     }
 
     // Layouting
-    fn layout_element(&mut self, id: ElementId, bounds: Rect) {
+    fn layout(&mut self, id: ElementId, bounds: Rect) {
         self.layout.insert(id, bounds);
 
         match &self.elements[id].kind {
@@ -86,7 +83,7 @@ impl Engine {
                                 bounds.width(),
                                 child_height,
                             );
-                            self.layout_element(*child, child_bounds);
+                            self.layout(*child, child_bounds);
                         }
                     }
                     Direction::Horizontal => {
@@ -98,7 +95,7 @@ impl Engine {
                                 child_width,
                                 bounds.height(),
                             );
-                            self.layout_element(*child, child_bounds);
+                            self.layout(*child, child_bounds);
                         }
                     }
                 }
@@ -110,7 +107,7 @@ impl Engine {
     }
 
     // Painting
-    fn paint_element(&mut self, id: ElementId) {
+    fn paint(&mut self, id: ElementId) {
         let element = &self.elements[id];
         let layer_id = element.layer_id;
 
@@ -126,7 +123,7 @@ impl Engine {
         // Paint children
         let children: Vec<_> = self.elements.children(id).collect();
         for child in children {
-            self.paint_element(child);
+            self.paint(child);
         }
     }
 
@@ -162,17 +159,17 @@ impl Engine {
     }
 
     pub fn frame(&mut self, out: &mut impl std::io::Write) -> std::io::Result<()> {
-        let root_element = self.elements.root();
-        let root_layer = self.layers.root();
-        let root_layout = self.layout[root_element];
+        let element = self.elements.root();
+        let layer = self.layers.root();
+        let layout = self.layout[element];
 
         // Layering
-        self.layer_element(root_element, root_layer.as_option());
+        self.layer(element, layer.as_option());
 
         // Layouting
-        self.layout_element(
-            root_element,
-            root_layout,
+        self.layout(
+            element,
+            layout,
         );
 
         // Painting
@@ -183,7 +180,7 @@ impl Engine {
             }
         }
 
-        self.paint_element(root_element);
+        self.paint(element);
 
         for (_, layer) in &mut self.layers {
             layer.is_dirty = false;

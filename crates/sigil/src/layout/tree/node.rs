@@ -1,6 +1,6 @@
 use super::iter::*;
 use super::{TreeId, Tree};
-use derive_more::{Deref, DerefMut, Index, IndexMut};
+use derive_more::{Deref, DerefMut};
 use std::ops::{Deref, DerefMut};
 
 /// A tree node with embedded structural links.
@@ -84,36 +84,36 @@ impl<'a, K: TreeId, V> TreeNodeRef<'a, K, V> {
         self.node().previous_sibling()
     }
 
-    pub fn children(&self, key: K) -> Children<K, V> {
-        self.tree.children(key)
+    pub fn children(&self) -> Children<K, V> {
+        self.tree.children(self.id)
     }
 
-    pub fn descendants(&self, key: K) -> Descendants<K, V> {
-        self.tree.descendants(key)
+    pub fn descendants(&self) -> Descendants<K, V> {
+        self.tree.descendants(self.id)
     }
 
-    pub fn ancestors(&self, key: K) -> Ancestors<K, V> {
-        self.tree.ancestors(key)
+    pub fn ancestors(&self) -> Ancestors<K, V> {
+        self.tree.ancestors(self.id)
     }
 
-    pub fn predecessors(&self, key: K) -> Predecessors<K, V> {
-        self.tree.predecessors(key)
+    pub fn predecessors(&self) -> Predecessors<K, V> {
+        self.tree.predecessors(self.id)
     }
 
-    pub fn following_siblings(&self, key: K) -> FollowingSiblings<K, V> {
-        self.tree.following_siblings(key)
+    pub fn following_siblings(&self) -> FollowingSiblings<K, V> {
+        self.tree.following_siblings(self.id)
     }
 
-    pub fn preceding_siblings(&self, key: K) -> PrecedingSiblings<K, V> {
-        self.tree.preceding_siblings(key)
+    pub fn preceding_siblings(&self) -> PrecedingSiblings<K, V> {
+        self.tree.preceding_siblings(self.id)
     }
 
-    pub fn traverse(&self, key: K) -> Traverse<K, V> {
-        self.tree.traverse(key)
+    pub fn traverse(&self) -> Traverse<K, V> {
+        self.tree.traverse(self.id)
     }
 
-    pub fn reverse_traverse(&self, key: K) -> ReverseTraverse<K, V> {
-        self.tree.reverse_traverse(key)
+    pub fn reverse_traverse(&self) -> ReverseTraverse<K, V> {
+        self.tree.reverse_traverse(self.id)
     }
 }
 

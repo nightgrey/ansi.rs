@@ -50,7 +50,6 @@ pub trait TreeId: slotmap::Key {
 #[macro_use]
 macro_rules! tree_id {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
-        use $crate::TreeId;
         use slotmap::Key as _;
         slotmap::new_key_type! {
             $(#[$outer])*

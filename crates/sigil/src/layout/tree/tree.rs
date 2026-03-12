@@ -4,6 +4,31 @@ use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
+use thiserror::Error;
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreePosition<K> {
+    Detached,
+    FirstChildOf(K),
+    LastChildOf(K),
+    Before(K),
+    After(K),
+}
+
+#[derive(Error, Debug)]
+pub enum TreeError<K> {
+    #[error("Node {0} does not exist")]
+    MissingNode(K),
+    #[error("Reference node {0} has no parent")]
+    ReferenceHasNoParent(K),
+    #[error("Cycle detected: node {node} would be its own ancestor")]
+    Cycle { node: K, target: K },
+    #[error("Root operation forbidden")]
+    RootOperationForbidden,
+
+}
+
 type Inner<K, V> = slotmap::SlotMap<K, V>;
 
 #[derive(Debug, Index, IndexMut, IntoIterator)]
@@ -83,7 +108,7 @@ impl<K: TreeId, V> Tree<K, V> {
 
         // Walk descendants depth-first via the linked child lists.
         // We collect into a vec to avoid aliasing issues.
-        for key in self.descendants(key).collect::<Vec<_>>() {
+        for key in self.descendants(key).skip(1).collect::<Vec<_>>() {
             self.inner.remove(key);
         }
 
@@ -178,7 +203,7 @@ impl<K: TreeId, V> Tree<K, V> {
 
     /// Prepend a list of children to the beginning of the parent's child list.
     pub fn prepend_children(&mut self, parent: K, children: &[K]) {
-        for &child in children {
+        for &child in children.iter().rev() {
             self.prepend_child(parent, child);
         }
     }
@@ -258,7 +283,7 @@ impl<K: TreeId, V> Tree<K, V> {
     }
 
     pub fn is_leaf(&self, key: K) -> bool {
-        self.get_node(key).map_or(true, |n| n.first_child.is_null())
+        self.get(key).map_or(true, |n| n.first_child.is_null())
     }
 
     pub fn is_root(&self, key: K) -> bool {

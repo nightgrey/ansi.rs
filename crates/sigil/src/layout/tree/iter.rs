@@ -1,36 +1,42 @@
 use super::{TreeId, Tree};
 use derive_more::{Deref, DerefMut};
 use std::iter::FusedIterator;
+use crate::TreeNode;
+
+/// An iterator over the key-value pairs in a [`Tree`].
+pub type Iter<'a, K: 'a + TreeId, V: 'a> = slotmap::basic::Iter<'a, K, TreeNode<K, V>>;
+/// A mutable iterator over the key-value pairs in a [`Tree`].
+pub type IterMut<'a, K: 'a + TreeId, V: 'a> = slotmap::basic::IterMut<'a, K, TreeNode<K, V>>;
 
 // ----------
 // ITERATORS
 // ----------
 
 #[derive(Clone, Debug)]
-struct Iter<'a, K: TreeId, V> {
+struct Inner<'a, K: 'a + TreeId, V: 'a> {
     pub(super) tree: &'a Tree<K, V>,
     pub(super) node: K,
 }
 
-impl<'a, K: TreeId, V> Iter<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Inner<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, node: K) -> Self {
         Self { tree, node }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct Ancestors<'a, K: TreeId, V>(Iter<'a, K, V>);
+pub struct Ancestors<'a, K: 'a + TreeId, V: 'a>(Inner<'a, K, V>);
 
-impl<'a, K: TreeId, V> Ancestors<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Ancestors<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, node: K) -> Self {
-        Self(Iter {
+        Self(Inner {
             tree,
             node: tree[node].parent,
         })
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for Ancestors<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for Ancestors<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
@@ -44,18 +50,18 @@ impl<'a, K: TreeId, V> Iterator for Ancestors<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> FusedIterator for Ancestors<'a, K, V> {}
+impl<'a, K: 'a + TreeId, V: 'a> FusedIterator for Ancestors<'a, K, V> {}
 
 #[derive(Clone, Debug)]
-pub struct Predecessors<'a, K: TreeId, V>(Iter<'a, K, V>);
+pub struct Predecessors<'a, K: 'a + TreeId, V: 'a>(Inner<'a, K, V>);
 
-impl<'a, K: TreeId, V> Predecessors<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Predecessors<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, key: K) -> Self {
-        Self(Iter { tree, node: key })
+        Self(Inner { tree, node: key })
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for Predecessors<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for Predecessors<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
@@ -72,25 +78,25 @@ impl<'a, K: TreeId, V> Iterator for Predecessors<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> FusedIterator for Predecessors<'a, K, V> {}
+impl<'a, K: 'a + TreeId, V: 'a> FusedIterator for Predecessors<'a, K, V> {}
 
 // ----------
 // DOUBLE ENDED ITERATORS
 // ----------
 
 #[derive(Clone, Debug)]
-struct DoubleEndedIter<'a, K: TreeId, V> {
+struct DoubleEndedIter<'a, K: 'a + TreeId, V: 'a> {
     pub(super) tree: &'a Tree<K, V>,
     pub(super) head: K,
     pub(super) tail: K,
 }
 
-impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> DoubleEndedIter<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, head: K, tail: K) -> Self {
         Self { tree, head, tail }
     }
 }
-impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> DoubleEndedIter<'a, K, V> {
     fn advance_head(&mut self, advance: impl FnOnce(&Tree<K, V>, K) -> K) -> Option<K> {
         match (self.head.maybe(), self.tail.maybe()) {
             (Some(head), Some(tail)) if head == tail => {
@@ -123,9 +129,9 @@ impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Children<'a, K: TreeId, V>(DoubleEndedIter<'a, K, V>);
+pub struct Children<'a, K: 'a + TreeId, V: 'a>(DoubleEndedIter<'a, K, V>);
 
-impl<'a, K: TreeId, V> Children<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Children<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, node: K) -> Self {
         Self(DoubleEndedIter {
             tree,
@@ -135,7 +141,7 @@ impl<'a, K: TreeId, V> Children<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for Children<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for Children<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
@@ -143,7 +149,7 @@ impl<'a, K: TreeId, V> Iterator for Children<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> DoubleEndedIterator for Children<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> DoubleEndedIterator for Children<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
         match (self.0.head.maybe(), self.0.tail.maybe()) {
             (Some(head), Some(tail)) if head == tail => {
@@ -161,9 +167,9 @@ impl<'a, K: TreeId, V> DoubleEndedIterator for Children<'a, K, V> {
     }
 }
 
-pub struct PrecedingSiblings<'a, K: TreeId, V>(DoubleEndedIter<'a, K, V>);
+pub struct PrecedingSiblings<'a, K: 'a + TreeId, V: 'a>(DoubleEndedIter<'a, K, V>);
 
-impl<'a, K: TreeId, V> PrecedingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> PrecedingSiblings<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, key: K) -> Self {
         Self(DoubleEndedIter {
             tree,
@@ -175,7 +181,7 @@ impl<'a, K: TreeId, V> PrecedingSiblings<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for PrecedingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for PrecedingSiblings<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -184,15 +190,15 @@ impl<'a, K: TreeId, V> Iterator for PrecedingSiblings<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> DoubleEndedIterator for PrecedingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> DoubleEndedIterator for PrecedingSiblings<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.advance_tail(|tree, node| tree[node].next_sibling)
     }
 }
 
-pub struct FollowingSiblings<'a, K: TreeId, V>(DoubleEndedIter<'a, K, V>);
+pub struct FollowingSiblings<'a, K: 'a + TreeId, V: 'a>(DoubleEndedIter<'a, K, V>);
 
-impl<'a, K: TreeId, V> FollowingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> FollowingSiblings<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, key: K) -> Self {
         Self(DoubleEndedIter {
             tree,
@@ -204,7 +210,7 @@ impl<'a, K: TreeId, V> FollowingSiblings<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for FollowingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for FollowingSiblings<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -212,7 +218,7 @@ impl<'a, K: TreeId, V> Iterator for FollowingSiblings<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0
             .advance_tail(|tree, node| tree[node].previous_sibling)
@@ -224,13 +230,13 @@ impl<'a, K: TreeId, V> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
 // ----------
 
 #[derive(Clone, Debug)]
-pub struct Traverse<'a, K: TreeId, V> {
+pub struct Traverse<'a, K: 'a + TreeId, V: 'a> {
     tree: &'a Tree<K, V>,
     root: K,
     next: Option<NodeEdge<K>>,
 }
 
-impl<'a, K: TreeId, V> Traverse<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Traverse<'a, K, V> {
     pub(crate) fn new(tree: &'a Tree<K, V>, current: K) -> Self {
         Self {
             tree,
@@ -273,13 +279,13 @@ impl<K: TreeId, V> Iterator for Traverse<'_, K, V> {
 impl<K: TreeId, V> FusedIterator for Traverse<'_, K, V> {}
 
 #[derive(Clone, Debug)]
-pub struct ReverseTraverse<'a, K: TreeId, V> {
+pub struct ReverseTraverse<'a, K: 'a + TreeId, V: 'a> {
     tree: &'a Tree<K, V>,
     root: K,
     next: Option<NodeEdge<K>>,
 }
 
-impl<'a, K: TreeId, V> ReverseTraverse<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> ReverseTraverse<'a, K, V> {
     pub(crate) fn new(tree: &'a Tree<K, V>, current: K) -> Self {
         Self {
             tree,
@@ -359,15 +365,15 @@ impl<K: TreeId> PartialEq<K> for NodeEdge<K> {
 }
 
 #[derive(Clone, Deref, DerefMut)]
-pub struct Descendants<'a, K: TreeId, V>(Traverse<'a, K, V>);
+pub struct Descendants<'a, K: 'a + TreeId, V: 'a>(Traverse<'a, K, V>);
 
-impl<'a, K: TreeId, V> Descendants<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Descendants<'a, K, V> {
     pub fn new(tree: &'a Tree<K, V>, node: K) -> Self {
         Self(Traverse::new(tree, node))
     }
 }
 
-impl<'a, K: TreeId, V> Iterator for Descendants<'a, K, V> {
+impl<'a, K: 'a + TreeId, V: 'a> Iterator for Descendants<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
@@ -378,4 +384,4 @@ impl<'a, K: TreeId, V> Iterator for Descendants<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> FusedIterator for Descendants<'a, K, V> {}
+impl<'a, K: 'a + TreeId, V: 'a> FusedIterator for Descendants<'a, K, V> {}

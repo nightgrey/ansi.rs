@@ -27,6 +27,7 @@
 #![feature(range_bounds_is_empty)]
 #![feature(bstr)]
 #![feature(iter_intersperse)]
+#![feature(bool_to_result)]
 extern crate core;
 
 pub mod buffer;

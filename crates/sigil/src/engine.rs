@@ -167,7 +167,7 @@ impl Scene {
             let child = &self.elements[child_id];
             let next_layer_id = if child.is_promoting() {
                 let size = &self.layers[layer_id].size();
-                let next_layer_id = self.layers.insert(Layer::new(size.width, size.height));
+                let next_layer_id = self.layers.insert_detached(Layer::new(size.width, size.height));
                 self.layers.append_child(layer_id, next_layer_id);
                 next_layer_id
             } else {

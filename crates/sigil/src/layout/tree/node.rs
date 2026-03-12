@@ -28,24 +28,24 @@ impl<K: TreeId, V> TreeNode<K, V> {
         }
     }
 
-    pub fn parent(&self) -> Option<K> {
-        (self.parent.as_option())
+    pub fn parent(&self) -> K {
+        (self.parent)
     }
 
-    pub fn first_child(&self) -> Option<K> {
-        self.first_child.as_option()
+    pub fn first_child(&self) -> K {
+        self.first_child
     }
 
-    pub fn last_child(&self) -> Option<K> {
-        self.last_child.as_option()
+    pub fn last_child(&self) -> K {
+        self.last_child
     }
 
-    pub fn next_sibling(&self) -> Option<K> {
-        self.next_sibling.as_option()
+    pub fn next_sibling(&self) -> K {
+        self.next_sibling
     }
 
-    pub fn previous_sibling(&self) -> Option<K> {
-        self.previous_sibling.as_option()
+    pub fn previous_sibling(&self) -> K {
+        self.previous_sibling
     }
 }
 
@@ -64,23 +64,23 @@ impl<'a, K: TreeId, V> TreeNodeRef<'a, K, V> {
         &self.tree[self.id]
     }
 
-    pub fn parent(&self) -> Option<K> {
+    pub fn parent(&self) -> K {
         self.node().parent()
     }
 
-    pub fn first_child(&self) -> Option<K> {
+    pub fn first_child(&self) -> K {
         self.node().first_child()
     }
 
-    pub fn last_child(&self) -> Option<K> {
+    pub fn last_child(&self) -> K {
         self.node().last_child()
     }
 
-    pub fn next_sibling(&self) -> Option<K> {
+    pub fn next_sibling(&self) -> K {
         self.node().next_sibling()
     }
 
-    pub fn previous_sibling(&self) -> Option<K> {
+    pub fn previous_sibling(&self) -> K {
         self.node().previous_sibling()
     }
 
@@ -165,23 +165,23 @@ impl<'a, K: TreeId, V> TreeNodeRefMut<'a, K, V> {
         self.tree.prepend_children(self.id, children);
     }
 
-    pub fn parent(&self) -> Option<K> {
+    pub fn parent(&self) -> K {
         self.node().parent()
     }
 
-    pub fn first_child(&self) -> Option<K> {
+    pub fn first_child(&self) -> K {
         self.node().first_child()
     }
 
-    pub fn last_child(&self) -> Option<K> {
+    pub fn last_child(&self) -> K {
         self.node().last_child()
     }
 
-    pub fn next_sibling(&self) -> Option<K> {
+    pub fn next_sibling(&self) -> K {
         self.node().next_sibling()
     }
 
-    pub fn previous_sibling(&self) -> Option<K> {
+    pub fn previous_sibling(&self) -> K {
         self.node().previous_sibling()
     }
 

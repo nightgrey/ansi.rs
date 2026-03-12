@@ -263,31 +263,31 @@ impl<K: TreeId, V> Tree<K, V> {
     }
 
     pub fn parent(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.parent.as_option()
+        self.inner.get(key)?.parent.maybe()
     }
 
     pub fn first_child(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.first_child.as_option()
+        self.inner.get(key)?.first_child.maybe()
     }
 
     pub fn last_child(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.last_child.as_option()
+        self.inner.get(key)?.last_child.maybe()
     }
 
     pub fn next_sibling(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.next_sibling.as_option()
+        self.inner.get(key)?.next_sibling.maybe()
     }
 
     pub fn prev_sibling(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.previous_sibling.as_option()
+        self.inner.get(key)?.previous_sibling.maybe()
     }
 
     pub fn is_leaf(&self, key: K) -> bool {
-        self.get(key).map_or(true, |n| n.first_child.is_null())
+        self.get(key).map_or(true, |n| n.first_child().is_none())
     }
 
     pub fn is_root(&self, key: K) -> bool {
-        self.inner.get(key).map_or(false, |n| n.parent.is_null())
+        self.inner.get(key).map_or(false, |n| n.parent().is_none())
     }
 
     pub fn len(&self) -> usize {

@@ -34,7 +34,7 @@ impl<'a, K: TreeId, V> Iterator for Ancestors<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<K> {
-        match self.0.node.as_option() {
+        match self.0.node.maybe() {
             Some(node) => {
                 self.0.node = self.0.tree[node].parent;
                 Some(node)
@@ -92,7 +92,7 @@ impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
 }
 impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
     fn advance_head(&mut self, advance: impl FnOnce(&Tree<K, V>, K) -> K) -> Option<K> {
-        match (self.head.as_option(), self.tail.as_option()) {
+        match (self.head.maybe(), self.tail.maybe()) {
             (Some(head), Some(tail)) if head == tail => {
                 self.head = K::null();
                 self.tail = K::null();
@@ -107,7 +107,7 @@ impl<'a, K: TreeId, V> DoubleEndedIter<'a, K, V> {
     }
 
     fn advance_tail(&mut self, advance: impl FnOnce(&Tree<K, V>, K) -> K) -> Option<K> {
-        match (self.head.as_option(), self.tail.as_option()) {
+        match (self.head.maybe(), self.tail.maybe()) {
             (Some(h), Some(t)) if h == t => {
                 self.head = K::null();
                 self.tail = K::null();
@@ -145,7 +145,7 @@ impl<'a, K: TreeId, V> Iterator for Children<'a, K, V> {
 
 impl<'a, K: TreeId, V> DoubleEndedIterator for Children<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        match (self.0.head.as_option(), self.0.tail.as_option()) {
+        match (self.0.head.maybe(), self.0.tail.maybe()) {
             (Some(head), Some(tail)) if head == tail => {
                 let result = head;
                 self.0.head = K::null();
@@ -250,18 +250,18 @@ impl<K: TreeId, V> Iterator for Traverse<'_, K, V> {
         self.next = match next {
             NodeEdge::End(key) if key == self.root => None,
 
-            NodeEdge::Start(node) => match self.tree[node].first_child() {
+            NodeEdge::Start(node) => match self.tree[node].first_child().maybe() {
                 Some(first_child) => Some(NodeEdge::Start(first_child)),
                 None => Some(NodeEdge::End(node)),
             },
             NodeEdge::End(node) => {
                 let node = &self.tree[node];
-                match node.next_sibling() {
+                match node.next_sibling().maybe() {
                     Some(next_sibling) => Some(NodeEdge::Start(next_sibling)),
                     // `node.parent()` here can only be `None` if the tree has
                     // been modified during iteration, but silently stoping
                     // iteration seems a more sensible behavior than panicking.
-                    None => node.parent().map(NodeEdge::End),
+                    None => node.parent().maybe().map(NodeEdge::End),
                 }
             }
         };
@@ -298,13 +298,13 @@ impl<K: TreeId, V> Iterator for ReverseTraverse<'_, K, V> {
         // Next of next
         self.next = match next {
             NodeEdge::Start(key) if key == self.root => None,
-            NodeEdge::End(node) => match self.tree[node].last_child() {
+            NodeEdge::End(node) => match self.tree[node].last_child().maybe() {
                 Some(last_child) => Some(NodeEdge::End(last_child)),
                 None => Some(NodeEdge::Start(node)),
             },
             NodeEdge::Start(node) => {
                 let node = &self.tree[node];
-                match node.previous_sibling() {
+                match node.previous_sibling().maybe() {
                     Some(previous_sibling) => Some(NodeEdge::End(previous_sibling)),
                     // `node.parent()` here can only be `None` if the tree has
                     // been modified during iteration, but silently stopping
@@ -339,8 +339,8 @@ pub enum NodeEdge<K> {
 impl<K: TreeId> NodeEdge<K> {
     pub fn option(&self) -> NodeEdge<Option<K>> {
         match self {
-            NodeEdge::Start(key) => NodeEdge::Start(key.as_option()),
-            NodeEdge::End(key) => NodeEdge::End(key.as_option()),
+            NodeEdge::Start(key) => NodeEdge::Start(key.maybe()),
+            NodeEdge::End(key) => NodeEdge::End(key.maybe()),
         }
     }
     pub fn key(&self) -> Option<K> {

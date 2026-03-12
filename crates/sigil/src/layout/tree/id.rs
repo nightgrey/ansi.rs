@@ -15,23 +15,80 @@ pub trait TreeId: slotmap::Key {
     }
 
     #[inline]
-    fn as_option(self) -> Option<Self> {
+    fn maybe(self) -> Option<Self> {
         match self.is_none() {
             true => None,
             false => Some(self),
         }
     }
 
+    #[inline]
     fn insert(&mut self, value: Self) -> &mut Self {
         *self = value;
 
         self
     }
 
+    #[inline]
+    fn map<U, F>(self, f: F) -> Option<U>
+    where
+        F: FnOnce(Self) -> U
+    {
+        match self.is_some() {
+            true => Some(f(self)),
+            false => None,
+        }
+    }
+
+    #[inline]
+    fn map_or<U, F>(self, default: U, f: F) -> U
+    where
+        F: FnOnce(Self) -> U ,
+    {
+        match self.is_some() {
+            true => f(self),
+            false => default,
+        }
+    }
+
+    #[inline]
+    fn map_or_else<U, D, F>(self, default: D, f: F) -> U
+    where
+        D: FnOnce() -> U ,
+        F: FnOnce(Self) -> U ,
+    {
+        match self.is_some() {
+            true => f(self),
+            false => default(),
+        }
+    }
+
+    #[inline]
+    fn map_or_default<U, F>(self, f: F) -> U
+    where
+        U: Default,
+        F: FnOnce(Self) -> U ,
+    {
+        match self.is_some() {
+            true => f(self),
+            false => U::default(),
+        }
+    }
+
+    #[inline]
     fn get_or_insert(&mut self, value: Self) -> &mut Self {
         self.get_or_insert_with(|| value)
     }
 
+    #[inline]
+    fn get_or_insert_default(&mut self) -> &mut Self
+    where
+        Self: Default,
+    {
+        self.get_or_insert_with(Self::default)
+    }
+
+    #[inline]
     fn get_or_insert_with<F>(&mut self, f: F) -> &mut Self
     where
         F: FnOnce() -> Self,
@@ -53,20 +110,36 @@ pub trait TreeId: slotmap::Key {
     }
 
     #[inline]
-    fn or(self, other: Self) -> Self {
+    fn or(self, default: Self) -> Self {
         match self.is_none() {
-            true => other,
+            true => default,
             false => self,
+        }
+    }
+    #[inline]
+    #[track_caller]
+    fn or_else<F>(self, f: F) -> Self
+    where
+        F: FnOnce() -> Self,
+    {
+        match self.is_some() {
+            true => self,
+            false => f(),
         }
     }
 
     #[inline]
-    fn or_else<F: FnOnce() -> Self>(self, f: F) -> Self {
-        match self.is_none() {
-            true => f(),
-            false => self,
+    fn or_none(self) -> Self
+    where
+        Self: Default,
+    {
+        match self.is_some() {
+            true => self,
+            false => Self::default(),
         }
     }
+
+
 }
 
 #[macro_export]

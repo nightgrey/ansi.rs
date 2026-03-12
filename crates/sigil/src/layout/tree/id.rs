@@ -16,7 +16,7 @@ pub trait TreeId: slotmap::Key {
 
     #[inline]
     fn as_option(self) -> Option<Self> {
-        match self.is_null() {
+        match self.is_none() {
             true => None,
             false => Some(self),
         }
@@ -24,15 +24,15 @@ pub trait TreeId: slotmap::Key {
 
     #[inline]
     fn and_then<F: FnOnce(Self) -> Self>(self, f: F) -> Self {
-        match self.is_null() {
-            true => Self::null(),
+        match self.is_none() {
+            true => Self::none(),
             false => f(self),
         }
     }
 
     #[inline]
     fn or(self, other: Self) -> Self {
-        match self.is_null() {
+        match self.is_none() {
             true => other,
             false => self,
         }
@@ -40,7 +40,7 @@ pub trait TreeId: slotmap::Key {
 
     #[inline]
     fn or_else<F: FnOnce() -> Self>(self, f: F) -> Self {
-        match self.is_null() {
+        match self.is_none() {
             true => f(),
             false => self,
         }
@@ -50,6 +50,7 @@ pub trait TreeId: slotmap::Key {
 #[macro_use]
 macro_rules! tree_id {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
+        use $crate::TreeId;
         use slotmap::Key as _;
         slotmap::new_key_type! {
             $(#[$outer])*

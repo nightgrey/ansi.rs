@@ -4,31 +4,29 @@ use derive_more::{Deref, DerefMut};
 use ansi::{Color, Style};
 use sigil::buffer::{Buffer, Cell};
 use sigil::GraphemeArena;
-use sigil::rasterizer::{Capabilities};
+use sigil::rasterizer::{Capabilities, Rasterizer as _Rasterizer};
 
 #[derive(Clone, Debug, Deref, DerefMut)]
 struct Rasterizer(
     #[deref]
     #[deref_mut]
-    sigil::Rasterizer,
+    _Rasterizer,
     GraphemeArena
 );
 impl Rasterizer {
-    fn new(width: usize, height: usize) -> Self {
-        Self(sigil::Rasterizer::new(width, height), GraphemeArena::new())
+    /// Create a fullscreen rasterizer with the given dimensions.
+    pub fn new(width: usize, height: usize) -> Self {
+        Self(_Rasterizer::new(width, height), GraphemeArena::new())
     }
 
-    fn with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
-        Self(sigil::Rasterizer::with_capabilities(width, height, caps), GraphemeArena::new())
-    }
-    
-    fn inline(width: usize, height: usize) -> Self {
-        Self(sigil::Rasterizer::inline(width, height), GraphemeArena::new())
+    /// Create an inline rasterizer (renders in the normal scrollback region).
+    pub fn inline(width: usize, height: usize) -> Self {
+        Self(_Rasterizer::inline(width, height), GraphemeArena::new())
     }
 
-    /// Create an inline rasterizer with explicit capabilities.
-    fn inline_with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
-        Self(sigil::Rasterizer::inline_with_capabilities(width, height, caps), GraphemeArena::new())
+    pub fn with_capabilities(mut self, caps: Capabilities) -> Self {
+        self.0 = self.0.with_capabilities(caps);
+        self
     }
 
     fn render(&mut self, buffer: &Buffer) {
@@ -480,7 +478,7 @@ fn scroll_up(c: &mut Criterion) {
         .collect();
     let buf2 = Buffer::from_chars(W, H, &chars2);
 
-    let mut r = Rasterizer::with_capabilities(W, H, caps);
+    let mut r = Rasterizer::new(W, H).with_capabilities(caps);
     r.render(&buf1);
     r.clear_output();
 
@@ -560,7 +558,7 @@ fn rep_long_run(c: &mut Criterion) {
 
     c.bench_function("rep-long-run", |b| {
         b.iter(|| {
-            let mut r = Rasterizer::with_capabilities(200, 1, caps);
+            let mut r = Rasterizer::new(200, 1).with_capabilities(caps);
             r.render(black_box(&buffer));
             black_box(r.output());
         });

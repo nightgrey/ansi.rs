@@ -1,5 +1,5 @@
-use super::{TreeId, Node, iter::*};
-use super::{NodeRef, NodeRefMut};
+use super::{TreeId, TreeNode, iter::*};
+use super::{TreeNodeRef, TreeNodeRefMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
@@ -10,7 +10,7 @@ type Inner<K, V> = slotmap::SlotMap<K, V>;
 #[repr(transparent)]
 pub struct Tree<K: TreeId, V> {
     #[into_iterator(owned, ref, ref_mut)]
-    inner: Inner<K, Node<K, V>>,
+    inner: Inner<K, TreeNode<K, V>>,
 }
 
 impl<K: TreeId, V> Tree<K, V> {
@@ -30,43 +30,43 @@ impl<K: TreeId, V> Tree<K, V> {
         self.inner.contains_key(key)
     }
 
-    pub fn get(&self, key: K) -> Option<NodeRef<K, V>> {
+    pub fn get(&self, key: K) -> Option<TreeNodeRef<K, V>> {
         match self.contains(key) {
-            true => Some(NodeRef::new(key, self)),
+            true => Some(TreeNodeRef::new(key, self)),
             false => None,
         }
     }
 
-    pub fn get_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
+    pub fn get_mut(&mut self, key: K) -> Option<TreeNodeRefMut<K, V>> {
         match self.contains(key) {
-            true => Some(NodeRefMut::new(key, self)),
+            true => Some(TreeNodeRefMut::new(key, self)),
             false => None,
         }
     }
 
-    pub fn get_node(&self, key: K) -> Option<&Node<K, V>> {
+    pub fn get_node(&self, key: K) -> Option<&TreeNode<K, V>> {
         self.inner.get(key)
     }
 
-    pub fn get_node_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
+    pub fn get_node_mut(&mut self, key: K) -> Option<&mut TreeNode<K, V>> {
         self.inner.get_mut(key)
     }
 
     pub fn insert(&mut self, value: V) -> K {
-        self.inner.insert(Node::new(value))
+        self.inner.insert(TreeNode::new(value))
     }
 
     pub fn insert_with(&mut self, f: impl FnOnce(K) -> V) -> K {
-        self.inner.insert_with_key(|k| Node::new(f(k)))
+        self.inner.insert_with_key(|k| TreeNode::new(f(k)))
     }
 
     pub fn try_insert_with<E>(&mut self, f: impl FnOnce(K) -> Result<V, E>) -> Result<K, E> {
-        self.inner.try_insert_with_key(|k| f(k).map(Node::new))
+        self.inner.try_insert_with_key(|k| f(k).map(TreeNode::new))
     }
 
     /// Insert a node and immediately append the given children to it.
     pub fn insert_with_children(&mut self, value: V, children: &[K]) -> K {
-        let id = self.inner.insert(Node::new(value));
+        let id = self.inner.insert(TreeNode::new(value));
 
         self.append_children(id, children);
 
@@ -305,19 +305,19 @@ impl<K: TreeId, V> Tree<K, V> {
         ReverseTraverse::new(self, key)
     }
 
-    pub fn iter(&self) -> slotmap::basic::Iter<K, Node<K, V>> {
+    pub fn iter(&self) -> slotmap::basic::Iter<K, TreeNode<K, V>> {
         self.inner.iter()
     }
 
-    pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<K, Node<K, V>> {
+    pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<K, TreeNode<K, V>> {
         self.inner.values_mut()
     }
 
-    pub fn keys(&self) -> slotmap::basic::Keys<K, Node<K, V>> {
+    pub fn keys(&self) -> slotmap::basic::Keys<K, TreeNode<K, V>> {
         self.inner.keys()
     }
 
-    pub fn values(&self) -> slotmap::basic::Values<K, Node<K, V>> {
+    pub fn values(&self) -> slotmap::basic::Values<K, TreeNode<K, V>> {
         self.inner.values()
     }
 }
@@ -352,19 +352,19 @@ impl<K: TreeId, V> RootTree<K, V> {
     }
 
 
-    pub fn get_root(&self) -> Option<NodeRef<K, V>> {
+    pub fn get_root(&self) -> Option<TreeNodeRef<K, V>> {
         self.inner.get(self.root)
     }
 
-    pub fn get_root_mut(&mut self) -> Option<NodeRefMut<K, V>> {
+    pub fn get_root_mut(&mut self) -> Option<TreeNodeRefMut<K, V>> {
         self.inner.get_mut(self.root)
     }
 
-    pub fn get_root_node(&self) -> Option<&Node<K, V>> {
+    pub fn get_root_node(&self) -> Option<&TreeNode<K, V>> {
         self.inner.get_node(self.root)
     }
 
-    pub fn get_root_node_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
+    pub fn get_root_node_mut(&mut self, key: K) -> Option<&mut TreeNode<K, V>> {
         self.inner.get_node_mut(self.root)
     }
 

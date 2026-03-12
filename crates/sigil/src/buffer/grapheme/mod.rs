@@ -73,6 +73,7 @@ impl Grapheme {
 
     /// An empty grapheme (no character). This is the default for blank cells.
     pub const EMPTY: Self = Self::from_char(char::MIN);
+    
     /// The sentinel tag value marking an extended (arena-stored) grapheme.
     pub const EXTENDED_TAG: u8 = 0x01;
 
@@ -213,7 +214,7 @@ impl Grapheme {
     #[cfg(target_endian = "little")]
     pub fn as_str<'a>(&'a self, arena: &'a GraphemeArena) -> &'a str {
         if self.is_empty() {
-            " "
+            ""
         } else if self.is_inline() {
             let bytes = self.to_le_bytes();
             let len = Self::inline_len(&bytes) as usize;

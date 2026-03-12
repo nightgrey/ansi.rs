@@ -5,46 +5,18 @@ use ansi::sequences::*;
 use grid::Row;
 
 use crate::buffer::{Buffer, GraphemeArena};
-use crate::Cell;
+use crate::{Cell};
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
 
-/// Whether the rasterizer operates in fullscreen or inline mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RasterizerMode {
-    /// Traditional fullscreen mode using alternate screen buffer.
-    Fullscreen,
-    /// Inline/CLI mode: renders within the normal scrollback region.
-    Inline,
-}
-
-/// State for inline rendering.
-#[derive(Debug, Clone, Copy)]
-struct InlineState {
-    /// Number of rows the rasterizer "owns" in the terminal.
-    owned_rows: usize,
-    /// Whether this is the first render call.
-    first_render: bool,
-}
-
-/// How the cursor should be positioned before emitting cells.
-#[derive(Clone, Copy)]
-enum CursorMode {
-    /// Use absolute or optimized movement (fullscreen).
-    Absolute(Capabilities),
-    /// Use only relative movement (inline).
-    Relative,
-}
 
 #[derive(Debug, Clone)]
 pub struct Rasterizer {
     output: Vec<u8>,
-    previous: Buffer,
+    shadow: Buffer,
     pen: Cursor,
-    caps: Capabilities,
-    is_fullscreen: bool,
+    capabilities: Capabilities,
     invalidated: bool,
-    mode: RasterizerMode,
     inline: Option<InlineState>,
 }
 
@@ -53,28 +25,17 @@ impl Rasterizer {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             output: Vec::with_capacity(4096),
-            previous: Buffer::new(width, height),
+            shadow: Buffer::new(width, height),
             pen: Cursor::new(),
-            caps: Capabilities::default(),
-            is_fullscreen: false,
+            capabilities: Capabilities::default(),
             invalidated: true,
-            mode: RasterizerMode::Fullscreen,
             inline: None,
         }
     }
 
-    /// Create a rasterizer with explicit capabilities.
-    pub fn with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
-        Self {
-            caps,
-            ..Self::new(width, height)
-        }
-    }
-
-    /// Create a rasterizer in inline mode.
+    /// Create an inline rasterizer (renders in the normal scrollback region).
     pub fn inline(width: usize, height: usize) -> Self {
         Self {
-            mode: RasterizerMode::Inline,
             inline: Some(InlineState {
                 owned_rows: 0,
                 first_render: true,
@@ -83,39 +44,45 @@ impl Rasterizer {
         }
     }
 
-    /// Create an inline rasterizer with explicit capabilities.
-    pub fn inline_with_capabilities(width: usize, height: usize, caps: Capabilities) -> Self {
-        Self {
-            caps,
-            ..Self::inline(width, height)
-        }
+    /// Set terminal capabilities. Chainable.
+    pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
+
+    /// Returns whether this rasterizer operates in inline mode.
+    pub fn is_inline(&self) -> bool {
+        self.inline.is_some()
     }
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
     fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &GraphemeArena) {
         cursor.update_style(output, cell.style());
-        output.extend_from_slice(cell.as_bytes(arena));
+        if cell.is_empty() {
+            output.push(b' ');
+        } else {
+            output.extend_from_slice(cell.as_bytes(arena));
+        }
     }
 
-    /// Diff a single line between `next` (new) and `previous` (old), emitting only
-    /// the changed cells. Uses left→right and right→left scanning to find the
-    /// minimal dirty region, plus a trailing EL optimization.
-    fn diff_line(
-        previous: &Buffer,
-        next: &Buffer,
+
+    /// Diff a single row, emitting only the changed cells.
+    ///
+    /// Uses left→right and right→left scanning to find the minimal dirty
+    /// region, plus a trailing EL optimization when the tail goes empty.
+    fn diff_row(
+        prev: &[Cell],
+        next: &[Cell],
+        arena: &GraphemeArena,
+        y: usize,
         output: &mut Vec<u8>,
         cursor: &mut Cursor,
         cursor_mode: CursorMode,
-        y: usize,
         width: usize,
-        arena: &GraphemeArena,
     ) {
-        let new_row: &[Cell] = &next[Row(y)];
-        let old_row: &[Cell] = &previous[Row(y)];
-
         // Scan left→right for first differing cell.
-        let first = match (0..width).find(|&x| new_row[x] != old_row[x]) {
+        let first = match (0..width).find(|&x| next[x] != prev[x]) {
             Some(col) => col,
             None => return, // Entire line is identical.
         };
@@ -123,36 +90,33 @@ impl Rasterizer {
         // Scan right→left for last differing cell.
         let last = (0..width)
             .rev()
-            .find(|&x| new_row[x] != old_row[x])
+            .find(|&x| next[x] != prev[x])
             .unwrap();
 
-        // Trailing EL optimization: within the diff range [first, last], find the
-        // last cell that has non-empty new content. If the tail of the diff range
-        // consists of empty new cells (replacing old content), we can use EL
-        // instead of emitting spaces.
-        let last_content_in_range = (first..=last)
+        // Within [first, last], find the last non-empty new cell. If the tail
+        // of the diff range is all-empty new cells replacing old content, we
+        // can use EL instead of emitting spaces.
+        let last_content = (first..=last)
             .rev()
-            .find(|&x| !new_row[x].is_empty());
+            .find(|&x| !next[x].is_empty());
 
         // Move cursor to start of changed region.
         match cursor_mode {
-            CursorMode::Absolute(caps) => cursor.to(y, first, output, caps),
-            CursorMode::Relative => cursor.to_relative(y, first, output),
+            CursorMode::Absolute(caps) => cursor.move_to(y, first, output, caps),
+            CursorMode::Relative => cursor.move_to_relative(y, first, output),
         }
 
-        match last_content_in_range {
+        match last_content {
             None => {
                 // Entire diff range is now empty — just erase to end of line.
                 cursor.reset_style(output);
                 escape!(output, EraseLineToEnd).unwrap();
             }
             Some(emit_end) => {
-                let need_eol = emit_end < last;
-
                 // Emit changed cells from first through emit_end.
                 let mut col = first;
                 while col <= emit_end {
-                    let cell = &new_row[col];
+                    let cell = &next[col];
                     Self::render_cell(cell, output, cursor, arena);
                     let w = cell.columns() as usize;
                     col += w;
@@ -160,7 +124,7 @@ impl Rasterizer {
                 }
 
                 // Clear to end of line if trailing cells transitioned to empty.
-                if need_eol {
+                if emit_end < last {
                     cursor.reset_style(output);
                     escape!(output, EraseLineToEnd).unwrap();
                 }
@@ -170,59 +134,61 @@ impl Rasterizer {
 
     /// Render a buffer, diffing against the previous frame.
     pub fn render(&mut self, buffer: &Buffer, arena: &GraphemeArena) {
-        if self.mode == RasterizerMode::Inline {
-            return self.render_inline(buffer, arena);
+        let (prev, next) = (&mut self.shadow, buffer);
+        if self.inline.is_some() {
+            return self.render_inline(next, arena);
         }
-        let width = buffer.width;
-        let height = buffer.height;
+        let width = next.width;
+        let height = next.height;
 
-        if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Enable).unwrap();
+        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+            self.output.escape(SynchronizedOutput::Set).unwrap();
         }
 
         // Handle dimension change or forced clear.
-        if self.previous.width != width || self.previous.height != height || self.invalidated {
-            escape!(&mut self.output, Home).unwrap();
-            escape!(&mut self.output, EraseDisplay).unwrap();
+        if prev.width != width || prev.height != height || self.invalidated {
+            self.output.escape(Home).unwrap();
+            self.output.escape(EraseDisplay).unwrap();
             self.pen.reset();
-            self.previous = Buffer::new(width, height);
+            prev.resize_inner(width, height);
+            prev.clear();
             self.invalidated = false;
         }
 
-        escape!(&mut self.output, TextCursor::Disable).unwrap();
+        self.output.escape(TextCursorEnable::Reset).unwrap();
 
-        let cursor_mode = CursorMode::Absolute(self.caps);
+        let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
-            Self::diff_line(
-                &self.previous,
-                buffer,
+            Self::diff_row(
+                &prev[Row(y)],
+                &next[Row(y)],
+                arena,
+                y,
                 &mut self.output,
                 &mut self.pen,
                 cursor_mode,
-                y,
                 width,
-                arena,
             );
         }
 
         self.pen.reset_style(&mut self.output);
-        escape!(&mut self.output, TextCursor::Enable).unwrap();
+        self.output.escape(TextCursorEnable::Set).unwrap();
 
-        if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
+        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+            self.output.escape(SynchronizedOutput::Reset).unwrap();
         }
 
         // Swap prev ← new.
-        self.previous.copy_from_slice(buffer);
+        self.shadow.copy_from_slice(buffer);
     }
 
     /// Flush the accumulated output to a writer and clear the buffer.
-    pub fn flush(&mut self, w: &mut impl io::Write) -> io::Result<()> {
+    pub fn flush(&mut self, out: &mut impl io::Write) -> io::Result<()> {
         if !self.output.is_empty() {
-            w.write_all(&self.output)?;
+            out.write_all(&self.output)?;
             self.output.clear();
         }
-        w.flush()
+        out.flush()
     }
 
     /// Mark the screen for a full clear on next render.
@@ -232,21 +198,19 @@ impl Rasterizer {
 
     /// Handle a terminal resize.
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.previous = Buffer::new(width, height);
+        self.shadow.resize_inner(width, height);
         self.invalidated = true;
     }
 
     /// Enter alternate screen buffer.
     pub fn enter_alt_screen(&mut self) {
-        escape!(&mut self.output, AlternateScreen::Enable).unwrap();
-        self.is_fullscreen = true;
+        self.output.escape(AlternateScreen::Set).unwrap();
         self.invalidated = true;
     }
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        escape!(&mut self.output, Reset, AlternateScreen::Disable).unwrap();
-        self.is_fullscreen = false;
+        escape!(self.output, Reset, AlternateScreen::Reset, Reset);
         self.pen.reset();
         self.invalidated = true;
     }
@@ -265,44 +229,60 @@ impl Rasterizer {
 
     /// Render in inline mode (no alternate screen, relative cursor only).
     fn render_inline(&mut self, buffer: &Buffer, arena: &GraphemeArena) {
-        let width = buffer.width;
-        let height = buffer.height;
+        let (prev, next) = (&mut self.shadow, buffer);
+        let width = next.width;
+        let height = next.height;
 
         let inline = self.inline.as_mut().expect("inline state required");
 
-        if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Enable).unwrap();
+        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+            self.output.escape(SynchronizedOutput::Set).unwrap();
         }
 
-        escape!(&mut self.output, TextCursor::Disable).unwrap();
+        self.output.escape(TextCursorEnable::Reset).unwrap();
 
         if inline.first_render {
-            // First render: emit each row with \n separators and EL.
+            // First render: emit each row with \n separators.
+            // Only emit up to the last non-empty cell per row, then EL.
             inline.first_render = false;
             inline.owned_rows = height;
-            self.previous = Buffer::new(width, height);
+            prev.resize_inner(width, height);
 
             for y in 0..height {
                 if y > 0 {
                     self.output.push(b'\n');
                 }
                 let row = &buffer[Row(y)];
-                for col in 0..width {
-                    let cell = &row[col];
-                    self.pen.update_style(&mut self.output, cell.style());
-                    if cell.is_empty() {
-                        self.output.push(b' ');
-                    } else {
-                        let s = cell.as_str(arena);
-                        self.output.extend_from_slice(s.as_bytes());
+
+                // Find last non-empty cell in this row.
+                let last_content = (0..width).rev().find(|&x| !row[x].is_empty());
+
+                match last_content {
+                    Some(end) => {
+                        for col in 0..=end {
+                            let cell = &row[col];
+                            self.pen.update_style(&mut self.output, cell.style());
+                            if cell.is_empty() {
+                                self.output.push(b' ');
+                            } else {
+                                self.output.extend_from_slice(cell.as_str(arena).as_bytes());
+                            }
+                        }
+                    }
+                    None => {
+                        // Entire row is empty — nothing to emit before EL.
                     }
                 }
+
                 self.pen.reset_style(&mut self.output);
-                escape!(&mut self.output, EraseLineToEnd).unwrap();
+                self.output.escape(EraseLineToEnd).unwrap();
             }
 
             self.pen.row = height - 1;
-            self.pen.col = width;
+            self.pen.col = match (0..width).rev().find(|&x| !next[Row(height - 1)][x].is_empty()) {
+                Some(end) => end + 1,
+                None => 0,
+            };
         } else {
             // Subsequent renders: move up to the top of our owned region, diff rows.
             let old_owned = inline.owned_rows;
@@ -319,41 +299,41 @@ impl Rasterizer {
 
             // Move to the top of our owned region.
             if self.pen.row > 0 {
-                escape!(&mut self.output, CursorUp(self.pen.row)).unwrap();
+                self.output.escape(CursorUp(self.pen.row)).unwrap();
             }
-            escape!(&mut self.output, CarriageReturn).unwrap();
+            self.output.escape(CarriageReturn).unwrap();
             self.pen.row = 0;
             self.pen.col = 0;
 
             // Resize prev if needed.
-            if self.previous.width != width || self.previous.height != height {
-                self.previous = Buffer::new(width, height);
+            if self.shadow.width != width || self.shadow.height != height {
+                self.shadow.resize(width, height);
             }
 
             // Diff each row using relative movement.
             for y in 0..height {
-                Self::diff_line(
-                    &self.previous,
-                    buffer,
+                Self::diff_row(
+                    &self.shadow[Row(y)],
+                    &next[Row(y)],
+                    arena,
+                    y,
                     &mut self.output,
                     &mut self.pen,
                     CursorMode::Relative,
-                    y,
-                    width,
-                    arena,
+                    width
                 );
             }
 
             // If we shrank, clear extra rows.
             if height < old_owned {
                 for _ in height..old_owned {
-                    self.pen.to_relative(self.pen.row + 1, 0, &mut self.output);
-                    escape!(&mut self.output, EraseLineToEnd).unwrap();
+                    self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output);
+                    self.output.escape(EraseLineToEnd).unwrap();
                 }
                 // Move back to last row of content.
                 if self.pen.row > height - 1 {
                     let up = self.pen.row - (height - 1);
-                    escape!(&mut self.output, CursorUp(up)).unwrap();
+                    self.output.escape(CursorUp(up)).unwrap();
                     self.pen.row = height - 1;
                 }
                 inline.owned_rows = height;
@@ -361,14 +341,38 @@ impl Rasterizer {
         }
 
         self.pen.reset_style(&mut self.output);
-        escape!(&mut self.output, TextCursor::Enable).unwrap();
+        self.output.escape(TextCursorEnable::Set).unwrap();
 
-        if self.caps.contains(Capabilities::SYNC_OUTPUT) {
-            escape!(&mut self.output, SynchronizedOutput::Disable).unwrap();
+        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+            self.output.escape(SynchronizedOutput::Reset).unwrap();
         }
 
-        self.previous = buffer.clone();
+        // Reuse the allocation when dimensions match.
+        if self.shadow.width == width && self.shadow.height == height {
+            self.shadow.copy_from_slice(next);
+        } else {
+            self.shadow.clone_from(next)
+        }
     }
+}
+
+
+/// How the cursor should be positioned before emitting cells.
+#[derive(Clone, Copy)]
+enum CursorMode {
+    /// Use absolute or optimized movement (fullscreen).
+    Absolute(Capabilities),
+    /// Use only relative movement (inline).
+    Relative,
+}
+
+/// State for inline rendering.
+#[derive(Debug, Clone, Copy)]
+struct InlineState {
+    /// Number of rows the rasterizer "owns" in the terminal.
+    owned_rows: usize,
+    /// Whether this is the first render call.
+    first_render: bool,
 }
 
 #[cfg(test)]
@@ -384,7 +388,7 @@ mod tests {
     fn render_styled_cells_emits_sgr() {
         let style = Style::new().bold().foreground(Color::Rgb(255, 0, 0));
 
-        let buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
+        let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Rasterizer::new(5, 1);
         r.render(&buffer, &GraphemeArena::new());
@@ -407,7 +411,6 @@ mod tests {
         r.render(&buffer, &GraphemeArena::new());
         r.clear_output();
 
-        // Render same buffer again.
         r.render(&buffer, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
@@ -493,7 +496,6 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // Second frame: cells 2-4 become empty.
         let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
         r.render(&buf2, &GraphemeArena::new());
 
@@ -513,13 +515,11 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // All cells become empty.
         let buf2 = Buffer::new(3, 1);
         r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
         assert!(output_str.contains("\x1B[K"), "should contain EL when row cleared: {output_str}");
-        // Should NOT re-emit any content characters.
         assert!(!output_str.contains('A'), "should not emit 'A': {output_str}");
     }
 
@@ -533,7 +533,6 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // Change all cells (none become empty).
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
         r.render(&buf2, &GraphemeArena::new());
 
@@ -547,7 +546,7 @@ mod tests {
     fn sync_output_wraps_render() {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
-        let mut r = Rasterizer::with_capabilities(3, 1, caps);
+        let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
         r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());
@@ -596,7 +595,6 @@ mod tests {
         r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
-        // Should contain blue foreground SGR.
         assert!(output_str.contains("38;2;0;0;255"), "should emit new style: {output_str}");
     }
 
@@ -608,8 +606,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer, &GraphemeArena::new());
 
-        let output = r.output();
-        let output_str = String::from_utf8_lossy(output);
+        let output_str = String::from_utf8_lossy(r.output());
 
         let hide = "\x1B[?25l";
         let show = "\x1B[?25h";
@@ -631,14 +628,12 @@ mod tests {
         r.enter_alt_screen();
         let output = String::from_utf8_lossy(r.output());
         assert!(output.contains("\x1B[?1047h"), "should enter alt screen: {output}");
-        assert!(r.is_fullscreen);
         assert!(r.invalidated);
         r.clear_output();
 
         r.exit_alt_screen();
         let output = String::from_utf8_lossy(r.output());
         assert!(output.contains("\x1B[?1047l"), "should exit alt screen: {output}");
-        assert!(!r.is_fullscreen);
     }
 
     // ── Flush ──────────────────────────────────────────────────────────
@@ -656,6 +651,32 @@ mod tests {
 
         assert!(!sink.is_empty(), "sink should receive output");
         assert!(r.output().is_empty(), "output should be empty after flush");
+    }
+
+    // ── Constructor API ────────────────────────────────────────────────
+
+    #[test]
+    fn is_inline_reflects_mode() {
+        let fs = Rasterizer::new(3, 1);
+        assert!(!fs.is_inline());
+
+        let il = Rasterizer::inline(3, 1);
+        assert!(il.is_inline());
+    }
+
+    #[test]
+    fn with_capabilities_chainable() {
+        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let r = Rasterizer::new(3, 1).with_capabilities(caps);
+        assert!(r.capabilities.contains(Capabilities::SYNC_OUTPUT));
+    }
+
+    #[test]
+    fn inline_with_capabilities_chainable() {
+        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let r = Rasterizer::inline(3, 1).with_capabilities(caps);
+        assert!(r.is_inline());
+        assert!(r.capabilities.contains(Capabilities::SYNC_OUTPUT));
     }
 
     // ── Inline Mode ────────────────────────────────────────────────────
@@ -684,6 +705,21 @@ mod tests {
         assert!(!has_cup, "should not contain CUP: {output_str}");
         assert!(output_str.contains('h'), "should contain 'h': {output_str}");
         assert!(output_str.contains('l'), "should contain 'l': {output_str}");
+    }
+
+    #[test]
+    fn inline_first_render_skips_trailing_empty_cells() {
+        let style = Style::EMPTY;
+        // Only first 2 of 10 columns have content.
+        let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
+
+        let mut r = Rasterizer::inline(10, 1);
+        r.render(&buffer, &GraphemeArena::new());
+
+        let output = r.output();
+        // Count space characters — should NOT have 8 trailing spaces.
+        let space_count = output.iter().filter(|&&b| b == b' ').count();
+        assert!(space_count < 3, "should not emit trailing spaces for empty cells, got {space_count}");
     }
 
     #[test]
@@ -753,7 +789,6 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // Only change cell (1,0).
         let buf2 = Buffer::from_chars(5, 2, &[
             (0, 0, 'a', style), (0, 1, 'b', style),
             (1, 0, 'X', style), (1, 1, 'd', style),
@@ -779,7 +814,6 @@ mod tests {
         r.render(&buffer, &GraphemeArena::new());
         r.clear_output();
 
-        // Same buffer again.
         r.render(&buffer, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
@@ -799,7 +833,6 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // Grow to 3 rows.
         let buf2 = Buffer::from_chars(3, 3, &[
             (0, 0, 'a', style),
             (1, 0, 'b', style),
@@ -808,7 +841,6 @@ mod tests {
         r.render(&buf2, &GraphemeArena::new());
 
         let output = r.output();
-        // Should contain a newline for the new row.
         assert!(output.contains(&b'\n'), "should emit newline for growth");
         let output_str = String::from_utf8_lossy(output);
         assert!(output_str.contains('c'), "should emit new row content: {output_str}");
@@ -827,12 +859,10 @@ mod tests {
         r.render(&buf1, &GraphemeArena::new());
         r.clear_output();
 
-        // Shrink to 1 row.
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', style)]);
         r.render(&buf2, &GraphemeArena::new());
 
         let output_str = String::from_utf8_lossy(r.output());
-        // Should contain EL sequences for the orphaned rows.
         assert!(output_str.contains("\x1B[K"), "should clear orphan rows: {output_str}");
     }
 
@@ -856,7 +886,7 @@ mod tests {
     fn inline_sync_output() {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
-        let mut r = Rasterizer::inline_with_capabilities(3, 1, caps);
+        let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
         r.render(&buffer, &GraphemeArena::new());
 
         let output = String::from_utf8_lossy(r.output());

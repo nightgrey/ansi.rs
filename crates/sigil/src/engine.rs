@@ -1,21 +1,20 @@
-use crate::{Tree, TreeId, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, NodeRef, NodeRefMut, Rasterizer, Secondary, Buffer, RootTree};
+use crate::{Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, TreeNodeRef, TreeNodeRefMut, Rasterizer, Secondary, Buffer, RootTree, TreeId, Tree};
 use geometry::{Rect};
 use std::io::Write;
-use crate::painter::Painter;
 
-pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
-pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
-pub type LayerRef<'a> = NodeRef<'a, LayerId, Layer>;
-pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
+pub type ElementRef<'a> = TreeNodeRef<'a, ElementId, Element>;
+pub type ElementRefMut<'a> = TreeNodeRefMut<'a, ElementId, Element>;
+pub type LayerRef<'a> = TreeNodeRef<'a, LayerId, Layer>;
+pub type LayerRefMut<'a> = TreeNodeRefMut<'a, LayerId, Layer>;
 
 pub struct Engine {
+    pub front: Buffer,
+    pub back: Buffer,
+    arena: GraphemeArena,
     pub elements: RootTree<ElementId, Element>,
     pub layers: RootTree<LayerId, Layer>,
     pub layout: Secondary<ElementId, Rect>,
-    pub arena: GraphemeArena,
-    pub rasterizer: Rasterizer,
-    pub front: Buffer,
-    pub back: Buffer,
+    rasterizer: Rasterizer,
 }
 
 impl Engine {
@@ -24,65 +23,45 @@ impl Engine {
         let root = elements.root;
 
         let mut layers = RootTree::new(Layer::new(width, height));
-        let layer_id = layers.root;
 
-        elements[root].layer_id = Some(layer_id);
+        elements[root].layer_id = layers.root;
+
+        let mut layout = Secondary::new();
+        layout.insert(root, Rect::bounds(0, 0, width, height));
 
         Self {
             elements,
             layers,
+            layout,
             front: Buffer::new(width, height),
             back: Buffer::new(width, height),
             arena: GraphemeArena::new(),
             rasterizer: Rasterizer::new(width, height),
-            layout: Secondary::new(),
         }
     }
 
-    pub fn root(&self) -> ElementId {
-        self.elements.root
-    }
-
-    pub fn swap(&mut self) {
-        std::mem::swap(&mut self.front, &mut self.back);
-    }
-
-    // Layering
     fn layer_element(&mut self, id: ElementId, layer_id: Option<LayerId>) {
-        if let Some(mut element) = self.elements.get_mut(id) {
-            // If element creates its own layer, make one; otherwise inherit
-            let layer_id = if element.promotes() {
-                    Some(self.layers
-                        .insert(Layer::new(self.front.width, self.front.height)))
-            } else {
-                layer_id
-            };
+        if self.elements.contains(id) {
+            let element = &mut self.elements[id];
+            
+            // // If element creates its own layer, make one; otherwise inherit
+            // let layer_id = if element.promotes() {
+            //         self.layers
+            //             .insert(Layer::new(self.front.width, self.front.height))
+            // } else {
+            //     layer_id.unwrap_or(LayerId::none())
+            // };
 
-            element.layer_id = layer_id;
+            element.layer_id = layer_id.unwrap_or_default();
 
-            // Recurse
-            let children = element.children().collect::<Vec<_>>();
-
-            for child in children {
+            let layer_id = element.layer_id.as_option();
+            for child in self.elements.children(id).collect::<Vec<_>>() {
                 self.layer_element(child, layer_id);
             }
         }
     }
 
-    pub fn layer(&mut self) {
-            let root_layer = self.elements[self.root()].layer_id;
-            self.layer_element(self.root(), root_layer);
-    }
-
     // Layouting
-
-    pub fn layout(&mut self) {
-            self.layout_element(
-                self.root(),
-                Rect::bounds(0, 0, self.front.width, self.front.height),
-            );
-    }
-
     fn layout_element(&mut self, id: ElementId, bounds: Rect) {
         self.layout.insert(id, bounds);
 
@@ -100,26 +79,26 @@ impl Engine {
                 match direction {
                     Direction::Vertical => {
                         let child_height = bounds.height() / child_count;
-                        for (i, child) in children.into_iter().enumerate() {
+                        for (i, child) in children.iter().enumerate() {
                             let child_bounds = Rect::bounds(
                                 bounds.x(),
                                 bounds.y() + (i * child_height),
                                 bounds.width(),
                                 child_height,
                             );
-                            self.layout_element(child, child_bounds);
+                            self.layout_element(*child, child_bounds);
                         }
                     }
                     Direction::Horizontal => {
                         let child_width = bounds.width() / child_count;
-                        for (i, child) in children.into_iter().enumerate() {
+                        for (i, child) in children.iter().enumerate() {
                             let child_bounds = Rect::bounds(
                                 bounds.x() + (i * child_width),
                                 bounds.y(),
                                 child_width,
                                 bounds.height(),
                             );
-                            self.layout_element(child, child_bounds);
+                            self.layout_element(*child, child_bounds);
                         }
                     }
                 }
@@ -131,36 +110,16 @@ impl Engine {
     }
 
     // Painting
-
-    pub fn paint(&mut self) {
-        // Clear all dirty layers
-        for (_, layer) in &mut self.layers {
-            if layer.is_dirty {
-                layer.clear();
-            }
-        }
-
-        // Paint all elements
-        self.paint_element(self.root());
-
-        // Mark layers clean
-        for (_, layer) in &mut self.layers {
-            layer.is_dirty = false;
-        }
-    }
-
     fn paint_element(&mut self, id: ElementId) {
         let element = &self.elements[id];
-        let layer_id = element.layer_id.expect("element without layer");
-
-        let mut painter = Painter::new(&mut self.layers[layer_id], &mut self.arena);
+        let layer_id = element.layer_id;
 
         match &element.kind {
             ElementKind::Text(content) => {
-                painter.draw_text(0, 0, content, element.style);
+                // TODO
             }
             ElementKind::Container { .. } => {
-                // Containers don't paint themselves, just their children
+                // TODO
             }
         }
 
@@ -184,7 +143,7 @@ impl Engine {
             let layer = &self.layers[layer_id];
             for (i, cell) in layer.iter().enumerate() {
                 if !cell.is_empty() {
-                    self.front[i].clone_from(cell);
+                    self.front[i] = *cell;
                 }
             }
         }
@@ -198,11 +157,44 @@ impl Engine {
         Ok(())
     }
 
+    pub fn swap(&mut self) {
+        std::mem::swap(&mut self.front, &mut self.back);
+    }
+
     pub fn frame(&mut self, out: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.layer();
-        self.layout();
-        self.paint();
+        let root_element = self.elements.root();
+        let root_layer = self.layers.root();
+        let root_layout = self.layout[root_element];
+
+        // Layering
+        self.layer_element(root_element, root_layer.as_option());
+
+        // Layouting
+        self.layout_element(
+            root_element,
+            root_layout,
+        );
+
+        // Painting
+
+        for (_, layer) in &mut self.layers {
+            if layer.is_dirty {
+                layer.clear();
+            }
+        }
+
+        self.paint_element(root_element);
+
+        for (_, layer) in &mut self.layers {
+            layer.is_dirty = false;
+        }
+
+        // Compositing
+
         self.composite();
+
+        // Rendering
+
         self.render(out)?;
         Ok(())
     }

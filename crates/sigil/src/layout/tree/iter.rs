@@ -1,4 +1,4 @@
-use super::{TreeId, Node, Tree};
+use super::{TreeId, Tree};
 use derive_more::{Deref, DerefMut};
 use std::iter::FusedIterator;
 

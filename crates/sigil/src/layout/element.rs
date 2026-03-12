@@ -1,4 +1,4 @@
-use crate::{LayerId, tree_id};
+use crate::{LayerId, tree_id, TreeId};
 use ansi::{Color, Style};
 
 tree_id!(
@@ -20,23 +20,23 @@ pub enum ElementKind {
 #[derive(Debug)]
 pub struct Element {
     pub kind: ElementKind,
-    pub layer_id: Option<LayerId>,
+    pub layer_id: LayerId,
     pub style: Style,
 }
 
 impl Element {
-    pub const fn container(direction: Direction) -> Self {
+    pub  fn container(direction: Direction) -> Self {
         Self {
             kind: ElementKind::Container { direction },
-            layer_id: None,
+            layer_id: LayerId::none(),
             style: Style::EMPTY,
         }
     }
 
-    pub const fn text(content: String) -> Self {
+    pub fn text(content: String) -> Self {
         Self {
             kind: ElementKind::Text(content),
-            layer_id: None,
+            layer_id: LayerId::none(),
             style: Style::new().foreground(Color::Red),
         }
     }

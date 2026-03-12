@@ -1,4 +1,4 @@
-use super::{TreeId, Node, iter::*};
+use super::{TreeId, TreeNode, iter::*};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
 type Inner<K, V> = slotmap::SecondaryMap<K, V>;
 

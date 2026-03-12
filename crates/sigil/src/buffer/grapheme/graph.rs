@@ -28,9 +28,8 @@ impl Graph<'_> {
 
     /// View this resolved grapheme as a string slice.
     pub fn as_str(&self) -> &str {
-
         match self {
-            Self::None => " ",
+            Self::None => "",
             Self::Inline { bytes, len } => {
                 // SAFETY: We only store valid UTF-8 via Grapheme::from_inline_bytes.
                 unsafe { std::str::from_utf8_unchecked(&bytes[..*len as usize]) }

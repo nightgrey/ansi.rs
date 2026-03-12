@@ -37,7 +37,7 @@ impl Cursor {
         &mut self,
         row: usize,
         col: usize,
-        output: &mut Vec<u8>,
+        w: &mut impl Write,
         caps: Capabilities,
     ) {
         if self.row == row && self.col == col {
@@ -78,34 +78,34 @@ impl Cursor {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                output.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                output.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if dc > 0 {
-                output.escape(CursorForward(dc as usize)).unwrap();
+                w.escape(CursorForward(dc as usize)).unwrap();
             } else if dc < 0 {
-                output.escape(CursorBackward((-dc) as usize)).unwrap();
+                w.escape(CursorBackward((-dc) as usize)).unwrap();
             }
         } else if min == cost_cr {
-            output.escape(CarriageReturn).unwrap();
+            w.escape(CarriageReturn).unwrap();
             if dr > 0 {
-                output.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                output.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if col > 0 {
-                output.escape(CursorForward(col)).unwrap();
+                w.escape(CursorForward(col)).unwrap();
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                output.escape(VerticalPositionAbsolute(row)).unwrap();
+                w.escape(VerticalPositionAbsolute(row)).unwrap();
             }
             if dc != 0 || dr != 0 {
-                output.escape(HorizontalPositionAbsolute(col)).unwrap();
+                w.escape(HorizontalPositionAbsolute(col)).unwrap();
             }
         } else {
-            output.escape(CursorPosition(row, col)).unwrap();
+            w.escape(CursorPosition(row, col)).unwrap();
         }
 
         self.row = row;
@@ -122,7 +122,7 @@ impl Cursor {
         &mut self,
         row: usize,
         col: usize,
-        output: &mut Vec<u8>,
+        w: &mut impl Write,
     ) {
         if self.row == row && self.col == col {
             return;
@@ -140,25 +140,25 @@ impl Cursor {
         let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
-            output.escape(CarriageReturn).unwrap();
+            w.escape(CarriageReturn).unwrap();
             if dr > 0 {
-                output.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                output.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if col > 0 {
-                output.escape(CursorForward(col)).unwrap();
+                w.escape(CursorForward(col)).unwrap();
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                output.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize)).unwrap();
             } else if dr < 0 {
-                output.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize)).unwrap();
             }
             if dc > 0 {
-                output.escape(CursorForward(dc as usize)).unwrap();
+                w.escape(CursorForward(dc as usize)).unwrap();
             } else if dc < 0 {
-                output.escape(CursorBackward((-dc) as usize)).unwrap();
+                w.escape(CursorBackward((-dc) as usize)).unwrap();
             }
         }
 
@@ -182,9 +182,9 @@ impl Cursor {
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
-    pub fn reset_style(&mut self, buf: &mut Vec<u8>) {
+    pub fn reset_style(&mut self, w: &mut impl Write) {
         if !self.style.is_empty() {
-            escape(buf, Reset);
+            w.escape(Reset).unwrap();
             self.style = Style::EMPTY;
         }
     }

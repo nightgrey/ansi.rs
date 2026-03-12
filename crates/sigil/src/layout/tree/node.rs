@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 
 /// A tree node with embedded structural links.
 #[derive(Debug, Deref, DerefMut)]
-pub struct Node<K: TreeId, V> {
+pub struct TreeNode<K: TreeId, V> {
     pub(super) parent: K,
     pub(super) first_child: K,
     pub(super) last_child: K,
@@ -16,7 +16,7 @@ pub struct Node<K: TreeId, V> {
     pub(super) value: V,
 }
 
-impl<K: TreeId, V> Node<K, V> {
+impl<K: TreeId, V> TreeNode<K, V> {
     pub(super) fn new(value: V) -> Self {
         Self {
             value,
@@ -50,17 +50,17 @@ impl<K: TreeId, V> Node<K, V> {
 }
 
 #[derive(Debug)]
-pub struct NodeRef<'a, K: TreeId, V> {
+pub struct TreeNodeRef<'a, K: TreeId, V> {
     pub id: K,
     tree: &'a Tree<K, V>,
 }
 
-impl<'a, K: TreeId, V> NodeRef<'a, K, V> {
+impl<'a, K: TreeId, V> TreeNodeRef<'a, K, V> {
     pub fn new(id: K, tree: &'a Tree<K, V>) -> Self {
         Self { id, tree }
     }
 
-    pub fn node(&self) -> &Node<K, V> {
+    pub fn node(&self) -> &TreeNode<K, V> {
         &self.tree[self.id]
     }
 
@@ -117,13 +117,13 @@ impl<'a, K: TreeId, V> NodeRef<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V: PartialEq> PartialEq<V> for NodeRef<'a, K, V> {
+impl<'a, K: TreeId, V: PartialEq> PartialEq<V> for TreeNodeRef<'a, K, V> {
     fn eq(&self, other: &V) -> bool {
         *self == *other
     }
 }
 
-impl<'a, K: TreeId, V> Deref for NodeRef<'a, K, V> {
+impl<'a, K: TreeId, V> Deref for TreeNodeRef<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -131,21 +131,21 @@ impl<'a, K: TreeId, V> Deref for NodeRef<'a, K, V> {
     }
 }
 
-pub struct NodeRefMut<'a, K: TreeId, V> {
+pub struct TreeNodeRefMut<'a, K: TreeId, V> {
     pub id: K,
     tree: &'a mut Tree<K, V>,
 }
 
-impl<'a, K: TreeId, V> NodeRefMut<'a, K, V> {
+impl<'a, K: TreeId, V> TreeNodeRefMut<'a, K, V> {
     pub fn new(id: K, tree: &'a mut Tree<K, V>) -> Self {
         Self { id, tree }
     }
 
-    pub fn node(&self) -> &Node<K, V> {
+    pub fn node(&self) -> &TreeNode<K, V> {
         &self.tree[self.id]
     }
 
-    pub fn node_mut(&mut self) -> &mut Node<K, V> {
+    pub fn node_mut(&mut self) -> &mut TreeNode<K, V> {
         &mut self.tree[self.id]
     }
 
@@ -218,7 +218,7 @@ impl<'a, K: TreeId, V> NodeRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> Deref for NodeRefMut<'a, K, V> {
+impl<'a, K: TreeId, V> Deref for TreeNodeRefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -226,7 +226,7 @@ impl<'a, K: TreeId, V> Deref for NodeRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> DerefMut for NodeRefMut<'a, K, V> {
+impl<'a, K: TreeId, V> DerefMut for TreeNodeRefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.node_mut()
     }

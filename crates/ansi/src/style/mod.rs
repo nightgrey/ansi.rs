@@ -16,25 +16,25 @@ use utils::separate_by;
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Style {
     pub attributes: Attribute,
-    pub fg: Color,
-    pub bg: Color,
-    pub ul: Color,
+    pub foreground: Color,
+    pub background: Color,
+    pub underline: Color,
 }
 
 #[allow(non_upper_case_globals)]
 impl Style {
     pub const EMPTY: Style = Self {
         attributes: Attribute::EMPTY,
-        fg: Color::None,
-        bg: Color::None,
-        ul: Color::None,
+        foreground: Color::None,
+        background: Color::None,
+        underline: Color::None,
     };
 
     pub const Reset: Self = Style {
         attributes: Attribute::Reset,
-        fg: Color::Default,
-        bg: Color::Default,
-        ul: Color::Default,
+        foreground: Color::Default,
+        background: Color::Default,
+        underline: Color::Default,
     };
 
     pub const Bold: Self = Style {
@@ -187,9 +187,9 @@ impl Style {
     pub const fn from_attribute(attribute: Attribute) -> Self {
         Self {
             attributes: attribute,
-            fg: Color::None,
-            bg: Color::None,
-            ul: Color::None,
+            foreground: Color::None,
+            background: Color::None,
+            underline: Color::None,
         }
     }
 
@@ -229,17 +229,17 @@ impl Style {
     /// Set the background color.
     #[inline]
     pub const fn background(mut self, color: Color) -> Self {
-        self.bg = color;
+        self.background = color;
         self
     }
 
     pub const fn foreground(mut self, color: Color) -> Self {
-        self.fg = color;
+        self.foreground = color;
         self
     }
 
     pub const fn underline_color(mut self, color: Color) -> Self {
-        self.ul = color;
+        self.underline = color;
         self
     }
 
@@ -473,9 +473,9 @@ impl Style {
     fn bitand_assign(&mut self, other: Style) {
         self.attributes.bitand_assign(other.attributes);
 
-        self.fg = self.fg.and(other.fg);
-        self.bg = self.bg.and(other.bg);
-        self.ul = self.ul.and(other.ul);
+        self.foreground = self.foreground.and(other.foreground);
+        self.background = self.background.and(other.background);
+        self.underline = self.underline.and(other.underline);
     }
 
     #[inline]
@@ -491,9 +491,9 @@ impl Style {
     fn bitor_assign(&mut self, other: Style) {
         self.attributes.bitor_assign(other.attributes);
 
-        self.fg = self.fg.or(other.fg);
-        self.bg = self.bg.or(other.bg);
-        self.ul = self.ul.or(other.ul);
+        self.foreground = self.foreground.or(other.foreground);
+        self.background = self.background.or(other.background);
+        self.underline = self.underline.or(other.underline);
     }
 
     #[inline]
@@ -508,9 +508,9 @@ impl Style {
     fn bitxor_assign(&mut self, other: Style) {
         self.attributes.bitxor_assign(other.attributes);
 
-        self.fg = self.fg.xor(other.fg);
-        self.bg = self.bg.xor(other.bg);
-        self.ul = self.ul.xor(other.ul);
+        self.foreground = self.foreground.xor(other.foreground);
+        self.background = self.background.xor(other.background);
+        self.underline = self.underline.xor(other.underline);
     }
 
     pub fn diff(self, other: Style) -> Self {
@@ -522,20 +522,20 @@ impl Style {
             return style;
         }
 
-        style.bg = if other.bg == style.bg {
+        style.background = if other.background == style.background {
             Color::None
         } else {
-            other.bg
+            other.background
         };
-        style.fg = if other.fg == style.fg {
+        style.foreground = if other.foreground == style.foreground {
             Color::None
         } else {
-            other.fg
+            other.foreground
         };
-        style.ul = if other.ul == style.ul {
+        style.underline = if other.underline == style.underline {
             Color::None
         } else {
-            other.ul
+            other.underline
         };
 
         style.set(other.attributes - style.attributes);
@@ -544,16 +544,16 @@ impl Style {
 
     /// Returns `true` if the style is empty.
     pub fn is_empty(&self) -> bool {
-        self.attributes.is_empty() && self.fg.is_none() && self.bg.is_none() && self.ul.is_none()
+        self.attributes.is_empty() && self.foreground.is_none() && self.background.is_none() && self.underline.is_none()
     }
 
     /// Clears the style.
     #[inline]
     pub fn clear(&mut self) {
         self.attributes.clear();
-        self.bg = Color::None;
-        self.fg = Color::None;
-        self.ul = Color::None;
+        self.background = Color::None;
+        self.foreground = Color::None;
+        self.underline = Color::None;
     }
 }
 
@@ -572,16 +572,16 @@ impl Debug for Style {
         let mut debug = f.debug_struct("Style");
 
 
-        if !self.fg.is_none() {
-            debug.field("foreground", &self.fg);
+        if !self.foreground.is_none() {
+            debug.field("foreground", &self.foreground);
         }
 
-        if !self.bg.is_none() {
-            debug.field("background", &self.bg);
+        if !self.background.is_none() {
+            debug.field("background", &self.background);
         }
 
-        if !self.ul.is_none() {
-            debug.field("underline", &self.ul);
+        if !self.underline.is_none() {
+            debug.field("underline", &self.underline);
         }
 
         if !self.attributes.is_empty() {
@@ -649,16 +649,16 @@ impl Escape for Style {
 
         separate_by!({ w.write_all(b";") });
 
-        if self.bg.is_some() {
-            separate!(w.escape(self.bg.as_background())?);
+        if self.background.is_some() {
+            separate!(w.escape(self.background.as_background())?);
         }
 
-        if self.fg.is_some() {
-            separate!(w.escape(self.fg.as_foreground())?);
+        if self.foreground.is_some() {
+            separate!(w.escape(self.foreground.as_foreground())?);
         }
 
-        if self.ul.is_some() {
-            separate!(w.escape(self.ul.as_underline())?);
+        if self.underline.is_some() {
+            separate!(w.escape(self.underline.as_underline())?);
         }
 
         // Attributes (bold, underline, etc.)

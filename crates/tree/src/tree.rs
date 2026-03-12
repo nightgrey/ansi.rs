@@ -1,21 +1,8 @@
-use super::{Id, Node, iter::*, Error};
+use super::{Id, Node, iter::*, Error, At};
 use super::{NodeRef, NodeRefMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum At<K> {
-    Detached,
-
-    Prepend(K),
-    Append(K),
-
-    Before(K),
-    After(K),
-}
-
 
 #[derive(Debug, Index, IndexMut, IntoIterator)]
 #[into_iterator(owned, ref, ref_mut)]
@@ -56,7 +43,6 @@ impl<K: Id, V> Tree<K, V> {
         Some(NodeRefMut::new(key, self))
     }
 
-    // --- creation ----------------------------------------------------------
     pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))
     }
@@ -76,7 +62,7 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Append(parent) => {
+            At::Append(parent) | At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.link_as_last_child(parent, id);
@@ -151,7 +137,6 @@ impl<K: Id, V> Tree<K, V> {
     }
 
     pub fn try_move_to(&mut self, id: K, to: At<K>) -> Result<(), Error<K>> {
-        dbg!(id, to);
         self.ensure_exists(id)?;
 
         match to {
@@ -165,7 +150,7 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Append(parent) => {
+            At::Append(parent) | At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.try_detach(id)?;

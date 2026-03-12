@@ -47,14 +47,14 @@ impl<K: Id, V> RootTree<K, V> {
     }
 
     pub fn insert(&mut self, value: V) -> K {
-        self.inner.insert_at(value, At::Append(self.root_id))
+        self.inner.insert_at(value, At::Child(self.root_id))
     }
 
-    pub fn remove(&mut self, key: K) -> Result<Option<V>, Error<K>> {
-        if key == self.root_id {
+    pub fn remove(&mut self, id: K) -> Result<Option<V>, Error<K>> {
+        if id == self.root_id {
             return Err(Error::OperationForbidden);
         }
-        Ok(self.inner.remove(key))
+        Ok(self.inner.remove(id))
     }
 
     /// remove everything except root

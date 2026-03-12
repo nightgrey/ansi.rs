@@ -7,3 +7,5 @@ edition = "2024"
 slotmap = "1.1.1"
 derive_more = { workspace = true }
 thiserror = "2.0.18"
+trace = "0.1.7"
+log = "0.4.29"

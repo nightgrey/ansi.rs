@@ -38,9 +38,9 @@ impl Escape for SelectGraphicRendition {
             return Ok(());
         }
 
-        let bg = &this.bg;
-        let fg = &this.fg;
-        let ul = &this.ul;
+        let bg = &this.background;
+        let fg = &this.foreground;
+        let ul = &this.underline;
 
         separate_by!({ w.write(b";") });
 

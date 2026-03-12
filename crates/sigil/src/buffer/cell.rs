@@ -267,7 +267,7 @@ mod tests {
         let cell = Cell::from_char('A', style);
         assert!(!cell.is_empty());
         assert_eq!(cell.width(), 1);
-        assert_eq!(cell.style().fg, Color::Rgb(255, 0, 0));
+        assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
 
         let arena = GraphemeArena::new();

@@ -16,6 +16,7 @@ pub type Elements = RootTree<ElementId, Element>;
 pub type Layers = RootTree<LayerId, Layer>;
 pub type Layout = Secondary<ElementId, Rect>;
 
+
 #[derive(Debug, Deref, DerefMut)]
 pub struct Document {
     #[deref]
@@ -34,7 +35,7 @@ impl Document {
 
         let mut root_element = Element::Div(Direction::Vertical).on(layers.root_id());
         let taffy_node = taffy.new_leaf(root_element.layout.clone()).unwrap();
-        root_element.taffy_node = taffy_node;
+        root_element.layout_id = taffy_node;
 
         let elements = RootTree::new(root_element);
         let mut layout = Secondary::new();
@@ -82,10 +83,16 @@ impl Document {
     }
 
 
-    /// Insert an element into the scene, creating a corresponding taffy node.
+    /// Insert an element as a child of the root. Creates a corresponding taffy node.
+    pub fn insert(&mut self, element: Element) -> ElementId {
+        let root = self.elements.root_id();
+        self.insert_at(element, At::Child(root))
+    }
+
+    /// Insert an element at the given position. Creates a corresponding taffy node.
     pub fn insert_at(&mut self, mut element: Element, at: At<ElementId>) -> ElementId {
         let taffy_node = self.taffy.new_leaf(element.layout.clone()).unwrap();
-        element.taffy_node = taffy_node;
+        element.layout_id = taffy_node;
         self.elements.insert_at(element, at)
     }
 
@@ -93,7 +100,7 @@ impl Document {
         self.insert_layer_at(layer, at)
     }
 
-    pub fn layer(
+    pub fn compute_layers(
         &mut self,
         id: ElementId,
         layer_id: LayerId,
@@ -111,12 +118,12 @@ impl Document {
                 layer_id
             };
 
-            self.layer(child_id, next_layer_id);
+            self.compute_layers(child_id, next_layer_id);
         }
     }
 
     /// Sync the element tree into taffy, compute layout, and read back results.
-    pub fn layout(&mut self) {
+    pub fn compute_layout(&mut self) {
         let viewport = self.viewport();
         let root_id = self.elements.root_id();
 
@@ -124,22 +131,22 @@ impl Document {
         self.layout_element(root_id);
 
         // Compute layout
-        let root_taffy = self.elements[root_id].taffy_node;
+        let layout_id = self.elements[root_id].layout_id;
         let available = taffy::Size {
             width: taffy::AvailableSpace::Definite(viewport.width() as f32),
             height: taffy::AvailableSpace::Definite(viewport.height() as f32),
         };
-        self.taffy.compute_layout(root_taffy, available).unwrap();
+        self.taffy.compute_layout(layout_id, available).unwrap();
 
         // Read back computed rects
-        self.read_layout(root_id, 0.0, 0.0);
+        self.layout_cache(root_id, 0.0, 0.0);
     }
 
     fn layout_element(&mut self, id: ElementId) {
         let element = &self.elements[id];
 
         // Update or verify taffy node style
-        self.taffy.set_style(element.taffy_node, element.layout.clone()).unwrap();
+        self.taffy.set_style(element.layout_id, element.layout.clone()).unwrap();
 
         // Collect children and sync recursively
         let children: Vec<_> = self.elements.children(id).collect();
@@ -148,12 +155,12 @@ impl Document {
         }
 
         // Set taffy children
-        let taffy_children: Vec<_> = children.iter().map(|&c| self.elements[c].taffy_node).collect();
-        self.taffy.set_children(self.elements[id].taffy_node, &taffy_children).unwrap();
+        let taffy_children: Vec<_> = children.iter().map(|&c| self.elements[c].layout_id).collect();
+        self.taffy.set_children(self.elements[id].layout_id, &taffy_children).unwrap();
     }
 
-    fn read_layout(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
-        let taffy_layout = self.taffy.layout(self.elements[id].taffy_node).unwrap();
+    fn layout_cache(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
+        let taffy_layout = self.taffy.layout(self.elements[id].layout_id).unwrap();
         let x = offset_x + taffy_layout.location.x;
         let y = offset_y + taffy_layout.location.y;
         let w = taffy_layout.size.width;
@@ -163,7 +170,7 @@ impl Document {
         self.layout.insert(id, rect);
 
         for child_id in self.elements.children(id).collect::<Vec<_>>() {
-            self.read_layout(child_id, x, y);
+            self.layout_cache(child_id, x, y);
         }
     }
 
@@ -181,7 +188,7 @@ impl Document {
         self.taffy.clear();
         let root_id = self.elements.root_id();
         let taffy_node = self.taffy.new_leaf(self.elements[root_id].layout.clone()).unwrap();
-        self.elements[root_id].taffy_node = taffy_node;
+        self.elements[root_id].layout_id = taffy_node;
     }
 }
 

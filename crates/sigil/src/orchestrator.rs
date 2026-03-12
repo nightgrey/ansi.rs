@@ -20,11 +20,11 @@ impl Orchestrator {
     }
 
     fn layer(&mut self) {
-        self.document.layer(self.document.root_id(), self.document.root_layer_id());
+        self.document.compute_layers(self.document.root_id(), self.document.root_layer_id());
     }
 
     fn layout(&mut self) {
-        self.document.layout();
+        self.document.compute_layout();
     }
 
     fn paint(&mut self) {
@@ -143,7 +143,7 @@ mod tests {
         let b = orchestrator.document.insert_at(Element::Span("b".into()), At::Child(id));
         let c = orchestrator.document.insert_at(Element::Span("c".into()), At::Child(id));
 
-        orchestrator.document.layout();
+        orchestrator.document.compute_layout();
         // Taffy distributes evenly with flex_grow: 3 children in 5 cols
         // Each gets floor(5/3)=1 with rounding; taffy may round differently
         let a_rect = orchestrator.document.layout[a];

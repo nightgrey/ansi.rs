@@ -20,9 +20,9 @@ pub enum ElementKind {
 pub struct Element {
     pub kind: ElementKind,
     pub style: Style,
-    pub layout: taffy::Style,
+    pub layout: Layout,
+    pub(crate) layout_id: LayoutId,
     pub layer_id: LayerId,
-    pub(crate) taffy_node: taffy::NodeId,
 }
 
 #[allow(non_snake_case)]
@@ -45,7 +45,7 @@ impl Element {
                 ..Default::default()
             },
             layer_id: LayerId::none(),
-            taffy_node: taffy::NodeId::new(0),
+            layout_id: taffy::NodeId::new(0),
         }
     }
 
@@ -58,7 +58,7 @@ impl Element {
                 ..Default::default()
             },
             layer_id: LayerId::none(),
-            taffy_node: taffy::NodeId::new(0),
+            layout_id: taffy::NodeId::new(0),
         }
     }
 
@@ -72,3 +72,7 @@ impl Element {
         false
     }
 }
+
+
+pub type Layout = taffy::Style;
+pub type LayoutId = taffy::NodeId;

@@ -22,7 +22,6 @@ pub struct Document {
     pub elements: Elements,
     pub layers: Layers,
     pub layouts: Layouts,
-
     pub arena: GraphemeArena,
 }
 
@@ -77,9 +76,9 @@ impl Document {
     }
 
     pub fn get_bounds(&self, id: ElementId) -> Rect {
-        self.layouts.get_node_context(self.elements[id].layout_id).copied().unwrap_or_default()
+        self.layouts.get_node_context(self.elements[id].layout_id).copied().expect("layout context not found")
     }
-    
+
     fn set_bounds(&mut self, id: ElementId, rect: Rect) {
         self.layouts.set_node_context(self.elements[id].layout_id, Some(rect)).unwrap();
     }
@@ -94,10 +93,6 @@ impl Document {
         let taffy_node = self.layouts.new_leaf_with_context(element.layout.clone(), Rect::ZERO).unwrap();
         element.layout_id = taffy_node;
         self.elements.insert_at(element, at)
-    }
-
-    pub fn insert_layer_at(&mut self, layer: Layer, at: At<LayerId>) -> LayerId {
-        self.insert_layer_at(layer, at)
     }
 
     pub fn compute_layers(

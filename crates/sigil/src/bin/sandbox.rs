@@ -24,6 +24,7 @@ fn current_stage() -> io::Result<()> {
 
     let text_id = orchestrator.document.insert(Element::Span("Hello World!".into()));
     let text = &mut orchestrator.document[text_id];
+    text.layout.padding = Rect::length(1.0);
     text.style.set(Attribute::Bold | Attribute::Underline);
 
     orchestrator.render()?;

@@ -1,5 +1,4 @@
 use std::ops::{Index, IndexMut};
-use std::process::Output;
 use derive_more::{Deref, DerefMut, Index, IndexMut};
 use crate::{Buffer, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, Rasterizer, RootTree, Secondary, TreeNodeRef, TreeNodeRefMut};
 use crate::painter::Painter;
@@ -14,181 +13,6 @@ pub type LayerRefMut<'a> = TreeNodeRefMut<'a, LayerId, Layer>;
 pub type Elements = RootTree<ElementId, Element>;
 pub type Layers = RootTree<LayerId, Layer>;
 pub type Layout = Secondary<ElementId, Rect>;
-
-#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
-pub struct Scene {
-    #[deref]
-    #[deref_mut]
-    #[index]
-    #[index_mut]
-    pub elements: Elements,
-    pub layers: Layers,
-    pub layout: Layout,
-}
-
-impl Scene {
-    pub fn new(width: usize, height: usize) -> Self {
-        let layers = RootTree::new(Layer::new(width, height));
-        let elements = RootTree::new(Element::container(Direction::Vertical).on(layers.root()));
-        let mut layout = Secondary::new();
-        layout.insert(elements.root(), Rect::bounds(0, 0, width, height));
-        Self { elements, layers, layout }
-    }
-
-    pub fn root_element(&self) -> ElementId {
-        self.elements.root()
-    }
-
-    pub fn root_layer(&self) -> LayerId {
-        self.layers.root()
-    }
-
-    fn layer(
-        &mut self,
-        id: ElementId,
-        layer: LayerId,
-    ) {
-        self.elements[id].layer_id = layer;
-
-        for child in self.elements.children(id).collect::<Vec<_>>() {
-            let next_layer = if self.elements[child].is_promoting() {
-                let size = &self.layers[layer].size();
-                let layer_id = self.layers.insert(Layer::new(size.width, size.height));
-                self.layers.append_child(layer_id, layer_id);
-                layer_id
-            } else {
-                layer
-            };
-
-            self.layer(child, next_layer);
-        }
-    }
-
-    fn layout(
-        &mut self,
-        id: ElementId,
-        bounds: Rect,
-    ) {
-        self.layout.insert(id, bounds);
-
-        match &self.elements[id].kind {
-            ElementKind::Container { direction } => {
-                let children: Vec<_> = self.elements.children(id).collect();
-                let child_count = children.len();
-                if child_count == 0 {
-                    return;
-                }
-
-                match direction {
-                    Direction::Vertical => {
-                        let base = bounds.height() / child_count;
-                        let remainder = bounds.height() % child_count;
-                        let mut y = bounds.y();
-
-                        for (index, child) in children.into_iter().enumerate() {
-                            let child_height = base + usize::from(index < remainder);
-                            let child_rect = Rect::bounds(bounds.x(), y, bounds.width(), child_height);
-                            y += child_height;
-                            self.layout(child, child_rect);
-                        }
-                    }
-                    Direction::Horizontal => {
-                        let base = bounds.width() / child_count;
-                        let remainder = bounds.width() % child_count;
-                        let mut x = bounds.x();
-
-                        for (index, child) in children.into_iter().enumerate() {
-                            let child_width = base + usize::from(index < remainder);
-                            let child_rect = Rect::bounds(x, bounds.y(), child_width, bounds.height());
-                            x += child_width;
-                            self.layout(child, child_rect);
-                        }
-                    }
-                }
-            }
-            ElementKind::Text(_) => {}
-        }
-    }
-
-
-    pub fn resize(&mut self, width: usize, height: usize) {
-        self.layers.get_root_node_mut().resize(width, height);
-        self.layout.insert(self.elements.root(), Rect::bounds(0, 0, width, height));
-    }
-
-    pub fn clear(&mut self) {
-        self.elements.clear();
-        self.layers.clear();
-        self.layout.clear();
-    }
-}
-
-#[derive(Debug)]
-pub struct Renderer {
-    pub front: Buffer,
-    pub back: Buffer,
-    pub arena: GraphemeArena,
-    pub rasterizer: Rasterizer,
-}
-
-impl Renderer {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            front: Buffer::new(width, height),
-            back: Buffer::new(width, height),
-            arena: GraphemeArena::new(),
-            rasterizer: Rasterizer::new(width, height),
-        }
-    }
-
-
-    fn composite(&mut self, layers: &mut Layers, id: LayerId) {
-        let layer = &layers[id];
-        for row in 0..layer.height {
-            let front_row = layer.position.row + row;
-            if front_row >= self.front.height {
-                continue;
-            }
-
-            for col in 0..layer.width {
-                let front_col = layer.position.col + col;
-                if front_col >= self.front.width {
-                    continue;
-                }
-
-                let cell = layer[(row, col)];
-                if !cell.is_empty() {
-                    self.front[(front_row, front_col)] = cell;
-                }
-            }
-        }
-
-        let mut children: Vec<_> = layers.children(id).collect();
-        children.sort_by_key(|child| layers[*child].z_index);
-
-        for child in children {
-            self.composite(layers, child);
-        }
-    }
-
-    fn render(&mut self, output: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.rasterizer.render(&self.front, &self.arena);
-        self.rasterizer.flush(output)
-    }
-
-    pub fn resize(&mut self, width: usize, height: usize) {
-        self.front.resize_inner(width, height);
-        self.back.resize_inner(width, height);
-        self.rasterizer.resize(width, height);
-    }
-
-    pub fn clear(&mut self) {
-        self.front.clear();
-        self.back.clear();
-        self.rasterizer.clear();
-        self.arena.clear();
-    }
-}
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 pub struct Engine {
@@ -303,6 +127,182 @@ impl IndexMut<LayerId> for Engine {
         &mut self.scene.layers[index]
     }
 }
+
+#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
+pub struct Scene {
+    #[deref]
+    #[deref_mut]
+    #[index]
+    #[index_mut]
+    pub elements: Elements,
+    pub layers: Layers,
+    pub layout: Layout,
+}
+
+impl Scene {
+    pub fn new(width: usize, height: usize) -> Self {
+        let layers = RootTree::new(Layer::new(width, height));
+        let elements = RootTree::new(Element::container(Direction::Vertical).on(layers.root()));
+        let mut layout = Secondary::new();
+        layout.insert(elements.root(), Rect::bounds(0, 0, width, height));
+        Self { elements, layers, layout }
+    }
+
+    pub fn root_element(&self) -> ElementId {
+        self.elements.root()
+    }
+
+    pub fn root_layer(&self) -> LayerId {
+        self.layers.root()
+    }
+
+    fn layer(
+        &mut self,
+        id: ElementId,
+        layer_id: LayerId,
+    ) {
+        self.elements[id].layer_id = layer_id;
+
+        for child_id in self.elements.children(id).collect::<Vec<_>>() {
+            let child = &self.elements[child_id];
+            let next_layer_id = if child.is_promoting() {
+                let size = &self.layers[layer_id].size();
+                let next_layer_id = self.layers.insert(Layer::new(size.width, size.height));
+                self.layers.append_child(layer_id, next_layer_id);
+                next_layer_id
+            } else {
+                layer_id
+            };
+
+            self.layer(child_id, next_layer_id);
+        }
+    }
+
+    fn layout(
+        &mut self,
+        id: ElementId,
+        bounds: Rect,
+    ) {
+        self.layout.insert(id, bounds);
+
+        match &self.elements[id].kind {
+            ElementKind::Container { direction } => {
+                let children: Vec<_> = self.elements.children(id).collect();
+                let child_count = children.len();
+                if child_count == 0 {
+                    return;
+                }
+
+                match direction {
+                    Direction::Vertical => {
+                        let base = bounds.height() / child_count;
+                        let remainder = bounds.height() % child_count;
+                        let mut y = bounds.y();
+
+                        for (index, child) in children.into_iter().enumerate() {
+                            let child_height = base + usize::from(index < remainder);
+                            let child_rect = Rect::bounds(bounds.x(), y, bounds.width(), child_height);
+                            y += child_height;
+                            self.layout(child, child_rect);
+                        }
+                    }
+                    Direction::Horizontal => {
+                        let base = bounds.width() / child_count;
+                        let remainder = bounds.width() % child_count;
+                        let mut x = bounds.x();
+
+                        for (index, child) in children.into_iter().enumerate() {
+                            let child_width = base + usize::from(index < remainder);
+                            let child_rect = Rect::bounds(x, bounds.y(), child_width, bounds.height());
+                            x += child_width;
+                            self.layout(child, child_rect);
+                        }
+                    }
+                }
+            }
+            ElementKind::Text(_) => {}
+        }
+    }
+
+
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.layers.get_root_node_mut().resize(width, height);
+        self.layout.insert(self.elements.root(), Rect::bounds(0, 0, width, height));
+    }
+
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.layers.clear();
+        self.layout.clear();
+    }
+}
+
+#[derive(Debug)]
+pub struct Renderer {
+    pub front: Buffer,
+    pub back: Buffer,
+    pub arena: GraphemeArena,
+    pub rasterizer: Rasterizer,
+}
+
+impl Renderer {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            front: Buffer::new(width, height),
+            back: Buffer::new(width, height),
+            arena: GraphemeArena::new(),
+            rasterizer: Rasterizer::new(width, height),
+        }
+    }
+
+    fn composite(&mut self, layers: &mut Layers, id: LayerId) {
+        let layer = &layers[id];
+        for row in 0..layer.height {
+            let front_row = layer.position.row + row;
+            if front_row >= self.front.height {
+                continue;
+            }
+
+            for col in 0..layer.width {
+                let front_col = layer.position.col + col;
+                if front_col >= self.front.width {
+                    continue;
+                }
+
+                let cell = layer[(row, col)];
+                if !cell.is_empty() {
+                    self.front[(front_row, front_col)] = cell;
+                }
+            }
+        }
+
+        let mut children: Vec<_> = layers.children(id).collect();
+        children.sort_by_key(|child| layers[*child].z_index);
+
+        for child in children {
+            self.composite(layers, child);
+        }
+    }
+
+    fn render(&mut self, output: &mut impl std::io::Write) -> std::io::Result<()> {
+        self.rasterizer.render(&self.front, &self.arena);
+        self.rasterizer.flush(output)
+    }
+
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.front.resize_inner(width, height);
+        self.back.resize_inner(width, height);
+        self.rasterizer.resize(width, height);
+    }
+
+    pub fn clear(&mut self) {
+        self.front.clear();
+        self.back.clear();
+        self.rasterizer.clear();
+        self.arena.clear();
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -132,12 +132,14 @@ impl Rasterizer {
         }
     }
 
-    /// Render a buffer, diffing against the previous frame.
+    /// Render a buffer, diffing against the shadow frame.
     pub fn render(&mut self, buffer: &Buffer, arena: &GraphemeArena) {
-        let (prev, next) = (&mut self.shadow, buffer);
+        let (shadow, next) = (&mut self.shadow, buffer);
+        
         if self.inline.is_some() {
             return self.render_inline(next, arena);
         }
+        
         let width = next.width;
         let height = next.height;
 
@@ -146,12 +148,12 @@ impl Rasterizer {
         }
 
         // Handle dimension change or forced clear.
-        if prev.width != width || prev.height != height || self.invalidated {
+        if shadow.width != width || shadow.height != height || self.invalidated {
             self.output.escape(Home).unwrap();
             self.output.escape(EraseDisplay).unwrap();
             self.pen.reset();
-            prev.resize_inner(width, height);
-            prev.clear();
+            shadow.resize_inner(width, height);
+            shadow.clear();
             self.invalidated = false;
         }
 
@@ -160,7 +162,7 @@ impl Rasterizer {
         let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
             Self::diff_row(
-                &prev[Row(y)],
+                &shadow[Row(y)],
                 &next[Row(y)],
                 arena,
                 y,

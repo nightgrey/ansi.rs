@@ -1,11 +1,11 @@
 use super::iter::*;
-use super::{TreeId, Tree};
+use super::{Id, Tree};
 use derive_more::{Deref, DerefMut};
 use std::ops::{Deref, DerefMut};
 
 /// A tree node with embedded structural links.
 #[derive(Debug, Deref, DerefMut)]
-pub struct TreeNode<K: TreeId, V> {
+pub struct Node<K: Id, V> {
     pub(super) parent: K,
     pub(super) first_child: K,
     pub(super) last_child: K,
@@ -13,19 +13,23 @@ pub struct TreeNode<K: TreeId, V> {
     pub(super) next_sibling: K,
     #[deref]
     #[deref_mut]
-    pub(super) value: V,
+    pub(super) inner: V,
 }
 
-impl<K: TreeId, V> TreeNode<K, V> {
+impl<K: Id, V> Node<K, V> {
     pub(super) fn new(value: V) -> Self {
         Self {
-            value,
+            inner: value,
             parent: K::null(),
             first_child: K::null(),
             last_child: K::null(),
             previous_sibling: K::null(),
             next_sibling: K::null(),
         }
+    }
+
+    pub fn inner(&self) -> &V {
+        &self.inner
     }
 
     pub fn parent(&self) -> K {
@@ -49,18 +53,26 @@ impl<K: TreeId, V> TreeNode<K, V> {
     }
 }
 
+impl<K: Id, V: PartialEq> PartialEq<V> for Node<K, V> {
+    fn eq(&self, other: &V) -> bool {
+        &self.inner == other
+    }
+}
+
+
 #[derive(Debug)]
-pub struct TreeNodeRef<'a, K: TreeId, V> {
+pub struct NodeRef<'a, K: Id, V> {
     pub id: K,
     tree: &'a Tree<K, V>,
 }
 
-impl<'a, K: TreeId, V> TreeNodeRef<'a, K, V> {
+impl<'a, K: Id, V> NodeRef<'a, K, V> {
     pub fn new(id: K, tree: &'a Tree<K, V>) -> Self {
         Self { id, tree }
     }
 
-    pub fn node(&self) -> &TreeNode<K, V> {
+    #[inline]
+    pub fn node(&self) -> &Node<K, V> {
         &self.tree[self.id]
     }
 
@@ -117,13 +129,13 @@ impl<'a, K: TreeId, V> TreeNodeRef<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V: PartialEq> PartialEq<V> for TreeNodeRef<'a, K, V> {
+impl<'a, K: Id, V: PartialEq> PartialEq<V> for NodeRef<'a, K, V> {
     fn eq(&self, other: &V) -> bool {
-        *self == *other
+        &self.node().inner == other
     }
 }
 
-impl<'a, K: TreeId, V> Deref for TreeNodeRef<'a, K, V> {
+impl<'a, K: Id, V> Deref for NodeRef<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -131,38 +143,22 @@ impl<'a, K: TreeId, V> Deref for TreeNodeRef<'a, K, V> {
     }
 }
 
-pub struct TreeNodeRefMut<'a, K: TreeId, V> {
+pub struct NodeRefMut<'a, K: Id, V> {
     pub id: K,
     tree: &'a mut Tree<K, V>,
 }
 
-impl<'a, K: TreeId, V> TreeNodeRefMut<'a, K, V> {
+impl<'a, K: Id, V> NodeRefMut<'a, K, V> {
     pub fn new(id: K, tree: &'a mut Tree<K, V>) -> Self {
         Self { id, tree }
     }
 
-    pub fn node(&self) -> &TreeNode<K, V> {
+    pub fn node(&self) -> &Node<K, V> {
         &self.tree[self.id]
     }
 
-    pub fn node_mut(&mut self) -> &mut TreeNode<K, V> {
+    pub fn node_mut(&mut self) -> &mut Node<K, V> {
         &mut self.tree[self.id]
-    }
-
-    pub fn append_child(&mut self, child: K) {
-        self.tree.append_child(self.id, child);
-    }
-
-    pub fn append_children(&mut self, children: &[K]) {
-        self.tree.append_children(self.id, children);
-    }
-
-    pub fn prepend_child(&mut self, child: K) {
-        self.tree.prepend_child(self.id, child);
-    }
-
-    pub fn prepend_children(&mut self, children: &[K]) {
-        self.tree.prepend_children(self.id, children);
     }
 
     pub fn parent(&self) -> K {
@@ -218,7 +214,7 @@ impl<'a, K: TreeId, V> TreeNodeRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> Deref for TreeNodeRefMut<'a, K, V> {
+impl<'a, K: Id, V> Deref for NodeRefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -226,7 +222,7 @@ impl<'a, K: TreeId, V> Deref for TreeNodeRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: TreeId, V> DerefMut for TreeNodeRefMut<'a, K, V> {
+impl<'a, K: Id, V> DerefMut for NodeRefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.node_mut()
     }

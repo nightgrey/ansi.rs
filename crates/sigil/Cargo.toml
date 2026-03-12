@@ -7,6 +7,7 @@ edition = "2024"
 ansi = { workspace = true }
 geometry = { workspace = true }
 grid = { workspace = true }
+tree = { workspace = true }
 terminal = { workspace = true }
 unicode-width = { workspace = true }
 utils = { workspace = true }

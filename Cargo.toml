@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "crates/ansi", "crates/geometry", "crates/grid",
-    "crates/sigil", "crates/terminal", "crates/utils",
+    "crates/sigil", "crates/terminal", "crates/tree", "crates/utils",
 ]
 
 [workspace.dependencies]
@@ -19,7 +19,7 @@ utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }
 terminal = { path = "crates/terminal" }
 grid = { path = "crates/grid" }
-
+tree = { path = "crates/tree" }
 
 [profile.bench]
 debug = true

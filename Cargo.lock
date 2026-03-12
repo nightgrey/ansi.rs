@@ -1399,6 +1399,7 @@ dependencies = [
  "terminal",
  "textwrap",
  "thiserror 2.0.18",
+ "tree",
  "unicode-display-width",
  "unicode-segmentation",
  "unicode-width",
@@ -1648,6 +1649,15 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "winnow",
+]
+
+[[package]]
+name = "tree"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "slotmap",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

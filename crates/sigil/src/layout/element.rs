@@ -1,9 +1,8 @@
-use crate::{tree_id, LayerId};
+use tree::{id};
 use ansi::{Color, Style};
+use crate::LayerId;
 
-tree_id!(
-    pub struct ElementId;
-);
+id!(pub struct ElementId);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {

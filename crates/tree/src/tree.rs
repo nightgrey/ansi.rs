@@ -1,211 +1,224 @@
-use super::{TreeId, TreeNode, iter::*};
-use super::{TreeNodeRef, TreeNodeRefMut};
+use super::{Id, Node, iter::*, Error};
+use super::{NodeRef, NodeRefMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
-
-use thiserror::Error;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum At<K> {
     Detached,
 
-    FirstChild(K),
-    LastChild(K),
-
     Prepend(K),
     Append(K),
 
+    Before(K),
+    After(K),
 }
 
-#[derive(Error, Debug)]
-pub enum TreeError<K> {
-    #[error("Node {0} does not exist")]
-    Missing(K),
-    #[error("Reference node {0} has no parent")]
-    NoParent(K),
-    #[error("Cycle detected: node {node} would be its own ancestor")]
-    Cycle { node: K, target: K },
-    #[error("Root operation forbidden")]
-    RootOperationForbidden,
-
-}
-
-type Inner<K, V> = slotmap::SlotMap<K, V>;
 
 #[derive(Debug, Index, IndexMut, IntoIterator)]
 #[into_iterator(owned, ref, ref_mut)]
 #[repr(transparent)]
-pub struct Tree<K: TreeId, V> {
-    inner: Inner<K, TreeNode<K, V>>,
+pub struct Tree<K: Id, V> {
+    inner: slotmap::SlotMap<K, Node<K, V>>,
 }
 
-impl<K: TreeId, V> Tree<K, V> {
+impl<K: Id, V> Tree<K, V> {
     pub fn new() -> Self {
-        Self { inner: Inner::with_capacity_and_key(16) }
+       Self::with_capacity(16)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { inner: Inner::with_capacity_and_key(capacity) }
+        Self { inner: slotmap::SlotMap::with_capacity_and_key(capacity) }
     }
 
     pub fn contains(&self, key: K) -> bool {
         self.inner.contains_key(key)
     }
 
-    pub fn get(&self, key: K) -> Option<TreeNodeRef<K, V>> {
-        self.inner.get(key).map(|_| TreeNodeRef::new(key, self))
-    }
-
-    pub fn get_mut(&mut self, key: K) -> Option<TreeNodeRefMut<K, V>> {
-        if self.inner.get(key).is_none() {
-            return None;
-        }
-        Some(TreeNodeRefMut::new(key, self))
-    }
-
-    pub fn get_node(&self, key: K) -> Option<&TreeNode<K, V>> {
+    pub fn get(&self, key: K) -> Option<&Node<K, V>> {
         self.inner.get(key)
     }
 
-    pub fn get_node_mut(&mut self, key: K) -> Option<&mut TreeNode<K, V>> {
+    pub fn get_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
         self.inner.get_mut(key)
     }
 
+    pub fn get_ref(&self, key: K) -> Option<NodeRef<K, V>> {
+        self.inner.get(key).map(|_| NodeRef::new(key, self))
+    }
+
+    pub fn get_ref_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
+        if self.inner.get(key).is_none() {
+            return None;
+        }
+        Some(NodeRefMut::new(key, self))
+    }
+
     // --- creation ----------------------------------------------------------
-
-    pub fn insert_detached(&mut self, value: V) -> K {
-        self.inner.insert(TreeNode::new(value))
+    pub fn insert(&mut self, value: V) -> K {
+        self.inner.insert(Node::new(value))
     }
 
-    pub fn insert_detached_with_key(&mut self, f: impl FnOnce(K) -> V) -> K {
-        self.inner.insert_with_key(|k| TreeNode::new(f(k)))
+    pub fn insert_at(&mut self, value: V, at: At<K>) -> K {
+        self.try_insert_at(value, at).unwrap()
     }
 
-    pub fn try_insert_detached_with_key<E>(
-        &mut self,
-        f: impl FnOnce(K) -> Result<V, E>,
-    ) -> Result<K, E> {
-        self.inner.try_insert_with_key(|k| f(k).map(TreeNode::new))
-    }
+    pub fn try_insert_at(&mut self, value: V, at: At<K>) -> Result<K, Error<K>> {
+        let id = self.insert(value);
+        if let Err(e) = match at {
+            At::Detached => Ok(()),
+            At::Prepend(parent) => {
+                self.ensure_exists(parent)?;
+                self.ensure_no_cycle(id, parent)?;
+                self.link_as_first_child(parent, id);
+                Ok(())
+            }
 
-    pub fn insert_at(&mut self, value: V, at: At<K>) -> Result<K, TreeError<K>> {
-        let id = self.insert_detached(value);
-        if let Err(e) = self.move_to(id, at) {
-            let _ = self.inner.remove(id); // rollback
+            At::Append(parent) => {
+                self.ensure_exists(parent)?;
+                self.ensure_no_cycle(id, parent)?;
+                self.link_as_last_child(parent, id);
+                Ok(())
+            }
+
+            At::Before(before) => {
+                self.ensure_exists(before)?;
+                if id == before {
+                   Ok(())
+                }  else {
+                    let parent = self.inner[before].parent;
+                    if parent.is_null() {
+                        Err(Error::NoParent(before))
+                    } else {
+                        self.ensure_no_cycle(id, parent)?;
+                        self.link_before(id, before, parent);
+                        Ok(())
+                    }
+                }
+            }
+
+            At::After(after) => {
+                self.ensure_exists(after)?;
+                if id == after {
+                    Ok(())
+                } else {
+                    let parent = self.inner[after].parent;
+                    if parent.is_null() {
+                        Err(Error::NoParent(after))
+                    } else {
+                        self.ensure_no_cycle(id, parent)?;
+                        self.link_after(id, after, parent);
+                        Ok(())
+                    }
+                }
+            }
+        } {
+            let _ = self.inner.remove(id);
             return Err(e);
         }
+
         Ok(id)
     }
 
-    pub fn insert_at_with_key(
-        &mut self,
-        pos: At<K>,
-        f: impl FnOnce(K) -> V,
-    ) -> Result<K, TreeError<K>> {
-        let id = self.insert_detached_with_key(f);
-        if let Err(e) = self.move_to(id, pos) {
-            let _ = self.inner.remove(id); // rollback
-            return Err(e);
-        }
-        Ok(id)
-    }
-
-    pub fn insert_with_children(
+    pub fn insert_at_with_children(
         &mut self,
         value: V,
         children: &[K],
-        pos: At<K>,
-    ) -> Result<K, TreeError<K>> {
-        let id = self.insert_at(value, pos)?;
-        self.append_children(id, children)?;
+        at: At<K>,
+    ) -> K {
+        self.try_insert_at_with_children(value, children, at).unwrap()
+    }
+
+    pub fn try_insert_at_with_children(
+        &mut self,
+        value: V,
+        children: &[K],
+        at: At<K>,
+    ) -> Result<K, Error<K>> {
+        let id = self.try_insert_at(value, at)?;
+        for &child in children {
+            self.try_move_to(child, At::Append(id))?;
+        }
         Ok(id)
     }
 
-    // ergonomic helpers
-    pub fn append_new_child(&mut self, parent: K, value: V) -> Result<K, TreeError<K>> {
-        self.insert_at(value, At::LastChild(parent))
+    // --- Mutation ----------------------------------------------------------
+
+    pub fn move_to(&mut self, id: K, to: At<K>) {
+        self.try_move_to(id, to).unwrap()
     }
 
-    pub fn prepend_new_child(&mut self, parent: K, value: V) -> Result<K, TreeError<K>> {
-        self.insert_at(value, At::FirstChild(parent))
-    }
+    pub fn try_move_to(&mut self, id: K, to: At<K>) -> Result<(), Error<K>> {
+        dbg!(id, to);
+        self.ensure_exists(id)?;
 
-    pub fn insert_new_before(&mut self, before: K, value: V) -> Result<K, TreeError<K>> {
-        self.insert_at(value, At::Prepend(before))
-    }
+        match to {
+            At::Detached => self.try_detach(id),
 
-    pub fn insert_new_after(&mut self, after: K, value: V) -> Result<K, TreeError<K>> {
-        self.insert_at(value, At::Append(after))
-    }
-
-    // --- mutation ----------------------------------------------------------
-
-    pub fn move_to(&mut self, node: K, pos: At<K>) -> Result<(), TreeError<K>> {
-        self.ensure_exists(node)?;
-
-        match pos {
-            At::Detached => self.detach(node),
-
-            At::FirstChild(parent) => {
+            At::Prepend(parent) => {
                 self.ensure_exists(parent)?;
-                self.ensure_no_cycle(node, parent)?;
-                self.detach(node)?;
-                self.link_as_first_child(parent, node);
+                self.ensure_no_cycle(id, parent)?;
+                self.try_detach(id)?;
+                self.link_as_first_child(parent, id);
                 Ok(())
             }
 
-            At::LastChild(parent) => {
+            At::Append(parent) => {
                 self.ensure_exists(parent)?;
-                self.ensure_no_cycle(node, parent)?;
-                self.detach(node)?;
-                self.link_as_last_child(parent, node);
+                self.ensure_no_cycle(id, parent)?;
+                self.try_detach(id)?;
+                self.link_as_last_child(parent, id);
                 Ok(())
             }
 
-            At::Prepend(before) => {
+            At::Before(before) => {
                 self.ensure_exists(before)?;
-                if node == before {
+                if id == before {
                     return Ok(());
                 }
                 let parent = self.inner[before].parent;
                 if parent.is_null() {
-                    return Err(TreeError::NoParent(before));
+                    return Err(Error::NoParent(before));
                 }
-                self.ensure_no_cycle(node, parent)?;
-                self.detach(node)?;
-                self.link_before(node, before, parent);
+                self.ensure_no_cycle(id, parent)?;
+                self.try_detach(id)?;
+                self.link_before(id, before, parent);
                 Ok(())
             }
 
-            At::Append(after) => {
+            At::After(after) => {
                 self.ensure_exists(after)?;
-                if node == after {
+                if id == after {
                     return Ok(());
                 }
                 let parent = self.inner[after].parent;
                 if parent.is_null() {
-                    return Err(TreeError::NoParent(after));
+                    return Err(Error::NoParent(after));
                 }
-                self.ensure_no_cycle(node, parent)?;
-                self.detach(node)?;
-                self.link_after(node, after, parent);
+                self.ensure_no_cycle(id, parent)?;
+                self.try_detach(id)?;
+                self.link_after(id, after, parent);
                 Ok(())
             }
         }
     }
 
-    pub fn detach(&mut self, node: K) -> Result<(), TreeError<K>> {
-        self.ensure_exists(node)?;
+    pub fn detach(&mut self, id: K) {
+        self.try_detach(id).unwrap()
+    }
 
-        let parent = self.inner[node].parent;
+    pub fn try_detach(&mut self, id: K) -> Result<(), Error<K>> {
+        self.ensure_exists(id)?;
+
+        let parent = self.inner[id].parent;
         if parent.is_null() {
             return Ok(());
         }
 
-        let prev = self.inner[node].previous_sibling;
-        let next = self.inner[node].next_sibling;
+        let prev = self.inner[id].previous_sibling;
+        let next = self.inner[id].next_sibling;
 
         if prev.is_null() {
             self.inner[parent].first_child = next;
@@ -219,7 +232,7 @@ impl<K: TreeId, V> Tree<K, V> {
             self.inner[next].previous_sibling = prev;
         }
 
-        let n = &mut self.inner[node];
+        let n = &mut self.inner[id];
         n.parent = K::null();
         n.previous_sibling = K::null();
         n.next_sibling = K::null();
@@ -227,87 +240,56 @@ impl<K: TreeId, V> Tree<K, V> {
         Ok(())
     }
 
-    pub fn append_child(&mut self, parent: K, child: K) -> Result<(), TreeError<K>> {
-        self.move_to(child, At::LastChild(parent))
-    }
-
-    pub fn prepend_child(&mut self, parent: K, child: K) -> Result<(), TreeError<K>> {
-        self.move_to(child, At::FirstChild(parent))
-    }
-
-    pub fn insert_before(&mut self, node: K, before: K) -> Result<(), TreeError<K>> {
-        self.move_to(node, At::Prepend(before))
-    }
-
-    pub fn insert_after(&mut self, node: K, after: K) -> Result<(), TreeError<K>> {
-        self.move_to(node, At::Append(after))
-    }
-
-    pub fn append_children(&mut self, parent: K, children: &[K]) -> Result<(), TreeError<K>> {
-        for &child in children {
-            self.append_child(parent, child)?;
-        }
-        Ok(())
-    }
-
-    pub fn prepend_children(&mut self, parent: K, children: &[K]) -> Result<(), TreeError<K>> {
-        // preserve order
-        for &child in children.iter().rev() {
-            self.prepend_child(parent, child)?;
-        }
-        Ok(())
-    }
-
     /// Remove node and its descendants.
-    pub fn remove(&mut self, key: K) -> Option<V> {
-        if !self.inner.contains_key(key) {
+    pub fn remove(&mut self, id: K) -> Option<V> {
+        if !self.contains(id) {
             return None;
         }
 
         // Detach root of subtree from parent first.
-        let _ = self.detach(key);
+        let _ = self.detach(id);
 
-        // Remove descendants excluding `key`.
+        // Remove descendants excluding `id`.
         let to_remove: Vec<_> = self
-            .descendants(key)
-            .filter(|&k| k != key)
+            .descendants(id)
+            .filter(|&k| k != id)
             .collect();
 
         for k in to_remove {
             let _ = self.inner.remove(k);
         }
 
-        self.inner.remove(key).map(|n| n.value)
+        self.inner.remove(id).map(|n| n.inner)
     }
 
     // --- read-only helpers -------------------------------------------------
 
-    pub fn parent(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.parent.maybe()
+    pub fn parent(&self, id: K) -> Option<K> {
+        self.inner.get(id)?.parent.maybe()
     }
 
-    pub fn first_child(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.first_child.maybe()
+    pub fn first_child(&self, id: K) -> Option<K> {
+        self.inner.get(id)?.first_child.maybe()
     }
 
-    pub fn last_child(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.last_child.maybe()
+    pub fn last_child(&self, id: K) -> Option<K> {
+        self.inner.get(id)?.last_child.maybe()
     }
 
-    pub fn next_sibling(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.next_sibling.maybe()
+    pub fn next_sibling(&self, id: K) -> Option<K> {
+        self.inner.get(id)?.next_sibling.maybe()
     }
 
-    pub fn prev_sibling(&self, key: K) -> Option<K> {
-        self.inner.get(key)?.previous_sibling.maybe()
+    pub fn prev_sibling(&self, id: K) -> Option<K> {
+        self.inner.get(id)?.previous_sibling.maybe()
     }
 
-    pub fn is_leaf(&self, key: K) -> bool {
-        self.get_node(key).map_or(true, |n| n.first_child.is_null())
+    pub fn is_leaf(&self, id: K) -> bool {
+        self.inner.get(id).map_or(true, |n| n.first_child.is_none())
     }
 
-    pub fn is_root(&self, key: K) -> bool {
-        self.inner.get(key).map_or(false, |n| n.parent.is_null())
+    pub fn is_root(&self, id: K) -> bool {
+        self.inner.get(id).map_or(false, |n| n.parent.is_none())
     }
 
     pub fn len(&self) -> usize { self.inner.len() }
@@ -315,14 +297,17 @@ impl<K: TreeId, V> Tree<K, V> {
 
     pub fn iter(&self) -> Iter<'_, K, V> { self.inner.iter() }
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V> { self.inner.iter_mut() }
-    pub fn children(&self, key: K) -> Children<'_, K, V> { Children::new(self, key) }
-    pub fn descendants(&self, key: K) -> Descendants<'_, K, V> { Descendants::new(self, key) }
-    pub fn ancestors(&self, key: K) -> Ancestors<'_, K, V> { Ancestors::new(self, key) }
-    pub fn predecessors(&self, key: K) -> Predecessors<'_, K, V> { Predecessors::new(self, key) }
-    pub fn following_siblings(&self, key: K) -> FollowingSiblings<'_, K, V> { FollowingSiblings::new(self, key) }
-    pub fn preceding_siblings(&self, key: K) -> PrecedingSiblings<'_, K, V> { PrecedingSiblings::new(self, key) }
-    pub fn traverse(&self, key: K) -> Traverse<'_, K, V> { Traverse::new(self, key) }
-    pub fn reverse_traverse(&self, key: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, key) }
+    pub fn keys(&self) -> Keys<'_, K, V> { self.inner.keys() }
+    pub fn nodes(&self) -> Nodes<'_, K, V> { self.inner.values() }
+    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, V> { self.inner.values_mut() }
+    pub fn children(&self, id: K) -> Children<'_, K, V> { Children::new(self, id) }
+    pub fn descendants(&self, id: K) -> Descendants<'_, K, V> { Descendants::new(self, id) }
+    pub fn ancestors(&self, id: K) -> Ancestors<'_, K, V> { Ancestors::new(self, id) }
+    pub fn predecessors(&self, id: K) -> Predecessors<'_, K, V> { Predecessors::new(self, id) }
+    pub fn following_siblings(&self, id: K) -> FollowingSiblings<'_, K, V> { FollowingSiblings::new(self, id) }
+    pub fn preceding_siblings(&self, id: K) -> PrecedingSiblings<'_, K, V> { PrecedingSiblings::new(self, id) }
+    pub fn traverse(&self, id: K) -> Traverse<'_, K, V> { Traverse::new(self, id) }
+    pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, id) }
 
     pub fn clear(&mut self) {
         self.inner.clear();
@@ -330,13 +315,13 @@ impl<K: TreeId, V> Tree<K, V> {
 
     // --- internals ---------------------------------------------------------
 
-    fn ensure_exists(&self, k: K) -> Result<(), TreeError<K>> {
-        self.contains(k).ok_or_else(|| TreeError::Missing(k))
+    fn ensure_exists(&self, k: K) -> Result<(), Error<K>> {
+        self.contains(k).ok_or_else(|| Error::Missing(k))
     }
 
-    fn ensure_no_cycle(&self, node: K, target_parent: K) -> Result<(), TreeError<K>> {
+    fn ensure_no_cycle(&self, node: K, target_parent: K) -> Result<(), Error<K>> {
         if node == target_parent || self.is_ancestor(node, target_parent) {
-            Err(TreeError::Cycle { node, target: target_parent })
+            Err(Error::Cycle { node, target: target_parent })
         } else {
             Ok(())
         }
@@ -422,97 +407,12 @@ impl<K: TreeId, V> Tree<K, V> {
 }
 
 
-// --------------------------------------------------------------------------
-// RootTree with invariant: root cannot be removed/invalidated
-// --------------------------------------------------------------------------
-
-#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
-pub struct RootTree<K: TreeId, V> {
-    #[deref]
-    #[deref_mut]
-    #[index]
-    #[index_mut]
-    inner: Tree<K, V>,
-    root: K,
-}
-
-impl<K: TreeId, V> RootTree<K, V> {
-    pub fn new(root: V) -> Self {
-        let mut tree = Tree::new();
-        let root = tree.insert_detached(root);
-        Self { inner: tree, root }
-    }
-
-    pub fn with_capacity(root: V, capacity: usize) -> Self {
-        let mut tree = Tree::with_capacity(capacity);
-        let root = tree.insert_detached(root);
-        Self { inner: tree, root }
-    }
-
-    pub fn root(&self) -> K { self.root }
-
-    pub fn get_root(&self) -> TreeNodeRef<K, V> {
-        TreeNodeRef::new(self.root, &self.inner)
-    }
-
-    pub fn get_root_mut(&mut self) -> TreeNodeRefMut<K, V> {
-        TreeNodeRefMut::new(self.root, &mut self.inner)
-    }
-
-    pub fn get_root_node(&self) -> &TreeNode<K, V> {
-        &self.inner.inner[self.root]
-    }
-
-    pub fn get_root_node_mut(&mut self) -> &mut TreeNode<K, V> {
-        &mut self.inner.inner[self.root]
-    }
-
-    pub fn append_root(&mut self, value: V) -> Result<K, TreeError<K>> {
-        self.inner.append_new_child(self.root, value)
-    }
-
-    pub fn append_root_with(&mut self, f: impl FnOnce(K) -> V) -> Result<K, TreeError<K>> {
-        self.inner.insert_at_with_key(At::LastChild(self.root), f)
-    }
-
-    pub fn try_append_root_with<E>(
-        &mut self,
-        f: impl FnOnce(K) -> Result<V, E>,
-    ) -> Result<K, E> {
-        let root = self.root;
-        let id = self.inner.try_insert_detached_with_key(f)?;
-        // for root child attach this should not fail (root always exists, no cycle for new node)
-        self.inner.append_child(root, id).expect("root must be a valid parent");
-        Ok(id)
-    }
-
-    pub fn remove(&mut self, key: K) -> Result<Option<V>, TreeError<K>> {
-        if key == self.root {
-            return Err(TreeError::RootOperationForbidden);
-        }
-        Ok(self.inner.remove(key))
-    }
-
-    /// remove everything except root
-    pub fn clear_children(&mut self) {
-        let kids: Vec<_> = self.inner.children(self.root).collect();
-        for k in kids {
-            let _ = self.inner.remove(k);
-        }
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // Setup
-    crate::tree_id! {
-        pub struct Id;
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
-    pub struct Node(pub &'static str);
-
+    crate::id!(pub struct Id);
     #[derive(Debug, derive_more::Deref, derive_more::DerefMut, IndexMut, Index)]
     pub struct Test {
         pub root: Id,
@@ -523,7 +423,7 @@ mod tests {
         #[deref_mut]
         #[index]
         #[index_mut]
-        pub tree: super::Tree<Id, Node>,
+        pub tree: super::Tree<Id, &'static str>,
     }
 
     impl Test {
@@ -538,13 +438,10 @@ mod tests {
         }
         pub fn default() -> Self {
             let mut tree = Tree::new();
-            let root = tree.insert_detached(Node("root"));
-            let a = tree.insert_detached(Node("a"));
-            let b = tree.insert_detached(Node("b"));
-            let c = tree.insert_detached(Node("c"));
-            tree.append_child(root, a);
-            tree.append_child(root, b);
-            tree.append_child(root, c);
+            let root = tree.insert("root");
+            let a = tree.insert_at("a", At::Append(root));
+            let b = tree.insert_at("b", At::Append(root));
+            let c = tree.insert_at("c", At::Append(root));
 
             Self {
                 root,
@@ -593,8 +490,8 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        let z = tree.insert_detached(Node("z"));
-        tree.prepend_child(root, z);
+        let z = tree.insert("z");
+        tree.move_to(z, At::Prepend(root));
 
         assert_eq!(tree.first_child(root), Some(z));
         assert_eq!(tree.next_sibling(z), Some(a));
@@ -611,14 +508,11 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        let x = tree.insert_detached(Node("x"));
-        let y = tree.insert_detached(Node("y"));
+        let x = tree.insert_at("x", At::Before(b));
+        let y = tree.insert_at("y", At::After(b));
 
-        tree.prepend_child(x, b); // a x b c
-        tree.append_child(y, b); // a x b y c
-
-        let kids: Vec<_> = tree.children(root).collect();
-        assert_eq!(kids, vec![a, x, b, y, c]);
+        let kids: Vec<_> = tree.children(root).map(|id| tree[id].inner).collect();
+        assert_eq!(kids, vec!["a", "x", "b", "y", "c"]);
     }
 
     #[test]
@@ -631,7 +525,7 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        tree.detach(b);
+        tree.try_detach(b).unwrap();
 
         assert_eq!(tree.parent(b), None);
         assert_eq!(tree.next_sibling(a), Some(c));
@@ -642,7 +536,9 @@ mod tests {
 
         // b still exists
         assert_eq!(tree.contains(b), true);
-        assert_eq!(tree.get(b).unwrap(), Node("b"));
+
+        assert!(tree.get_ref(b).is_some());
+        assert_eq!(tree.get_ref(b).unwrap(), "b");
     }
 
     #[test]
@@ -678,8 +574,8 @@ mod tests {
             c,
             mut tree,
         } = Test::default();
-        let d = tree.insert_detached(Node("d"));
-        tree.append_child(b, d);
+        let d = tree.insert("d");
+        tree.move_to(d, At::Append(b));
 
         tree.remove(b);
 
@@ -700,15 +596,11 @@ mod tests {
             c,
             mut tree,
         } = Test::default();
-        let a = tree.insert_detached(Node("a"));
-        let b = tree.insert_detached(Node("b"));
-        let c = tree.insert_detached(Node("c"));
 
-        let root = tree.insert_with_children(Node("root"), &[a, b, c], At::LastChild(root)).unwrap();
-
-        let kids: Vec<_> = tree.children(root).collect();
+        let inserted = tree.insert_at_with_children("root", &[a, b, c], At::Append(root));
+        let kids: Vec<_> = tree.children(inserted).collect();
         assert_eq!(kids, vec![a, b, c]);
-        assert_eq!(tree.parent(b), Some(root));
+        assert_eq!(tree.parent(b), Some(inserted));
     }
 
     #[test]
@@ -720,10 +612,10 @@ mod tests {
             c,
             mut tree,
         } = Test::default();
-        let other = tree.insert_detached(Node("other"));
+        let other = tree.insert("other");
 
         // Move b under `other`
-        tree.append_child(other, b);
+        tree.move_to(b, At::Append(other));
 
         assert_eq!(tree.parent(b), Some(other));
         let root_kids: Vec<_> = tree.children(root).collect();
@@ -736,7 +628,7 @@ mod tests {
         let mut tree = Test::empty();
         assert!(tree.is_empty());
 
-        let leaf = tree.insert_detached(Node("leaf"));
+        let leaf = tree.insert("leaf");
         assert!(tree.is_leaf(leaf));
         assert_eq!(tree.first_child(leaf), None);
         assert_eq!(tree.last_child(leaf), None);
@@ -774,8 +666,8 @@ mod tests {
                 mut tree,
             } = Test::default();
 
-            let d = tree.insert_detached(Node("d"));
-            tree.append_child(b, d);
+            let d = tree.insert("d");
+            tree.move_to(d, At::Append(b));
 
             let ancs: Vec<_> = tree.ancestors(d).collect();
             assert_eq!(ancs, vec![b, root]);
@@ -796,25 +688,25 @@ mod tests {
                 mut tree,
             } = Test::default();
 
-            let d = tree.insert_detached(Node("d"));
-            let e = tree.insert_detached(Node("e"));
-            tree.append_child(b, d);
-            tree.append_child(b, e);
+            let d = tree.insert("d");
+            let e = tree.insert("e");
+            tree.move_to(d, At::Append(b));
+            tree.move_to(e, At::Append(b));
 
             let names: Vec<_> = tree
                 .descendants(root)
-                .map(|id| tree.get(id).unwrap())
+                .map(|id| tree.get_ref(id).unwrap())
                 .collect();
 
             assert_eq!(
                 names,
                 vec![
-                    Node("root"),
-                    Node("a"),
-                    Node("b"),
-                    Node("d"),
-                    Node("e"),
-                    Node("c")
+                    "root",
+                    "a",
+                    "b",
+                    "d",
+                    "e",
+                    "c"
                 ]
             );
         }

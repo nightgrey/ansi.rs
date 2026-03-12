@@ -1,4 +1,4 @@
-pub trait TreeId: slotmap::Key {
+pub trait Id: slotmap::Key {
     #[inline]
     fn none() -> Self {
         Self::null()
@@ -144,17 +144,15 @@ pub trait TreeId: slotmap::Key {
 
 #[macro_export]
 #[macro_use]
-macro_rules! tree_id {
-    ( $(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)* ) => {
+macro_rules! id {
+    ( $(#[$outer:meta])* $vis:vis struct $name:ident) => {
         use slotmap::Key as _;
-        use $crate::TreeId as _;
+        use $crate::Id as _;
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;
-
         }
 
-        impl $crate::TreeId for $name {
-        }
+        impl $crate::Id for $name { }
     };
 }

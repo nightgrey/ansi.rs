@@ -1,18 +1,19 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
-use crate::{Buffer, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, Rasterizer, RootTree, Secondary, TreeNodeRef, TreeNodeRefMut};
+use crate::{Buffer, Direction, Element, ElementId, ElementKind, GraphemeArena, Layer, LayerId, Rasterizer};
+use tree::{RootTree, SecondaryTree, NodeRef, NodeRefMut, At};
 use crate::painter::Painter;
 use geometry::Rect;
 use grid::{Position, Spatial};
 
-pub type ElementRef<'a> = TreeNodeRef<'a, ElementId, Element>;
-pub type ElementRefMut<'a> = TreeNodeRefMut<'a, ElementId, Element>;
-pub type LayerRef<'a> = TreeNodeRef<'a, LayerId, Layer>;
-pub type LayerRefMut<'a> = TreeNodeRefMut<'a, LayerId, Layer>;
+pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
+pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
+pub type LayerRef<'a> = NodeRef<'a, LayerId, Layer>;
+pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
 
 pub type Elements = RootTree<ElementId, Element>;
 pub type Layers = RootTree<LayerId, Layer>;
-pub type Layout = Secondary<ElementId, Rect>;
+pub type Layout = SecondaryTree<ElementId, Rect>;
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 pub struct Engine {
@@ -63,7 +64,7 @@ impl Engine {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let element = &self.scene.elements[id];
+        let element = &self.scene.get(id).unwrap();
         let kind = element.kind.clone();
         let style = element.style;
         let bounds = self.scene.layout[id];
@@ -142,18 +143,18 @@ pub struct Scene {
 impl Scene {
     pub fn new(width: usize, height: usize) -> Self {
         let layers = RootTree::new(Layer::new(width, height));
-        let elements = RootTree::new(Element::container(Direction::Vertical).on(layers.root()));
-        let mut layout = Secondary::new();
-        layout.insert(elements.root(), Rect::bounds(0, 0, width, height));
+        let elements = RootTree::new(Element::container(Direction::Vertical).on(layers.root_id()));
+        let mut layout = SecondaryTree::new();
+        layout.insert(elements.root_id(), Rect::bounds(0, 0, width, height));
         Self { elements, layers, layout }
     }
 
     pub fn root_element(&self) -> ElementId {
-        self.elements.root()
+        self.elements.root_id()
     }
 
     pub fn root_layer(&self) -> LayerId {
-        self.layers.root()
+        self.layers.root_id()
     }
 
     fn layer(
@@ -167,8 +168,8 @@ impl Scene {
             let child = &self.elements[child_id];
             let next_layer_id = if child.is_promoting() {
                 let size = &self.layers[layer_id].size();
-                let next_layer_id = self.layers.insert_detached(Layer::new(size.width, size.height));
-                self.layers.append_child(layer_id, next_layer_id);
+                let next_layer_id = self.layers.insert(Layer::new(size.width, size.height));
+                self.layers.move_to(layer_id, At::Append(next_layer_id));
                 next_layer_id
             } else {
                 layer_id
@@ -226,8 +227,8 @@ impl Scene {
 
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.layers.get_root_node_mut().resize(width, height);
-        self.layout.insert(self.elements.root(), Rect::bounds(0, 0, width, height));
+        self.layers.root_mut().resize(width, height);
+        self.layout.insert(self.elements.root_id(), Rect::bounds(0, 0, width, height));
     }
 
     pub fn clear(&mut self) {
@@ -307,7 +308,8 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use ansi::{Color, Style};
-    use crate::Cell;
+    use crate::{Cell};
+    use tree::{At};
     use super::*;
 
     #[test]
@@ -316,9 +318,9 @@ mod tests {
         let id = engine.root_element();
         engine[id].kind = ElementKind::Container { direction: Direction::Horizontal };
 
-        let a = engine.append_root(Element::text("a".into()));
-        let b = engine.append_root(Element::text("b".into()));
-        let c = engine.append_root(Element::text("c".into()));
+        let a = engine.insert_at(Element::text("a".into()), At::Append(id));
+        let b = engine.insert_at(Element::text("b".into()), At::Append(id));
+        let c = engine.insert_at(Element::text("c".into()), At::Append(id));
 
         engine.scene.layout(id, engine.viewport());
         assert_eq!(engine.scene.layout[a], Rect::bounds(0, 0, 2, 4));
@@ -343,12 +345,13 @@ mod tests {
     fn composite_respects_child_layer_order() {
         let mut engine = Engine::new(3, 1);
 
-        let mut root_layer = engine.layers.get_root_mut();
+        let root_layer_id = engine.layers.root_id();
+        let mut root_layer = engine.layers.root_mut();
         root_layer.position = Position::ZERO;
         root_layer[(0, 0)] = Cell::from_char('a', Style::new().foreground(Color::Index(1)));
 
-        let child_layer_id = engine.layers.append_root(Layer::new(3, 1));
-        let mut child_layer = engine.layers.get_mut(child_layer_id).unwrap();
+        let child_layer_id = engine.layers.insert_at(Layer::new(3, 1), At::Append(root_layer_id));
+        let mut child_layer = engine.layers.get_ref_mut(child_layer_id).unwrap();
         child_layer.position = Position::ZERO;
         child_layer.z_index = 1;
         child_layer[(0, 0)] = Cell::from_char('b', Style::new().foreground(Color::Index(2)));

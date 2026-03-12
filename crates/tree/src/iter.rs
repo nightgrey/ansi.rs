@@ -11,6 +11,7 @@ pub type IterMut<'a, K: 'a + Id, V: 'a> = slotmap::basic::IterMut<'a, K, Node<K,
 pub type Nodes<'a, K: 'a + Id, V: 'a> = slotmap::basic::Values<'a, K, Node<K, V>>;
 pub type NodesMut<'a, K: 'a + Id, V: 'a> = slotmap::basic::ValuesMut<'a, K, Node<K, V>>;
 pub type Keys<'a, K: 'a + Id, V: 'a> = slotmap::basic::Keys<'a, K, Node<K, V>>;
+pub type Drain<'a, K: 'a + Id, V: 'a> = slotmap::basic::Drain<'a, K, Node<K, V>>;
 
 // ----------
 // ITERATORS

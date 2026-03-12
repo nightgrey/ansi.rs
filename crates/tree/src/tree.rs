@@ -293,6 +293,9 @@ impl<K: Id, V> Tree<K, V> {
     pub fn preceding_siblings(&self, id: K) -> PrecedingSiblings<'_, K, V> { PrecedingSiblings::new(self, id) }
     pub fn traverse(&self, id: K) -> Traverse<'_, K, V> { Traverse::new(self, id) }
     pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, id) }
+    pub fn drain(&mut self) -> Drain<K, V> {
+        self.inner.drain()
+    }
 
     pub fn clear(&mut self) {
         self.inner.clear();

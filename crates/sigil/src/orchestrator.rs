@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
+use geometry::Rect;
 use crate::{Element, ElementId, ElementKind, Layer, LayerId, Renderer, Document};
 use crate::painter::Painter;
 
@@ -40,18 +41,19 @@ impl Orchestrator {
         let element = &self.document.get(id).unwrap();
         let kind = element.kind.clone();
         let style = element.style;
-        let bounds = self.document.layout[id];
         let layer_id = element.layer_id;
+        let mut bounds = self.get_bounds(id);
 
         {
             let layer = &mut self.document.layers[layer_id];
+
             let mut painter = Painter::new(layer, &mut self.document.arena);
-            painter.push(bounds);
+             painter.push(bounds);
 
             match &kind {
                 ElementKind::Span(content) => {
                     if !style.is_empty() {
-                        painter.fill(bounds, style);
+                        painter.fill(painter.clip(), style);
                     }
                     painter.draw_text(bounds.y() as i32, bounds.x() as i32, content, style);
                 }
@@ -146,9 +148,9 @@ mod tests {
         orchestrator.document.compute_layout();
         // Taffy distributes evenly with flex_grow: 3 children in 5 cols
         // Each gets floor(5/3)=1 with rounding; taffy may round differently
-        let a_rect = orchestrator.document.layout[a];
-        let b_rect = orchestrator.document.layout[b];
-        let c_rect = orchestrator.document.layout[c];
+        let a_rect = orchestrator.get_bounds(a);
+        let b_rect = orchestrator.get_bounds(b);
+        let c_rect = orchestrator.get_bounds(c);
         // All children should span the full height
         assert_eq!(a_rect.height(), 4);
         assert_eq!(b_rect.height(), 4);

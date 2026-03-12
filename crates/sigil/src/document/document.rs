@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
-use crate::{Direction, Element, ElementId, GraphemeArena, Layer, LayerId};
-use tree::{RootTree, Secondary, At, NodeRef, NodeRefMut, Node};
+use crate::{Direction, Element, ElementId, GraphemeArena, Layer, LayerId, Layout};
+use tree::{RootTree, At, NodeRef, NodeRefMut, Node};
 use geometry::Rect;
 use grid::{Spatial};
 
@@ -14,34 +14,29 @@ pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
 
 pub type Elements = RootTree<ElementId, Element>;
 pub type Layers = RootTree<LayerId, Layer>;
-pub type Layout = Secondary<ElementId, Rect>;
-
-
+pub type Layouts = taffy::TaffyTree<Rect>;
 #[derive(Debug, Deref, DerefMut)]
 pub struct Document {
     #[deref]
     #[deref_mut]
     pub elements: Elements,
     pub layers: Layers,
-    pub layout: Layout,
+    pub layouts: Layouts,
+
     pub arena: GraphemeArena,
-    pub taffy: taffy::TaffyTree,
 }
 
 impl Document {
     pub fn new(width: usize, height: usize) -> Self {
         let layers = RootTree::new(Layer::new(width, height));
-        let mut taffy = taffy::TaffyTree::new();
+        let mut layout = taffy::TaffyTree::<Rect>::new();
 
         let mut root_element = Element::Div(Direction::Vertical).on(layers.root_id());
-        let taffy_node = taffy.new_leaf(root_element.layout.clone()).unwrap();
+        let taffy_node = layout.new_leaf_with_context(root_element.layout.clone(), Rect::bounds(0, 0, width, height)).unwrap();
         root_element.layout_id = taffy_node;
 
         let elements = RootTree::new(root_element);
-        let mut layout = Secondary::new();
-        dbg!(&elements.root_id());
-        layout.insert(elements.root_id(), Rect::bounds(0, 0, width, height));
-        Self { elements, layers, layout, arena: GraphemeArena::new(), taffy }
+        Self { elements, layers, arena: GraphemeArena::new(), layouts: layout }
     }
     
     pub fn root_id(&self) -> ElementId {
@@ -67,7 +62,6 @@ impl Document {
     pub fn root_layer_mut(&mut self) -> &mut LayerNode {
         self.layers.root_mut()
     }
-    
 
     pub fn viewport(&self) -> Rect {
         let root = self.layers.root();
@@ -82,16 +76,22 @@ impl Document {
         self.layers.get(id)
     }
 
+    pub fn get_bounds(&self, id: ElementId) -> Rect {
+        self.layouts.get_node_context(self.elements[id].layout_id).copied().unwrap_or_default()
+    }
+    
+    fn set_bounds(&mut self, id: ElementId, rect: Rect) {
+        self.layouts.set_node_context(self.elements[id].layout_id, Some(rect)).unwrap();
+    }
 
     /// Insert an element as a child of the root. Creates a corresponding taffy node.
     pub fn insert(&mut self, element: Element) -> ElementId {
-        let root = self.elements.root_id();
-        self.insert_at(element, At::Child(root))
+        self.insert_at(element, At::Child(self.elements.root_id()))
     }
 
     /// Insert an element at the given position. Creates a corresponding taffy node.
     pub fn insert_at(&mut self, mut element: Element, at: At<ElementId>) -> ElementId {
-        let taffy_node = self.taffy.new_leaf(element.layout.clone()).unwrap();
+        let taffy_node = self.layouts.new_leaf_with_context(element.layout.clone(), Rect::ZERO).unwrap();
         element.layout_id = taffy_node;
         self.elements.insert_at(element, at)
     }
@@ -136,17 +136,16 @@ impl Document {
             width: taffy::AvailableSpace::Definite(viewport.width() as f32),
             height: taffy::AvailableSpace::Definite(viewport.height() as f32),
         };
-        self.taffy.compute_layout(layout_id, available).unwrap();
+        self.layouts.compute_layout(layout_id, available).unwrap();
 
-        // Read back computed rects
-        self.layout_cache(root_id, 0.0, 0.0);
+        self.layout_bounds(root_id, 0.0, 0.0);
     }
 
     fn layout_element(&mut self, id: ElementId) {
         let element = &self.elements[id];
 
         // Update or verify taffy node style
-        self.taffy.set_style(element.layout_id, element.layout.clone()).unwrap();
+        self.layouts.set_style(element.layout_id, element.layout.clone()).unwrap();
 
         // Collect children and sync recursively
         let children: Vec<_> = self.elements.children(id).collect();
@@ -156,39 +155,39 @@ impl Document {
 
         // Set taffy children
         let taffy_children: Vec<_> = children.iter().map(|&c| self.elements[c].layout_id).collect();
-        self.taffy.set_children(self.elements[id].layout_id, &taffy_children).unwrap();
+        self.layouts.set_children(self.elements[id].layout_id, &taffy_children).unwrap();
     }
 
-    fn layout_cache(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
-        let taffy_layout = self.taffy.layout(self.elements[id].layout_id).unwrap();
+    fn layout_bounds(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
+        let taffy_layout = self.layouts.layout(self.elements[id].layout_id).unwrap();
         let x = offset_x + taffy_layout.location.x;
         let y = offset_y + taffy_layout.location.y;
         let w = taffy_layout.size.width;
         let h = taffy_layout.size.height;
 
-        let rect = Rect::bounds(x as usize, y as usize, w as usize, h as usize);
-        self.layout.insert(id, rect);
+        self.set_bounds(id, Rect::bounds(x as usize, y as usize, w as usize, h as usize));
 
         for child_id in self.elements.children(id).collect::<Vec<_>>() {
-            self.layout_cache(child_id, x, y);
+            self.layout_bounds(child_id, x, y);
         }
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
         self.layers.root_mut().resize(width, height);
-        self.layout.insert(self.elements.root_id(), Rect::bounds(0, 0, width, height));
+        let layout_id = self.elements.root().layout_id;
+        self.layouts.set_node_context(layout_id, Some(Rect::bounds(0, 0, width, height))).unwrap();
     }
 
     pub fn clear(&mut self) {
         self.elements.clear();
         self.layers.clear();
-        self.layout.clear();
         self.arena.clear();
         // Re-sync: clear taffy and re-add root node
-        self.taffy.clear();
-        let root_id = self.elements.root_id();
-        let taffy_node = self.taffy.new_leaf(self.elements[root_id].layout.clone()).unwrap();
-        self.elements[root_id].layout_id = taffy_node;
+        self.layouts.clear();
+
+        let viewport = self.viewport();
+        let root = self.elements.root_mut();
+        root.layout_id = self.layouts.new_leaf_with_context(root.layout.clone(), viewport).unwrap();
     }
 }
 

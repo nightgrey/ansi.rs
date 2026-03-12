@@ -59,9 +59,8 @@ impl<K: Id, V> RootTree<K, V> {
 
     /// remove everything except root
     pub fn clear(&mut self) {
-        let kids: Vec<_> = self.inner.children(self.root_id).collect();
-        for k in kids {
-            let _ = self.inner.remove(k);
+        for k in self.inner.children(self.root_id).collect::<Vec<_>>() {
+            self.inner.remove(k);
         }
     }
 }

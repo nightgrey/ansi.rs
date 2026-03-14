@@ -1675,6 +1675,7 @@ dependencies = [
  "derive_more",
  "log",
  "slotmap",
+ "taffy",
  "thiserror 2.0.18",
  "trace",
 ]

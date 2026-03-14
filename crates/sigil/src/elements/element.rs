@@ -1,6 +1,6 @@
 use tree::id;
 use ansi::{Color, Style};
-use crate::document::layout::{Layout, LayoutId};
+use tree::layout::{Layout, LayoutId};
 use crate::LayerId;
 
 id!(pub struct ElementId);
@@ -35,7 +35,7 @@ impl Element {
                 ..Default::default()
             },
             layer_id: LayerId::none(),
-            layout_id: taffy::NodeId::new(0),
+            layout_id: LayoutId::none(),
         }
     }
 
@@ -45,7 +45,7 @@ impl Element {
             style: Style::new().foreground(Color::Red),
             layout: Layout::default(),
             layer_id: LayerId::none(),
-            layout_id: taffy::NodeId::new(0),
+            layout_id: LayoutId::none(),
         }
     }
 

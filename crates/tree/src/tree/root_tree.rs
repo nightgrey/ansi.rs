@@ -1,5 +1,5 @@
-use super::{At, Id, Node, Tree, Error};
-use super::{NodeRef, NodeRefMut};
+use crate::{At, Id, Node, Tree, Error, DefaultId};
+use crate::{NodeRef, NodeRefMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::ops::Deref;
 

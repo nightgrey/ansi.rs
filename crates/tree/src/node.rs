@@ -1,19 +1,20 @@
 use super::iter::*;
-use super::{Id, Tree};
+use super::{Tree};
 use derive_more::{Deref, DerefMut};
 use std::ops::{Deref, DerefMut};
+use crate::Id;
 
 /// A tree node with embedded structural links.
 #[derive(Debug, Deref, DerefMut)]
 pub struct Node<K: Id, V> {
-    pub(super) parent: K,
-    pub(super) first_child: K,
-    pub(super) last_child: K,
-    pub(super) previous_sibling: K,
-    pub(super) next_sibling: K,
+    pub(crate) parent: K,
+    pub(crate) first_child: K,
+    pub(crate) last_child: K,
+    pub(crate) previous_sibling: K,
+    pub(crate) next_sibling: K,
     #[deref]
     #[deref_mut]
-    pub(super) inner: V,
+    pub(crate) inner: V,
 }
 
 impl<K: Id, V> Node<K, V> {
@@ -28,26 +29,32 @@ impl<K: Id, V> Node<K, V> {
         }
     }
 
+    #[inline]
     pub fn inner(&self) -> &V {
         &self.inner
     }
 
+    #[inline]
     pub fn parent(&self) -> K {
-        (self.parent)
+        self.parent
     }
 
+    #[inline]
     pub fn first_child(&self) -> K {
         self.first_child
     }
 
+    #[inline]
     pub fn last_child(&self) -> K {
         self.last_child
     }
 
+    #[inline]
     pub fn next_sibling(&self) -> K {
         self.next_sibling
     }
 
+    #[inline]
     pub fn previous_sibling(&self) -> K {
         self.previous_sibling
     }

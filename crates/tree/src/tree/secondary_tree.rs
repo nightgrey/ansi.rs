@@ -1,7 +1,5 @@
-use std::fmt;
-use super::{Error, Id};
+use crate::{Error, Id};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
-use log::{error, trace};
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 #[repr(transparent)]

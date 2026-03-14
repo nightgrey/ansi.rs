@@ -1,6 +1,6 @@
-use super::{Id, Node, iter::*, Error, At};
-use super::{NodeRef, NodeRefMut};
-use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
+use crate::{Id, Node, iter::*, Error, At};
+use crate::{NodeRef, NodeRefMut};
+use derive_more::{Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
@@ -72,24 +72,24 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Child(parent) | At::Child(parent) => {
+            At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.link_as_last_child(parent, id);
                 Ok(())
             }
 
-            At::Before(before) => {
-                self.ensure_exists(before)?;
-                if id == before {
+            At::Before(id) => {
+                self.ensure_exists(id)?;
+                if id == id {
                    Ok(())
                 }  else {
-                    let parent = self.inner[before].parent;
+                    let parent = self.inner[id].parent();
                     if parent.is_null() {
-                        Err(Error::NoParent(before))
+                        Err(Error::NoParent(id))
                     } else {
                         self.ensure_no_cycle(id, parent)?;
-                        self.link_before(id, before, parent);
+                        self.link_before(id, id, parent);
                         Ok(())
                     }
                 }
@@ -100,7 +100,7 @@ impl<K: Id, V> Tree<K, V> {
                 if id == after {
                     Ok(())
                 } else {
-                    let parent = self.inner[after].parent;
+                    let parent = self.inner[after].parent();
                     if parent.is_null() {
                         Err(Error::NoParent(after))
                     } else {
@@ -160,7 +160,7 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Child(parent) | At::Child(parent) => {
+            At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.try_detach(id)?;
@@ -173,7 +173,7 @@ impl<K: Id, V> Tree<K, V> {
                 if id == before {
                     return Ok(());
                 }
-                let parent = self.inner[before].parent;
+                let parent = self.inner[before].parent();
                 if parent.is_null() {
                     return Err(Error::NoParent(before));
                 }
@@ -188,7 +188,7 @@ impl<K: Id, V> Tree<K, V> {
                 if id == after {
                     return Ok(());
                 }
-                let parent = self.inner[after].parent;
+                let parent = self.inner[after].parent();
                 if parent.is_null() {
                     return Err(Error::NoParent(after));
                 }
@@ -207,13 +207,13 @@ impl<K: Id, V> Tree<K, V> {
     pub fn try_detach(&mut self, id: K) -> Result<(), Error<K>> {
         self.ensure_exists(id)?;
 
-        let parent = self.inner[id].parent;
+        let parent = self.inner[id].parent();
         if parent.is_null() {
             return Ok(());
         }
 
-        let prev = self.inner[id].previous_sibling;
-        let next = self.inner[id].next_sibling;
+        let prev = self.inner[id].previous_sibling();
+        let next = self.inner[id].next_sibling();
 
         if prev.is_null() {
             self.inner[parent].first_child = next;
@@ -231,6 +231,24 @@ impl<K: Id, V> Tree<K, V> {
         n.parent = K::null();
         n.previous_sibling = K::null();
         n.next_sibling = K::null();
+
+        Ok(())
+    }
+
+    pub fn replace_children(&mut self, id: K, children: &[K]) {
+        self.try_replace_children(id, children).unwrap()
+    }
+
+    pub fn try_replace_children(&mut self, id: K, children: &[K]) -> Result<(), Error<K>> {
+        let current: Vec<_> = self.children(id).collect();
+
+        for &child in &current {
+            self.try_detach(child)?;
+        }
+
+        for &child in children {
+            self.link_as_last_child(id, child);
+        }
 
         Ok(())
     }
@@ -260,31 +278,31 @@ impl<K: Id, V> Tree<K, V> {
     // --- read-only helpers -------------------------------------------------
 
     pub fn parent(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.parent.maybe()
+        self.inner.get(id)?.parent().maybe()
     }
 
     pub fn first_child(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.first_child.maybe()
+        self.inner.get(id)?.first_child().maybe()
     }
 
     pub fn last_child(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.last_child.maybe()
+        self.inner.get(id)?.last_child().maybe()
     }
 
     pub fn next_sibling(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.next_sibling.maybe()
+        self.inner.get(id)?.next_sibling().maybe()
     }
 
     pub fn prev_sibling(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.previous_sibling.maybe()
+        self.inner.get(id)?.previous_sibling().maybe()
     }
 
     pub fn is_leaf(&self, id: K) -> bool {
-        self.inner.get(id).map_or(true, |n| n.first_child.is_none())
+        self.inner.get(id).map_or(true, |n| n.first_child().is_none())
     }
 
     pub fn is_root(&self, id: K) -> bool {
-        self.inner.get(id).map_or(false, |n| n.parent.is_none())
+        self.inner.get(id).map_or(false, |n| n.parent().is_none())
     }
 
     pub fn len(&self) -> usize { self.inner.len() }
@@ -421,7 +439,7 @@ mod tests {
         #[deref_mut]
         #[index]
         #[index_mut]
-        pub tree: super::Tree<Id, &'static str>,
+        pub tree: Tree<Id, &'static str>,
     }
 
     impl Test {
@@ -509,7 +527,7 @@ mod tests {
         let x = tree.insert_at("x", At::Before(b));
         let y = tree.insert_at("y", At::After(b));
 
-        let kids: Vec<_> = tree.children(root).map(|id| tree[id].inner).collect();
+        let kids: Vec<_> = tree.children(root).map(|id| tree[id].inner().clone()).collect();
         assert_eq!(kids, vec!["a", "x", "b", "y", "c"]);
     }
 

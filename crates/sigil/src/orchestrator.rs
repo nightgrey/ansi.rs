@@ -1,6 +1,5 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
-use geometry::Rect;
 use crate::{Element, ElementId, ElementKind, Layer, LayerId, Renderer, Document};
 use crate::painter::Painter;
 
@@ -42,12 +41,13 @@ impl Orchestrator {
         let kind = element.kind.clone();
         let style = element.style;
         let layer_id = element.layer_id;
-        let mut bounds = self.get_bounds(id);
+        let mut bounds = self.get_bounds(id).copied();
 
         {
             let layer = &mut self.document.layers[layer_id];
 
             let mut painter = Painter::new(layer, &mut self.document.arena);
+            let bounds = bounds.unwrap_or_else(|| painter.clip());
              painter.push(bounds);
 
             match &kind {
@@ -148,9 +148,9 @@ mod tests {
         orchestrator.document.compute_layout();
         // Taffy distributes evenly with flex_grow: 3 children in 5 cols
         // Each gets floor(5/3)=1 with rounding; taffy may round differently
-        let a_rect = orchestrator.get_bounds(a);
-        let b_rect = orchestrator.get_bounds(b);
-        let c_rect = orchestrator.get_bounds(c);
+        let a_rect = orchestrator.get_bounds(a).unwrap();
+        let b_rect = orchestrator.get_bounds(b).unwrap();
+        let c_rect = orchestrator.get_bounds(c).unwrap();
         // All children should span the full height
         assert_eq!(a_rect.height(), 4);
         assert_eq!(b_rect.height(), 4);

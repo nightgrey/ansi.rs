@@ -24,6 +24,16 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.contains_key(key)
     }
 
+    pub fn get_at(&self, key: K, at: At<K>) -> Option<K> {
+        match at {
+            At::Detached => Some(key),
+            At::FirstChild(n) => self.next_sibling(n),
+            At::Child(n) => self.parent(n),
+            At::Before(n) => self.prev_sibling(n),
+            At::After(n) => self.next_sibling(n),
+        }
+    }
+
     pub fn get(&self, key: K) -> Option<&Node<K, V>> {
         self.inner.get(key)
     }
@@ -55,14 +65,14 @@ impl<K: Id, V> Tree<K, V> {
         let id = self.insert(value);
         if let Err(e) = match at {
             At::Detached => Ok(()),
-            At::Prepend(parent) => {
+            At::FirstChild(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.link_as_first_child(parent, id);
                 Ok(())
             }
 
-            At::Append(parent) | At::Child(parent) => {
+            At::Child(parent) | At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.link_as_last_child(parent, id);
@@ -125,7 +135,7 @@ impl<K: Id, V> Tree<K, V> {
     ) -> Result<K, Error<K>> {
         let id = self.try_insert_at(value, at)?;
         for &child in children {
-            self.try_move_to(child, At::Append(id))?;
+            self.try_move_to(child, At::Child(id))?;
         }
         Ok(id)
     }
@@ -142,7 +152,7 @@ impl<K: Id, V> Tree<K, V> {
         match to {
             At::Detached => self.try_detach(id),
 
-            At::Prepend(parent) => {
+            At::FirstChild(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.try_detach(id)?;
@@ -150,7 +160,7 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Append(parent) | At::Child(parent) => {
+            At::Child(parent) | At::Child(parent) => {
                 self.ensure_exists(parent)?;
                 self.ensure_no_cycle(id, parent)?;
                 self.try_detach(id)?;
@@ -427,9 +437,9 @@ mod tests {
         pub fn default() -> Self {
             let mut tree = Tree::new();
             let root = tree.insert("root");
-            let a = tree.insert_at("a", At::Append(root));
-            let b = tree.insert_at("b", At::Append(root));
-            let c = tree.insert_at("c", At::Append(root));
+            let a = tree.insert_at("a", At::Child(root));
+            let b = tree.insert_at("b", At::Child(root));
+            let c = tree.insert_at("c", At::Child(root));
 
             Self {
                 root,
@@ -479,7 +489,7 @@ mod tests {
         } = Test::default();
 
         let z = tree.insert("z");
-        tree.move_to(z, At::Prepend(root));
+        tree.move_to(z, At::FirstChild(root));
 
         assert_eq!(tree.first_child(root), Some(z));
         assert_eq!(tree.next_sibling(z), Some(a));
@@ -563,7 +573,7 @@ mod tests {
             mut tree,
         } = Test::default();
         let d = tree.insert("d");
-        tree.move_to(d, At::Append(b));
+        tree.move_to(d, At::Child(b));
 
         tree.remove(b);
 
@@ -585,7 +595,7 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        let inserted = tree.insert_at_with_children("root", &[a, b, c], At::Append(root));
+        let inserted = tree.insert_at_with_children("root", &[a, b, c], At::Child(root));
         let kids: Vec<_> = tree.children(inserted).collect();
         assert_eq!(kids, vec![a, b, c]);
         assert_eq!(tree.parent(b), Some(inserted));
@@ -603,7 +613,7 @@ mod tests {
         let other = tree.insert("other");
 
         // Move b under `other`
-        tree.move_to(b, At::Append(other));
+        tree.move_to(b, At::Child(other));
 
         assert_eq!(tree.parent(b), Some(other));
         let root_kids: Vec<_> = tree.children(root).collect();
@@ -655,7 +665,7 @@ mod tests {
             } = Test::default();
 
             let d = tree.insert("d");
-            tree.move_to(d, At::Append(b));
+            tree.move_to(d, At::Child(b));
 
             let ancs: Vec<_> = tree.ancestors(d).collect();
             assert_eq!(ancs, vec![b, root]);
@@ -678,8 +688,8 @@ mod tests {
 
             let d = tree.insert("d");
             let e = tree.insert("e");
-            tree.move_to(d, At::Append(b));
-            tree.move_to(e, At::Append(b));
+            tree.move_to(d, At::Child(b));
+            tree.move_to(e, At::Child(b));
 
             let names: Vec<_> = tree
                 .descendants(root)

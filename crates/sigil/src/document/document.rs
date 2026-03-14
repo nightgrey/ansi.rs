@@ -1,41 +1,39 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
-use crate::{Direction, Element, ElementId, GraphemeArena, Layer, LayerId, Layout};
+use crate::{Element, ElementId, GraphemeArena, Layer, LayerId};
 use tree::{RootTree, At, NodeRef, NodeRefMut, Node};
 use geometry::Rect;
-use grid::{Spatial};
+use grid::{Spatial, Within};
+use crate::document::layout::{Layout, LayoutTree};
 
 pub type ElementNode = Node<ElementId, Element>;
-pub type ElementRef<'a> = NodeRef<'a, ElementId, Element>;
-pub type ElementRefMut<'a> = NodeRefMut<'a, ElementId, Element>;
 pub type LayerNode = Node<LayerId, Layer>;
-pub type LayerRef<'a> = NodeRef<'a, LayerId, Layer>;
-pub type LayerRefMut<'a> = NodeRefMut<'a, LayerId, Layer>;
 
 pub type Elements = RootTree<ElementId, Element>;
 pub type Layers = RootTree<LayerId, Layer>;
-pub type Layouts = taffy::TaffyTree<Rect>;
+
 #[derive(Debug, Deref, DerefMut)]
 pub struct Document {
     #[deref]
     #[deref_mut]
     pub elements: Elements,
     pub layers: Layers,
-    pub layouts: Layouts,
+    pub layouts: LayoutTree,
     pub arena: GraphemeArena,
 }
 
 impl Document {
     pub fn new(width: usize, height: usize) -> Self {
+
         let layers = RootTree::new(Layer::new(width, height));
-        let mut layout = taffy::TaffyTree::<Rect>::new();
+        let mut elements = RootTree::new(Element::Div().on(layers.root_id()));
+        let mut computed = LayoutTree::new();
 
-        let mut root_element = Element::Div(Direction::Vertical).on(layers.root_id());
-        let taffy_node = layout.new_leaf_with_context(root_element.layout.clone(), Rect::bounds(0, 0, width, height)).unwrap();
-        root_element.layout_id = taffy_node;
+        let root_element = elements.root_mut();
 
-        let elements = RootTree::new(root_element);
-        Self { elements, layers, arena: GraphemeArena::new(), layouts: layout }
+        root_element.layout_id = computed.new_leaf_with_context(root_element.layout.clone(), Rect::bounds(0, 0, width, height)).unwrap();
+
+        Self { elements, layers, arena: GraphemeArena::new(), layouts: computed }
     }
     
     pub fn root_id(&self) -> ElementId {
@@ -75,8 +73,16 @@ impl Document {
         self.layers.get(id)
     }
 
-    pub fn get_bounds(&self, id: ElementId) -> Rect {
-        self.layouts.get_node_context(self.elements[id].layout_id).copied().expect("layout context not found")
+    pub fn get_layout_id(&self, id: ElementId) -> Option<LayoutId> {
+        self.elements.get(id).map(|e| e.layout_id)
+    }
+
+    pub fn get_bounds(&self, id: ElementId) -> Option<Rect> {
+        self.layouts.get_node_context(self.elements[id].layout_id).copied()
+    }
+
+    pub fn get_root_bounds(&self) -> Rect {
+        self.get_bounds(self.root_id()).unwrap_or(self.viewport())
     }
 
     fn set_bounds(&mut self, id: ElementId, rect: Rect) {
@@ -84,14 +90,30 @@ impl Document {
     }
 
     /// Insert an element as a child of the root. Creates a corresponding taffy node.
-    pub fn insert(&mut self, element: Element) -> ElementId {
-        self.insert_at(element, At::Child(self.elements.root_id()))
+    pub fn insert(&mut self, mut element: Element) -> ElementId {
+        element.layout_id = self.layouts.new_leaf_with_context(element.layout.clone(), self.get_root_bounds()).unwrap();
+        self.layouts.add_child(self.root().layout_id, element.layout_id).unwrap();
+        self.elements.insert(element)
     }
 
     /// Insert an element at the given position. Creates a corresponding taffy node.
     pub fn insert_at(&mut self, mut element: Element, at: At<ElementId>) -> ElementId {
-        let taffy_node = self.layouts.new_leaf_with_context(element.layout.clone(), Rect::ZERO).unwrap();
-        element.layout_id = taffy_node;
+        element.layout_id = self.layouts.new_leaf_with_context(element.layout.clone(), self.get_root_bounds()).unwrap();
+        match at {
+            At::Detached => {
+
+            }
+            At::FirstChild(n) => {
+                self.layouts.insert_child_at_index(self.get_layout_id(n).unwrap(), 0, element.layout_id).unwrap();
+            },
+            At::Child(n) => self.parent(n),
+            At::Before(n) => self.prev_sibling(n),
+            At::After(n) => self.next_sibling(n),
+            At::Child(id) => self.layouts.add_child(self.elements[id].layout_id, layout_id)?,
+            At::Before(id) => self.layouts.add_child(self.elements[id].layout_id, layout_id)?,
+            At::After(id) => self.layouts.insert_after(self.elements[id].layout_id, layout_id)?,
+        }
+        element.layout_id = layout_id;
         self.elements.insert_at(element, at)
     }
 
@@ -106,9 +128,7 @@ impl Document {
             let child = &self.elements[child_id];
             let next_layer_id = if child.is_promoting() {
                 let size = &self.layers[layer_id].size();
-                let next_layer_id = self.layers.insert(Layer::new(size.width, size.height));
-                self.layers.move_to(next_layer_id, At::Child(layer_id));
-                next_layer_id
+                self.layers.insert_at(Layer::new(size.width, size.height), At::Child(layer_id))
             } else {
                 layer_id
             };

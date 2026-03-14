@@ -6,12 +6,10 @@ pub enum At<K> {
     Detached,
 
     /// Insert the node as the first child of the given ID.
-    Prepend(K),
+    FirstChild(K),
     /// Insert the node as the last child of the given ID.
-    Append(K),
-    
-    /// Alias for `Self::Append`.
     Child(K),
+
 
     /// Insert the node as a sibling before the node with the given ID.
     Before(K),

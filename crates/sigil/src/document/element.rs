@@ -1,14 +1,9 @@
 use tree::id;
 use ansi::{Color, Style};
+use crate::document::layout::{Layout, LayoutId};
 use crate::LayerId;
 
 id!(pub struct ElementId);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Direction {
-    Horizontal,
-    Vertical,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ElementKind {
@@ -27,21 +22,16 @@ pub struct Element {
 
 #[allow(non_snake_case)]
 impl Element {
-    pub fn Div(direction: Direction) -> Self {
-        let flex_direction = match direction {
-            Direction::Horizontal => taffy::FlexDirection::Row,
-            Direction::Vertical => taffy::FlexDirection::Column,
-        };
+    pub fn Div() -> Self {
         Self {
             kind: ElementKind::Div,
             style: Style::EMPTY,
             layout: taffy::Style {
-                flex_direction,
+                display: taffy::Display::Flex,
                 size: taffy::Size {
                     width: taffy::Dimension::percent(1.0),
                     height: taffy::Dimension::percent(1.0),
                 },
-                flex_grow: 1.0,
                 ..Default::default()
             },
             layer_id: LayerId::none(),
@@ -53,10 +43,7 @@ impl Element {
         Self {
             kind: ElementKind::Span(content),
             style: Style::new().foreground(Color::Red),
-            layout: taffy::Style {
-                flex_grow: 1.0,
-                ..Default::default()
-            },
+            layout: Layout::default(),
             layer_id: LayerId::none(),
             layout_id: taffy::NodeId::new(0),
         }
@@ -73,6 +60,3 @@ impl Element {
     }
 }
 
-
-pub type Layout = taffy::Style;
-pub type LayoutId = taffy::NodeId;

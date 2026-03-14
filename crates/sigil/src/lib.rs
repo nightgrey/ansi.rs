@@ -37,6 +37,7 @@ pub mod painter;
 pub mod orchestrator;
 mod document;
 mod renderer;
+mod layout;
 
 pub use buffer::*;
 pub use rasterizer::*;

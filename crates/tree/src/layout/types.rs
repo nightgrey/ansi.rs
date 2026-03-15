@@ -1,4 +1,11 @@
-// Re-export and re-name taffy types to adapt to the crate's `LayoutTree` ergonomics.
+// Re-exports of [`taffy`] types, renamed to fit this crate's conventions.
+//
+// | Taffy name   | Re-exported as   |
+// |--------------|------------------|
+// | `Style`      | `Layout`         |
+// | `Layout`     | `Computation` |
+// | `NodeId`     | `LayoutId`       |
+// | `Cache`      | `LayoutCache`    |
 
 pub use taffy::{
     Style as Layout, Cache as LayoutCache, Layout as Computation, NodeId as InternalLayoutId,

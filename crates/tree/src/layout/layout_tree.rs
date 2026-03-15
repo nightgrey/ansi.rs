@@ -2,6 +2,28 @@ use crate::{At, DefaultId, Error, Id, Secondary, Tree};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
 use super::{prelude::*, Bridge, InternalLayoutId, LayoutNode};
+
+/// A tree with integrated CSS layout computation powered by [`taffy`].
+///
+/// `LayoutTree` composes a [`Tree<K, LayoutNode>`](crate::Tree) with a
+/// [`Secondary`] map for optional per-node `Context` values (used by custom
+/// measure functions for leaf sizing).
+///
+/// It dereferences to [`Tree`](crate::Tree) so all standard tree operations
+/// (navigation, iteration, etc.) are available directly.
+///
+/// # Layout modes
+///
+/// After building the tree, call [`compute_layout`](Self::compute_layout) (or
+/// [`compute_layout_with_measure`](Self::compute_layout_with_measure) for leaf
+/// measurement) and then read the results with [`layout`](Self::layout).
+/// Supported display modes: [`Display::Flex`], [`Display::Grid`],
+/// [`Display::Block`], and [`Display::None`].
+///
+/// # Rounding
+///
+/// Layout values are rounded to whole pixels by default. Disable with
+/// [`disable_rounding`](Self::disable_rounding).
 #[derive(Debug, Deref, DerefMut)]
 pub struct LayoutTree<K: Id, Context = ()> {
     #[deref]
@@ -12,10 +34,12 @@ pub struct LayoutTree<K: Id, Context = ()> {
 }
 
 impl<K: Id, Context> LayoutTree<K, Context> {
+    /// Creates a new layout tree with a default capacity of 16 nodes.
     pub fn new() -> Self {
         Self::with_capacity(16)
     }
 
+    /// Creates a new layout tree pre-allocated for `capacity` nodes.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: Tree::with_capacity(capacity),
@@ -24,55 +48,33 @@ impl<K: Id, Context> LayoutTree<K, Context> {
         }
     }
 
-    pub fn get_context(&self, id: K) -> Option<&Context> {
-        self.context.get(id)
-    }
+    // --- Insertion ---------------------------------------------------------
 
-    pub fn get_context_mut(&mut self, id: K) -> Option<&mut Context> {
-        self.context.get_mut(id)
-    }
-
-    pub fn set_context(&mut self, id: K, context: Option<Context>) {
-        match context {
-            Some(ctx) => { self.context.insert(id, ctx); }
-            None => { let _ = self.context.remove(id); }
-        }
-    }
-
-    pub fn get_layout(&self, id: K) -> &Layout {
-        &self.inner[id].layout
-    }
-
-    pub fn get_layout_mut(&mut self, id: K) -> &mut Layout {
-        &mut self.inner[id].layout
-    }
-
-    pub fn get_computation(&self, id: K) -> &Computation {
-        if self.config.use_rounding {
-            &self.inner[id].final_computation
-        } else {
-            &self.inner[id].unrounded_computation
-        }
-    }
-
+    /// Inserts a detached layout node with the given style.
     pub fn insert(&mut self, layout: Layout) -> K {
         self.inner.insert(LayoutNode::new(layout))
     }
 
+    /// Inserts a layout node at the specified position.
     pub fn insert_at(&mut self, layout: Layout, at: At<K>) -> K {
         self.inner.insert_at(LayoutNode::new(layout), at)
     }
 
+    /// Fallible version of [`insert_at`](Self::insert_at).
     pub fn try_insert_at(&mut self, layout: Layout, at: At<K>) -> Result<K, Error<K>> {
         self.inner.try_insert_at(LayoutNode::new(layout), at)
     }
 
+    /// Inserts a detached node with a style and an associated context value.
+    ///
+    /// The context is available during layout via the measure function.
     pub fn insert_with_context(&mut self, layout: Layout, context: Context) -> K {
         let key = self.inner.insert(LayoutNode::new(layout));
         self.context.insert(key, context);
         key
     }
 
+    /// Inserts a node with context at the specified position.
     pub fn insert_with_context_at(
         &mut self,
         layout: Layout,
@@ -92,16 +94,70 @@ impl<K: Id, Context> LayoutTree<K, Context> {
         self.context.insert(key, context);
         Ok(key)
     }
-
     // --- Context access ----------------------------------------------------
 
+    /// Returns a reference to the context associated with the given node.
+    pub fn get_context(&self, id: K) -> Option<&Context> {
+        self.context.get(id)
+    }
 
+    /// Returns a mutable reference to the context associated with the given node.
+    pub fn get_context_mut(&mut self, id: K) -> Option<&mut Context> {
+        self.context.get_mut(id)
+    }
+
+    /// Sets or removes the context for the given node.
+    ///
+    /// Pass `None` to remove the context entirely.
+    pub fn set_context(&mut self, id: K, context: Option<Context>) {
+        match context {
+            Some(ctx) => { self.context.insert(id, ctx); }
+            None => { let _ = self.context.remove(id); }
+        }
+    }
+
+    // --- Style access ------------------------------------------------------
+
+    /// Returns a reference to the layout style of the given node.
+    pub fn get_layout(&self, id: K) -> &Layout {
+        &self.inner[id].layout
+    }
+
+    /// Returns a mutable reference to the layout style of the given node.
+    pub fn get_layout_mut(&mut self, id: K) -> &mut Layout {
+        &mut self.inner[id].layout
+    }
+
+    // --- Layout results ----------------------------------------------------
+
+    /// Returns the computed layout for the given node.
+    ///
+    /// If rounding is enabled (the default), returns the rounded layout;
+    /// otherwise returns the raw floating-point result.
+    pub fn get_computation(&self, id: K) -> &Computation {
+        if self.config.use_rounding {
+            &self.inner[id].final_computation
+        } else {
+            &self.inner[id].unrounded_computation
+        }
+    }
 
     // --- Layout computation ------------------------------------------------
+
+    /// Computes the layout for the subtree rooted at `root`.
+    ///
+    /// Leaf nodes without children are sized to zero. Use
+    /// [`compute_layout_with_measure`](Self::compute_layout_with_measure) to
+    /// provide a custom measure function for leaf sizing.
     pub fn compute_layout(&mut self, root: K, available_space: Size<AvailableSpace>) {
         self.compute_layout_with_measure(root, available_space, |_, _, _, _, _| Size::ZERO);
     }
 
+    /// Computes layout with a custom measure function for leaf nodes.
+    ///
+    /// The measure function receives the known dimensions, available space,
+    /// the node's key, its optional context, and its style, and should return
+    /// the intrinsic size of the leaf.
     pub fn compute_layout_with_measure<MeasureFunction>(
         &mut self,
         root: K,
@@ -130,6 +186,7 @@ impl<K: Id, Context> LayoutTree<K, Context> {
 
     // --- Debug -------------------------------------------------------------
 
+    /// Prints a debug representation of the layout tree to stdout via [`taffy`].
     pub fn print_tree(&mut self, root: K) {
         let root_id = root.into_layout();
         let mut view = LayoutView {

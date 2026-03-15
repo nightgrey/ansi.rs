@@ -3,7 +3,7 @@ use derive_more::{Deref, DerefMut};
 use std::iter::FusedIterator;
 use super::NodeEdge;
 
-/// Base iterator for tree traversal.
+/// Single-cursor base iterator used internally by unidirectional traversals.
 #[derive(Clone, Debug)]
 struct Iter<'a, K: 'a + Id, V: 'a> {
     pub(super) tree: &'a Tree<K, V>,
@@ -16,7 +16,7 @@ impl<'a, K: 'a + Id, V: 'a> Iter<'a, K, V> {
     }
 }
 
-/// Base iterator for tree traversal.
+/// Dual-cursor base iterator used internally by double-ended traversals.
 #[derive(Clone, Debug)]
 struct DoubleEndedIter<'a, K: 'a + Id, V: 'a> {
     pub(super) tree: &'a Tree<K, V>,
@@ -63,7 +63,11 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIter<'a, K, V> {
 
 
 
-/// An iterator over the ancestors of a node in a [`Tree`].
+/// Iterates upward from a node through its ancestors toward the root.
+///
+/// Does **not** include the starting node itself — only its parent, grandparent, etc.
+///
+/// Created by [`Tree::ancestors`](crate::Tree::ancestors).
 #[derive(Clone, Debug)]
 pub struct Ancestors<'a, K: 'a + Id, V: 'a>(Iter<'a, K, V>);
 
@@ -92,7 +96,12 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for Ancestors<'a, K, V> {
 
 impl<'a, K: 'a + Id, V: 'a> FusedIterator for Ancestors<'a, K, V> {}
 
-/// An iterator over the predecessors of a node in a [`Tree`].
+/// Iterates over a node, then its preceding siblings, then up through ancestors.
+///
+/// This is the traversal order you would encounter when walking backward
+/// through a flattened, pre-order representation of the tree.
+///
+/// Created by [`Tree::predecessors`](crate::Tree::predecessors).
 #[derive(Clone, Debug)]
 pub struct Predecessors<'a, K: 'a + Id, V: 'a>(Iter<'a, K, V>);
 
@@ -121,7 +130,12 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for Predecessors<'a, K, V> {
 
 impl<'a, K: 'a + Id, V: 'a> FusedIterator for Predecessors<'a, K, V> {}
 
-/// An iterator over the children of a node in a [`Tree`].
+/// A double-ended iterator over the direct children of a node.
+///
+/// Iterates from first child to last child (`next`), or last to first
+/// (`next_back`).
+///
+/// Created by [`Tree::children`](crate::Tree::children).
 #[derive(Clone, Debug)]
 pub struct Children<'a, K: 'a + Id, V: 'a>(DoubleEndedIter<'a, K, V>);
 
@@ -161,7 +175,12 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for Children<'a, K, V> {
     }
 }
 
-/// An iterator over the preceding siblings of a node in a [`Tree`].
+/// A double-ended iterator over a node and its preceding (older) siblings.
+///
+/// Starts at the given node and walks backward toward the first child.
+/// `next_back` walks forward from the first child.
+///
+/// Created by [`Tree::preceding_siblings`](crate::Tree::preceding_siblings).
 #[derive(Clone, Debug)]
 pub struct PrecedingSiblings<'a, K: 'a + Id, V: 'a>(DoubleEndedIter<'a, K, V>);
 
@@ -192,7 +211,12 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for PrecedingSiblings<'a, K, V> 
     }
 }
 
-/// An iterator over the following siblings of a node in a [`Tree`].
+/// A double-ended iterator over a node and its following (younger) siblings.
+///
+/// Starts at the given node and walks forward toward the last child.
+/// `next_back` walks backward from the last child.
+///
+/// Created by [`Tree::following_siblings`](crate::Tree::following_siblings).
 #[derive(Clone, Debug)]
 pub struct FollowingSiblings<'a, K: 'a + Id, V: 'a>(DoubleEndedIter<'a, K, V>);
 
@@ -223,7 +247,16 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for FollowingSiblings<'a, K, V> 
     }
 }
 
-/// An iterator for traversing a [`Tree`].
+/// Pre-order tree traversal yielding [`NodeEdge`] events.
+///
+/// For each node, yields [`NodeEdge::Start`] before visiting its children and
+/// [`NodeEdge::End`] after all descendants have been visited.
+///
+/// ```text
+/// Start(A) → Start(B) → End(B) → Start(C) → End(C) → End(A)
+/// ```
+///
+/// Created by [`Tree::traverse`](crate::Tree::traverse).
 #[derive(Clone, Debug)]
 pub struct Traverse<'a, K: 'a + Id, V: 'a> {
     tree: &'a Tree<K, V>,
@@ -260,7 +293,7 @@ impl<K: Id, V> Iterator for Traverse<'_, K, V> {
                 match node.next_sibling().maybe() {
                     Some(next_sibling) => Some(NodeEdge::Start(next_sibling)),
                     // `node.parent()` here can only be `None` if the tree has
-                    // been modified during iteration, but silently stoping
+                    // been modified during iteration, but silently stopping
                     // iteration seems a more sensible behavior than panicking.
                     None => node.parent().maybe().map(NodeEdge::End),
                 }
@@ -273,7 +306,12 @@ impl<K: Id, V> Iterator for Traverse<'_, K, V> {
 
 impl<K: Id, V> FusedIterator for Traverse<'_, K, V> {}
 
-/// An iterator for traversing a [`Tree`] in reverse.
+/// Reverse (post-order) tree traversal yielding [`NodeEdge`] events.
+///
+/// The mirror image of [`Traverse`]: visits nodes from last descendant back
+/// to the root.
+///
+/// Created by [`Tree::reverse_traverse`](crate::Tree::reverse_traverse).
 #[derive(Clone, Debug)]
 pub struct ReverseTraverse<'a, K: 'a + Id, V: 'a> {
     tree: &'a Tree<K, V>,
@@ -316,6 +354,13 @@ impl<K: Id, V> Iterator for ReverseTraverse<'_, K, V> {
 
 impl<K: Id, V> FusedIterator for ReverseTraverse<'_, K, V> {}
 
+/// Iterates over a node and all its descendants in pre-order (depth-first).
+///
+/// Unlike [`Traverse`], this iterator yields only keys (`K`) rather than
+/// [`NodeEdge`] events — it skips the `End` events and returns just the
+/// `Start` keys.
+///
+/// Created by [`Tree::descendants`](crate::Tree::descendants).
 #[derive(Clone, Deref, DerefMut)]
 pub struct Descendants<'a, K: 'a + Id, V: 'a>(Traverse<'a, K, V>);
 

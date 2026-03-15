@@ -4,6 +4,27 @@ use derive_more::{Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
+/// An arena-allocated tree with O(1) node access and linked-list child ordering.
+///
+/// Nodes are stored in a [`slotmap::SlotMap`] keyed by `K` (any type
+/// implementing [`Id`]). Each node maintains parent, first/last child,
+/// and prev/next sibling pointers so that structural queries and mutations
+/// are constant-time.
+///
+/// # Insertion
+///
+/// Nodes can be inserted as detached roots, as children (first or last),
+/// or as siblings relative to an existing node — see [`At`] for details.
+///
+/// # Removal
+///
+/// [`Tree::remove`] removes a node **and all of its descendants**.
+/// [`Tree::detach`] unlinks a node from its parent without removing it.
+///
+/// # Iteration
+///
+/// Rich iterators are available for children, ancestors, descendants,
+/// siblings, and full pre-/post-order traversal.
 #[derive(Debug, Index, IndexMut, IntoIterator)]
 #[into_iterator(owned, ref, ref_mut)]
 #[repr(transparent)]
@@ -12,18 +33,23 @@ pub struct Tree<K: Id, V> {
 }
 
 impl<K: Id, V> Tree<K, V> {
+    /// Creates a new tree with a default capacity of 16 nodes.
     pub fn new() -> Self {
        Self::with_capacity(16)
     }
 
+    /// Creates a new tree pre-allocated for `capacity` nodes.
     pub fn with_capacity(capacity: usize) -> Self {
         Self { inner: slotmap::SlotMap::with_capacity_and_key(capacity) }
     }
 
+    /// Returns `true` if a node with the given key exists in the tree.
     pub fn contains(&self, key: K) -> bool {
         self.inner.contains_key(key)
     }
 
+    /// Resolves an [`At`] position relative to `key`, returning the
+    /// neighbouring node id if one exists.
     pub fn get_at(&self, key: K, at: At<K>) -> Option<K> {
         match at {
             At::Detached => Some(key),
@@ -34,18 +60,22 @@ impl<K: Id, V> Tree<K, V> {
         }
     }
 
+    /// Returns a reference to the node with the given key, or `None`.
     pub fn get(&self, key: K) -> Option<&Node<K, V>> {
         self.inner.get(key)
     }
 
+    /// Returns a mutable reference to the node with the given key, or `None`.
     pub fn get_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
         self.inner.get_mut(key)
     }
 
+    /// Returns a [`NodeRef`] for the given key, or `None` if the node does not exist.
     pub fn get_ref(&self, key: K) -> Option<NodeRef<K, V>> {
         self.inner.get(key).map(|_| NodeRef::new(key, self))
     }
 
+    /// Returns a [`NodeRefMut`] for the given key, or `None` if the node does not exist.
     pub fn get_ref_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
         if self.inner.get(key).is_none() {
             return None;
@@ -53,14 +83,22 @@ impl<K: Id, V> Tree<K, V> {
         Some(NodeRefMut::new(key, self))
     }
 
+    /// Inserts a new detached node and returns its key.
     pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))
     }
 
+    /// Inserts a node at the specified position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the position references a missing node or would create a cycle.
+    /// Use [`try_insert_at`](Self::try_insert_at) for a fallible version.
     pub fn insert_at(&mut self, value: V, at: At<K>) -> K {
         self.try_insert_at(value, at).unwrap()
     }
 
+    /// Inserts a node at the specified position, returning an error on failure.
     pub fn try_insert_at(&mut self, value: V, at: At<K>) -> Result<K, Error<K>> {
         let id = self.insert(value);
         if let Err(e) = match at {
@@ -118,6 +156,12 @@ impl<K: Id, V> Tree<K, V> {
         Ok(id)
     }
 
+    /// Inserts a node at `at` and reparents the given `children` under it.
+    ///
+    /// # Panics
+    ///
+    /// Panics on missing nodes or cycles. See
+    /// [`try_insert_at_with_children`](Self::try_insert_at_with_children).
     pub fn insert_at_with_children(
         &mut self,
         value: V,
@@ -127,6 +171,7 @@ impl<K: Id, V> Tree<K, V> {
         self.try_insert_at_with_children(value, children, at).unwrap()
     }
 
+    /// Fallible version of [`insert_at_with_children`](Self::insert_at_with_children).
     pub fn try_insert_at_with_children(
         &mut self,
         value: V,
@@ -142,10 +187,18 @@ impl<K: Id, V> Tree<K, V> {
 
     // --- Mutation ----------------------------------------------------------
 
+    /// Moves an existing node to a new position in the tree.
+    ///
+    /// The node is first detached from its current parent (if any), then
+    /// re-linked at `to`. Panics on error — see [`try_move_to`](Self::try_move_to).
     pub fn move_to(&mut self, id: K, to: At<K>) {
         self.try_move_to(id, to).unwrap()
     }
 
+    /// Fallible version of [`move_to`](Self::move_to).
+    ///
+    /// Returns an error if the source or target node is missing, the target
+    /// sibling has no parent, or the move would create a cycle.
     pub fn try_move_to(&mut self, id: K, to: At<K>) -> Result<(), Error<K>> {
         self.ensure_exists(id)?;
 
@@ -200,10 +253,16 @@ impl<K: Id, V> Tree<K, V> {
         }
     }
 
+    /// Detaches a node from its parent, making it a root.
+    ///
+    /// The node and its subtree remain in the tree but are no longer reachable
+    /// from the former parent's child list. Panics if the node is missing —
+    /// see [`try_detach`](Self::try_detach).
     pub fn detach(&mut self, id: K) {
         self.try_detach(id).unwrap()
     }
 
+    /// Fallible version of [`detach`](Self::detach).
     pub fn try_detach(&mut self, id: K) -> Result<(), Error<K>> {
         self.ensure_exists(id)?;
 
@@ -253,7 +312,11 @@ impl<K: Id, V> Tree<K, V> {
         Ok(())
     }
 
-    /// Remove node and its descendants.
+    /// Removes a node **and all of its descendants** from the tree.
+    ///
+    /// Returns the inner value of the removed node, or `None` if it did not
+    /// exist. The node is first detached from its parent so sibling links are
+    /// kept consistent.
     pub fn remove(&mut self, id: K) -> Option<V> {
         if !self.contains(id) {
             return None;
@@ -275,56 +338,98 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.remove(id).map(|n| n.inner)
     }
 
-    // --- read-only helpers -------------------------------------------------
+    // --- Navigation --------------------------------------------------------
 
+    /// Returns the parent of the given node, or `None` if it is a root.
     pub fn parent(&self, id: K) -> Option<K> {
         self.inner.get(id)?.parent().maybe()
     }
 
+    /// Returns the first child of the given node, or `None` if it is a leaf.
     pub fn first_child(&self, id: K) -> Option<K> {
         self.inner.get(id)?.first_child().maybe()
     }
 
+    /// Returns the last child of the given node, or `None` if it is a leaf.
     pub fn last_child(&self, id: K) -> Option<K> {
         self.inner.get(id)?.last_child().maybe()
     }
 
+    /// Returns the next sibling, or `None` if this is the last child.
     pub fn next_sibling(&self, id: K) -> Option<K> {
         self.inner.get(id)?.next_sibling().maybe()
     }
 
+    /// Returns the previous sibling, or `None` if this is the first child.
     pub fn prev_sibling(&self, id: K) -> Option<K> {
         self.inner.get(id)?.previous_sibling().maybe()
     }
 
+    /// Returns `true` if the node has no children.
     pub fn is_leaf(&self, id: K) -> bool {
         self.inner.get(id).map_or(true, |n| n.first_child().is_none())
     }
 
+    /// Returns `true` if the node has no parent.
     pub fn is_root(&self, id: K) -> bool {
         self.inner.get(id).map_or(false, |n| n.parent().is_none())
     }
 
+    // --- Capacity & bulk operations ----------------------------------------
+
+    /// Returns the number of nodes in the tree.
     pub fn len(&self) -> usize { self.inner.len() }
+
+    /// Returns `true` if the tree contains no nodes.
     pub fn is_empty(&self) -> bool { self.inner.is_empty() }
 
+    // --- Iteration ---------------------------------------------------------
+
+    /// Iterates over all `(key, node)` pairs in insertion order.
     pub fn iter(&self) -> Iter<'_, K, V> { self.inner.iter() }
+
+    /// Mutably iterates over all `(key, node)` pairs.
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V> { self.inner.iter_mut() }
+
+    /// Iterates over all keys in insertion order.
     pub fn keys(&self) -> Keys<'_, K, V> { self.inner.keys() }
+
+    /// Iterates over all nodes (values) in insertion order.
     pub fn nodes(&self) -> Nodes<'_, K, V> { self.inner.values() }
+
+    /// Mutably iterates over all nodes.
     pub fn nodes_mut(&mut self) -> NodesMut<'_, K, V> { self.inner.values_mut() }
+
+    /// Returns a double-ended iterator over the direct children of a node.
     pub fn children(&self, id: K) -> Children<'_, K, V> { Children::new(self, id) }
+
+    /// Returns an iterator over all descendants in pre-order (depth-first).
     pub fn descendants(&self, id: K) -> Descendants<'_, K, V> { Descendants::new(self, id) }
+
+    /// Returns an iterator that walks upward through the node's ancestors.
     pub fn ancestors(&self, id: K) -> Ancestors<'_, K, V> { Ancestors::new(self, id) }
+
+    /// Returns an iterator over this node, its preceding siblings, then ancestors.
     pub fn predecessors(&self, id: K) -> Predecessors<'_, K, V> { Predecessors::new(self, id) }
+
+    /// Returns a double-ended iterator over the node and its following siblings.
     pub fn following_siblings(&self, id: K) -> FollowingSiblings<'_, K, V> { FollowingSiblings::new(self, id) }
+
+    /// Returns a double-ended iterator over the node and its preceding siblings.
     pub fn preceding_siblings(&self, id: K) -> PrecedingSiblings<'_, K, V> { PrecedingSiblings::new(self, id) }
+
+    /// Returns a pre-order traversal iterator yielding [`NodeEdge`] events.
     pub fn traverse(&self, id: K) -> Traverse<'_, K, V> { Traverse::new(self, id) }
+
+    /// Returns a reverse (post-order) traversal iterator yielding [`NodeEdge`] events.
     pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, id) }
+
+    /// Removes all nodes from the tree, yielding them as `(key, node)` pairs.
     pub fn drain(&mut self) -> Drain<K, V> {
         self.inner.drain()
     }
 
+    /// Removes all nodes from the tree.
     pub fn clear(&mut self) {
         self.inner.clear();
     }

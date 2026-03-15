@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
+use tree::At;
 use crate::{Element, ElementId, ElementKind, Layer, LayerId, Renderer, Document};
 use crate::painter::Painter;
 
@@ -37,20 +38,18 @@ impl Orchestrator {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let element = &self.document.get(id).unwrap();
-        let kind = element.kind.clone();
-        let style = element.style;
-        let layer_id = element.layer_id;
         let mut bounds = self.get_bounds(id).copied();
 
         {
-            let layer = &mut self.document.layers[layer_id];
+            let kind = &self.document[id].kind.clone();
+            let style = self.document[id].style;
+            let layer_id = self.document[id].layer_id;
 
-            let mut painter = Painter::new(layer, &mut self.document.arena);
+            let mut painter = Painter::new(&mut self.document.layers[layer_id], &mut self.document.arena);
             let bounds = bounds.unwrap_or_else(|| painter.clip());
              painter.push(bounds);
 
-            match &kind {
+            match kind {
                 ElementKind::Span(content) => {
                     if !style.is_empty() {
                         painter.fill(painter.clip(), style);
@@ -79,12 +78,12 @@ impl Orchestrator {
     /// Insert an element as a child of the root element.
     pub fn insert(&mut self, element: Element) -> ElementId {
         let root = self.document.root_id();
-        self.document.insert_at(element, tree::At::Child(root))
+        self.document.insert_at(element, At::Child(root))
     }
 
     /// Insert an element as a child of `parent`.
     pub fn insert_at(&mut self, element: Element, parent: ElementId) -> ElementId {
-        self.document.insert_at(element, tree::At::Child(parent))
+        self.document.insert_at(element, At::Child(parent))
     }
 
     pub fn raster(&mut self) -> std::io::Result<()> {

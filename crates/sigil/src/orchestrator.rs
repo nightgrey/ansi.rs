@@ -21,7 +21,7 @@ impl Orchestrator {
     }
 
     fn layer(&mut self) {
-        self.document.compute_layers(self.document.root_id(), self.document.root_layer_id());
+        self.document.compute_layers(self.document.root_id(), self.root_layer_id());
     }
 
     fn layout(&mut self) {
@@ -43,7 +43,7 @@ impl Orchestrator {
         {
             let kind = &self.document[id].kind.clone();
             let style = self.document[id].style;
-            let layer_id = self.document[id].layer_id;
+            let layer_id = self.document.get_layer_id(id).unwrap();
 
             let mut painter = Painter::new(&mut self.document.layers[layer_id], &mut self.document.arena);
             let bounds = bounds.unwrap_or_else(|| painter.clip());
@@ -64,15 +64,14 @@ impl Orchestrator {
             }
         }
 
-        for child in self.document.elements.children(id).collect::<Vec<_>>() {
+        for child in self.document.children(id).collect::<Vec<_>>() {
             self.paint_element(child);
         }
     }
 
     fn composite(&mut self) {
         self.renderer.front.clear();
-        let layer_id = self.document.layers.root_id();
-        Renderer::composite(&mut self.renderer.front, &self.document.layers, layer_id);
+        Renderer::composite(&mut self.renderer.front, &self.document, self.document.root_id());
     }
 
     /// Insert an element as a child of the root element.

@@ -13,7 +13,7 @@ use derive_more::{Deref, DerefMut, Index, IndexMut};
 #[derive(Debug, Deref, DerefMut, Index, IndexMut)]
 #[repr(transparent)]
 pub struct Secondary<K: Id, V> {
-    inner: slotmap::SecondaryMap<K, V>,
+   inner: slotmap::SecondaryMap<K, V>,
 }
 
 impl<K: Id, V> Secondary<K, V> {
@@ -49,8 +49,6 @@ impl<K: Id, V> Secondary<K, V> {
         self.inner.insert(id, value)
     }
 
-    // --- Mutation ----------------------------------------------------------
-
     /// Removes the entry at `id`, returning the value.
     ///
     /// Returns [`Error::Missing`] if no entry exists for the given id.
@@ -58,3 +56,10 @@ impl<K: Id, V> Secondary<K, V> {
         self.inner.remove(id).map_or_else(|| Err(Error::Missing(id)), Ok)
     }
 }
+
+pub type Iter<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Iter<'a, K, V>;
+pub type IterMut<'a, K: Id + 'a, V: 'a> = slotmap::secondary::IterMut<'a, K, V>;
+pub type Drain<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Drain<'a, K, V>;
+pub type Keys<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Keys<'a, K, V>;
+pub type Values<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Values<'a, K, V>;
+pub type ValuesMut<'a, K: Id + 'a, V: 'a> = slotmap::secondary::ValuesMut<'a, K, V>;

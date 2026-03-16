@@ -1,41 +1,45 @@
 use std::ops::{Index, IndexMut};
 use derive_more::{Deref, DerefMut};
-use crate::{Element, ElementId, GraphemeArena, Layer, LayerId};
-use tree::{RootTree, At, NodeRef, NodeRefMut, Node, layout::prelude::*, id};
-use geometry::Rect;
-use grid::{Spatial, Within};
+use crate::{Element, ElementId, GraphemeArena, Layer};
+use tree::{RootTree,  Node, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map};
+use geometry::{Rect, Size};
+use grid::{Spatial};
 
 pub type ElementNode = Node<ElementId, Element>;
-pub type LayerNode = Node<LayerId, Layer>;
 
-pub type Elements = RootTree<ElementId, Element>;
-pub type Layers = RootTree<LayerId, Layer>;
-pub type Layouts = LayoutTree<LayoutId, Rect>;
+id!(pub struct LayerId);
 #[derive(Debug, Deref, DerefMut)]
 pub struct Document {
     #[deref]
     #[deref_mut]
-    pub elements: Elements,
-    pub layers: Layers,
-    pub layouts: Layouts,
+    pub elements: RootTree<ElementId, Element>,
+    pub layouts:  Secondary<ElementId, LayoutNode>,
+    pub bounds:   Secondary<ElementId, Rect>,
+    pub layer_ids: Secondary<ElementId, LayerId>,
+    pub layers:   Map<LayerId, Layer>,
     pub arena: GraphemeArena,
 }
 
 impl Document {
     pub fn new(width: usize, height: usize) -> Self {
-        let layers = RootTree::new(Layer::new(width, height));
-        let mut elements = RootTree::new(Element::Div().on(layers.root_id()));
-        let mut layouts = LayoutTree::new();
+        let mut elements = RootTree::new(Element::Div());
+        let mut layouts = Secondary::new();
+        let mut bounds = Secondary::new();
 
-        let root_element = elements.root_mut();
+        let mut layers = Map::new();
+        let id = layers.insert(Layer::new(width, height));
+        let mut layer_ids = Secondary::new();
+        layer_ids.insert(elements.root_id(), id);
 
-        root_element.layout_id = layouts.insert_with_context(root_element.layout.clone(), Rect::bounds(0, 0, width, height));
-
-        Self { elements, layers, arena: GraphemeArena::new(), layouts }
+        Self { elements, layouts, layer_ids, layers, bounds, arena: GraphemeArena::new() }
     }
     
     pub fn root_id(&self) -> ElementId {
         self.elements.root_id()
+    }
+
+    pub fn root_layer_id(&self) -> LayerId {
+        *self.layer_ids.get(self.root_id()).unwrap()
     }
     
     pub fn root(&self) -> &ElementNode {
@@ -45,54 +49,37 @@ impl Document {
     pub fn root_mut(&mut self) -> &mut ElementNode {
         self.elements.root_mut()
     }
-    
-    pub fn root_layer_id(&self) -> LayerId {
-        self.layers.root_id()
-    }
-    
-    pub fn root_layer(&self) -> &LayerNode {
-        self.layers.root()
-    }
-    
-    pub fn root_layer_mut(&mut self) -> &mut LayerNode {
-        self.layers.root_mut()
+
+    pub fn viewport(&self) -> Size {
+        self.get_layer(self.root_id()).unwrap().size()
     }
 
-    pub fn viewport(&self) -> Rect {
-        let root = self.layers.root();
-        Rect::bounds(0, 0, root.width, root.height)
-    }
-    
     pub fn get(&self, id: ElementId) -> Option<&ElementNode> {
         self.elements.get(id)
     }
 
-    pub fn get_layer(&self, id: LayerId) -> Option<&LayerNode> {
-        self.layers.get(id)
+    pub fn get_layer_id(&self, id: ElementId) -> Option<LayerId> {
+        self.layer_ids.get(id).copied()
+    }
+
+    pub fn get_layer(&self, id: ElementId) -> Option<&Layer> {
+        self.layer_ids.get(id).map(|&id|self.layers.get(id)).flatten()
+    }
+
+    pub fn get_layer_mut(&mut self, id: ElementId) -> Option<&mut Layer> {
+        self.layer_ids.get(id).map(|&id|self.layers.get_mut(id)).flatten()
+    }
+
+    pub fn set_layer_id(&mut self, id: ElementId, layer_id: LayerId) {
+        self.layer_ids.insert(id, layer_id);
     }
 
     pub fn get_bounds(&self, id: ElementId) -> Option<&Rect> {
-        self.layouts.get_context(self.elements[id].layout_id)
+        self.bounds.get(id)
     }
 
-    pub fn get_root_bounds(&self) -> Rect {
-        self.get_bounds(self.root_id()).copied().unwrap_or(self.viewport())
-    }
-
-    fn set_bounds(&mut self, id: ElementId, rect: Rect) {
-        self.layouts.set_context(self.elements[id].layout_id, Some(rect));
-    }
-
-    /// Insert an element as a child of the root. Creates a corresponding taffy node.
-    pub fn insert(&mut self, mut element: Element) -> ElementId {
-        element.layout_id = self.layouts.insert_with_context(element.layout.clone(), self.get_root_bounds());
-        self.elements.insert(element)
-    }
-
-    /// Insert an element at the given position. Creates a corresponding taffy node.
-    pub fn insert_at(&mut self, mut element: Element, at: At<ElementId>) -> ElementId {
-        element.layout_id = self.layouts.insert_with_context_at(element.layout.clone(), self.get_root_bounds(), at.map(|id| self[id].layout_id));
-        self.elements.insert_at(element, at)
+    pub fn set_bounds(&mut self, id: ElementId, rect: Rect) {
+        self.bounds.insert(id, rect);
     }
 
     pub fn compute_layers(
@@ -100,13 +87,20 @@ impl Document {
         id: ElementId,
         layer_id: LayerId,
     ) {
-        self.elements[id].layer_id = layer_id;
+        let layer_id = self.get_layer_id(id).unwrap_or(layer_id);
 
         for child_id in self.elements.children(id).collect::<Vec<_>>() {
             let child = &self.elements[child_id];
             let next_layer_id = if child.is_promoting() {
-                let size = &self.layers[layer_id].size();
-                self.layers.insert_at(Layer::new(size.width, size.height), At::Child(layer_id))
+                match self.get_layer_id(child_id) {
+                    Some(layer_id) => layer_id,
+                    None => {
+                        let size = self.layers.get(layer_id).unwrap().size();
+                        let layer_id = self.layers.insert(Layer::new(size.width, size.height));
+                        self.set_layer_id(child_id, layer_id);
+                        layer_id
+                    }
+                }
             } else {
                 layer_id
             };
@@ -115,72 +109,65 @@ impl Document {
         }
     }
 
-    /// Sync the element tree into taffy, compute layout, and read back results.
     pub fn compute_layout(&mut self) {
         let viewport = self.viewport();
         let root_id = self.elements.root_id();
 
-        // Sync element tree → taffy tree
-        self.layout_element(root_id);
-
         // Compute layout
-        let layout_id = self.elements[root_id].layout_id;
-        let available = taffy::Size {
-            width: taffy::AvailableSpace::Definite(viewport.width() as f32),
-            height: taffy::AvailableSpace::Definite(viewport.height() as f32),
-        };
-        self.layouts.compute_layout(layout_id, available);
+        LayoutTree::compute_layout(self, root_id, LayoutSize {
+            width: AvailableSpace::Definite(viewport.width as f32),
+            height: AvailableSpace::Definite(viewport.height as f32),
+        });
 
-        self.layout_bounds(root_id, 0.0, 0.0);
+        self.compute_bounds(root_id, 0.0, 0.0);
     }
 
-    fn layout_element(&mut self, id: ElementId) {
-        let element = &self.elements[id];
-
-        // Update or verify taffy node style
-        self.layouts[element.layout_id].layout = element.layout.clone();
-
-        // Collect children and sync recursively
-        let children: Vec<_> = self.elements.children(id).collect();
-        for &child_id in &children {
-            self.layout_element(child_id);
-        }
-
-        // Set taffy children
-        let taffy_children: Vec<_> = children.iter().map(|&c| self.elements[c].layout_id).collect();
-        self.layouts.replace_children(self.elements[id].layout_id, &taffy_children);
-    }
-
-    fn layout_bounds(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
-        let taffy_layout = self.layouts.get_computation(self.elements[id].layout_id);
-        let x = offset_x + taffy_layout.location.x;
-        let y = offset_y + taffy_layout.location.y;
-        let w = taffy_layout.size.width;
-        let h = taffy_layout.size.height;
+    fn compute_bounds(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
+        let computation = self.layouts[id].final_computation;
+        let x = offset_x + computation.location.x;
+        let y = offset_y + computation.location.y;
+        let w = computation.size.width;
+        let h = computation.size.height;
 
         self.set_bounds(id, Rect::bounds(x as usize, y as usize, w as usize, h as usize));
 
         for child_id in self.elements.children(id).collect::<Vec<_>>() {
-            self.layout_bounds(child_id, x, y);
+            self.compute_bounds(child_id, x, y);
         }
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.layers.root_mut().resize(width, height);
-        let layout_id = self.elements.root().layout_id;
-        self.layouts.set_context(layout_id, Some(Rect::bounds(0, 0, width, height)));
+        let root_id = self.root_id();
+        let layer = self.get_layer_mut(root_id).unwrap();
+        layer.resize(width, height);
+        self.set_bounds(root_id, Rect::bounds(0, 0, width, height));
     }
 
     pub fn clear(&mut self) {
         self.elements.clear();
-        self.layers.clear();
+        self.layer_ids.clear();
         self.arena.clear();
         // Re-sync: clear taffy and re-add root node
         self.layouts.clear();
 
         let viewport = self.viewport();
-        let root = self.elements.root_mut();
-        root.layout_id = self.layouts.insert_with_context(root.layout.clone(), viewport);
+        self.set_bounds(self.root_id(), Rect::bounds(0, 0, viewport.width, viewport.height));
+    }
+}
+
+
+impl LayoutTree<ElementId, Element, Rect> for Document {
+    fn as_context<MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, ElementId, Option<&mut Rect>, &Layout) -> LayoutSize<f32>>(&mut self, measure: MeasureFunction) -> LayoutContext<'_, ElementId, Element, Rect, MeasureFunction> {
+        LayoutContext {
+            tree: &mut self.elements,
+            layouts: &mut self.layouts,
+            contexts: &mut self.bounds,
+            measure_function: measure,
+        }
+    }
+
+    fn use_rounding(&self) -> bool {
+        true
     }
 }
 
@@ -199,7 +186,7 @@ impl IndexMut<ElementId> for Document {
 }
 
 impl Index<LayerId> for Document {
-    type Output = LayerNode;
+    type Output = Layer;
 
     fn index(&self, index: LayerId) -> &Self::Output {
         &self.layers[index]

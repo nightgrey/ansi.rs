@@ -80,6 +80,14 @@ impl<K: Id, V: PartialEq> PartialEq<V> for Node<K, V> {
 }
 
 
+impl<K: Id, V: PartialEq> PartialEq<&V> for Node<K, V> {
+    fn eq(&self, other: &&V) -> bool {
+        &&self.inner == other
+    }
+}
+
+
+
 /// An immutable reference to a node within a [`Tree`].
 ///
 /// Bundles the node's [`Id`] together with a shared reference to the tree,

@@ -9,9 +9,9 @@ use super::prelude::*;
 pub struct LayoutNode {
     /// The CSS style properties used as input to layout computation.
     pub layout: Layout,
-    pub(super) cache: LayoutCache,
-    pub(super) unrounded_computation: Computation,
-    pub(super) final_computation: Computation,
+    pub(crate) cache: LayoutCache,
+    pub(crate) unrounded_computation: Computation,
+    pub final_computation: Computation,
 }
 
 impl LayoutNode {

@@ -10,7 +10,7 @@
 pub use taffy::{
     Style as Layout, Cache as LayoutCache, Layout as Computation, NodeId as InternalLayoutId,
     LayoutInput, LayoutOutput, RunMode,
-    geometry::{Line, Rect, Size},
+    geometry::{Line as LayoutLine, Rect as LayoutRect, Size as LayoutSize},
     style::{
         AlignContent, AlignItems, AlignSelf, AvailableSpace, BoxSizing, CompactLength, Dimension, Display,
         JustifyContent, JustifyItems, JustifySelf, LengthPercentage, LengthPercentageAuto, Position,

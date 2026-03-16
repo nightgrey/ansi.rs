@@ -1,4 +1,5 @@
-use crate::{Buffer, GraphemeArena, LayerId, Layers, Rasterizer};
+use tree::Map;
+use crate::{Buffer, Document, ElementId, GraphemeArena, Layer, LayerId, Rasterizer};
 
 #[derive(Debug)]
 pub struct Renderer {
@@ -25,8 +26,8 @@ impl Renderer {
     }
 
     /// Composite layers into a target buffer, recursively walking children sorted by z_index.
-    pub(crate) fn composite(buffer: &mut Buffer, layers: &Layers, id: LayerId) {
-        let layer = &layers[id];
+    pub(crate) fn composite(buffer: &mut Buffer, document: &Document, id: ElementId) {
+        let layer = &document.layers[document.get_layer_id(id).unwrap()];
         for row in 0..layer.height {
             let front_row = layer.position.row + row;
             if front_row >= buffer.height {
@@ -46,11 +47,11 @@ impl Renderer {
             }
         }
 
-        let mut children: Vec<_> = layers.children(id).collect();
-        children.sort_by_key(|child| layers[*child].z_index);
+        let mut children: Vec<_> = document.children(id).collect();
+        children.sort_by_key(|&child| document.get_layer(child).unwrap().z_index);
 
         for child in children {
-            Self::composite(buffer, layers, child);
+            Self::composite(buffer, document, child);
         }
     }
 

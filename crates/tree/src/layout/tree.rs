@@ -29,7 +29,7 @@ pub struct LayoutTree<K: Id, Context = ()> {
     #[deref]
     #[deref_mut]
     inner: Tree<K, LayoutNode>,
-    context: Secondary<K, Context>,
+    pub context: Secondary<K, Context>,
     config: LayoutConfig,
 }
 
@@ -116,6 +116,10 @@ impl<K: Id, Context> LayoutTree<K, Context> {
         }
     }
 
+    pub fn contains_context(&self, id: K) -> bool {
+        self.context.contains(id)
+    }
+
     // --- Style access ------------------------------------------------------
 
     /// Returns a reference to the layout style of the given node.
@@ -149,8 +153,8 @@ impl<K: Id, Context> LayoutTree<K, Context> {
     /// Leaf nodes without children are sized to zero. Use
     /// [`compute_layout_with_measure`](Self::compute_layout_with_measure) to
     /// provide a custom measure function for leaf sizing.
-    pub fn compute_layout(&mut self, root: K, available_space: Size<AvailableSpace>) {
-        self.compute_layout_with_measure(root, available_space, |_, _, _, _, _| Size::ZERO);
+    pub fn compute_layout(&mut self, root: K, available_space: LayoutSize<AvailableSpace>) {
+        self.compute_layout_with_measure(root, available_space, |_, _, _, _, _| LayoutSize::ZERO);
     }
 
     /// Computes layout with a custom measure function for leaf nodes.
@@ -158,29 +162,27 @@ impl<K: Id, Context> LayoutTree<K, Context> {
     /// The measure function receives the known dimensions, available space,
     /// the node's key, its optional context, and its style, and should return
     /// the intrinsic size of the leaf.
-    pub fn compute_layout_with_measure<MeasureFunction>(
+    pub fn compute_layout_with_measure<MeasureFunction: FnMut(
+        LayoutSize<Option<f32>>,
+        LayoutSize<AvailableSpace>,
+        K,
+        Option<&mut Context>,
+        &Layout,
+    ) -> LayoutSize<f32>>(
         &mut self,
         root: K,
-        available_space: Size<AvailableSpace>,
+        available_space: LayoutSize<AvailableSpace>,
         measure: MeasureFunction,
-    ) where
-        MeasureFunction: FnMut(
-            Size<Option<f32>>,
-            Size<AvailableSpace>,
-            K,
-            Option<&mut Context>,
-            &Layout,
-        ) -> Size<f32>,
-    {
+    ) {
         let use_rounding = self.config.use_rounding;
         let root_id = root.into_layout();
-        let mut view = LayoutView {
+        let mut ctx = LayoutContext {
             tree: self,
             measure_function: measure,
         };
-        taffy::compute_root_layout(&mut view, root_id, available_space);
+        taffy::compute_root_layout(&mut ctx, root_id, available_space);
         if use_rounding {
-            taffy::round_layout(&mut view, root_id);
+            taffy::round_layout(&mut ctx, root_id);
         }
     }
 
@@ -188,12 +190,10 @@ impl<K: Id, Context> LayoutTree<K, Context> {
 
     /// Prints a debug representation of the layout tree to stdout via [`taffy`].
     pub fn print_tree(&mut self, root: K) {
-        let root_id = root.into_layout();
-        let mut view = LayoutView {
+        taffy::util::print_tree(&LayoutContext {
             tree: self,
-            measure_function: |_, _, _, _, _| Size::ZERO,
-        };
-        taffy::util::print_tree(&view, root_id);
+            measure_function: |_, _, _, _, _| LayoutSize::ZERO,
+        }, root.into_layout());
     }
 
     // --- Config ------------------------------------------------------------
@@ -242,13 +242,14 @@ impl<K: Id, Context> IndexMut<InternalLayoutId> for LayoutTree<K, Context> {
     }
 }
 
-pub struct Children<'a, K: Id>(crate::iter::Children<'a, K, LayoutNode>);
+#[derive(Debug, Clone, Copy)]
+struct LayoutConfig {
+    use_rounding: bool,
+}
 
-impl<K: Id> Iterator for Children<'_, K> {
-    type Item = InternalLayoutId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(Bridge::into_layout)
+impl Default for LayoutConfig {
+    fn default() -> Self {
+        Self { use_rounding: true }
     }
 }
 
@@ -256,15 +257,15 @@ impl<K: Id> Iterator for Children<'_, K> {
 /// and implements LayoutTree. This allows the context to be stored outside of the [`LayoutTree`] struct
 /// which makes the lifetimes of the context much more flexible.
 #[derive(Debug, Index, IndexMut)]
-struct LayoutView<'t, K: Id, Context, MeasureFunction>
+struct LayoutContext<'t, K: Id, Context, MeasureFunction>
 where
     MeasureFunction: FnMut(
-        Size<Option<f32>>,
-        Size<AvailableSpace>,
+        LayoutSize<Option<f32>>,
+        LayoutSize<AvailableSpace>,
         K,
         Option<&mut Context>,
         &Layout,
-    ) -> Size<f32>,
+    ) -> LayoutSize<f32>,
 {
     #[index]
     #[index_mut]
@@ -272,15 +273,15 @@ where
     measure_function: MeasureFunction,
 }
 
-impl<'t, K: Id, Context, MeasureFunction> LayoutView<'t, K, Context, MeasureFunction>
+impl<'t, K: Id, Context, MeasureFunction> LayoutContext<'t, K, Context, MeasureFunction>
 where
     MeasureFunction: FnMut(
-        Size<Option<f32>>,
-        Size<AvailableSpace>,
+        LayoutSize<Option<f32>>,
+        LayoutSize<AvailableSpace>,
         K,
         Option<&mut Context>,
         &Layout,
-    ) -> Size<f32>,
+    ) -> LayoutSize<f32>,
 {
     #[inline(always)]
     fn node(&self, layout_id: InternalLayoutId) -> &LayoutNode {
@@ -293,17 +294,17 @@ where
     }
 }
 
-impl<K: Id, Context, MeasureFunction> TraverseLayoutPartialTree for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> TraverseLayoutPartialTree for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     type ChildIter<'a>
-        = Children<'a, K>
+    = LayoutChildren<'a, K>
     where
         Self: 'a;
 
     fn child_ids(&self, parent_node_id: InternalLayoutId) -> Self::ChildIter<'_> {
-        Children(self.tree.children(K::from_layout(parent_node_id)))
+        LayoutChildren(self.tree.children(K::from_layout(parent_node_id)))
     }
 
     fn child_count(&self, parent_node_id: InternalLayoutId) -> usize {
@@ -319,19 +320,19 @@ where
 
 // --- TraverseTree (marker) -------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> TraverseLayoutTree for LayoutView<'_, K, Context, MeasureFunction> where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>
+impl<K: Id, Context, MeasureFunction> TraverseLayoutTree for LayoutContext<'_, K, Context, MeasureFunction> where
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>
 {
 }
 
 // --- LayoutPartialTree -----------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> LayoutPartialTree for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> LayoutPartialTree for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     type CoreContainerStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
     type CustomIdent = String;
@@ -394,15 +395,15 @@ where
 
 // --- CacheTree -------------------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> CacheLayoutTree for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> CacheLayoutTree for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     fn cache_get(
         &self,
         node_id: InternalLayoutId,
-        known_dimensions: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: LayoutSize<Option<f32>>,
+        available_space: LayoutSize<AvailableSpace>,
         run_mode: RunMode,
     ) -> Option<LayoutOutput> {
         self.node(node_id)
@@ -413,8 +414,8 @@ where
     fn cache_store(
         &mut self,
         node_id: InternalLayoutId,
-        known_dimensions: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: LayoutSize<Option<f32>>,
+        available_space: LayoutSize<AvailableSpace>,
         run_mode: RunMode,
         layout_output: LayoutOutput,
     ) {
@@ -430,16 +431,16 @@ where
 
 // --- LayoutFlexboxContainer ------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> LayoutFlexboxContainer for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> LayoutFlexboxContainer for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     type FlexboxContainerStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
     type FlexboxItemStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
 
@@ -454,16 +455,16 @@ where
 
 // --- LayoutGridContainer ---------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> LayoutGridContainer for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> LayoutGridContainer for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     type GridContainerStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
     type GridItemStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
 
@@ -478,16 +479,16 @@ where
 
 // --- LayoutBlockContainer --------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> LayoutBlockContainer for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> LayoutBlockContainer for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     type BlockContainerStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
     type BlockItemStyle<'a>
-        = &'a Layout
+    = &'a Layout
     where
         Self: 'a;
 
@@ -502,9 +503,9 @@ where
 
 // --- RoundTree -------------------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> RoundLayoutTree for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> RoundLayoutTree for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     fn get_unrounded_layout(&self, node_id: InternalLayoutId) -> Computation {
         self.node(node_id).unrounded_computation
@@ -517,9 +518,9 @@ where
 
 // --- PrintTree -------------------------------------------------------------
 
-impl<K: Id, Context, MeasureFunction> PrintLayoutTree for LayoutView<'_, K, Context, MeasureFunction>
+impl<K: Id, Context, MeasureFunction> PrintLayoutTree for LayoutContext<'_, K, Context, MeasureFunction>
 where
-    MeasureFunction: FnMut(Size<Option<f32>>, Size<AvailableSpace>, K, Option<&mut Context>, &Layout) -> Size<f32>,
+    MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, K, Option<&mut Context>, &Layout) -> LayoutSize<f32>,
 {
     fn get_debug_label(&self, node_id: InternalLayoutId) -> &'static str {
         let node = self.node(node_id);
@@ -543,18 +544,16 @@ where
     }
 }
 
+pub struct LayoutChildren<'a, K: Id>(crate::iter::Children<'a, K, LayoutNode>);
 
+impl<K: Id> Iterator for LayoutChildren<'_, K> {
+    type Item = InternalLayoutId;
 
-#[derive(Debug, Clone, Copy)]
-struct LayoutConfig {
-    use_rounding: bool,
-}
-
-impl Default for LayoutConfig {
-    fn default() -> Self {
-        Self { use_rounding: true }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(Bridge::into_layout)
     }
 }
+
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -573,7 +572,7 @@ mod tests {
         let root = tree.insert(Layout {
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
-            size: Size {
+            size: LayoutSize {
                 width: Dimension::from_length(200.0),
                 height: Dimension::from_length(200.0),
             },
@@ -583,7 +582,7 @@ mod tests {
         // Child A: 100x50
         let a = tree.insert_at(
             Layout {
-                size: Size {
+                size: LayoutSize {
                     width: Dimension::from_length(100.0),
                     height: Dimension::from_length(50.0),
                 },
@@ -595,7 +594,7 @@ mod tests {
         // Child B: 100x50
         let b = tree.insert_at(
             Layout {
-                size: Size {
+                size: LayoutSize {
                     width: Dimension::from_length(100.0),
                     height: Dimension::from_length(50.0),
                 },
@@ -604,13 +603,15 @@ mod tests {
             At::Child(root),
         );
 
-        tree.compute_layout(root, Size::MAX_CONTENT);
+        tree.compute_layout(root, LayoutSize::MAX_CONTENT);
 
         tree.children(root).for_each(|child| {
             let layout = tree.get_computation(child);
             assert!(layout.size.width > 0.0);
             assert!(layout.size.height > 0.0);
         });
+
+        tree.compute_layout_with_measure(root, LayoutSize::MAX_CONTENT, |size, a, b, c, d| LayoutSize::ZERO);
 
         let root_layout = tree.get_computation(root);
         assert_eq!(root_layout.size.width, 200.0);
@@ -636,7 +637,7 @@ mod tests {
         let root = tree.insert(Layout {
             display: Display::Flex,
             flex_direction: FlexDirection::Row,
-            size: Size {
+            size: LayoutSize {
                 width: Dimension::from_length(300.0),
                 height: Dimension::from_length(100.0),
             },
@@ -645,7 +646,7 @@ mod tests {
 
         let a = tree.insert_at(
             Layout {
-                size: Size {
+                size: LayoutSize {
                     width: Dimension::from_length(100.0),
                     height: Dimension::from_length(100.0),
                 },
@@ -656,7 +657,7 @@ mod tests {
 
         let b = tree.insert_at(
             Layout {
-                size: Size {
+                size: LayoutSize {
                     width: Dimension::from_length(100.0),
                     height: Dimension::from_length(100.0),
                 },
@@ -665,7 +666,7 @@ mod tests {
             At::Child(root),
         );
 
-        tree.compute_layout(root, Size::MAX_CONTENT);
+        tree.compute_layout(root, LayoutSize::MAX_CONTENT);
 
         let a_layout = tree.get_computation(a);
         assert_eq!(a_layout.location.x, 0.0);
@@ -678,7 +679,7 @@ mod tests {
 
     #[test]
     fn layout_with_measure_function() {
-        let mut tree: LayoutTree<DefaultId, Size<f32>> = LayoutTree::new();
+        let mut tree: LayoutTree<DefaultId, LayoutSize<f32>> = LayoutTree::new();
 
         let root = tree.insert(Layout {
             display: Display::Flex,
@@ -688,16 +689,16 @@ mod tests {
 
         let leaf = tree.insert_with_context_at(
             Layout::default(),
-            Size { width: 50.0, height: 25.0 },
+            LayoutSize { width: 50.0, height: 25.0 },
             At::Child(root),
         );
 
         tree.compute_layout_with_measure(
             root,
-            Size::MAX_CONTENT,
+            LayoutSize::MAX_CONTENT,
             |known_dimensions, _available_space, _key, context, _style| {
                 let size = context.unwrap();
-                Size {
+                LayoutSize {
                     width: known_dimensions.width.unwrap_or(size.width),
                     height: known_dimensions.height.unwrap_or(size.height),
                 }

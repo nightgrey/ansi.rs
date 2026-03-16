@@ -1,9 +1,6 @@
-use tree::{id};
 use derive_more::{Deref, DerefMut};
 use grid::Position;
 use crate::Buffer;
-
-id!(pub struct LayerId);
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct Layer {

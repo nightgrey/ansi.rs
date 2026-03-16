@@ -44,15 +44,16 @@
 //! ```
 
 #![feature(bool_to_result)]
+#![feature(array_try_map)]
+
 #[macro_export]
 pub mod iter;
 pub mod node;
-pub mod tree;
+mod tree;
 pub mod layout;
 mod error;
 mod at;
 mod id;
-
 
 pub use node::*;
 pub use tree::*;

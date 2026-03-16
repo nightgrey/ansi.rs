@@ -41,14 +41,14 @@ impl<K: Id, V> RootTree<K, V> {
     /// Returns the id of the root node.
     pub fn root_id(&self) -> K { self.root_id }
 
-    /// Returns a reference to the root [`Node`].
+    /// Returns a reference to the root value.
     pub fn root(&self) -> &Node<K, V> {
-        &self.inner[self.root_id]
+        self.inner.get(self.root_id).unwrap()
     }
 
-    /// Returns a mutable reference to the root [`Node`].
+    /// Returns a mutable reference to the root value.
     pub fn root_mut(&mut self) -> &mut Node<K, V> {
-        &mut self.inner[self.root_id]
+        self.inner.get_mut(self.root_id).unwrap()
     }
 
     /// Returns a [`NodeRef`] for the root node.
@@ -82,5 +82,17 @@ impl<K: Id, V> RootTree<K, V> {
         for k in self.inner.children(self.root_id).collect::<Vec<_>>() {
             self.inner.remove(k);
         }
+    }
+}
+
+impl<K: Id, V> AsRef<Tree<K, V>> for RootTree<K, V> {
+    fn as_ref(&self) -> &Tree<K, V> {
+        &self.inner
+    }
+}
+
+impl<K: Id, V> AsMut<Tree<K, V>> for RootTree<K, V> {
+    fn as_mut(&mut self) -> &mut Tree<K, V> {
+        &mut self.inner
     }
 }

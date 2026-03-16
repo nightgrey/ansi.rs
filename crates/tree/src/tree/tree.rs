@@ -29,7 +29,7 @@ use std::ops::Deref;
 #[into_iterator(owned, ref, ref_mut)]
 #[repr(transparent)]
 pub struct Tree<K: Id, V> {
-    inner: slotmap::SlotMap<K, Node<K, V>>,
+    pub(crate) inner: slotmap::SlotMap<K, Node<K, V>>,
 }
 
 impl<K: Id, V> Tree<K, V> {
@@ -49,7 +49,7 @@ impl<K: Id, V> Tree<K, V> {
     }
 
     /// Resolves an [`At`] position relative to `key`, returning the
-    /// neighbouring node id if one exists.
+    /// target node id if one exists.
     pub fn get_at(&self, key: K, at: At<K>) -> Option<K> {
         match at {
             At::Detached => Some(key),
@@ -60,27 +60,12 @@ impl<K: Id, V> Tree<K, V> {
         }
     }
 
-    /// Returns a reference to the node with the given key, or `None`.
     pub fn get(&self, key: K) -> Option<&Node<K, V>> {
         self.inner.get(key)
     }
 
-    /// Returns a mutable reference to the node with the given key, or `None`.
     pub fn get_mut(&mut self, key: K) -> Option<&mut Node<K, V>> {
         self.inner.get_mut(key)
-    }
-
-    /// Returns a [`NodeRef`] for the given key, or `None` if the node does not exist.
-    pub fn get_ref(&self, key: K) -> Option<NodeRef<K, V>> {
-        self.inner.get(key).map(|_| NodeRef::new(key, self))
-    }
-
-    /// Returns a [`NodeRefMut`] for the given key, or `None` if the node does not exist.
-    pub fn get_ref_mut(&mut self, key: K) -> Option<NodeRefMut<K, V>> {
-        if self.inner.get(key).is_none() {
-            return None;
-        }
-        Some(NodeRefMut::new(key, self))
     }
 
     /// Inserts a new detached node and returns its key.
@@ -386,19 +371,19 @@ impl<K: Id, V> Tree<K, V> {
     // --- Iteration ---------------------------------------------------------
 
     /// Iterates over all `(key, node)` pairs in insertion order.
-    pub fn iter(&self) -> Iter<'_, K, V> { self.inner.iter() }
+    pub fn iter(&self) -> Iter<'_, K, Node<K, V>> { self.inner.iter() }
 
     /// Mutably iterates over all `(key, node)` pairs.
-    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> { self.inner.iter_mut() }
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, Node<K, V>> { self.inner.iter_mut() }
 
     /// Iterates over all keys in insertion order.
-    pub fn keys(&self) -> Keys<'_, K, V> { self.inner.keys() }
+    pub fn keys(&self) -> Keys<'_, K, Node<K, V>> { self.inner.keys() }
 
     /// Iterates over all nodes (values) in insertion order.
-    pub fn nodes(&self) -> Nodes<'_, K, V> { self.inner.values() }
+    pub fn nodes(&self) -> Nodes<'_, K, Node<K, V>> { self.inner.values() }
 
     /// Mutably iterates over all nodes.
-    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, V> { self.inner.values_mut() }
+    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, Node<K, V>> { self.inner.values_mut() }
 
     /// Returns a double-ended iterator over the direct children of a node.
     pub fn children(&self, id: K) -> Children<'_, K, V> { Children::new(self, id) }
@@ -425,7 +410,7 @@ impl<K: Id, V> Tree<K, V> {
     pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, id) }
 
     /// Removes all nodes from the tree, yielding them as `(key, node)` pairs.
-    pub fn drain(&mut self) -> Drain<K, V> {
+    pub fn drain(&mut self) -> Drain<K, Node<K, V>> {
         self.inner.drain()
     }
 
@@ -658,8 +643,8 @@ mod tests {
         // b still exists
         assert_eq!(tree.contains(b), true);
 
-        assert!(tree.get_ref(b).is_some());
-        assert_eq!(tree.get_ref(b).unwrap(), "b");
+        assert!(tree.get(b).is_some());
+        assert_eq!(tree.get(b).unwrap(), &"b");
     }
 
     #[test]
@@ -816,18 +801,18 @@ mod tests {
 
             let names: Vec<_> = tree
                 .descendants(root)
-                .map(|id| tree.get_ref(id).unwrap())
+                .map(|id| tree.get(id).unwrap())
                 .collect();
 
             assert_eq!(
                 names,
                 vec![
-                    "root",
-                    "a",
-                    "b",
-                    "d",
-                    "e",
-                    "c"
+                    &"root",
+                    &"a",
+                    &"b",
+                    &"d",
+                    &"e",
+                    &"c"
                 ]
             );
         }

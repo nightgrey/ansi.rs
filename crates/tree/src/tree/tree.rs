@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::{Id, Node, iter::*, Error, At};
 use crate::{NodeRef, NodeRefMut};
 use derive_more::{Index, IndexMut, IntoIterator};
@@ -25,7 +26,7 @@ use std::ops::Deref;
 ///
 /// Rich iterators are available for children, ancestors, descendants,
 /// siblings, and full pre-/post-order traversal.
-#[derive(Debug, Index, IndexMut, IntoIterator)]
+#[derive( Index, IndexMut, IntoIterator)]
 #[into_iterator(owned, ref, ref_mut)]
 #[repr(transparent)]
 pub struct Tree<K: Id, V> {
@@ -512,6 +513,12 @@ impl<K: Id, V> Tree<K, V> {
     }
 }
 
+
+impl<K: Id, V: Debug> Debug for Tree<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
 
 #[cfg(test)]
 mod tests {

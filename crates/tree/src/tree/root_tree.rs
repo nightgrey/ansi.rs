@@ -1,5 +1,5 @@
-use crate::{At, Id, Node, Tree, Error, DefaultId};
-use crate::{NodeRef, NodeRefMut};
+use std::fmt::Debug;
+use crate::{At, Id, Node, Tree, Error};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::ops::Deref;
 
@@ -12,7 +12,7 @@ use std::ops::Deref;
 /// [`Error::OperationForbidden`].
 ///
 /// All other [`Tree`] methods are available through [`Deref`] / [`DerefMut`].
-#[derive(Debug, Deref, DerefMut, Index, IndexMut, IntoIterator)]
+#[derive(Deref, DerefMut, Index, IndexMut, IntoIterator)]
 pub struct RootTree<K: Id, V> {
     #[deref]
     #[deref_mut]
@@ -43,22 +43,12 @@ impl<K: Id, V> RootTree<K, V> {
 
     /// Returns a reference to the root value.
     pub fn root(&self) -> &Node<K, V> {
-        self.inner.get(self.root_id).unwrap()
+        &self.inner[self.root_id]
     }
 
     /// Returns a mutable reference to the root value.
     pub fn root_mut(&mut self) -> &mut Node<K, V> {
-        self.inner.get_mut(self.root_id).unwrap()
-    }
-
-    /// Returns a [`NodeRef`] for the root node.
-    pub fn root_ref(&self) -> NodeRef<K, V> {
-        NodeRef::new(self.root_id, self)
-    }
-
-    /// Returns a [`NodeRefMut`] for the root node.
-    pub fn root_ref_mut(&mut self) -> NodeRefMut<K, V> {
-        NodeRefMut::new(self.root_id, self)
+        &mut self.inner[self.root_id]
     }
 
     /// Inserts a new node as a child of the root and returns its key.
@@ -94,5 +84,11 @@ impl<K: Id, V> AsRef<Tree<K, V>> for RootTree<K, V> {
 impl<K: Id, V> AsMut<Tree<K, V>> for RootTree<K, V> {
     fn as_mut(&mut self) -> &mut Tree<K, V> {
         &mut self.inner
+    }
+}
+
+impl<K: Id, V: Debug> Debug for RootTree<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
     }
 }

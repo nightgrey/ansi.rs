@@ -27,7 +27,7 @@ impl Renderer {
 
     /// Composite layers into a target buffer, recursively walking children sorted by z_index.
     pub(crate) fn composite(buffer: &mut Buffer, document: &Document, id: ElementId) {
-        let layer = &document.layers[document.get_layer_id(id).unwrap()];
+        let layer = &document.layers[id];
         for row in 0..layer.height {
             let front_row = layer.position.row + row;
             if front_row >= buffer.height {
@@ -47,8 +47,8 @@ impl Renderer {
             }
         }
 
-        let mut children: Vec<_> = document.children(id).collect();
-        children.sort_by_key(|&child| document.get_layer(child).unwrap().z_index);
+        let mut children: Vec<_> = document.elements.children(id).collect();
+        children.sort_by_key(|&child| document.layers[child].z_index);
 
         for child in children {
             Self::composite(buffer, document, child);

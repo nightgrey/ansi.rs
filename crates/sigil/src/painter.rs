@@ -29,18 +29,16 @@ pub struct Painter<'a> {
     #[deref_mut]
     #[index]
     #[index_mut]
-    buffer: &'a mut Buffer,
-    arena: &'a mut GraphemeArena,
-    stack: Vec<Rect>,
+    pub(crate) buffer: &'a mut Buffer,
+    pub stack: Vec<Rect>,
 }
 
 impl<'a> Painter<'a> {
     /// Begin painting on `buf`. The initial clip is the full buffer bounds.
-    pub fn new(buf: &'a mut Buffer, arena: &'a mut GraphemeArena) -> Self {
+    pub fn new(buf: &'a mut Buffer) -> Self {
         let bounds = Rect::bounds(0, 0, buf.width, buf.height);
         Self {
             buffer: buf,
-            arena,
             stack: vec![bounds],
         }
     }
@@ -230,7 +228,7 @@ impl<'a> Painter<'a> {
     ///
     /// Cursor advance is **stable**: clipping affects what's drawn, not how
     /// far the cursor moves. This keeps layout deterministic.
-    pub fn draw_text(&mut self, row: i32, col: i32, text: &str, style: Style) {
+    pub fn text(&mut self, row: i32, col: i32, text: &str, style: Style, arena: &mut GraphemeArena) {
         if row < 0 || text.is_empty() {
             return;
         }
@@ -245,7 +243,7 @@ impl<'a> Painter<'a> {
                 continue;
             }
 
-            let grapheme = Grapheme::encode(cluster, &mut self.arena);
+            let grapheme = Grapheme::encode(cluster, arena);
 
             if width == 2 {
                 // Wide: need both cells touchable, else replace.
@@ -446,7 +444,7 @@ mod tests {
     fn painter_put() {
         let mut buffer = Buffer::new(10, 22);
         let mut arena = GraphemeArena::new();
-        let mut painter = Painter::new(&mut buffer, &mut arena);
+        let mut painter = Painter::new(&mut buffer);
         painter.hline(0, 0, 10, '-', Style::default());
         painter.vline(0, 1, 2, '|', Style::default());
 

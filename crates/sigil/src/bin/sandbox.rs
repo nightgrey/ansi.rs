@@ -15,7 +15,7 @@ fn current_stage() -> io::Result<()> {
     let stdout = io::stdout();
     let mut lock = stdout.lock();
 
-    let root = orchestrator.document.root_mut();
+    let mut root = orchestrator.document.root_mut();
     root.layout.flex_direction = FlexDirection::Column;
     root.layout.size = Size::percent(55.0);
     root.layout.flex_grow = 1.0;

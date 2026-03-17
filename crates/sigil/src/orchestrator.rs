@@ -21,15 +21,15 @@ impl Orchestrator {
     }
 
     fn layer(&mut self) {
-        self.document.compute_layers(self.document.root_id(), self.root_layer_id());
+        self.document.compute_layers();
     }
 
     fn layout(&mut self) {
-        self.document.compute_layout();
+        self.document.compute_layouts();
     }
 
     fn paint(&mut self) {
-        self.document.layers.iter_mut().for_each(|(_, layer)| {
+        self.document.layers.values_mut().for_each(|layer| {
             layer.clear();
             layer.is_dirty = false;
         });
@@ -38,23 +38,22 @@ impl Orchestrator {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let mut bounds = self.get_bounds(id).copied();
+        let mut bounds = self.bounds.get(id).copied();
 
         {
-            let kind = &self.document[id].kind.clone();
-            let style = self.document[id].style;
-            let layer_id = self.document.get_layer_id(id).unwrap();
+            let style = self.document.elements[id].style;
+            let kind = self.document[id].kind.clone();
 
-            let mut painter = Painter::new(&mut self.document.layers[layer_id], &mut self.document.arena);
+            let mut painter = Painter::new(&mut self.document.layers[id]);
             let bounds = bounds.unwrap_or_else(|| painter.clip());
              painter.push(bounds);
 
-            match kind {
+            match &kind {
                 ElementKind::Span(content) => {
                     if !style.is_empty() {
                         painter.fill(painter.clip(), style);
                     }
-                    painter.draw_text(bounds.y() as i32, bounds.x() as i32, content, style);
+                    painter.text(bounds.y() as i32, bounds.x() as i32, &content, style, &mut self.document.arena);
                 }
                 ElementKind::Div => {
                     if !style.is_empty() {
@@ -64,7 +63,7 @@ impl Orchestrator {
             }
         }
 
-        for child in self.document.children(id).collect::<Vec<_>>() {
+        for child in self.document.elements.children(id).collect::<Vec<_>>() {
             self.paint_element(child);
         }
     }
@@ -72,17 +71,6 @@ impl Orchestrator {
     fn composite(&mut self) {
         self.renderer.front.clear();
         Renderer::composite(&mut self.renderer.front, &self.document, self.document.root_id());
-    }
-
-    /// Insert an element as a child of the root element.
-    pub fn insert(&mut self, element: Element) -> ElementId {
-        let root = self.document.root_id();
-        self.document.insert_at(element, At::Child(root))
-    }
-
-    /// Insert an element as a child of `parent`.
-    pub fn insert_at(&mut self, element: Element, parent: ElementId) -> ElementId {
-        self.document.insert_at(element, At::Child(parent))
     }
 
     pub fn raster(&mut self) -> std::io::Result<()> {
@@ -114,13 +102,13 @@ impl Index<LayerId> for Orchestrator {
     type Output = Layer;
 
     fn index(&self, index: LayerId) -> &Self::Output {
-        &self.document.layers[index]
+        &self.document.layers.get_direct(index).unwrap()
     }
 }
 
 impl IndexMut<LayerId> for Orchestrator {
     fn index_mut(&mut self, index: LayerId) -> &mut Self::Output {
-        &mut self.document.layers[index]
+        self.document.layers.get_direct_mut(index).unwrap()
     }
 }
 
@@ -128,27 +116,28 @@ impl IndexMut<LayerId> for Orchestrator {
 mod tests {
     use ansi::{Color, Style};
     use crate::Cell;
-    use grid::Position;
+    use tree::layout::prelude::*;
     use tree::At;
     use super::*;
 
     #[test]
     fn layout_distributes_remainder_cells() {
         let mut orchestrator = Orchestrator::new(5, 4);
-        let id = orchestrator.document.root_id();
-        orchestrator.document[id].kind = ElementKind::Div;
-        orchestrator.document[id].layout.flex_direction = taffy::FlexDirection::Row;
+        let mut root = orchestrator.root_mut();
+        root.layout.flex_direction = FlexDirection::Row;
 
-        let a = orchestrator.document.insert_at(Element::Span("a".into()), At::Child(id));
-        let b = orchestrator.document.insert_at(Element::Span("b".into()), At::Child(id));
-        let c = orchestrator.document.insert_at(Element::Span("c".into()), At::Child(id));
+        let a = orchestrator.document.insert(Element::Span("a".into()));
+        let b = orchestrator.document.insert(Element::Span("b".into()));
+        let c = orchestrator.document.insert(Element::Span("c".into()));
 
-        orchestrator.document.compute_layout();
+        orchestrator.layout();
         // Taffy distributes evenly with flex_grow: 3 children in 5 cols
         // Each gets floor(5/3)=1 with rounding; taffy may round differently
-        let a_rect = orchestrator.get_bounds(a).unwrap();
-        let b_rect = orchestrator.get_bounds(b).unwrap();
-        let c_rect = orchestrator.get_bounds(c).unwrap();
+        let a_rect = &orchestrator.bounds[a];
+        let b_rect = &orchestrator.bounds[b];
+        let c_rect = &orchestrator.bounds[c];
+
+        dbg!(&orchestrator.layouts);
         // All children should span the full height
         assert_eq!(a_rect.height(), 4);
         assert_eq!(b_rect.height(), 4);
@@ -164,11 +153,17 @@ mod tests {
     #[test]
     fn frame_paints_text_into_front_buffer() {
         let mut orchestrator = Orchestrator::new(5, 1);
-        let id = orchestrator.document.root_id();
-        orchestrator.document[id].kind = ElementKind::Span("Hi".into());
+        let mut root = orchestrator.root_mut();
+        root.kind = ElementKind::Span("Hi".into());
 
         let mut sink = Vec::new();
-        orchestrator.render().unwrap();
+        orchestrator.layer();
+        orchestrator.layout();
+
+        orchestrator.paint();
+
+        dbg!(&orchestrator.document.layouts);
+
         orchestrator.flush(&mut sink).unwrap();
 
         assert!(!orchestrator.renderer.front[(0, 0)].is_empty());
@@ -179,14 +174,14 @@ mod tests {
     fn composite_respects_child_layer_order() {
         let mut orchestrator = Orchestrator::new(3, 1);
 
-        let root_layer_id = orchestrator.layers.root_id();
-        let mut root_layer = orchestrator.layers.root_mut();
-        root_layer.position = Position::ZERO;
-        root_layer[(0, 0)] = Cell::from_char('a', Style::new().foreground(Color::Index(1)));
+        let mut root = orchestrator.root_mut();
+        root.kind = ElementKind::Div;
+        let layer = root.layer_mut();
+        layer[(0, 0)] = Cell::from_char('a', Style::new().foreground(Color::Index(1)));
 
-        let child_layer_id = orchestrator.layers.insert_at(Layer::new(3, 1), At::Child(root_layer_id));
-        let mut child_layer = orchestrator.layers.get_ref_mut(child_layer_id).unwrap();
-        child_layer.position = Position::ZERO;
+        let child_id = orchestrator.insert(Element::Div());
+        orchestrator.layers.insert(child_id, Layer::new(3, 1));
+        let child_layer = orchestrator.layers.get_mut(child_id).unwrap();
         child_layer.z_index = 1;
         child_layer[(0, 0)] = Cell::from_char('b', Style::new().foreground(Color::Index(2)));
 

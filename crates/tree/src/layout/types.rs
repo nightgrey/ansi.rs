@@ -8,8 +8,10 @@
 // | `Cache`      | `LayoutCache`    |
 
 pub use taffy::{
-    Style as Layout, Cache as LayoutCache, Layout as Computation, NodeId as InternalLayoutId,
+    Style as Layout, Cache as LayoutCache, Layout as LayoutComputation, NodeId as LayoutNodeId,
     LayoutInput, LayoutOutput, RunMode,
+    AbsoluteAxis,
+
     geometry::{Line as LayoutLine, Rect as LayoutRect, Size as LayoutSize},
     style::{
         AlignContent, AlignItems, AlignSelf, AvailableSpace, BoxSizing, CompactLength, Dimension, Display,

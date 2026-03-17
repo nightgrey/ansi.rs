@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::{Error, Id};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
 
@@ -10,7 +11,7 @@ use derive_more::{Deref, DerefMut, Index, IndexMut};
 ///
 /// Keys are only valid if they also exist in the primary tree — it is the
 /// caller's responsibility to keep the two in sync.
-#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
+#[derive(Deref, DerefMut, Index, IndexMut)]
 #[repr(transparent)]
 pub struct Secondary<K: Id, V> {
    inner: slotmap::SecondaryMap<K, V>,
@@ -43,7 +44,7 @@ impl<K: Id, V> Secondary<K, V> {
     pub fn get_mut(&mut self, id: K) -> Option<&mut V> {
         self.inner.get_mut(id)
     }
-
+    
     /// Inserts a value at the given id, returning the previous value if any.
     pub fn insert(&mut self, id: K, value: V) -> Option<V> {
         self.inner.insert(id, value)
@@ -54,6 +55,12 @@ impl<K: Id, V> Secondary<K, V> {
     /// Returns [`Error::Missing`] if no entry exists for the given id.
     pub fn remove(&mut self, id: K) -> Result<V, Error<K>> {
         self.inner.remove(id).map_or_else(|| Err(Error::Missing(id)), Ok)
+    }
+}
+
+impl<K: Id, V: Debug> Debug for Secondary<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
     }
 }
 

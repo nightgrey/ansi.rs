@@ -69,9 +69,9 @@ impl<K: Id, V> RootTree<K, V> {
     /// Removes all nodes except the root, leaving the tree with a single
     /// childless root node.
     pub fn clear(&mut self) {
-        for k in self.inner.children(self.root_id).collect::<Vec<_>>() {
-            self.inner.remove(k);
-        }
+        let drain = self.inner.drain();
+        std::mem::forget(&drain);
+        drain.filter(|(k, _)| k != &self.root_id).for_each(|_| {});
     }
 }
 

@@ -1679,6 +1679,7 @@ name = "tree"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "geometry",
  "log",
  "slotmap",
  "smallvec 2.0.0-alpha.12",

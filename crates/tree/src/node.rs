@@ -86,6 +86,17 @@ impl<K: Id, V: PartialEq> PartialEq<&V> for Node<K, V> {
     }
 }
 
+impl<K: Id, V: PartialEq> AsRef<V> for Node<K, V> {
+    fn as_ref(&self) -> &V {
+        &self.inner
+    }
+}
+
+impl<K: Id, V: PartialEq> AsMut<V> for Node<K, V> {
+    fn as_mut(&mut self) -> &mut V {
+        &mut self.inner
+    }
+}
 
 
 /// An immutable reference to a node within a [`Tree`].

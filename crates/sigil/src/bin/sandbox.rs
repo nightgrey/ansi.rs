@@ -8,7 +8,7 @@ fn main() -> io::Result<()> {
 fn current_stage() -> io::Result<()> {
     use sigil::*;
     use ansi::*;
-    use taffy::*;
+    use tree::layout::prelude::*;
     use std::io::{self, Write};
 
     let mut orchestrator = Orchestrator::new(30, 5);
@@ -16,17 +16,12 @@ fn current_stage() -> io::Result<()> {
     let mut lock = stdout.lock();
 
     let mut root = orchestrator.document.root_mut();
-    root.layout.flex_direction = FlexDirection::Column;
-    root.layout.size = Size::percent(55.0);
-    root.layout.flex_grow = 1.0;
-    root.layout.gap = Size::length(1.0);
-    root.style.background = Color::White;
+    root.style.background = Color::Red;
 
-    let text_id = orchestrator.document.insert(Element::Span("Hello World!".into()));
+    let text_id = orchestrator.document.insert_with_layout(Element::Span("Hello World!".into()), Layout { padding: layout::Rect::length(1.0), ..Layout::default() });
     let text = &mut orchestrator.document[text_id];
-    text.layout.padding = Rect::length(1.0);
-    text.style.set(Attribute::Bold | Attribute::Underline);
-
+    text.style.set(Attribute::Bold );
+    text.style.foreground = Color::White;
     orchestrator.render()?;
     orchestrator.flush(&mut lock)?;
 

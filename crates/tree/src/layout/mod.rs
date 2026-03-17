@@ -6,11 +6,11 @@ mod id;
 mod node;
 pub mod prelude;
 mod types;
-mod tree;
+mod traits;
 mod context;
 
 pub use id::*;
 pub use node::*;
 pub use types::*;
-pub use tree::*;
+pub use traits::*;
 pub use context::*;

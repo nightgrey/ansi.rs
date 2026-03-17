@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::{Element, ElementId, ElementKind, GraphemeArena, Layer};
-use tree::{RootTree, Node, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map, Error, Layouted};
+use tree::{RootTree, Node, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map, Error};
 use geometry::{Rect, Size};
 use grid::{Spatial};
 use tree::table::Table;
@@ -15,12 +15,8 @@ impl<'a> DocumentNode<'a> {
         Self { document, id }
     }
 
-   pub fn layout_node(&self) -> &LayoutNode {
+    pub fn layout(&self) -> &LayoutNode {
         &self.document.layouts[self.id]
-    }
-
-    pub fn bounds(&self) -> &Rect {
-        &self.document.bounds[self.id]
     }
 
     pub fn layer(&self) -> &Layer {
@@ -48,20 +44,12 @@ impl<'a> DocumentNodeMut<'a> {
         Self { id, document }
     }
 
-    pub fn layout_node(&self) -> &LayoutNode {
+    pub fn layout(&self) -> &LayoutNode {
         &self.document.layouts[self.id]
     }
 
-    pub fn layout_node_mut(&mut self) -> &mut LayoutNode {
+    pub fn layout_mut(&mut self) -> &mut LayoutNode {
         &mut self.document.layouts[self.id]
-    }
-
-    pub fn bounds(&self) -> &Rect {
-        &self.document.bounds[self.id]
-    }
-
-    pub fn bounds_mut(&mut self) -> &mut Rect {
-        &mut self.document.bounds[self.id]
     }
 
     pub fn layer(&self) -> &Layer {
@@ -92,7 +80,6 @@ id!(pub struct LayerId);
 pub struct Document {
     pub elements: RootTree<ElementId, Element>,
     pub layouts: Secondary<ElementId, LayoutNode>,
-    pub bounds: Secondary<ElementId, Rect>,
     pub layers: Table<LayerId, Layer, ElementId>,
     pub arena: GraphemeArena,
 }
@@ -101,13 +88,15 @@ impl Document {
     pub fn new(width: usize, height: usize) -> Self {
         let mut elements = RootTree::new(Element::Div());
         let mut layouts = Secondary::new();
-        let mut bounds = Secondary::new();
         let mut layers = Table::new();
 
         layers.insert(elements.root_id(), Layer::new(width, height));
-        layouts.insert(elements.root_id(), LayoutNode::default());
+        layouts.insert(elements.root_id(), LayoutNode::new(Layout {
+            size: layout::Size::from_lengths(width as f32, height as f32),
+            ..Layout::default()
+        }));
 
-        Self { elements, layouts, layers, bounds, arena: GraphemeArena::new() }
+        Self { elements, layouts, layers, arena: GraphemeArena::new() }
     }
 
     pub fn size(&self) -> Size {
@@ -118,19 +107,57 @@ impl Document {
     }
 
     pub fn root(&self) -> DocumentNode<'_> {
-        DocumentNode::new(self.root_id(), self)
+        self.get(self.root_id())
     }
 
     pub fn root_mut(&mut self) -> DocumentNodeMut<'_> {
-        DocumentNodeMut::new(self.root_id(), self)
+        self.get_mut(self.root_id())
+    }
+
+    pub fn get(&self, id: ElementId) -> DocumentNode<'_> {
+        DocumentNode::new(id, self)
+    }
+
+    pub fn get_mut(&mut self, id: ElementId) -> DocumentNodeMut<'_> {
+        DocumentNodeMut::new(id, self)
+    }
+
+    pub fn get_layout(&self, id: ElementId) -> Option<&Layout> {
+        self.layouts.get(id).map(|l| &l.layout)
+    }
+
+    pub fn get_layout_mut(&mut self, id: ElementId) -> Option<&mut Layout> {
+        self.layouts.get_mut(id).map(|l| &mut l.layout)
+    }
+    
+    pub fn get_computation(&self, id: ElementId) -> Option<&LayoutComputation> {
+        self.layouts.get(id).map(|l| &l.unrounded_computation)
+    }
+    
+    pub fn get_computation_mut(&mut self, id: ElementId) -> Option<&mut LayoutComputation> {
+        self.layouts.get_mut(id).map(|l| &mut l.unrounded_computation)
+    }
+    
+    pub fn map_layout<F>(&mut self, id: ElementId, mut f: F) where F: FnMut(&mut LayoutNode) {
+        if let Some(layout) = self.layouts.get_mut(id) {
+            f(layout);
+        }
     }
 
     pub fn insert(&mut self, element: Element) -> ElementId {
+        self.insert_with_layout(element, Layout::default())
+    }
+
+    pub fn insert_with_layout(&mut self, element: Element, layout: Layout) -> ElementId {
         let id = self.elements.insert(element);
-        self.layouts.insert(id, LayoutNode::default());
+        self.layouts.insert(id, LayoutNode::new(layout));
         id
     }
 
+    pub fn insert_layout(&mut self, id: ElementId, layout: Layout) -> ElementId {
+        self.layouts.insert(id, LayoutNode::new(layout));
+        id
+    }
 
     pub fn compute_layers(
         &mut self,
@@ -146,18 +173,11 @@ impl Document {
         layer_id: LayerId,
     ) {
         let layer_id = self.layers.get_id(id).unwrap_or(layer_id);
+        self.layers.relate(id, layer_id).unwrap();
 
         for child_id in self.elements.children(id).collect::<Vec<_>>() {
             let next_layer_id = if self.elements[child_id].is_promoting() {
-                match self.layers.get_id(child_id) {
-                    Some(child_layer_id) => if layer_id != child_layer_id {
-                        child_layer_id
-                    } else {
-                        let size = self.layers[child_id].size();
-                        self.layers.insert(child_id, Layer::new(size.width, size.height))
-                    },
-                    _ => layer_id,
-                }
+                unreachable!("Element {:?} is promoting but has no layer", child_id);
             } else {
                 layer_id
             };
@@ -171,113 +191,88 @@ impl Document {
         let root_id = self.elements.root_id();
 
         // Compute layout
-        AsLayoutContext::compute_layout_with_measure(self, root_id, LayoutSize {
+        AsLayoutContext::compute_layout_with_measure(self, root_id, layout::Size {
             width: AvailableSpace::Definite(viewport.width as f32),
             height: AvailableSpace::Definite(viewport.height as f32),
-        }, |known_dimensions, available_space, id, node_context, layout| {
-            // match &self[id].kind {
-            //     ElementKind::Span(content) => {
-            //         let words = content.lines().collect::<Vec<_>>();
-            //         let min_line_length: usize = words.iter().map(|line| line.len()).max().unwrap_or(0);
-            //         let max_line_length: usize = words.iter().map(|line| line.len()).sum();
-            //
-            //         let inline_axis = AbsoluteAxis::Horizontal;
-            //         let inline_size =
-            //             known_dimensions.get_abs(inline_axis).unwrap_or_else(|| match available_space.get_abs(inline_axis) {
-            //                 AvailableSpace::MinContent => min_line_length as f32,
-            //                 AvailableSpace::MaxContent => max_line_length as f32,
-            //                 AvailableSpace::Definite(inline_size) => inline_size
-            //                     .min(max_line_length as f32)
-            //                     .max(min_line_length as f32),
-            //             });
-            //
-            //         let block_axis = inline_axis.other_axis();
-            //
-            //         let block_size = known_dimensions.get_abs(block_axis).unwrap_or_else(|| {
-            //             let inline_line_length = (inline_size).floor() as usize;
-            //             let mut line_count = 1;
-            //             let mut current_line_length = 0;
-            //             for word in &words {
-            //                 if current_line_length == 0 {
-            //                     // first word
-            //                     current_line_length = word.len();
-            //                 } else if current_line_length + word.len() + 1 > inline_line_length {
-            //                     // every word past the first needs to check for line length including the space between words
-            //                     // note: a real implementation of this should handle whitespace characters other than ' '
-            //                     // and do something more sophisticated for long words
-            //                     line_count += 1;
-            //                     current_line_length = word.len();
-            //                 } else {
-            //                     // add the word and a space
-            //                     current_line_length += word.len() + 1;
-            //                 };
-            //             }
-            //             (line_count as f32)
-            //         });
-            //
-            //          LayoutSize { width: inline_size, height: block_size }
-            //     }
-            //     _ => {
-            //         match (known_dimensions.width, known_dimensions.height) {
-            //             (Some(width), Some(height)) => LayoutSize { width, height },
-            //             (Some(width), None) => LayoutSize { width, height: f32::MAX },
-            //             (None, Some(height)) => LayoutSize { width: f32::MAX, height },
-            //             (None, None) => LayoutSize { width: f32::MAX, height: f32::MAX },
-            //         }
-            //     }
-            // }
+        }, |known_dimensions, available_space, id, element, layout| {
+            match &element.kind {
+                ElementKind::Span(content) => {
+                    let words: Vec<&str> = content.split_whitespace().collect();
+                    let min_line_length: usize = words.iter().map(|line| line.len()).max().unwrap_or(0);
+                    let max_line_length: usize = words.iter().map(|line| line.len()).sum();
 
-            LayoutSize { width: 5.0, height: 5.0 }
+                    let inline_axis = AbsoluteAxis::Horizontal;
+                    let inline_size =
+                        known_dimensions.get_abs(inline_axis).unwrap_or_else(|| match available_space.get_abs(inline_axis) {
+                            AvailableSpace::MinContent => min_line_length as f32,
+                            AvailableSpace::MaxContent => max_line_length as f32,
+                            AvailableSpace::Definite(inline_size) => inline_size
+                                .min(max_line_length as f32)
+                                .max(min_line_length as f32),
+                        });
+
+                    let block_axis = inline_axis.other_axis();
+
+                    let block_size = known_dimensions.get_abs(block_axis).unwrap_or_else(|| {
+                        let inline_line_length = (inline_size).floor() as usize;
+                        let mut line_count = 1;
+                        let mut current_line_length = 0;
+                        for word in &words {
+                            if current_line_length == 0 {
+                                // first word
+                                current_line_length = word.len();
+                            } else if current_line_length + word.len() + 1 > inline_line_length {
+                                // every word past the first needs to check for line length including the space between words
+                                // note: a real implementation of this should handle whitespace characters other than ' '
+                                // and do something more sophisticated for long words
+                                line_count += 1;
+                                current_line_length = word.len();
+                            } else {
+                                // add the word and a space
+                                current_line_length += word.len() + 1;
+                            };
+                        }
+                        (line_count as f32)
+                    });
+
+                     layout::Size { width: inline_size, height: block_size }
+                }
+                _ => {
+                    match (known_dimensions.width, known_dimensions.height) {
+                        (Some(width), Some(height)) => layout::Size { width, height },
+                        (Some(width), None) => layout::Size { width, height: f32::MAX },
+                        (None, Some(height)) => layout::Size { width: f32::MAX, height },
+                        (None, None) => layout::Size { width: f32::MAX, height: f32::MAX },
+                    }
+                }
+            }
+
         });
-
-        self.compute_bounds(root_id, 0.0, 0.0);
-    }
-
-    fn compute_bounds(&mut self, id: ElementId, offset_x: f32, offset_y: f32) {
-        let computation = self.layouts[id].final_computation;
-        let x = offset_x + computation.location.x;
-        let y = offset_y + computation.location.y;
-        let w = computation.size.width;
-        let h = computation.size.height;
-
-        self.bounds.insert(id, Rect::bounds(x as usize, y as usize, w as usize, h as usize));
-
-        for child_id in self.elements.children(id).collect::<Vec<_>>() {
-            self.compute_bounds(child_id, x, y);
-        }
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        let root_id = self.root_id();
-        let layer = self.layers.get_mut(root_id).unwrap();
-        layer.resize(width, height);
-        self.bounds.insert(root_id, Rect::bounds(0, 0, width, height));
+        let mut root = self.root_mut();
+        root.layer_mut().resize(width, height);
+        root.layout_mut().size = layout::Size::AUTO;
+        root.layout_mut().cache.clear();
     }
 
     pub fn clear(&mut self) {
         self.elements.clear();
         self.layers.clear();
         self.arena.clear();
-        // Re-sync: clear taffy and re-add root node
         self.layouts.clear();
-
-        let viewport = self.size();
-        self.bounds.insert(self.root_id(), Rect::bounds(0, 0, viewport.width, viewport.height));
-    }
-}
-
-impl Layouted for Element {
-    fn layout(&self) -> &Layout {
-        &self.layout
     }
 }
 
 impl AsLayoutContext<ElementId, Element, Rect> for Document {
-    fn as_context<MeasureFunction: FnMut(LayoutSize<Option<f32>>, LayoutSize<AvailableSpace>, ElementId, Option<&mut Rect>, &Layout) -> LayoutSize<f32>>(&mut self, measure: MeasureFunction) -> LayoutContext<'_, ElementId, Element, Rect, MeasureFunction> {
+    fn as_context<MeasureFunction>(
+        &mut self,
+        measure: MeasureFunction,
+    ) -> LayoutContext<'_, ElementId, Element, MeasureFunction> where MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, ElementId, &mut Element, &Layout) -> layout::Size<f32> {
         LayoutContext {
             tree: &mut self.elements,
             layouts: &mut self.layouts,
-            contexts: &mut self.bounds,
             measure_function: measure,
         }
     }

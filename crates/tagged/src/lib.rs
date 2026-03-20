@@ -10,7 +10,7 @@
 //! #[tagged(u32)]
 //! enum Dimension {
 //!     Auto,
-//!     Length(u32),
+//!     Length(u16),
 //!     Percent(u30),   // pseudo-type: 30-bit uint, mapped to u32
 //! }
 //!
@@ -47,18 +47,16 @@
 //! as "N-bit unsigned integer" and mapped to the smallest containing standard
 //! type (`u32` for `u30`). Values are masked on both construction and extraction.
 //!
-//! Standard types (`u8`, `u32`, `u32`, `u64`) are used as-is.
+//! Standard types (`u8`, `u16`, `u32`, `u64`) are used as-is.
 
 pub mod prelude;
 
 pub use tagged_derive::tagged;
 
-
 #[cfg(test)]
 mod tests {
     use arbitrary_int::prelude::*;
     use super::*;
-
 
     #[tagged(u32)]
     enum Dimension {
@@ -286,6 +284,21 @@ mod tests {
         assert_eq!(Dimension::TAG_WIDTH, 2);
         assert_eq!(Dimension::TAG_MASK, 0b11);
         assert_eq!(Dimension::PAYLOAD_WIDTH, 30);
+    }
+
+    // ── Setters ────────────────────────────────────────────────────────
+
+    #[test]
+    fn set_preserves_tag() {
+        let mut d = Dimension::length(10);
+        d.set_length(99);
+        assert!(d.is_length());
+        assert_eq!(d.get_length(), 99);
+
+        let mut d = Dimension::percent(100);
+        d.set_percent(200);
+        assert!(d.is_percent());
+        assert_eq!(d.get_percent(), 200);
     }
 
     // ── Hash works ──────────────────────────────────────────────────────

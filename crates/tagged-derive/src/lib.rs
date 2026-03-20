@@ -100,7 +100,6 @@ fn process_variant(
     idx: usize,
     variant: &syn::Variant,
     backing: &Backing,
-    _tag_width: u32,
     payload_width: u32,
 ) -> Variant {
     let backing_ident = &backing.ident;
@@ -151,7 +150,7 @@ fn process_variant(
 
             let ctor_ident = format_ident!("{}", snake);
             let get_method_ident = format_ident!("get_{}", snake);
-            let set_method_ident = Some(format_ident!("set_{}", snake));
+            let set_method_ident = format_ident!("set_{}", snake);
 
             // Mask that keeps exactly `declared_bits` bits.
             // For full-width types (e.g. u16 in a 30-bit payload) this still
@@ -181,7 +180,7 @@ fn process_variant(
                 #[inline]
                 pub const fn #set_method_ident(&mut self, value: #variant_type) {
                     let masked = (value as #backing_ident) & (#payload_mask as #backing_ident);
-                    self.0 = (self.0 & !(#payload_mask as #backing_ident)) | (masked << Self::TAG_WIDTH);
+                    self.0 = (self.0 & !((#payload_mask as #backing_ident) << Self::TAG_WIDTH)) | (masked << Self::TAG_WIDTH);
                 }
             };
 
@@ -249,7 +248,7 @@ pub fn tagged(attr: TokenStream, item: TokenStream) -> TokenStream {
         .variants
         .iter()
         .enumerate()
-        .map(|(i, v)| process_variant(i, v, &backing, tags_width, payload_width))
+        .map(|(i, v)| process_variant(i, v, &backing, payload_width))
         .collect();
 
     let tag_consts: Vec<_> = infos
@@ -304,7 +303,6 @@ pub fn tagged(attr: TokenStream, item: TokenStream) -> TokenStream {
             const fn tag(self) -> #backing_ident {
                 self.0 & Self::TAG_MASK
             }
-
 
             /// The raw backing integer.
             #[inline]

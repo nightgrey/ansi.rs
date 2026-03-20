@@ -8,10 +8,8 @@ bitflags = { workspace = true }
 utils = { workspace = true }
 grid = { workspace = true }
 geometry = { workspace = true }
-modular-bitfield = "0.13.1"
-
+bitcraft = { workspace = true }
 derive_more.workspace = true
-flagset = "0.4.7"
 criterion = "0.8.2"
 packed_struct = "0.10.1"
 zerocopy = "0.8.39"

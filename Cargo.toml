@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "crates/ansi", "crates/geometry", "crates/grid",
-    "crates/sigil", "crates/terminal", "crates/tree", "crates/utils",
+    "crates/sigil", "crates/tagged", "crates/tagged-derive", "crates/terminal", "crates/tree", "crates/utils",
 ]
 
 [workspace.dependencies]
@@ -21,6 +21,9 @@ geometry = { path = "crates/geometry" }
 terminal = { path = "crates/terminal" }
 grid = { path = "crates/grid" }
 tree = { path = "crates/tree" }
+tagged = { path = "crates/tagged"}
+tagged-derive = { path = "crates/tagged-derive" }
+bitcraft = { version = "0.9.2" }
 
 [profile.bench]
 debug = true

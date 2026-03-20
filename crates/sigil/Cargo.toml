@@ -31,7 +31,12 @@ memchr = "2.8.0"
 bitflags = { workspace = true }
 roaring = "0.11.3"
 smallvec = { workspace = true }
-
+bitcraft = { workspace = true }
+bitbybit = "2.0.0"
+bitpiece = "2.5.0"
+peapod = "0.1.9"
+paste = "1.0.15"
+tagged = { workspace = true }
 [[bench]]
 name = "lib"
 harness = false

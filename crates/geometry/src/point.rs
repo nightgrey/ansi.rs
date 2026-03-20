@@ -46,19 +46,18 @@ impl<T> Point<T> {
     pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
+
+    /// Swap x and y components.
+    pub fn transpose(self) -> Point<T> {
+        Point { x: self.y, y: self.x }
+    }
+
 }
 
 impl Point {
     pub const ZERO: Self = Self { x: 0, y: 0 };
-
 }
 
-impl<T> Point<T> {
-    /// Swap x and y components
-    pub fn transpose(self) -> Point<T> {
-        Point { x: self.y, y: self.x }
-    }
-}
 
 impl<T> From<Size<T>> for Point<T> {
     fn from(value: Size<T>) -> Self {

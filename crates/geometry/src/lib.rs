@@ -10,10 +10,11 @@ mod rect;
 mod size;
 pub mod features;
 pub mod prelude;
+mod axis;
 
 pub use edges::*;
 pub use point::*;
 pub use rect::*;
 pub use size::*;
 pub use features::*;
-
+pub use axis::*;

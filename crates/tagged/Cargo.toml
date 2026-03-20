@@ -1,0 +1,9 @@
+[package]
+name = "tagged"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tagged-derive = { workspace = true }
+
+arbitrary-int = "2.1.1"

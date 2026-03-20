@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn render_styled_cells_emits_sgr() {
-        let style = Style::new().bold().foreground(Color::Rgb(255, 0, 0));
+        let style = Style::default().bold().foreground(Color::Rgb(255, 0, 0));
 
         let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn render_identical_buffer_produces_no_diff() {
-        let style = Style::new().foreground(Color::Index(2));
+        let style = Style::default().foreground(Color::Index(2));
         let buffer = Buffer::from_chars(
             3, 1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn render_single_cell_change_emits_only_that_cell() {
-        let style = Style::new().foreground(Color::Index(3));
+        let style = Style::default().foreground(Color::Index(3));
         let buf1 = Buffer::from_chars(
             3, 1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn invalidate_forces_full_redraw() {
-        let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
 
         let mut r = Rasterizer::new(2, 1);
         r.render(&buffer, &GraphemeArena::new());
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn resize_forces_full_redraw() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
 
         let mut r = Rasterizer::new(3, 1);
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn trailing_el_optimization() {
-        let style = Style::new().foreground(Color::Index(1));
+        let style = Style::default().foreground(Color::Index(1));
 
         let buf1 = Buffer::from_chars(
             5, 1,
@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn trailing_el_entire_row_cleared() {
-        let style = Style::new().foreground(Color::Index(1));
+        let style = Style::default().foreground(Color::Index(1));
         let buf1 = Buffer::from_chars(
             3, 1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -534,8 +534,8 @@ mod tests {
 
     #[test]
     fn no_trailing_el_when_content_extends_to_end() {
-        let s1 = Style::new().foreground(Color::Index(1));
-        let s2 = Style::new().foreground(Color::Index(2));
+        let s1 = Style::default().foreground(Color::Index(1));
+        let s2 = Style::default().foreground(Color::Index(2));
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
         let mut r = Rasterizer::new(3, 1);
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn sync_output_wraps_render() {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
         r.render(&buffer, &GraphemeArena::new());
 
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn no_sync_without_cap() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer, &GraphemeArena::new());
 
@@ -578,7 +578,7 @@ mod tests {
 
     #[test]
     fn pen_elision_no_redundant_sgr() {
-        let style = Style::new().foreground(Color::Rgb(0, 255, 0));
+        let style = Style::default().foreground(Color::Rgb(0, 255, 0));
 
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
@@ -592,8 +592,8 @@ mod tests {
 
     #[test]
     fn style_change_across_frames_emits_new_sgr() {
-        let s1 = Style::new().foreground(Color::Rgb(255, 0, 0));
-        let s2 = Style::new().foreground(Color::Rgb(0, 0, 255));
+        let s1 = Style::default().foreground(Color::Rgb(255, 0, 0));
+        let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
 
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
         let mut r = Rasterizer::new(3, 1);
@@ -611,7 +611,7 @@ mod tests {
 
     #[test]
     fn render_hides_then_shows_cursor() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer, &GraphemeArena::new());
 
@@ -649,7 +649,7 @@ mod tests {
 
     #[test]
     fn flush_writes_and_clears() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
         r.render(&buffer, &GraphemeArena::new());
 
@@ -692,7 +692,7 @@ mod tests {
 
     #[test]
     fn inline_first_render_no_cup() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buffer = Buffer::from_chars(5, 2, &[
             (0, 0, 'h', style), (0, 1, 'i', style),
             (1, 0, 'l', style), (1, 1, 'o', style),
@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn inline_first_render_skips_trailing_empty_cells() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         // Only first 2 of 10 columns have content.
         let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
@@ -733,7 +733,7 @@ mod tests {
 
     #[test]
     fn inline_second_render_starts_with_cuu() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buffer = Buffer::from_chars(5, 3, &[
             (0, 0, 'a', style),
             (1, 0, 'b', style),
@@ -759,7 +759,7 @@ mod tests {
 
     #[test]
     fn inline_no_alt_screen_sequences() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Rasterizer::inline(3, 1);
@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn inline_no_ed_on_first_render() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buffer = Buffer::from_chars(3, 2, &[
             (0, 0, 'x', style),
             (1, 0, 'y', style),
@@ -788,7 +788,7 @@ mod tests {
 
     #[test]
     fn inline_diff_only_changed_cells() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buf1 = Buffer::from_chars(5, 2, &[
             (0, 0, 'a', style), (0, 1, 'b', style),
             (1, 0, 'c', style), (1, 1, 'd', style),
@@ -813,7 +813,7 @@ mod tests {
 
     #[test]
     fn inline_identical_second_render_no_content() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buffer = Buffer::from_chars(5, 2, &[
             (0, 0, 'a', style), (0, 1, 'b', style),
             (1, 0, 'c', style), (1, 1, 'd', style),
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn inline_grow_claims_new_rows() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buf1 = Buffer::from_chars(3, 2, &[
             (0, 0, 'a', style),
             (1, 0, 'b', style),
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn inline_shrink_clears_orphan_rows() {
-        let style = Style::EMPTY;
+        let style = Style::None;
         let buf1 = Buffer::from_chars(3, 3, &[
             (0, 0, 'a', style),
             (1, 0, 'b', style),
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn inline_hides_then_shows_cursor() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::inline(3, 1);
         r.render(&buffer, &GraphemeArena::new());
 
@@ -894,7 +894,7 @@ mod tests {
     #[test]
     fn inline_sync_output() {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::EMPTY)]);
+        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
         r.render(&buffer, &GraphemeArena::new());
 

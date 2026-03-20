@@ -1,5 +1,5 @@
-use tree::{id, Layout};
-use ansi::{Color, Style};
+use tree::id;
+use ansi::Style;
 id!(pub struct ElementId);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,24 +12,20 @@ pub enum ElementKind {
 pub struct Element {
     pub kind: ElementKind,
     pub style: Style,
-    pub layout: Layout,
 }
 
-#[allow(non_snake_case)]
 impl Element {
-    pub fn Div() -> Self {
+    pub fn div() -> Self {
         Self {
             kind: ElementKind::Div,
-            style: Style::EMPTY,
-            layout: Layout::default(),
+            style: Style::None,
         }
     }
 
-    pub fn Span(content: String) -> Self {
+    pub fn span(content: impl Into<String>) -> Self {
         Self {
-            kind: ElementKind::Span(content),
-            style: Style::new().foreground(Color::Red),
-            layout: Layout::default(),
+            kind: ElementKind::Span(content.into()),
+            style: Style::None,
         }
     }
 

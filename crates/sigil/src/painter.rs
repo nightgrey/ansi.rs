@@ -216,8 +216,8 @@ impl<'a> Painter<'a> {
         }
 
         let space = Grapheme::SPACE;
-        for row in effective.vertical() {
-            for col in effective.horizontal() {
+        for row in effective.range_y() {
+            for col in effective.range_x() {
                 self.write_grapheme(row, col, space, style);
             }
         }

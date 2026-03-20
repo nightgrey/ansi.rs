@@ -18,9 +18,9 @@ fn current_stage() -> io::Result<()> {
     let mut root = orchestrator.document.root_mut();
     root.style.background = Color::Red;
 
-    let text_id = orchestrator.document.insert_with_layout(Element::Span("Hello World!".into()), Layout { padding: layout::Rect::length(1.0), ..Layout::default() });
+    let text_id = orchestrator.document.insert_with_layout(Element::span("Hello World!"), Layout { padding: layout::Rect::length(1.0), ..Layout::default() });
     let text = &mut orchestrator.document[text_id];
-    text.style.set(Attribute::Bold );
+    text.style.insert(Attribute::Bold);
     text.style.foreground = Color::White;
     orchestrator.render()?;
     orchestrator.flush(&mut lock)?;

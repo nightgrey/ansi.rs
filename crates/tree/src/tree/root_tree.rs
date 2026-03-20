@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use crate::{At, Id, Node, Tree, Error};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 use std::ops::Deref;
-
+use smallvec::SmallVec;
 
 /// A tree that always contains a root node.
 ///
@@ -56,14 +56,15 @@ impl<K: Id, V> RootTree<K, V> {
         self.inner.insert_at(value, At::Child(self.root_id))
     }
 
-    /// Removes a node and its descendants, returning the inner value.
+    /// Removes a node and its descendants, returning the removed keys.
     ///
     /// Returns [`Error::OperationForbidden`] if `id` is the root node.
-    pub fn remove(&mut self, id: K) -> Result<Option<V>, Error<K>> {
+    pub fn remove(&mut self, id: K) -> Option<SmallVec<K, 4>> {
         if id == self.root_id {
-            return Err(Error::OperationForbidden);
+            return None;
         }
-        Ok(self.inner.remove(id))
+        
+        self.inner.remove(id)
     }
 
     /// Removes all nodes except the root, leaving the tree with a single

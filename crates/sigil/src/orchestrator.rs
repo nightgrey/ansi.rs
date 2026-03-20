@@ -38,23 +38,24 @@ impl Orchestrator {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let mut computation = self.document.layouts[id].final_computation;
+        let Document { ref elements, ref layouts, ref mut layers, ref mut arena, .. } = self.document;
+
+        let computation = layouts[id].final_computation;
         let bounds = Rect::bounds(computation.content_box_x() as usize, computation.content_box_y() as usize, computation.content_box_width() as usize, computation.content_box_height() as usize);
-        let style = self.document.elements[id].style;
-        let kind = self.document[id].kind.clone();
+        let style = elements[id].style;
 
-        let mut painter = Painter::new(&mut self.document.layers[id]);
-         painter.push(bounds);
+        let mut painter = Painter::new(&mut layers[id]);
+        painter.push(bounds);
 
-        match &kind {
+        match &elements[id].kind {
             ElementKind::Span(content) => {
-                if !style.is_empty() {
+                if !style.is_none() {
                     painter.fill(bounds, style);
                 }
-                painter.text(bounds.min.y as i32, bounds.min.x as i32, &content, style, &mut self.document.arena);
-            }   
+                painter.text(bounds.min.y as i32, bounds.min.x as i32, content, style, arena);
+            }
             ElementKind::Div => {
-                if !style.is_empty() {
+                if !style.is_none() {
                     painter.fill(bounds, style);
                 }
             }
@@ -121,10 +122,10 @@ mod tests {
     fn layout_distributes_remainder_cells() {
         let mut orchestrator = Orchestrator::new(5, 4);
         let mut root = orchestrator.root_mut();
-        root.layout.flex_direction = FlexDirection::Row;
-        let a = orchestrator.insert_with_layout(Element::Span("abc".into()), Layout { flex_grow: 1.0, ..Layout::default() });
-        let b = orchestrator.insert_with_layout(Element::Span("b".into()), Layout { flex_grow: 1.0, ..Layout::default() });
-        let c = orchestrator.insert_with_layout(Element::Span("c".into()), Layout { flex_grow: 1.0, ..Layout::default() });
+        root.layout_mut().flex_direction = FlexDirection::Row;
+        let a = orchestrator.insert_with_layout(Element::span("abc"), Layout { flex_grow: 1.0, ..Layout::default() });
+        let b = orchestrator.insert_with_layout(Element::span("b"), Layout { flex_grow: 1.0, ..Layout::default() });
+        let c = orchestrator.insert_with_layout(Element::span("c"), Layout { flex_grow: 1.0, ..Layout::default() });
 
         orchestrator.layout();
 
@@ -168,17 +169,17 @@ mod tests {
         let mut root = orchestrator.root_mut();
         root.kind = ElementKind::Div;
         let layer = root.layer_mut();
-        layer[(0, 0)] = Cell::from_char('a', Style::new().foreground(Color::Index(1)));
+        layer[(0, 0)] = Cell::from_char('a', Style::default().foreground(Color::Index(1)));
 
-        let child_id = orchestrator.insert(Element::Div());
+        let child_id = orchestrator.insert(Element::div());
         orchestrator.layers.insert(child_id, Layer::new(3, 1));
         let child_layer = orchestrator.layers.get_mut(child_id).unwrap();
         child_layer.z_index = 1;
-        child_layer[(0, 0)] = Cell::from_char('b', Style::new().foreground(Color::Index(2)));
+        child_layer[(0, 0)] = Cell::from_char('b', Style::default().foreground(Color::Index(2)));
 
         orchestrator.composite();
 
         assert_eq!(orchestrator.renderer.front[(0, 0)].as_str(&orchestrator.document.arena), "b");
-        assert_eq!(orchestrator.renderer.front[(0, 0)].style, Style::new().foreground(Color::Index(2)));
+        assert_eq!(orchestrator.renderer.front[(0, 0)].style, Style::default().foreground(Color::Index(2)));
     }
 }

@@ -2,7 +2,7 @@ use crate::{Size};
 use std::ops::{Add, AddAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
-pub type PointLike = (usize, usize);
+pub type PointLike<T = usize> = (T, T);
 
 /// A 2D point in screen-space coordinates.
 ///
@@ -25,18 +25,14 @@ pub type PointLike = (usize, usize);
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Point {
+pub struct Point<T = usize> {
     /// Horizontal position (column).
-    pub x: usize,
+    pub x: T,
 
     /// Vertical position (row).
-    pub y: usize,
+    pub y: T,
 }
-
-impl Point {
-    /// The origin point (0, 0).
-    pub const ZERO: Self = Self { x: 0, y: 0 };
-
+impl<T> Point<T> {
     /// Create a new point at the given coordinates.
     ///
     /// # Example
@@ -47,24 +43,36 @@ impl Point {
     /// assert_eq!(p.x, 5);
     /// assert_eq!(p.y, 10);
     /// ```
-    pub const fn new(x: usize, y: usize) -> Self {
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 }
 
-impl From<Size> for Point {
-    fn from(value: Size) -> Self {
+impl Point {
+    pub const ZERO: Self = Self { x: 0, y: 0 };
+
+}
+
+impl<T> Point<T> {
+    /// Swap x and y components
+    pub fn transpose(self) -> Point<T> {
+        Point { x: self.y, y: self.x }
+    }
+}
+
+impl<T> From<Size<T>> for Point<T> {
+    fn from(value: Size<T>) -> Self {
         Self::new(value.width, value.height)
     }
 }
 
-impl From<PointLike> for Point {
-    fn from(value: PointLike) -> Self {
+impl<T> From<PointLike<T>> for Point<T> {
+    fn from(value: PointLike<T>) -> Self {
         Self::new(value.0, value.1)
     }
 }
 
-impl Add for Point {
+impl<T: Add<Output = T>> Add for Point<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -75,10 +83,11 @@ impl Add for Point {
     }
 }
 
-impl AddAssign for Point {
+impl<T: AddAssign> AddAssign for Point<T> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
+        self.x += rhs.x;
+        self.y += rhs.y;
     }
 }
 
@@ -197,12 +206,6 @@ mod tests {
         assert_eq!(size.height, 20);
     }
 
-    #[test]
-    fn test_rect_x_y() {
-        let r = Rect::new(Point::new(15, 25), Point::new(40, 60));
-        assert_eq!(r.x(), 15);
-        assert_eq!(r.y(), 25);
-    }
 
     #[test]
     fn test_rect_zero() {

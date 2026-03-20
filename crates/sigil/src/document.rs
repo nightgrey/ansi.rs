@@ -1,6 +1,7 @@
+use smallvec::SmallVec;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::{Element, ElementId, ElementKind, GraphemeArena, Layer};
-use tree::{RootTree, Node, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map, Error};
+use tree::{RootTree, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map, Error, At};
 use geometry::{Rect, Size};
 use grid::{Spatial};
 use tree::table::Table;
@@ -86,7 +87,7 @@ pub struct Document {
 
 impl Document {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut elements = RootTree::new(Element::Div());
+        let mut elements = RootTree::new(Element::div());
         let mut layouts = Secondary::new();
         let mut layers = Table::new();
 
@@ -129,34 +130,66 @@ impl Document {
     pub fn get_layout_mut(&mut self, id: ElementId) -> Option<&mut Layout> {
         self.layouts.get_mut(id).map(|l| &mut l.layout)
     }
-    
+
     pub fn get_computation(&self, id: ElementId) -> Option<&LayoutComputation> {
-        self.layouts.get(id).map(|l| &l.unrounded_computation)
-    }
-    
-    pub fn get_computation_mut(&mut self, id: ElementId) -> Option<&mut LayoutComputation> {
-        self.layouts.get_mut(id).map(|l| &mut l.unrounded_computation)
-    }
-    
-    pub fn map_layout<F>(&mut self, id: ElementId, mut f: F) where F: FnMut(&mut LayoutNode) {
-        if let Some(layout) = self.layouts.get_mut(id) {
-            f(layout);
-        }
+        self.layouts.get(id).map(|l| &l.final_computation)
     }
 
+    pub fn get_computation_mut(&mut self, id: ElementId) -> Option<&mut LayoutComputation> {
+        self.layouts.get_mut(id).map(|l| &mut l.final_computation)
+    }
+
+    /// Inserts an element as a child of root with a default layout.
     pub fn insert(&mut self, element: Element) -> ElementId {
         self.insert_with_layout(element, Layout::default())
     }
 
+    /// Inserts an element as a child of root with the given layout.
     pub fn insert_with_layout(&mut self, element: Element, layout: Layout) -> ElementId {
         let id = self.elements.insert(element);
         self.layouts.insert(id, LayoutNode::new(layout));
         id
     }
 
-    pub fn insert_layout(&mut self, id: ElementId, layout: Layout) -> ElementId {
+    pub fn insert_at(&mut self, element: Element, at: At<ElementId>) -> ElementId {
+        self.insert_at_with_layout(element, at, Layout::default())
+    }
+
+    pub fn insert_at_with_layout(&mut self, element: Element, at: At<ElementId>, layout: Layout) -> ElementId {
+        let id = self.elements.insert_at(element, at);
         self.layouts.insert(id, LayoutNode::new(layout));
         id
+    }
+
+    /// Inserts an element as a child of `parent` with a default layout.
+    pub fn insert_child(&mut self, parent: ElementId, element: Element) -> ElementId {
+        self.insert_child_with_layout(parent, element, Layout::default())
+    }
+
+    /// Inserts an element as a child of `parent` with the given layout.
+    pub fn insert_child_with_layout(&mut self, parent: ElementId, element: Element, layout: Layout) -> ElementId {
+        self.insert_at_with_layout(element, At::Child(parent), layout)
+    }
+
+    /// Sets (or replaces) the layout for an existing element.
+    pub fn set_layout(&mut self, id: ElementId, layout: Layout) {
+        self.layouts.insert(id, LayoutNode::new(layout));
+    }
+
+    /// Removes an element and its descendants.
+    pub fn remove(&mut self, id: ElementId) -> Option<SmallVec<ElementId, 4>> {
+        // Returns `None` if `id` is the root.
+        match self.elements.remove(id) {
+            Some(removed) => {
+                for &id in &removed {
+                    self.layouts.remove(id);
+                    self.layers.remove(id);
+                }
+
+                Some(removed)
+            }
+            None => None,
+        }
     }
 
     pub fn compute_layers(

@@ -1,31 +1,90 @@
-use crate::{Point, Rect, Size};
+use crate::{Edges, Point, Rect, Size};
 /// Provides the bounds of a geometry.
 pub trait Bounded {
     #[inline]
-    fn bounds(&self) -> Rect;
+    fn min_x(&self) -> usize;
 
     #[inline]
-    fn min(&self) -> Point;
+    fn min_y(&self) -> usize;
 
     #[inline]
-    fn max(&self) -> Point;
+    fn max_x(&self) -> usize;
 
     #[inline]
-    fn width(&self) -> usize;
+    fn max_y(&self) -> usize;
 
     #[inline]
-    fn height(&self) -> usize;
+    fn min(&self) -> Point {
+        Point { x: self.min_x(), y: self.min_y() }
+    }
 
     #[inline]
-    fn len(&self) -> usize;
+    fn max(&self) -> Point {
+        Point { x: self.max_x(), y: self.max_y() }
+    }
 
     #[inline]
-    fn is_empty(&self) -> bool;
+    fn x(&self) -> usize {
+        self.min_x()
+    }
+
+    #[inline]
+    fn y(&self) -> usize {
+        self.min_y()
+    }
+
+    #[inline]
+    fn width(&self) -> usize {
+        self.max_x().saturating_sub(self.min_x())
+    }
+
+    #[inline]
+    fn height(&self) -> usize {
+        self.max_y().saturating_sub(self.min_y())
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.width().saturating_mul(self.height())
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
+    fn bounds(&self) -> Rect {
+        Rect {
+            min: self.min(),
+            max: self.max(),
+        }
+    }
+    
+    #[inline]
+    fn size(&self) -> Size {
+        Size {
+            width: self.width(),
+            height: self.height(),
+        }
+    }
 }
 
 impl Bounded for Rect {
-    fn bounds(&self) -> Rect {
-        *self
+    fn min_x(&self) -> usize {
+        self.min.x
+    }
+
+    fn min_y(&self) -> usize {
+        self.min.y
+    }
+
+    fn max_x(&self) -> usize {
+        self.max.x
+    }
+
+    fn max_y(&self) -> usize {
+        self.max.y
     }
 
     fn min(&self) -> Point {
@@ -36,33 +95,26 @@ impl Bounded for Rect {
         self.max
     }
 
-    fn width(&self) -> usize {
-        self.max.x.saturating_sub(self.min.x)
+    fn bounds(&self) -> Rect {
+        *self
     }
 
-    fn height(&self) -> usize {
-        self.max.y.saturating_sub(self.min.y)
-    }
-    
-    fn len(&self) -> usize {
-        self.width().saturating_mul(self.height())
-    }
-
-    fn is_empty(&self) -> bool {
-        self.min == self.max
-    }
 }
 impl Bounded for Size {
-    fn bounds(&self) -> Rect {
-        Rect::new(Point::ZERO, Point::new(self.width, self.height))
+    fn min_x(&self) -> usize {
+        0
     }
 
-    fn min(&self) -> Point {
-        Point::ZERO
+    fn min_y(&self) -> usize {
+        0
     }
 
-    fn max(&self) -> Point {
-        Point::new(self.width, self.height)
+    fn max_x(&self) -> usize {
+        self.width
+    }
+
+    fn max_y(&self) -> usize {
+        self.height
     }
 
     fn width(&self) -> usize {
@@ -72,12 +124,22 @@ impl Bounded for Size {
     fn height(&self) -> usize {
         self.height
     }
+}
 
-    fn len(&self) -> usize {
-        self.width.saturating_mul(self.height)
+impl Bounded for Edges {
+    fn min_x(&self) -> usize {
+        0
     }
 
-    fn is_empty(&self) -> bool {
-        self.width == 0 || self.height == 0
+    fn min_y(&self) -> usize {
+        0
+    }
+
+    fn max_x(&self) -> usize {
+        self.horizontal()
+    }
+
+    fn max_y(&self) -> usize {
+        self.vertical()
     }
 }

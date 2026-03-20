@@ -2,6 +2,7 @@ mod space;
 mod escape;
 mod experimental;
 
+use std::fmt::Debug;
 pub use escape::*;
 pub use space::*;
 
@@ -9,9 +10,11 @@ pub use space::*;
 use crate::{Escape};
 use std::io::Write;
 use std::marker::Destruct;
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
+use bilge::prelude::*;
 
-
-#[derive(Clone, Copy, Eq, PartialEq, Default, Hash, Debug)]
+#[derive_const(Clone, Eq, PartialEq, Default)]
+#[derive(Copy)]
 pub enum Color {
     Black,
     Red,
@@ -34,8 +37,7 @@ pub enum Color {
     Rgb(u8, u8, u8),
 
     #[default]
-    Default,
-
+    Reset,
     None,
 }
 
@@ -55,30 +57,12 @@ impl Color {
         !self.is_some()
     }
 
-    /// Returns whether the color is [`Color::Default`].
+    /// Returns whether the color is [`Color::Reset`].
     #[inline]
-    pub const fn is_default(&self) -> bool {
+    pub const fn is_reset(&self) -> bool {
         match self {
-            Color::Default => true,
+            Color::Reset => true,
             _ => false,
-        }
-    }
-
-    /// Converts color to [`Color::Default`].
-    pub fn default(mut self) -> Self {
-        Color::Default
-    }
-
-    /// Converts color to [`Color::None`].
-    pub fn none(mut self) -> Self {
-        Color::None
-    }
-
-    /// Returns `Some(self)` if the color is not [`Color::None`], otherwise returns `None`.
-    pub const fn as_option(&self) -> Option<&Color> {
-        match self {
-            Color::None => None,
-            color => Some(color),
         }
     }
 
@@ -117,7 +101,7 @@ impl Color {
     /// lazily evaluated.
     #[inline]
     pub const fn and(self, other: Color) -> Color {
-        match self {
+       match self {
             Color::None => Color::None,
             _ => other,
         }
@@ -134,7 +118,7 @@ impl Color {
     ) -> Option<U> {
         match self {
             Color::None => None,
-            _ => Some(f(self)),
+            some => Some(f(some)),
         }
     }
 
@@ -146,17 +130,27 @@ impl Color {
     #[inline]
     pub const fn or(self, other: Color) -> Color {
         match self {
-            x @ _ => x,
             Color::None => other,
+            some => some,
         }
     }
 
-    /// Returns the color if it is not [`Color::None`], otherwise returns [`Color::Default`].
+    /// Returns the color if it is not [`Color::None`], otherwise calls `f` and
+    /// returns the result.
     #[inline]
-    pub const fn or_default(self) -> Color {
+    pub const fn or_else<F: [const] FnOnce() -> Color + [const] Destruct>(self, f: F) -> Color {
         match self {
-            x @ _ => x,
-            Color::None => Color::Default,
+            Color::None => f(),
+            some => some,
+        }
+    }
+
+    /// Returns the color if it is not [`Color::None`], otherwise returns [`Color::Reset`].
+    #[inline]
+    pub const fn or_reset(self) -> Color {
+        match self {
+            Color::None => Color::Reset,
+            some => some,
         }
     }
 
@@ -168,29 +162,15 @@ impl Color {
     #[inline]
     pub const fn or_none(self) -> Color {
         match self {
-            x @ _ => x,
             Color::None => Color::None,
-        }
-    }
-
-    /// Returns the color if it is not [`Color::None`], otherwise calls `f` and
-    /// returns the result.
-    #[inline]
-    pub const fn or_else<F: [const] FnOnce() -> Color + [const] Destruct>(self, f: F) -> Color {
-        match self {
-            Color::None => f(),
-            x @ _ => x,
+            some => some,
         }
     }
 
     /// Returns color if exactly one of `self`, `other` is not [`Color::None`], otherwise returns [`Color::None`].
     #[inline]
-    pub const fn xor(self, other: Color) -> Color {
-        match (self, other) {
-            (a @ _, Color::None) => a,
-            (Color::None, b @ _) => b,
-            _ => Color::None,
-        }
+    pub const fn xor(self, rhs: Color) -> Color {
+        self ^ rhs
     }
 
     // pub fn convert(self, target: ColorSpace) -> Color {
@@ -222,10 +202,138 @@ impl Color {
 
     pub fn color_space(&self) -> Option<ColorSpace> {
         match self {
-            Color::Default | Color::None => None,
+            Color::Reset | Color::None => None,
             Color::Index(_) => Some(ColorSpace::Ansi),
             Color::Rgb(_, _, _) => Some(ColorSpace::Rgb),
             _ => None,
         }
     }
+}
+
+impl Debug for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Color::None => f.write_str("Color::None"),
+            Color::Reset => f.write_str("Color::Reset"),
+            Color::Black => f.write_str("Color::Black"),
+            Color::Red => f.write_str("Color::Red"),
+            Color::Green => f.write_str("Color::Green"),
+            Color::Yellow => f.write_str("Color::Yellow"),
+            Color::Blue => f.write_str("Color::Blue"),
+            Color::Magenta => f.write_str("Color::Magenta"),
+            Color::Cyan => f.write_str("Color::Cyan"),
+            Color::White => f.write_str("Color::White"),
+            Color::BrightBlack => f.write_str("Color::BrightBlack"),
+            Color::BrightRed => f.write_str("Color::BrightRed"),
+            Color::BrightGreen => f.write_str("Color::BrightGreen"),
+            Color::BrightYellow => f.write_str("Color::BrightYellow"),
+            Color::BrightBlue => f.write_str("Color::BrightBlue"),
+            Color::BrightMagenta => f.write_str("Color::BrightMagenta"),
+            Color::BrightCyan => f.write_str("Color::BrightCyan"),
+            Color::BrightWhite => f.write_str("Color::BrightWhite"),
+            Color::Index(i) => f.debug_tuple("Color::Index").field(i).finish(),
+            Color::Rgb(r, g, b) => f.debug_tuple("Color::Rgb").field(r).field(g).field(b).finish(),
+        }
+    }
+}
+
+impl const BitAnd for Color {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Color::None, _) | (_, Color::None) => Color::None,
+
+            (Color::Reset, _) => Color::Reset,
+
+            (Color::Reset, _) => Color::Reset,
+            (a, Color::Reset) => a,
+            (a, b) if a == b => a,
+            _ => Color::None,
+        }
+    }
+}
+
+impl const BitAndAssign for Color {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = *self & rhs;
+    }
+}
+
+impl const BitOr for Color {
+    type Output = Self;
+
+    /// Returns the first non-`None` color (fallback semantics).
+    fn bitor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Color::None, _) => rhs,
+            (x, _) => x,
+        }
+    }
+}
+
+impl const BitOrAssign for Color {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs;
+    }
+}
+
+impl const BitXor for Color {
+    type Output = Self;
+
+    /// Returns the color if exactly one is non-`None`, otherwise returns `None`.
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Color::None, x) => x,
+            (x, Color::None) => x,
+            _ => Color::None,
+        }
+    }
+}
+
+impl const BitXorAssign for Color {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = *self ^ rhs;
+    }
+}
+
+impl const Sub for Color {
+    type Output = Self;
+
+    /// Bitflags semantics: a - b = a & !b
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, match rhs {
+            Color::None => Color::Reset,
+            _ => Color::None,
+        }) {
+            (Color::None, _) | (_, Color::None) => Color::None,
+            (x, _) => x,
+        }
+    }
+}
+
+impl const SubAssign for Color {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
+impl const Not for Color {
+    type Output = Self;
+
+    /// Returns `Color::Reset` if `None`, otherwise returns `Color::Reset`.
+    fn not(self) -> Self::Output {
+        match self {
+            Color::Reset => Color::None,
+            _ => Color::Reset,
+        }
+    }
+}
+
+#[test]
+fn qwe() {
+    let a = Color::Reset;
+    let b = Color::Rgb(255, 0, 0);
+    dbg!(a &! b);
+
 }

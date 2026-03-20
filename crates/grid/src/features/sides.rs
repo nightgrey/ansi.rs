@@ -36,11 +36,11 @@ impl<S: [const] Spatial> const Sides for S {
 
 pub trait Ranges: Sides {
     #[inline]
-    fn horizontal(&self) -> Range<usize> {
+    fn range_x(&self) -> Range<usize> {
         self.left()..self.right()
     }
     #[inline]
-    fn vertical(&self) -> Range<usize> {
+    fn range_y(&self) -> Range<usize> {
         self.top()..self.bottom()
     }
 }

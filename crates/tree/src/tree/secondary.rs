@@ -50,11 +50,9 @@ impl<K: Id, V> Secondary<K, V> {
         self.inner.insert(id, value)
     }
 
-    /// Removes the entry at `id`, returning the value.
-    ///
-    /// Returns [`Error::Missing`] if no entry exists for the given id.
-    pub fn remove(&mut self, id: K) -> Result<V, Error<K>> {
-        self.inner.remove(id).map_or_else(|| Err(Error::Missing(id)), Ok)
+    /// Removes the entry at `id`, returning the removed value.
+    pub fn remove(&mut self, id: K) -> Option<V> {
+        self.inner.remove(id)
     }
 }
 

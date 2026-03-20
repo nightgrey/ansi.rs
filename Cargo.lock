@@ -1401,6 +1401,7 @@ dependencies = [
  "roaring",
  "rustix",
  "slotmap",
+ "smallvec 2.0.0-alpha.12",
  "taffy",
  "terminal",
  "textwrap",

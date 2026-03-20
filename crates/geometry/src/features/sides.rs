@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{Rect, Size, Bounded};
+use crate::{Rect, Size, Bounded, Edges};
 
 pub trait Sides: Bounded {
     #[inline]
@@ -52,13 +52,31 @@ impl Sides for Size {
     }
 }
 
+impl Sides for Edges {
+    fn top(&self) -> usize {
+        0
+    }
+
+    fn left(&self) -> usize {
+        0
+    }
+
+    fn bottom(&self) -> usize {
+        self.top + self.bottom
+    }
+
+    fn right(&self) -> usize {
+        self.left + self.right
+    }
+}
+
 pub trait Ranges: Sides {
     #[inline]
-    fn horizontal(&self) -> Range<usize> {
+    fn range_x(&self) -> Range<usize> {
         self.left()..self.right()
     }
     #[inline]
-    fn vertical(&self) -> Range<usize> {
+    fn range_y(&self) -> Range<usize> {
         self.top()..self.bottom()
     }
 }

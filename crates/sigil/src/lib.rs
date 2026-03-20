@@ -37,9 +37,12 @@ pub mod orchestrator;
 mod elements;
 mod renderer;
 mod document;
+mod layout;
+
 pub use buffer::*;
 pub use rasterizer::*;
 pub use orchestrator::*;
 pub use elements::*;
 pub use renderer::*;
 pub use document::*;
+pub use layout::*;

@@ -258,16 +258,16 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
     /// Removes a relation **and** the value it points to, but only if no other
     /// relations still reference that value.
     ///
-    /// Returns `Some(value)` if the value was removed, `None` otherwise.
+    /// Returns the removed value, or `None` if the relation did not exist.
     pub fn remove(&mut self, from: Other) -> Option<V> {
-        let to = self.unrelate(from)?;
+        let related_to = self.unrelate(from)?;
         let orphaned = self
             .reverse
-            .get(to)
+            .get(related_to)
             .map_or(true, |rels| rels.is_empty());
         if orphaned {
-            self.reverse.remove(to);
-            self.inner.remove(to)
+            self.reverse.remove(related_to);
+            self.inner.remove(related_to)
         } else {
             None
         }

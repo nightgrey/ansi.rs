@@ -53,11 +53,11 @@ fn filled_buffer(width: usize, height: usize, ch: char, style: Style) -> Buffer 
 /// and 24 "service" rows with alternating fg colors. Approximates the
 /// content complexity of Rezi's `terminal-full-ui` scenario.
 fn full_ui_buffer() -> Buffer {
-    let header = Style::new().bold().foreground(Color::Rgb(255, 255, 255)).background(Color::Index(4));
-    let status = Style::new().foreground(Color::Index(0)).background(Color::Index(3));
-    let col_a = Style::new().foreground(Color::Rgb(0, 255, 0));
-    let col_b = Style::new().foreground(Color::Rgb(255, 165, 0)).bold();
-    let col_c = Style::new().foreground(Color::Index(6)).italic();
+    let header = Style::default().bold().foreground(Color::Rgb(255, 255, 255)).background(Color::Index(4));
+    let status = Style::default().foreground(Color::Index(0)).background(Color::Index(3));
+    let col_a = Style::default().foreground(Color::Rgb(0, 255, 0));
+    let col_b = Style::default().foreground(Color::Rgb(255, 165, 0)).bold();
+    let col_c = Style::default().foreground(Color::Index(6)).italic();
 
     let mut chars = Vec::with_capacity(W * H);
 
@@ -87,13 +87,13 @@ fn full_ui_buffer() -> Buffer {
 /// Build a "strict UI" buffer: header, 3-column body (each with border
 /// chars), footer, and status bar. Approximates Rezi's `terminal-strict-ui`.
 fn strict_ui_buffer() -> Buffer {
-    let header = Style::new().bold().foreground(Color::Rgb(200, 200, 200)).background(Color::Index(4));
-    let footer = Style::new().foreground(Color::Index(7)).background(Color::Index(0));
-    let status = Style::new().foreground(Color::Index(0)).background(Color::Index(2));
-    let border = Style::new().foreground(Color::Index(8));
-    let text_a = Style::new().foreground(Color::Rgb(255, 100, 100));
-    let text_b = Style::new().foreground(Color::Rgb(100, 255, 100));
-    let text_c = Style::new().foreground(Color::Rgb(100, 100, 255));
+    let header = Style::default().bold().foreground(Color::Rgb(200, 200, 200)).background(Color::Index(4));
+    let footer = Style::default().foreground(Color::Index(7)).background(Color::Index(0));
+    let status = Style::default().foreground(Color::Index(0)).background(Color::Index(2));
+    let border = Style::default().foreground(Color::Index(8));
+    let text_a = Style::default().foreground(Color::Rgb(255, 100, 100));
+    let text_b = Style::default().foreground(Color::Rgb(100, 255, 100));
+    let text_c = Style::default().foreground(Color::Rgb(100, 100, 255));
 
     let col_w = W / 3; // ~40 cols each
 
@@ -129,10 +129,10 @@ fn strict_ui_buffer() -> Buffer {
 /// Build a "table" buffer: 40 rows × 8 columns, each column ~15 chars
 /// with alternating row styles. Approximates Rezi's `terminal-table`.
 fn table_buffer() -> Buffer {
-    let hdr = Style::new().bold().foreground(Color::Rgb(255, 255, 255)).background(Color::Index(4));
-    let even = Style::new().foreground(Color::Index(7));
-    let odd = Style::new().foreground(Color::Index(15)).background(Color::Index(0));
-    let sep = Style::new().foreground(Color::Index(8));
+    let hdr = Style::default().bold().foreground(Color::Rgb(255, 255, 255)).background(Color::Index(4));
+    let even = Style::default().foreground(Color::Index(7));
+    let odd = Style::default().foreground(Color::Index(15)).background(Color::Index(0));
+    let sep = Style::default().foreground(Color::Index(8));
 
     let col_w = W / 8; // 15 chars per column
 
@@ -156,8 +156,8 @@ fn table_buffer() -> Buffer {
 /// Build a "virtual list" buffer: 40 visible rows of a list, each row
 /// is one line of text. Approximates Rezi's `terminal-virtual-list` viewport.
 fn virtual_list_buffer(offset: usize) -> Buffer {
-    let style = Style::new().foreground(Color::Index(7));
-    let highlight = Style::new().bold().foreground(Color::Rgb(255, 255, 0));
+    let style = Style::default().foreground(Color::Index(7));
+    let highlight = Style::default().bold().foreground(Color::Rgb(255, 255, 0));
 
     let mut chars = Vec::with_capacity(W * H);
 
@@ -184,7 +184,7 @@ fn virtual_list_buffer(offset: usize) -> Buffer {
 
 /// `terminal-rerender`: stable frame, one value changes per frame.
 fn terminal_rerender(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Rgb(0, 200, 100));
+    let style = Style::default().foreground(Color::Rgb(0, 200, 100));
     let buf1 = filled_buffer(W, H, 'x', style);
 
     // Change a single cell in the middle of the screen.
@@ -209,7 +209,7 @@ fn terminal_rerender(c: &mut Criterion) {
 
 /// `terminal-frame-fill/1-dirty-line`: 1 row changes out of 40.
 fn terminal_frame_fill_1(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Index(7));
+    let style = Style::default().foreground(Color::Index(7));
     let buf1 = filled_buffer(W, H, 'a', style);
 
     let mut buf2 = buf1.clone();
@@ -233,8 +233,8 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
 
 /// `terminal-frame-fill/40-dirty-lines`: all 40 rows change (full repaint).
 fn terminal_frame_fill_40(c: &mut Criterion) {
-    let style_a = Style::new().foreground(Color::Index(1));
-    let style_b = Style::new().foreground(Color::Index(2));
+    let style_a = Style::default().foreground(Color::Index(1));
+    let style_b = Style::default().foreground(Color::Index(2));
     let buf_a = filled_buffer(W, H, 'A', style_a);
     let buf_b = filled_buffer(W, H, 'B', style_b);
 
@@ -255,8 +255,8 @@ fn terminal_frame_fill_40(c: &mut Criterion) {
 
 /// `terminal-screen-transition`: full-screen content swap.
 fn terminal_screen_transition(c: &mut Criterion) {
-    let style_a = Style::new().bold().foreground(Color::Rgb(255, 0, 0)).background(Color::Index(0));
-    let style_b = Style::new().italic().foreground(Color::Rgb(0, 0, 255)).background(Color::Index(7));
+    let style_a = Style::default().bold().foreground(Color::Rgb(255, 0, 0)).background(Color::Index(0));
+    let style_b = Style::default().italic().foreground(Color::Rgb(0, 0, 255)).background(Color::Index(7));
 
     let buf_a = filled_buffer(W, H, '#', style_a);
     let buf_b = filled_buffer(W, H, '.', style_b);
@@ -282,7 +282,7 @@ fn terminal_full_ui(c: &mut Criterion) {
 
     // Second frame: same layout, one service row changes (simulates data update).
     let mut buf2 = buf1.clone();
-    let update_style = Style::new().foreground(Color::Rgb(255, 0, 0)).bold();
+    let update_style = Style::default().foreground(Color::Rgb(255, 0, 0)).bold();
     for x in 0..W { buf2[(15, x)] = Cell::from_char('!', update_style); }
 
     let mut r = Rasterizer::new(W, H);
@@ -306,7 +306,7 @@ fn terminal_strict_ui(c: &mut Criterion) {
 
     // Second frame: update a few rows in each column.
     let mut buf2 = buf1.clone();
-    let upd = Style::new().foreground(Color::Rgb(255, 255, 0)).bold();
+    let upd = Style::default().foreground(Color::Rgb(255, 255, 0)).bold();
     for y in [10, 20, 30] {
         for x in 0..W { buf2[(y, x)] = Cell::from_char('*', upd); }
     }
@@ -352,7 +352,7 @@ fn terminal_table(c: &mut Criterion) {
 
     // Second frame: update 5 cells scattered across different rows/columns.
     let mut buf2 = buf1.clone();
-    let upd = Style::new().foreground(Color::Rgb(255, 50, 50)).bold();
+    let upd = Style::default().foreground(Color::Rgb(255, 50, 50)).bold();
     for &(y, x) in &[(5, 10), (12, 30), (20, 60), (30, 90), (38, 110)] {
         buf2[(y, x)] = Cell::from_char('!', upd);
     }
@@ -375,24 +375,24 @@ fn terminal_table(c: &mut Criterion) {
 /// `terminal-fps-stream`: 12-channel streaming data update. Each channel
 /// is a row region that changes every frame.
 fn terminal_fps_stream(c: &mut Criterion) {
-    let base_style = Style::new().foreground(Color::Index(7));
+    let base_style = Style::default().foreground(Color::Index(7));
     let buf1 = filled_buffer(W, H, '.', base_style);
 
     // 12 channels: update rows 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35.
     let mut buf2 = buf1.clone();
     let channel_styles = [
-        Style::new().foreground(Color::Rgb(255, 0, 0)),
-        Style::new().foreground(Color::Rgb(0, 255, 0)),
-        Style::new().foreground(Color::Rgb(0, 0, 255)),
-        Style::new().foreground(Color::Rgb(255, 255, 0)),
-        Style::new().foreground(Color::Rgb(255, 0, 255)),
-        Style::new().foreground(Color::Rgb(0, 255, 255)),
-        Style::new().foreground(Color::Rgb(200, 100, 50)),
-        Style::new().foreground(Color::Rgb(50, 200, 100)),
-        Style::new().foreground(Color::Rgb(100, 50, 200)),
-        Style::new().foreground(Color::Rgb(255, 128, 0)),
-        Style::new().foreground(Color::Rgb(128, 0, 255)),
-        Style::new().foreground(Color::Rgb(0, 128, 128)),
+        Style::default().foreground(Color::Rgb(255, 0, 0)),
+        Style::default().foreground(Color::Rgb(0, 255, 0)),
+        Style::default().foreground(Color::Rgb(0, 0, 255)),
+        Style::default().foreground(Color::Rgb(255, 255, 0)),
+        Style::default().foreground(Color::Rgb(255, 0, 255)),
+        Style::default().foreground(Color::Rgb(0, 255, 255)),
+        Style::default().foreground(Color::Rgb(200, 100, 50)),
+        Style::default().foreground(Color::Rgb(50, 200, 100)),
+        Style::default().foreground(Color::Rgb(100, 50, 200)),
+        Style::default().foreground(Color::Rgb(255, 128, 0)),
+        Style::default().foreground(Color::Rgb(128, 0, 255)),
+        Style::default().foreground(Color::Rgb(0, 128, 128)),
     ];
     for (i, &style) in channel_styles.iter().enumerate() {
         let y = 2 + i * 3;
@@ -423,7 +423,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
 
 /// Cold first render (no previous frame to diff against).
 fn first_render(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Rgb(0, 255, 0));
+    let style = Style::default().foreground(Color::Rgb(0, 255, 0));
     let buffer = filled_buffer(W, H, 'X', style);
 
     c.bench_function("first-render", |b| {
@@ -437,7 +437,7 @@ fn first_render(c: &mut Criterion) {
 
 /// Identical frame: measures row-hash fast path when nothing changed.
 fn identical_frame(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Index(2));
+    let style = Style::default().foreground(Color::Index(2));
     let buffer = filled_buffer(W, H, 'A', style);
 
     let mut r = Rasterizer::new(W, H);
@@ -456,7 +456,7 @@ fn identical_frame(c: &mut Criterion) {
 /// Scroll-up optimization using DECSTBM + SU.
 fn scroll_up(c: &mut Criterion) {
     let caps = Capabilities::DEFAULT | Capabilities::SCROLL_REGION | Capabilities::SCROLL;
-    let style = Style::EMPTY;
+    let style = Style::None;
 
     let chars1: Vec<_> = (0..H)
         .flat_map(|y| {
@@ -495,7 +495,7 @@ fn scroll_up(c: &mut Criterion) {
 
 /// Invalidate + full re-render of identical content.
 fn invalidate_rerender(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Index(5));
+    let style = Style::default().foreground(Color::Index(5));
     let buffer = filled_buffer(W, H, 'R', style);
 
     let mut r = Rasterizer::new(W, H);
@@ -514,7 +514,7 @@ fn invalidate_rerender(c: &mut Criterion) {
 
 /// Inline mode first render.
 fn inline_first_render(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Rgb(100, 200, 50));
+    let style = Style::default().foreground(Color::Rgb(100, 200, 50));
     let buffer = filled_buffer(W, 10, 'I', style);
 
     c.bench_function("inline-first-render", |b| {
@@ -528,7 +528,7 @@ fn inline_first_render(c: &mut Criterion) {
 
 /// Inline mode diff (1 row changes).
 fn inline_rerender(c: &mut Criterion) {
-    let style = Style::new().foreground(Color::Rgb(100, 200, 50));
+    let style = Style::default().foreground(Color::Rgb(100, 200, 50));
     let buf1 = filled_buffer(W, 10, 'I', style);
 
     let mut buf2 = buf1.clone();
@@ -553,7 +553,7 @@ fn inline_rerender(c: &mut Criterion) {
 /// REP optimization for long runs of identical characters.
 fn rep_long_run(c: &mut Criterion) {
     let caps = Capabilities::DEFAULT | Capabilities::REP;
-    let style = Style::EMPTY;
+    let style = Style::None;
     let buffer = filled_buffer(200, 1, 'X', style);
 
     c.bench_function("rep-long-run", |b| {

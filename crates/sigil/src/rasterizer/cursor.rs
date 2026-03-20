@@ -15,7 +15,7 @@ impl Cursor {
         Self {
             row: 0,
             col: 0,
-            style: Style::EMPTY,
+            style: Style::None,
         }
     }
 
@@ -23,7 +23,7 @@ impl Cursor {
     pub fn reset(&mut self) {
         self.row = 0;
         self.col = 0;
-        self.style = Style::EMPTY;
+        self.style = Style::None;
     }
 
     /// Emit the shortest cursor movement sequence to reach `(target_row, target_col)`.
@@ -173,8 +173,8 @@ impl Cursor {
             return;
         }
 
-        let diff = self.style.diff(*style);
-        if !diff.is_empty() {
+        let diff = self.style.difference(*style);
+        if !diff.is_none() {
             diff.escape(output).ok();
         }
 
@@ -183,9 +183,9 @@ impl Cursor {
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
     pub fn reset_style(&mut self, w: &mut impl Write) {
-        if !self.style.is_empty() {
+        if !self.style.is_none() {
             w.escape(Reset).unwrap();
-            self.style = Style::EMPTY;
+            self.style = Style::None;
         }
     }
 }
@@ -243,9 +243,9 @@ mod tests {
     #[test]
     fn pen_elision_no_sgr_for_same_style() {
         let mut cursor = Cursor::new();
-        cursor.style = Style::new().bold();
+        cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor.update_style(&mut buf, &Style::new().bold());
+        cursor.update_style(&mut buf, &Style::default().bold());
         assert!(buf.is_empty());
     }
 
@@ -258,9 +258,9 @@ mod tests {
         assert!(buf.is_empty());
 
         // Dirty pen — emits SGR reset
-        cursor.style = Style::new().bold();
+        cursor.style = Style::default().bold();
         cursor.reset_style(&mut buf);
         assert_eq!(buf, b"\x1B[0m");
-        assert!(cursor.style.is_empty());
+        assert!(cursor.style.is_none());
     }
 }

@@ -1,7 +1,7 @@
 //! Custom assertions for testing.
 
 use grid::{Position};
-use geometry::{Rect};
+use geometry::{Bounded, Rect};
 use sigil::{Buffer, GraphemeArena};
 
 macro_rules! assert_rect {
@@ -47,8 +47,8 @@ pub fn assert_rect_size(rect: &Rect, width: usize, height: usize) {
 
 /// Assert that a rectangle is at the expected position.
 pub fn assert_rect_position(rect: &Rect, x: usize, y: usize) {
-    assert_eq!(rect.x(), x, "Expected x {}, got {}", x, rect.x());
-    assert_eq!(rect.y(), y, "Expected y {}, got {}", y, rect.y());
+    assert_eq!(rect.min_x(), x, "Expected x {}, got {}", x, rect.min_x());
+    assert_eq!(rect.min_y(), y, "Expected y {}, got {}", y, rect.min_y());
 }
 
 /// Extract text from a buffer at a specific position range.

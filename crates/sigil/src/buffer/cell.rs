@@ -24,7 +24,7 @@ use super::{Graph, Grapheme, GraphemeArena};
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 #[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
@@ -51,7 +51,7 @@ impl Cell {
     pub const EMPTY: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 0,
-        style: Style::EMPTY,
+        style: Style::None,
     };
 
     /// Create a new cell.
@@ -119,7 +119,7 @@ impl Cell {
     /// Returns `true` if this cell has no style (default).
     #[inline]
     pub fn is_unstyled(&self) -> bool {
-        self.style.is_empty()
+        self.style.is_none()
     }
 
     /// Replace the grapheme, releasing the old one from the arena if needed.
@@ -260,8 +260,8 @@ mod tests {
 
     #[test]
     fn cell_from_char() {
-        let style = Style::new()
-            .attributes(Attribute::Bold)
+        let style = Style::default()
+            .with(Attribute::Bold)
             .foreground(Color::Rgb(255, 0, 0));
 
         let cell = Cell::from_char('A', style);
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn cell_with_wide_char() {
-        let cell = Cell::from_char('中', Style::EMPTY);
+        let cell = Cell::from_char('中', Style::None);
         assert_eq!(cell.width(), 2);
     }
 
@@ -286,7 +286,7 @@ mod tests {
         let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
 
         let g = Grapheme::encode(family, &mut arena);
-        let mut cell = Cell::new(g, 2, Style::EMPTY);
+        let mut cell = Cell::new(g, 2, Style::None);
 
         assert_eq!(cell.as_graph(&arena), family);
         assert!(!arena.is_empty());
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn cell_clear() {
-        let cell_before = Cell::from_char('Z', Style::new().foreground(Color::Index(1)));
+        let cell_before = Cell::from_char('Z', Style::default().foreground(Color::Index(1)));
         let mut cell = cell_before;
         cell.clear();
         assert!(cell.is_empty());

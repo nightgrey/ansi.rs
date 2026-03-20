@@ -4,6 +4,7 @@ use crate::{NodeRef, NodeRefMut};
 use derive_more::{Index, IndexMut, IntoIterator};
 use std::iter::FusedIterator;
 use std::ops::Deref;
+use smallvec::SmallVec;
 
 /// An arena-allocated tree with O(1) node access and linked-list child ordering.
 ///
@@ -300,28 +301,29 @@ impl<K: Id, V> Tree<K, V> {
 
     /// Removes a node **and all of its descendants** from the tree.
     ///
-    /// Returns the inner value of the removed node, or `None` if it did not
-    /// exist. The node is first detached from its parent so sibling links are
+    /// Returns the removed keys of the node and its descendants.
+    /// The node is first detached from its parent so sibling links are
     /// kept consistent.
-    pub fn remove(&mut self, id: K) -> Option<V> {
+    pub fn remove(&mut self, id: K) -> Option<SmallVec<K, 4>> {
         if !self.contains(id) {
             return None;
         }
+        
 
         // Detach root of subtree from parent first.
         let _ = self.detach(id);
 
-        // Remove descendants excluding `id`.
-        let to_remove: Vec<_> = self
-            .descendants(id)
-            .filter(|&k| k != id)
-            .collect();
-
-        for k in to_remove {
-            let _ = self.inner.remove(k);
+        // Remove itself and all descendants
+        let mut elements = self
+            .descendants(id).collect::<SmallVec<_, _>>();
+        
+        elements.push(id);
+            
+        for &k in &elements {
+            self.inner.remove(k);
         }
 
-        self.inner.remove(id).map(|n| n.inner)
+        Some(elements)
     }
 
     // --- Navigation --------------------------------------------------------
@@ -690,7 +692,7 @@ mod tests {
         let d = tree.insert("d");
         tree.move_to(d, At::Child(b));
 
-        tree.remove(b);
+        tree.remove(b).unwrap();
 
         assert!(!tree.contains(b));
         assert!(!tree.contains(d));

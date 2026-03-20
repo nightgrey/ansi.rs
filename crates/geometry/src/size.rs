@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Div, DivAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
 
 /// A 2D size representing width and height.
 ///
@@ -14,12 +14,12 @@ use std::ops::{Add, AddAssign, Div, DivAssign};
 /// assert_eq!(size.height, 24);
 /// ```
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct Size {
+pub struct Size<T = usize> {
     /// Width in columns.
-    pub width: usize,
+    pub width: T,
 
     /// Height in rows.
-    pub height: usize,
+    pub height: T,
 }
 
 impl Size {
@@ -41,20 +41,40 @@ impl Size {
         Self { width, height }
     }
 }
+impl<U, T: Add<U, Output = T>> Add<Size<U>> for Size<T> {
+    type Output = Size<T>;
 
-impl Div<usize> for Size {
-    type Output = Self;
-
-    fn div(self, rhs: usize) -> Self::Output {
-        Self {
-            width: self.width / rhs,
-            height: self.height / rhs,
-        }
+    fn add(self, rhs: Size<U>) -> Self::Output {
+        Size { width: self.width + rhs.width, height: self.height + rhs.height }
     }
 }
 
-impl DivAssign<usize> for Size {
-    fn div_assign(&mut self, rhs: usize) {
-        *self = *self / rhs;
+impl<U, T: AddAssign<U>> AddAssign<Size<U>> for Size<T> {
+    fn add_assign(&mut self, rhs: Size<U>) {
+        self.width += rhs.width;
+        self.height += rhs.height;
+    }
+}
+
+impl<U: Copy, T: Sub<U, Output = T>> Sub<U> for Size<T> {
+    type Output = Size<T>;
+
+    fn sub(self, rhs: U) -> Self::Output {
+        Size { width: self.width - rhs, height: self.height - rhs }
+    }
+}
+
+impl<U: Copy, T: Div<U, Output = T>> Div<U> for Size<T> {
+    type Output = Size<T>;
+
+    fn div(self, rhs: U) -> Self::Output {
+        Size { width: self.width / rhs, height: self.height / rhs }
+    }
+}
+
+impl<U: Copy, T: DivAssign<U>> DivAssign<U> for Size<T> {
+    fn div_assign(&mut self, rhs: U) {
+        self.width /= rhs;
+        self.height /= rhs;
     }
 }

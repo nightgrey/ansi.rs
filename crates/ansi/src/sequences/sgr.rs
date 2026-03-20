@@ -33,14 +33,13 @@ impl Escape for SelectGraphicRendition {
         w.write(b"\x1B[")?;
         let this = &this.0;
 
-        if this.is_empty() {
+        if this.is_none() {
             w.write(b"0m")?;
             return Ok(());
         }
 
         let bg = &this.background;
         let fg = &this.foreground;
-        let ul = &this.underline;
 
         separate_by!({ w.write(b";") });
 
@@ -52,11 +51,6 @@ impl Escape for SelectGraphicRendition {
         // Foreground color
         if fg.is_some() {
             separate!(w.escape(fg.as_foreground())?);
-        }
-
-        // Underline color
-        if ul.is_some() {
-            separate!(w.escape(ul.as_underline())?);
         }
 
         // Attributes (bold, underline, etc.)

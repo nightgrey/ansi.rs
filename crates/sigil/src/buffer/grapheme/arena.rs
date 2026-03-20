@@ -2,7 +2,7 @@
 ///
 /// When a grapheme cluster exceeds 4 UTF-8 bytes (e.g., emoji ZWJ sequences),
 /// it's stored here and referenced by a 24-bit offset from the
-/// [`Grapheme`](crate::Grapheme) handle.
+/// [`Grapheme`](Grapheme) handle.
 ///
 /// Inspired by notcurses' `egcpool`, this arena is designed for the specific
 /// access pattern of a terminal framebuffer:

@@ -1,7 +1,6 @@
 use crate::{Id, LayoutContext};
 use crate::{prelude::*, Bridge};
 
-
 pub trait AsLayoutContext<K: Id, V, Context = ()> {
     fn as_context<MeasureFunction>(
         &mut self,

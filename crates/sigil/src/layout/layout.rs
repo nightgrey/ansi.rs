@@ -1,11 +1,14 @@
 use ansi::{Color};
 use geometry::{Size, Axis};
-
-use taffy::{geometry as g, style as s, self as t};
-type style = t::Style;
+use tagged::prelude::*;
 
 // Base properties
-
+#[tagged(u32)]
+enum Dimension {
+    Auto,
+    Length(u30),
+    Percent(u30),
+}
 
 pub type Edges = geometry::Edges;
 
@@ -128,7 +131,23 @@ pub enum TextDecorationLine {
 }
 
 // Other properties
-pub type Overflow = t::Overflow;
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum Overflow {
+    /// The automatic minimum size of this node as a flexbox/grid item should be based on the size of its content.
+    /// Content that overflows this node *should* contribute to the scroll region of its parent.
+    #[default]
+    Visible,
+    /// The automatic minimum size of this node as a flexbox/grid item should be based on the size of its content.
+    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
+    Clip,
+    /// The automatic minimum size of this node as a flexbox/grid item should be `0`.
+    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
+    Hidden,
+    /// The automatic minimum size of this node as a flexbox/grid item should be `0`. Additionally, space should be reserved
+    /// for a scrollbar. The amount of space reserved is controlled by the `scrollbar_width` property.
+    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
+    Scroll,
+}
 
 struct Layout {
     pub color: Color,
@@ -136,14 +155,12 @@ struct Layout {
     pub text_decoration: TextDecorationLine,
     pub font_weight: FontWeight,
 
-    pub overflow: Axis<Overflow>,
-
     pub padding: Edges,
     pub margin: Edges,
     pub border: Border,
-    pub size: Size,
-    pub max_size: Size,
-    pub min_size: Size,
+    pub size: Size<Dimension>,
+    pub max_size: Size<Dimension>,
+    pub min_size: Size<Dimension>,
 
     // Alignment properties
     /// How this node's children aligned in the cross/block axis?
@@ -169,7 +186,7 @@ struct Layout {
 
     // Flexbox item properties
     /// Sets the initial main axis size of the item
-    pub flex_basis: t::Dimension,
+    pub flex_basis: Dimension,
     /// The relative rate at which this item grows when it is expanding to fill space
     ///
     /// 0.0 is the default value, and this value must be positive.
@@ -178,4 +195,8 @@ struct Layout {
     ///
     /// 1.0 is the default value, and this value must be positive.
     pub flex_shrink: f32,
+
+
+    pub overflow: Axis<Overflow>,
+    pub scrollbar_width: usize,
 }

@@ -5,13 +5,13 @@
 //! ## Quick start
 //!
 //! ```rust
-//! use tagged::tagged;
+//! use tagged::prelude::*;
 //!
 //! #[tagged(u32)]
 //! enum Dimension {
 //!     Auto,
 //!     Length(u16),
-//!     Percent(u30),   // pseudo-type: 30-bit uint, mapped to u32
+//!     Percent(u30),   // arbitrary_int type: 30-bit uint
 //! }
 //!
 //! let a = Dimension::AUTO;
@@ -20,8 +20,9 @@
 //! let l = Dimension::length(120);
 //! assert_eq!(l.get_length(), 120);
 //!
-//! let p = Dimension::percent(500_000);
-//! assert_eq!(p.get_percent(), 500_000);
+//! // Pseudo-types use arbitrary_int: accepts and returns u30
+//! let p = Dimension::percent(u30::new(500_000));
+//! assert_eq!(p.get_percent().value(), 500_000);
 //!
 //! // Everything fits in a single u32
 //! assert_eq!(size_of::<Dimension>(), 4);
@@ -41,11 +42,12 @@
 //! └──────────────────────────────┴──────────────────────┘
 //! ```
 //!
-//! ### Pseudo-types (`uN`)
+//! ### Arbitrary-width types (`uN`)
 //!
-//! Field types like `u30` that aren't standard Rust integers are interpreted
-//! as "N-bit unsigned integer" and mapped to the smallest containing standard
-//! type (`u32` for `u30`). Values are masked on both construction and extraction.
+//! Field types like `u30` that aren't standard Rust integers are treated as
+//! [`arbitrary_int`] types. Constructors, getters, and setters accept and
+//! return the `arbitrary_int` type directly (e.g. `u30`), providing
+//! compile-time bit-width safety.
 //!
 //! Standard types (`u8`, `u16`, `u32`, `u64`) are used as-is.
 
@@ -92,20 +94,11 @@ mod tests {
 
     #[test]
     fn dimension_percent_roundtrip() {
-        let max_30bit: u32 = (1 << 30) - 1;
-        for val in [0u32, 1, 1000, 500_000, max_30bit] {
-            let d = Dimension::percent(val);
+        for raw in [0u32, 1, 1000, 500_000, (1 << 30) - 1] {
+            let d = Dimension::percent(u30::new(raw));
             assert!(d.is_percent());
-            assert_eq!(d.get_percent(), val);
+            assert_eq!(d.get_percent().value(), raw);
         }
-    }
-
-    #[test]
-    fn dimension_percent_overflow_masked() {
-        // If someone passes a value exceeding 30 bits, it gets silently masked
-        let over = 1u32 << 30; // bit 30 set = exceeds u30
-        let d = Dimension::percent(over);
-        assert_eq!(d.get_percent(), 0); // masked away
     }
 
     #[test]
@@ -124,7 +117,7 @@ mod tests {
         let s = format!("{:?}", Dimension::length(120));
         assert_eq!(s, "Length(120)");
 
-        let s = format!("{:?}", Dimension::percent(999));
+        let s = format!("{:?}", Dimension::percent(u30::new(999)));
         assert_eq!(s, "Percent(999)");
     }
 
@@ -162,14 +155,12 @@ mod tests {
         assert!(Tiny::OFF.is_off());
         assert!(Tiny::ON.is_on());
 
-        let max_6bit = (1u8 << 6) - 1; // 63
-        let l = Tiny::level(max_6bit);
+        let l = Tiny::level(u6::new(63));
         assert!(l.is_level());
-        assert_eq!(l.get_level(), max_6bit);
+        assert_eq!(l.get_level().value(), 63);
 
-        // Overflow masked
-        let l2 = Tiny::level(255);
-        assert_eq!(l2.get_level(), 63);
+        let l2 = Tiny::level(u6::new(0));
+        assert_eq!(l2.get_level().value(), 0);
     }
 
     // ── u64 backing ─────────────────────────────────────────────────────
@@ -187,9 +178,9 @@ mod tests {
 
         assert!(BigUnion::EMPTY.is_empty());
 
-        let p = BigUnion::pointer(0xDEAD_BEEF);
+        let p = BigUnion::pointer(u62::new(0xDEAD_BEEF));
         assert!(p.is_pointer());
-        assert_eq!(p.get_pointer(), 0xDEAD_BEEF);
+        assert_eq!(p.get_pointer().value(), 0xDEAD_BEEF);
 
         let c = BigUnion::counter(u32::MAX);
         assert!(c.is_counter());
@@ -209,14 +200,14 @@ mod tests {
         assert_eq!(Toggle::TAG_WIDTH, 1);
         assert_eq!(Toggle::PAYLOAD_WIDTH, 31);
 
-        let e = Toggle::enabled(100);
+        let e = Toggle::enabled(u31::new(100));
         assert!(e.is_enabled());
         assert!(!e.is_disabled());
-        assert_eq!(e.get_enabled(), 100);
+        assert_eq!(e.get_enabled().value(), 100);
 
-        let d = Toggle::disabled(200);
+        let d = Toggle::disabled(u31::new(200));
         assert!(d.is_disabled());
-        assert_eq!(d.get_disabled(), 200);
+        assert_eq!(d.get_disabled().value(), 200);
     }
 
     // ── Single variant = 0 tag bits ─────────────────────────────────────
@@ -272,9 +263,9 @@ mod tests {
         assert_eq!(FiveWay::TAG_WIDTH, 3);
         assert_eq!(FiveWay::PAYLOAD_WIDTH, 13);
 
-        let e = FiveWay::e((1 << 13) - 1);
+        let e = FiveWay::e(u13::new((1 << 13) - 1));
         assert!(e.is_e());
-        assert_eq!(e.get_e(), (1 << 13) - 1);
+        assert_eq!(e.get_e().value(), (1 << 13) - 1);
     }
 
     // ── Constants exposed ───────────────────────────────────────────────
@@ -295,10 +286,10 @@ mod tests {
         assert!(d.is_length());
         assert_eq!(d.get_length(), 99);
 
-        let mut d = Dimension::percent(100);
-        d.set_percent(200);
+        let mut d = Dimension::percent(u30::new(100));
+        d.set_percent(u30::new(200));
         assert!(d.is_percent());
-        assert_eq!(d.get_percent(), 200);
+        assert_eq!(d.get_percent().value(), 200);
     }
 
     // ── Hash works ──────────────────────────────────────────────────────

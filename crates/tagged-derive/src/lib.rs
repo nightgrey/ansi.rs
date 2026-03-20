@@ -66,10 +66,21 @@ fn smallest_uint_tokens(bits: u32) -> TokenStream2 {
     }
 }
 
-/// Inspect a field type. If it looks like `uN` (non-standard width like u30),
-/// return (mapped_rust_type, declared_bits). Otherwise return the type as-is
-/// with `payload_bits` as declared width.
-fn parse_field_type(ty: &syn::Type, payload_bits: u32) -> (TokenStream2, u32) {
+struct FieldType {
+    /// Type used in the public API (e.g. `u30` or `u16`).
+    public_type: TokenStream2,
+    /// Smallest standard uint that contains the value (e.g. `u32` for `u30`).
+    storage_type: TokenStream2,
+    /// Number of significant bits.
+    declared_bits: u32,
+    /// Whether this is an `arbitrary_int` pseudo-type (needs `.value()` / `::new()`).
+    is_arbitrary: bool,
+}
+
+/// Inspect a field type. Standard types (`u8`..`u128`) pass through as-is.
+/// Non-standard `uN` (e.g. `u30`) are treated as `arbitrary_int` types —
+/// the public API uses the original type, with `.value()`/`::new()` for conversion.
+fn parse_field_type(ty: &syn::Type, payload_bits: u32) -> FieldType {
     if let syn::Type::Path(tp) = ty {
         if tp.qself.is_none() && tp.path.segments.len() == 1 {
             let seg = &tp.path.segments[0];
@@ -78,22 +89,37 @@ fn parse_field_type(ty: &syn::Type, payload_bits: u32) -> (TokenStream2, u32) {
                 if let Ok(bits) = rest.parse::<u32>() {
                     // Standard widths → pass through as real types
                     if matches!(bits, 8 | 16 | 32 | 64 | 128) {
-                        return (quote!(#ty), bits);
+                        return FieldType {
+                            public_type: quote!(#ty),
+                            storage_type: quote!(#ty),
+                            declared_bits: bits,
+                            is_arbitrary: false,
+                        };
                     }
-                    // Non-standard → pseudo-type
+                    // Non-standard → arbitrary_int pseudo-type
                     if bits > payload_bits {
                         panic!(
                             "u{bits} exceeds available payload of {payload_bits} bits"
                         );
                     }
-                    let mapped = smallest_uint_tokens(bits);
-                    return (mapped, bits);
+                    let storage = smallest_uint_tokens(bits);
+                    return FieldType {
+                        public_type: quote!(#ty),
+                        storage_type: storage,
+                        declared_bits: bits,
+                        is_arbitrary: true,
+                    };
                 }
             }
         }
     }
     // Anything else (custom type) — assume it fits, user's responsibility
-    (quote!(#ty), payload_bits)
+    FieldType {
+        public_type: quote!(#ty),
+        storage_type: quote!(#ty),
+        declared_bits: payload_bits,
+        is_arbitrary: false,
+    }
 }
 
 fn process_variant(
@@ -146,40 +172,60 @@ fn process_variant(
                 fields.unnamed.len()
             );
 
-            let (variant_type, declared_bits) = parse_field_type(&fields.unnamed[0].ty, payload_width);
+            let field = parse_field_type(&fields.unnamed[0].ty, payload_width);
+            let public_type = &field.public_type;
+            let storage_type = &field.storage_type;
 
             let ctor_ident = format_ident!("{}", snake);
             let get_method_ident = format_ident!("get_{}", snake);
             let set_method_ident = format_ident!("set_{}", snake);
 
             // Mask that keeps exactly `declared_bits` bits.
-            // For full-width types (e.g. u16 in a 30-bit payload) this still
-            // works because the cast already truncates, but we mask for safety.
-            let payload_mask = if declared_bits >= 64 {
+            let payload_mask = if field.declared_bits >= 64 {
                 u64::MAX
             } else {
-                (1u64 << declared_bits) - 1
+                (1u64 << field.declared_bits) - 1
+            };
+
+            // For arbitrary_int types, unwrap via `.value()` and wrap via `::new()`.
+            let val_to_raw = if field.is_arbitrary {
+                quote! { val.value() as #backing_ident }
+            } else {
+                quote! { val as #backing_ident }
+            };
+
+            let raw_to_val = if field.is_arbitrary {
+                quote! { #public_type::new(raw as #storage_type) }
+            } else {
+                quote! { raw as #public_type }
+            };
+
+            let set_to_raw = if field.is_arbitrary {
+                quote! { value.value() as #backing_ident }
+            } else {
+                quote! { value as #backing_ident }
             };
 
             let constructor = quote! {
                 #[inline]
-                pub const fn #ctor_ident(val: #variant_type) -> Self {
-                    let masked = (val as #backing_ident) & (#payload_mask as #backing_ident);
+                pub const fn #ctor_ident(val: #public_type) -> Self {
+                    let masked = (#val_to_raw) & (#payload_mask as #backing_ident);
                     Self(masked << Self::TAG_WIDTH | (#tag_val as #backing_ident))
                 }
             };
 
             let get_method = quote! {
                 #[inline]
-                pub const fn #get_method_ident(self) -> #variant_type {
-                    ((self.0 >> Self::TAG_WIDTH) & (#payload_mask as #backing_ident)) as #variant_type
+                pub const fn #get_method_ident(self) -> #public_type {
+                    let raw = (self.0 >> Self::TAG_WIDTH) & (#payload_mask as #backing_ident);
+                    #raw_to_val
                 }
             };
 
             let set_method = quote! {
                 #[inline]
-                pub const fn #set_method_ident(&mut self, value: #variant_type) {
-                    let masked = (value as #backing_ident) & (#payload_mask as #backing_ident);
+                pub const fn #set_method_ident(&mut self, value: #public_type) {
+                    let masked = (#set_to_raw) & (#payload_mask as #backing_ident);
                     self.0 = (self.0 & !((#payload_mask as #backing_ident) << Self::TAG_WIDTH)) | (masked << Self::TAG_WIDTH);
                 }
             };

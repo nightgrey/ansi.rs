@@ -115,7 +115,12 @@ mod tests {
                     Attribute::from($lhs).$op()
                 );
 
-                eprintln!("({:?}.{}()) = ({:?} / {:?})", $lhs, stringify!($op), color, attribute);
+                if Bit::from(color) == Bit::from(attribute) {
+                    eprintln!("✅ {:?}.{}() = {:?}", $lhs, stringify!($op), Bit::from(color));
+                    eprintln!("{:?} vs {:?}", color, attribute);
+                } else {
+                    eprintln!("❌ {:?}.{}() = ({:?} / {:?})", $lhs, stringify!($op), color, attribute);
+                };
             };
             ($lhs:expr, $rhs:expr, $op:ident) => {
                 let (color, attribute) = (
@@ -132,7 +137,7 @@ mod tests {
         }
 
         #[test]
-        fn test() {
+        fn test_bitops() {
             for (lhs, rhs) in  [
                 (Bit::None, Bit::None),
                 (Bit::None, Bit::Some),
@@ -151,12 +156,17 @@ mod tests {
                 assert_bit!(lhs, rhs, bitand);
             }
 
-            for lhs in [
+        }
+
+        #[test]
+        fn test_not() {
+            for value in [
                 Bit::None,
                 Bit::Some,
                 Bit::Reset,
             ] {
-                assert_bit!(lhs, not);
+                dbg_bit!(value, not);
+                assert_bit!(value, not);
             }
         }
     }

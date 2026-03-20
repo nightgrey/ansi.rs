@@ -243,11 +243,8 @@ impl const BitAnd for Color {
     fn bitand(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Color::None, _) | (_, Color::None) => Color::None,
-
-            (Color::Reset, _) => Color::Reset,
-
-            (Color::Reset, _) => Color::Reset,
-            (a, Color::Reset) => a,
+            (Color::Reset, Color::Reset) => Color::Reset,
+            (Color::Reset, _) | (_, Color::Reset) => Color::None,
             (a, b) if a == b => a,
             _ => Color::None,
         }
@@ -263,10 +260,10 @@ impl const BitAndAssign for Color {
 impl const BitOr for Color {
     type Output = Self;
 
-    /// Returns the first non-`None` color (fallback semantics).
     fn bitor(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Color::None, _) => rhs,
+            (Color::None, x) | (x, Color::None) => x,
+            (Color::Reset, x) | (x, Color::Reset) => x,
             (x, _) => x,
         }
     }
@@ -284,13 +281,13 @@ impl const BitXor for Color {
     /// Returns the color if exactly one is non-`None`, otherwise returns `None`.
     fn bitxor(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Color::None, x) => x,
-            (x, Color::None) => x,
+            (Color::None, x) | (x, Color::None) => x,
+            (Color::Reset, Color::Reset) => Color::None,
+            (Color::Reset, x) | (x, Color::Reset) => x,
             _ => Color::None,
         }
     }
 }
-
 impl const BitXorAssign for Color {
     fn bitxor_assign(&mut self, rhs: Self) {
         *self = *self ^ rhs;
@@ -300,15 +297,8 @@ impl const BitXorAssign for Color {
 impl const Sub for Color {
     type Output = Self;
 
-    /// Bitflags semantics: a - b = a & !b
     fn sub(self, rhs: Self) -> Self::Output {
-        match (self, match rhs {
-            Color::None => Color::Reset,
-            _ => Color::None,
-        }) {
-            (Color::None, _) | (_, Color::None) => Color::None,
-            (x, _) => x,
-        }
+        self &! rhs
     }
 }
 
@@ -321,19 +311,87 @@ impl const SubAssign for Color {
 impl const Not for Color {
     type Output = Self;
 
-    /// Returns `Color::Reset` if `None`, otherwise returns `Color::Reset`.
     fn not(self) -> Self::Output {
         match self {
+            Color::None => Color::Reset,
             Color::Reset => Color::None,
             _ => Color::Reset,
         }
     }
 }
 
-#[test]
-fn qwe() {
-    let a = Color::Reset;
-    let b = Color::Rgb(255, 0, 0);
-    dbg!(a &! b);
+#[cfg(test)]
+mod tests {
+    use crate::Attribute;
+    use super::*;
 
+        #[test]
+        fn test_bitand() {
+            for (lhs, rhs, expected) in  [
+                (Color::None, Color::None, Color::None),
+                (Color::None, Color::Black, Color::None),
+                (Color::None, Color::Reset, Color::None),
+
+                (Color::Black, Color::None, Color::None),
+                (Color::Black, Color::Black, Color::Black),
+                (Color::Black, Color::Reset, Color::None),
+
+                (Color::Reset, Color::None, Color::None),
+                (Color::Reset, Color::Black, Color::None),
+                (Color::Reset, Color::Reset, Color::Reset),
+            ] {
+                assert_eq!(lhs.bitand(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
+            }
+        }
+
+        #[test]
+        fn test_bitor() {
+            let a = Attribute::Bold | Attribute::Bold;
+            dbg!(a);
+            for (lhs, rhs, expected) in  [
+                (Color::None, Color::None, Color::None),
+                (Color::None, Color::Black, Color::Black),
+                (Color::None, Color::Reset, Color::Reset),
+
+                (Color::Black, Color::None, Color::Black),
+                (Color::Black, Color::Black, Color::Black),
+                (Color::Black, Color::Reset, Color::Black),
+
+                (Color::Reset, Color::None, Color::Reset),
+                (Color::Reset, Color::Black, Color::Black),
+                (Color::Reset, Color::Reset, Color::Reset),
+            ] {
+                assert_eq!(lhs.bitor(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
+            }
+        }
+
+        #[test]
+        fn test_bitxor() {
+            for (lhs, rhs, expected) in  [
+                (Color::None, Color::None, Color::None),
+                (Color::None, Color::Black, Color::Black),
+                (Color::None, Color::Reset, Color::Reset),
+
+                (Color::Black, Color::None, Color::Black),
+                (Color::Black, Color::Black, Color::None),
+                (Color::Black, Color::Reset, Color::Black),
+
+                (Color::Reset, Color::None, Color::Reset),
+                (Color::Reset, Color::Black, Color::Black),
+                (Color::Reset, Color::Reset, Color::None),
+            ] {
+                assert_eq!(lhs.bitxor(rhs), expected, "{:?}.bitxor({:?})", lhs, rhs);
+            }
+        }
+
+        #[test]
+        fn test_not() {
+            for (value, expected) in [
+                (Color::None, Color::Reset),
+                (Color::Reset, Color::None),
+                (Color::Black, Color::Reset),
+            ] {
+                assert_eq!(value.not(), expected, "{:?}", value);
+            }
+        }
 }

@@ -27,7 +27,7 @@ mod tests {
     use super::*;
 
     #[cfg(test)]
-    mod bit_ops {
+    mod color_vs_attribute {
         use std::fmt::Debug;
         use super::*;
         use std::ops::*;
@@ -83,21 +83,12 @@ mod tests {
                 match value {
                     Bit::Reset => Color::Reset,
                     Bit::None => Color::None,
-                    Bit::Some => Color::Red,
+                    Bit::Some => Color::Black,
                 }
             }
         }
 
         macro_rules! assert_bit {
-            ($lhs:expr, $op:ident) => {
-                let (color, attribute) = (
-                    Color::from($lhs).$op(),
-                    Attribute::from($lhs).$op()
-                );
-
-                let (actual, expected) = (Bit::from(color), Bit::from(attribute));
-                assert_eq!(actual, expected, "{:?}.{}", $lhs, stringify!($op));
-            };
             ($lhs:expr, $rhs:expr, $op:ident) => {
                 let (color, attribute) = (
                     Color::from($lhs).$op(Color::from($rhs)),
@@ -108,20 +99,8 @@ mod tests {
                 assert_eq!(actual, expected, "{:?}.{}({:?})", $lhs, stringify!($op), $rhs);
             };
         }
+        
         macro_rules! dbg_bit {
-            ($lhs:expr, $op:ident) => {
-                let (color, attribute) = (
-                    Color::from($lhs).$op(),
-                    Attribute::from($lhs).$op()
-                );
-
-                if Bit::from(color) == Bit::from(attribute) {
-                    eprintln!("✅ {:?}.{}() = {:?}", $lhs, stringify!($op), Bit::from(color));
-                    eprintln!("{:?} vs {:?}", color, attribute);
-                } else {
-                    eprintln!("❌ {:?}.{}() = ({:?} / {:?})", $lhs, stringify!($op), color, attribute);
-                };
-            };
             ($lhs:expr, $rhs:expr, $op:ident) => {
                 let (color, attribute) = (
                     Color::from($lhs).$op(Color::from($rhs)),
@@ -136,8 +115,33 @@ mod tests {
             };
         }
 
+        const CASES: [(Bit, Bit); 9] = [
+            (Bit::None, Bit::None),
+            (Bit::None, Bit::Some),
+            (Bit::None, Bit::Reset),
+
+            (Bit::Some, Bit::None),
+            (Bit::Some, Bit::Some),
+            (Bit::Some, Bit::Reset),
+
+            (Bit::Reset, Bit::None),
+            (Bit::Reset, Bit::Some),
+            (Bit::Reset, Bit::Reset),
+        ];
+
         #[test]
-        fn test_bitops() {
+        fn test_bitor() {
+            for (lhs, rhs) in  CASES {
+                dbg_bit!(lhs, rhs, bitor);
+            }
+
+            for (lhs, rhs) in  CASES {
+                assert_bit!(lhs, rhs, bitor);
+            }
+        }
+
+        #[test]
+        fn test_bitand() {
             for (lhs, rhs) in  [
                 (Bit::None, Bit::None),
                 (Bit::None, Bit::Some),
@@ -151,22 +155,19 @@ mod tests {
                 (Bit::Reset, Bit::Some),
                 (Bit::Reset, Bit::Reset),
             ] {
-                dbg_bit!(lhs, rhs, bitxor);
-                assert_bit!(lhs, rhs, bitxor);
+                dbg_bit!(lhs, rhs, bitand);
                 assert_bit!(lhs, rhs, bitand);
             }
-
         }
 
         #[test]
-        fn test_not() {
-            for value in [
-                Bit::None,
-                Bit::Some,
-                Bit::Reset,
-            ] {
-                dbg_bit!(value, not);
-                assert_bit!(value, not);
+        fn test_bitxor() {
+            for (lhs, rhs) in  CASES {
+                dbg_bit!(lhs, rhs, bitxor);
+            }
+
+            for (lhs, rhs) in  CASES {
+                assert_bit!(lhs, rhs, bitxor);
             }
         }
     }

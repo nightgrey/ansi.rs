@@ -79,7 +79,7 @@ pub trait Etwa: Sized {
         if self.is_some() { Some(f(self)) } else { None }
     }
 
-    /// Returns [`Etwa::None`] if the option is [`Self::None`], otherwise calls `f` with the
+    /// Returns [`Self::None`] if the value is [`Self::None`], otherwise calls `f` with the
     /// wrapped value and returns the result.
     ///
     /// Some languages call this operation flatmap.
@@ -87,10 +87,8 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```
-    /// use std::ascii::Char::Cancel;
-    ///
-    /// fn stringified_space(color: Color) -> String {
-    ///     color.map(|space| Some(space.to_string()))
+    /// fn stringified_space(color: Color) -> Option<String> {
+    ///     color.map(|c| Some(c.color_space().to_string()))
     /// }
     ///
     /// assert_eq!(Color::Rgb(255, 0, 0).and_then(stringified_space), Some("RGB".to_string()));
@@ -117,19 +115,17 @@ pub trait Etwa: Sized {
     /// or applies a function to the contained value (if any).
     ///
     /// Arguments passed to `map_or` are eagerly evaluated; if you are passing
-    /// the result of a function call, it is recommended to use [`map_or_else`],
+    /// the result of a function call, it is recommended to use [`Self::map_or_else`],
     /// which is lazily evaluated.
-    ///
-    /// [`map_or_else`]: Option::map_or_else
     ///
     /// # Examples
     ///
     /// ```
-    /// let x = Some("foo");
-    /// assert_eq!(x.map_or(42, |v| v.len()), 3);
+    /// let x = Color::Rgb(255, 0, 0);
+    /// assert_eq!(x.map_or(42, |c| c.name().len()), 3);
     ///
-    /// let x: Option<&str> = None;
-    /// assert_eq!(x.map_or(42, |v| v.len()), 42);
+    /// let x: Color = Color::None;
+    /// assert_eq!(x.map_or(42, |c| c.name().len()), 42);
     /// ```
     #[inline]
     fn map_or<U>(self, default: U, f: impl FnOnce(Self) -> U) -> U {
@@ -144,20 +140,20 @@ pub trait Etwa: Sized {
     /// ```
     /// let k = 21;
     ///
-    /// let x = Some("foo");
-    /// assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 3);
+    /// let x = Color::Rgb(255, 0, 0);
+    /// assert_eq!(x.map_or_else(|| 2 * k, |c| c.color_space()), ColorSpace::Rgb);
     ///
-    /// let x: Option<&str> = None;
-    /// assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 42);
+    /// let x: Color = Color::None;
+    /// assert_eq!(x.map_or_else(|| 2 * k, |c| c.color_space), ColorSpace::None);
     /// ```
     ///
     /// # Handling a Result-based fallback
     ///
     /// A somewhat common occurrence when dealing with optional values
     /// in combination with [`Result<T, E>`] is the case where one wants to invoke
-    /// a fallible fallback if the option is not present.  This example
+    /// a fallible fallback if the value is not present. This example
     /// parses a command line argument (if present), or the contents of a file to
-    /// an integer.  However, unlike accessing the command line argument, reading
+    /// an integer. However, unlike accessing the command line argument, reading
     /// the file is fallible, so it must be wrapped with `Ok`.
     ///
     /// ```no_run
@@ -178,20 +174,18 @@ pub trait Etwa: Sized {
         if self.is_some() { f(self) } else { default() }
     }
 
-    /// Maps an `Option<T>` to a `U` by applying function `f` to the contained
-    /// value if the option is [`Some`], otherwise if [`None`], returns the
+    /// Maps a [`Self`] to a `U` by applying function `f` to the contained
+    /// value if the value is "Some", otherwise if [`Self::None`], returns the
     /// [default value] for the type `U`.
     ///
     /// # Examples
     ///
     /// ```
-    /// #![feature(result_option_map_or_default)]
+    /// let x = Color::Rgb(255, 0, 0);
+    /// let y: Color = Color::None;
     ///
-    /// let x: Option<&str> = Some("hi");
-    /// let y: Option<&str> = None;
-    ///
-    /// assert_eq!(x.map_or_default(|x| x.len()), 2);
-    /// assert_eq!(y.map_or_default(|y| y.len()), 0);
+    /// assert_eq!(x.map_or_default(|c| c.name().len()), 3);
+    /// assert_eq!(y.map_or_default(|c| c.name().len()), 0);
     /// ```
     ///
     /// [default value]: Default::default
@@ -200,89 +194,85 @@ pub trait Etwa: Sized {
         if self.is_some() { f(self) } else { U::default() }
     }
 
-    /// Returns the option if it contains a value, otherwise returns `optb`.
+    /// Returns the value if it contains a value, otherwise returns `other`.
     ///
     /// Arguments passed to `or` are eagerly evaluated; if you are passing the
-    /// result of a function call, it is recommended to use [`or_else`], which is
+    /// result of a function call, it is recommended to use [`Self::or_else`], which is
     /// lazily evaluated.
-    ///
-    /// [`or_else`]: Option::or_else
     ///
     /// # Examples
     ///
     /// ```
-    /// let x = Some(2);
-    /// let y = None;
-    /// assert_eq!(x.or(y), Some(2));
+    /// let x = Color::Rgb(255, 0, 0);
+    /// let y = Color::None;
+    /// assert_eq!(x.or(y), Color::Rgb(255, 0, 0));
     ///
-    /// let x = None;
-    /// let y = Some(100);
-    /// assert_eq!(x.or(y), Some(100));
+    /// let x = Color::None;
+    /// let y = Color::Rgb(0, 255, 0);
+    /// assert_eq!(x.or(y), Color::Rgb(0, 255, 0));
     ///
-    /// let x = Some(2);
-    /// let y = Some(100);
-    /// assert_eq!(x.or(y), Some(2));
+    /// let x = Color::Rgb(255, 0, 0);
+    /// let y = Color::Rgb(0, 255, 0);
+    /// assert_eq!(x.or(y), Color::Rgb(255, 0, 0));
     ///
-    /// let x: Option<u32> = None;
-    /// let y = None;
-    /// assert_eq!(x.or(y), None);
+    /// let x: Color = Color::None;
+    /// let y = Color::None;
+    /// assert_eq!(x.or(y), Color::None);
     /// ```
     #[inline]
-    fn or(self, fallback: Self) -> Self {
-        if self.is_some() { self } else { fallback }
+    fn or(self, other: Self) -> Self {
+        if self.is_some() { self } else { other }
     }
 
-    /// Returns the option if it contains a value, otherwise calls `f` and
+    /// Returns the value if it contains a value, otherwise calls `f` and
     /// returns the result.
     ///
     /// # Examples
     ///
     /// ```
-    /// fn nobody() -> Option<&'static str> { None }
-    /// fn vikings() -> Option<&'static str> { Some("vikings") }
+    /// fn none_color() -> Color { Color::None }
+    /// fn red_color() -> Color { Color::Rgb(255, 0, 0) }
     ///
-    /// assert_eq!(Some("barbarians").or_else(vikings), Some("barbarians"));
-    /// assert_eq!(None.or_else(vikings), Some("vikings"));
-    /// assert_eq!(None.or_else(nobody), None);
+    /// assert_eq!(Color::Rgb(0, 255, 0).or_else(red_color), Color::Rgb(0, 255, 0));
+    /// assert_eq!(Color::None.or_else(red_color), Color::Rgb(255, 0, 0));
+    /// assert_eq!(Color::None.or_else(none_color), Color::None);
     /// ```
     #[inline]
     fn or_else(self, f: impl FnOnce() -> Self) -> Self {
         if self.is_some() { self } else { f() }
     }
 
-    /// Returns [`None`] if the option is [`None`], otherwise returns `optb`.
+    /// Returns [`Self::None`] if the value is [`Self::None`], otherwise returns `other`.
     ///
     /// Arguments passed to `and` are eagerly evaluated; if you are passing the
-    /// result of a function call, it is recommended to use [`and_then`], which is
+    /// result of a function call, it is recommended to use [`Self::and_then`], which is
     /// lazily evaluated.
-    ///
-    /// [`and_then`]: Option::and_then
     ///
     /// # Examples
     ///
     /// ```
-    /// let x = Some(2);
-    /// let y: Option<&str> = None;
-    /// assert_eq!(x.and(y), None);
+    /// let x = Color::Rgb(255, 0, 0);
+    /// let y: Color = Color::None;
+    /// assert_eq!(x.and(y), Color::None);
     ///
-    /// let x: Option<u32> = None;
-    /// let y = Some("foo");
-    /// assert_eq!(x.and(y), None);
+    /// let x: Color = Color::None;
+    /// let y = Color::Rgb(0, 255, 0);
+    /// assert_eq!(x.and(y), Color::None);
     ///
-    /// let x = Some(2);
-    /// let y = Some("foo");
-    /// assert_eq!(x.and(y), Some("foo"));
+    /// let x = Color::Rgb(255, 0, 0);
+    /// let y = Color::Rgb(0, 255, 0);
+    /// assert_eq!(x.and(y), Color::Rgb(0, 255, 0));
     ///
-    /// let x: Option<u32> = None;
-    /// let y: Option<&str> = None;
-    /// assert_eq!(x.and(y), None);
+    /// let x: Color = Color::None;
+    /// let y: Color = Color::None;
+    /// assert_eq!(x.and(y), Color::None);
     /// ```
     #[inline]
     fn and(self, other: Self) -> Self {
         if self.is_some() { other } else { Self::None }
     }
 
-    /// Returns [`Self::None`] if the option is [`Self::None`], otherwise calls `predicate`
+    /// Returns [`Self::None`] if the value is [`Self::None`], otherwise calls `predicate`
     /// with the wrapped value and returns:
     ///
     /// - "Some" if `predicate` returns `true` (where `t` is the wrapped
@@ -292,16 +282,16 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```rust
-    /// fn has_blue (color: &Color) -> bool {
+    /// fn has_blue(color: &Color) -> bool {
     ///     match color {
     ///         Color::Rgb(r, g, b) => *b > 0,
     ///         _ => false,
     ///     }
     /// }
     ///
-    /// assert_eq!(Color::None.filter(has_blue), None);
-    /// assert_eq!(Color::Rgb(0, 0, 0).filter(has_blue), None);
-    /// assert_eq!(Color::Rgb(0, 0, 255).filter(has_blue), Color::Rgb(4, 6, 8));
+    /// assert_eq!(Color::None.filter(has_blue), Color::None);
+    /// assert_eq!(Color::Rgb(0, 0, 0).filter(has_blue), Color::None);
+    /// assert_eq!(Color::Rgb(0, 0, 255).filter(has_blue), Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
     fn filter(self, pred: impl FnOnce(&Self) -> bool) -> Self {
@@ -320,13 +310,13 @@ pub trait Etwa: Sized {
     /// let mut x = Color::None;
     ///
     /// {
-    ///     let y: &mut Color = x.get_or_insert(Color::Red);
-    ///     assert_eq!(y, &Color::Red);
+    ///     let y: &mut Color = x.get_or_insert(Color::Rgb(255, 0, 0));
+    ///     assert_eq!(y, &Color::Rgb(255, 0, 0));
     ///
-    ///     *y = Color::Blue;
+    ///     *y = Color::Rgb(0, 0, 255);
     /// }
     ///
-    /// assert_eq!(x, Color::Blue);
+    /// assert_eq!(x, Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
     fn get_or_insert(&mut self, value: Self) -> &mut Self {
@@ -343,13 +333,13 @@ pub trait Etwa: Sized {
     /// let mut x = Color::None;
     ///
     /// {
-    ///     let y: &mut Color = x.get_or_insert_with(|| Color::Red);
-    ///     assert_eq!(y, &Color::Red);
+    ///     let y: &mut Color = x.get_or_insert_with(|| Color::Rgb(255, 0, 0));
+    ///     assert_eq!(y, &Color::Rgb(255, 0, 0));
     ///
-    ///     *y = Color::Blue;
+    ///     *y = Color::Rgb(0, 0, 255);
     /// }
     ///
-    /// assert_eq!(x, Color::Blue);
+    /// assert_eq!(x, Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
     fn get_or_insert_with(&mut self, f: impl FnOnce() -> Self) -> &mut Self {
@@ -379,20 +369,20 @@ pub trait Etwa: Sized {
 
     /// Replaces the actual value in the option by the value given in parameter,
     /// returning the old value if present,
-    /// leaving a "Some"" in its place without deinitializing either one.
+    /// leaving a "Some" in its place without deinitializing either one.
     ///
     /// # Examples
     ///
     /// ```
-    /// let mut x = Some(2);
-    /// let old = x.replace(5);
-    /// assert_eq!(x, Some(5));
-    /// assert_eq!(old, Some(2));
+    /// let mut x = Color::Rgb(255, 0, 0);
+    /// let old = x.replace(Color::Rgb(0, 255, 0));
+    /// assert_eq!(x, Color::Rgb(0, 255, 0));
+    /// assert_eq!(old, Color::Rgb(255, 0, 0));
     ///
-    /// let mut x = None;
-    /// let old = x.replace(3);
-    /// assert_eq!(x, Some(3));
-    /// assert_eq!(old, None);
+    /// let mut x = Color::None;
+    /// let old = x.replace(Color::Rgb(0, 0, 255));
+    /// assert_eq!(x, Color::Rgb(0, 0, 255));
+    /// assert_eq!(old, Color::None);
     /// ```
     #[inline]
     fn replace(&mut self, value: Self) -> Self {

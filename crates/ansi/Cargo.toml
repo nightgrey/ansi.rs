@@ -15,6 +15,7 @@ packed_struct = "0.10.1"
 zerocopy = "0.8.39"
 bilge = "0.3.0"
 bytemuck.workspace = true
+etwa.workspace = true
 
 [[bench]]
 name = "lib"

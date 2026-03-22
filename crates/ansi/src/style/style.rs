@@ -2,10 +2,12 @@ use crate::{Attribute, Color, Escape};
 use bitflags::Flags;
 use std::cmp::PartialEq;
 use std::fmt::{from_fn, Debug};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXorAssign, Sub, SubAssign};
+use std::ops::{BitAnd, BitOr, Sub, SubAssign};
+use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
+use etwa::Etwa;
 use utils::separate_by;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, BitXor, BitXorAssign, Sub, SubAssign, Not)]
 pub struct Style {
     pub attributes: Attribute,
     pub foreground: Color,
@@ -415,36 +417,6 @@ impl Style {
     }
 }
 
-impl Sub for Style {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self::Output {
-        Style {
-            attributes: self.attributes - other.attributes,
-            foreground: self.foreground - other.foreground,
-            background: self.background - other.background,
-        }
-    }
-}
-
-impl SubAssign for Style {
-    fn sub_assign(&mut self, other: Self) {
-        *self = *self - other;
-    }
-}
-
-#[test]
-fn  s() {
-    let s = Style::default()
-        .with(Attribute::Italic | Attribute::Underline)
-        .foreground(Color::Red)
-        .background(Color::Blue);
-
-    let s2 = Style::None.with(Attribute::Bold);
-
-    let sd = s.union(s2);
-    dbg!(sd);
-}
 impl Default for Style {
     fn default() -> Self {
         Style::None
@@ -520,4 +492,17 @@ impl Escape for Style {
 
         w.write_all(b"m")
     }
+}
+
+impl Etwa for Style {
+    const None: Self = Self {
+        attributes: Attribute::None,
+        foreground: Color::None,
+        background: Color::None,
+    };
+
+    fn is_none(&self) -> bool {
+        self == &Self::None
+    }
+
 }

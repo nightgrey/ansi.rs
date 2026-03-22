@@ -4,9 +4,10 @@ use std::io::Write;
 use std::marker::Destruct;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use bilge::prelude::*;
+use etwa::Etwa;
 
-#[derive_const(Clone, Eq, PartialEq, Default)]
-#[derive(Copy)]
+#[derive_const(Clone, Eq, PartialEq)]
+#[derive(Copy, Etwa)]
 pub enum Color {
     Black,
     Red,
@@ -28,137 +29,10 @@ pub enum Color {
     Index(u8),
     Rgb(u8, u8, u8),
 
-    #[default]
     Reset,
     None,
 }
-
 impl Color {
-    /// Returns whether the color is not [`Color::None`].
-    #[inline]
-    pub const fn is_some(&self) -> bool {
-        match self {
-            Color::None => false,
-            _ => true,
-        }
-    }
-
-    /// Returns whether the color is [`Color::None`].
-    #[inline]
-    pub const fn is_none(&self) -> bool {
-        !self.is_some()
-    }
-
-    /// Returns whether the color is [`Color::Reset`].
-    #[inline]
-    pub const fn is_reset(&self) -> bool {
-        match self {
-            Color::Reset => true,
-            _ => false,
-        }
-    }
-
-    /// Maps an `Option<T>` to `Option<U>` by applying a function to a contained value (if `Some`) or returns `None` (if `None`).
-    ///
-    /// # Examples
-    ///
-    /// Calculates the length of an <code>Option<[String]></code> as an
-    /// <code>Option<[usize]></code>, consuming the original:
-    ///
-    /// [String]: ../../std/string/struct.String.html "String"
-    /// ```
-    /// let maybe_some_string = Some(String::from("Hello, World!"));
-    /// // `Option::map` takes self *by value*, consuming `maybe_some_string`
-    /// let maybe_some_len = maybe_some_string.map(|s| s.len());
-    /// assert_eq!(maybe_some_len, Some(13));
-    ///
-    /// let x: Option<&str> = None;
-    /// assert_eq!(x.map(|s| s.len()), None);
-    /// ```
-    #[inline]
-    pub const fn map<U, F>(self, f: F) -> Option<U>
-    where
-        F: [const] FnOnce(Color) -> U + [const] Destruct,
-    {
-        match self {
-            Color::None => None,
-            x => Some(f(x)),
-        }
-    }
-
-    /// Returns [`Color::None`] if the color is [`Color::None`], otherwise returns `other`.
-    ///
-    /// Arguments passed to `and` are eagerly evaluated; if you are passing the
-    /// result of a function call, it is recommended to use [`and_then`], which is
-    /// lazily evaluated.
-    #[inline]
-    pub const fn and(self, other: Color) -> Color {
-        match self {
-            Color::None => Color::None,
-            _ => other,
-        }
-    }
-
-    /// Returns [`Color::None`] if the color is [`Color::None`], otherwise calls `f` with the
-    /// wrapped value and returns the result.
-    ///
-    /// Some languages call this operation flatmap.
-    #[inline]
-    pub const fn and_then<U, F: [const] FnOnce(Color) -> U + [const] Destruct>(
-        self,
-        f: F,
-    ) -> Option<U> {
-        match self {
-            Color::None => None,
-            some => Some(f(some)),
-        }
-    }
-
-    /// Returns the color if it is not [`Color::None`], otherwise returns `other`.
-    ///
-    /// Arguments passed to `or` are eagerly evaluated; if you are passing the
-    /// result of a function call, it is recommended to use [`Color::or_else`], which is
-    /// lazily evaluated.
-    #[inline]
-    pub const fn or(self, other: Color) -> Color {
-        match self {
-            Color::None => other,
-            some => some,
-        }
-    }
-
-    /// Returns the color if it is not [`Color::None`], otherwise calls `f` and
-    /// returns the result.
-    #[inline]
-    pub const fn or_else<F: [const] FnOnce() -> Color + [const] Destruct>(self, f: F) -> Color {
-        match self {
-            Color::None => f(),
-            some => some,
-        }
-    }
-
-    /// Returns the color if it is not [`Color::None`], otherwise returns [`Color::Reset`].
-    #[inline]
-    pub const fn or_reset(self) -> Color {
-        match self {
-            Color::None => Color::Reset,
-            some => some,
-        }
-    }
-
-    /// Returns the color if it is not [`Color::None`], otherwise it's `None`.
-    ///
-    /// Arguments passed to `or` are eagerly evaluated; if you are passing the
-    /// result of a function call, it is recommended to use [`Color::or_else`], which is
-    /// lazily evaluated.
-    #[inline]
-    pub const fn or_none(self) -> Color {
-        match self {
-            Color::None => Color::None,
-            some => some,
-        }
-    }
-
     /// Returns color if exactly one of `self`, `other` is not [`Color::None`], otherwise returns [`Color::None`].
     #[inline]
     pub const fn xor(self, rhs: Color) -> Color {
@@ -386,4 +260,5 @@ mod tests {
             assert_eq!(value.not(), expected, "{:?}", value);
         }
     }
+    
 }

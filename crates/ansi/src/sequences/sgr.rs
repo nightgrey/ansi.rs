@@ -1,3 +1,4 @@
+use etwa::Etwa;
 use utils::separate_by;
 use crate::{Escape, Style};
 /// [SGR] - Select Graphic Rendition

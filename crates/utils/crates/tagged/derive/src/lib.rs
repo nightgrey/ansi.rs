@@ -126,6 +126,7 @@ fn process_variant(
     idx: usize,
     variant: &syn::Variant,
     backing: &Backing,
+    enum_ident: &syn::Ident,
     payload_width: u32,
 ) -> Variant {
     let backing_ident = &backing.ident;
@@ -157,7 +158,7 @@ fn process_variant(
                 get_method: None,
                 set_method: None,
                 debug_arm: quote! {
-                    Self::#tag_const => write!(f, stringify!(#variant_name))
+                    Self::#tag_const => f.write_str(concat!(stringify!(#enum_ident), "::", stringify!(#variant_name)))
                 },
             }
         }
@@ -231,7 +232,9 @@ fn process_variant(
             };
 
             let debug_arm = quote! {
-                Self::#tag_const => write!(f, "{}({})", stringify!(#variant_name), self.#get_method_ident())
+                Self::#tag_const => f.debug_tuple(concat!(stringify!(#enum_ident), "::", stringify!(#variant_name)))
+                    .field(&self.#get_method_ident())
+                    .finish()
             };
 
             Variant {
@@ -290,11 +293,39 @@ pub fn tagged(attr: TokenStream, item: TokenStream) -> TokenStream {
         .filter(|a| !a.path().is_ident("tagged"))
         .collect();
 
+    // ── #[default] ──
+    let default_variants: Vec<_> = input
+        .variants
+        .iter()
+        .filter(|v| v.attrs.iter().any(|a| a.path().is_ident("default")))
+        .collect();
+
+    assert!(
+        default_variants.len() <= 1,
+        "tagged: only one variant can be marked #[default]"
+    );
+
+    let default_impl = default_variants.first().map(|v| {
+        assert!(
+            matches!(v.fields, Fields::Unit),
+            "tagged: #[default] can only be applied to unit variants"
+        );
+        let const_ident = format_ident!("{}", v.ident.to_string().to_shouty_snake_case());
+        quote! {
+            impl core::default::Default for #ident {
+                #[inline]
+                fn default() -> Self {
+                    Self::#const_ident
+                }
+            }
+        }
+    });
+
     let infos: Vec<_> = input
         .variants
         .iter()
         .enumerate()
-        .map(|(i, v)| process_variant(i, v, &backing, payload_width))
+        .map(|(i, v)| process_variant(i, v, &backing, &input.ident, payload_width))
         .collect();
 
     let tag_consts: Vec<_> = infos
@@ -374,6 +405,8 @@ pub fn tagged(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #default_impl
     };
 
     expanded.into()

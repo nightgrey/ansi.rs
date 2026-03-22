@@ -13,7 +13,7 @@ use std::ops::Add;
 /// assert_eq!(edges.horizontal(), 4);  // left + right
 /// assert_eq!(edges.vertical(), 2);     // top + bottom
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Edges<T = usize> {
     /// Spacing from the top edge.
     pub top: T,

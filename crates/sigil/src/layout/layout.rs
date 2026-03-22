@@ -1,111 +1,58 @@
+use taffy::style_helpers::FromLength;
 use ansi::{Color};
 use geometry::{Size, Axis};
-use tagged::prelude::*;
 
 // Base properties
-#[tagged(u32)]
-enum Dimension {
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub enum Dimension {
+    #[default]
     Auto,
-    Length(u30),
-    Percent(u30),
+    Length(u32),
+    Percent(f32),
 }
 
-pub type Edges = geometry::Edges;
-
-// Alignment properties
-
-mod alignment {
-    #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-    pub enum Align {
-        #[default]
-        Start,
-        Center,
-        End,
+impl From<Dimension> for taffy::Dimension {
+    fn from(value: Dimension) -> Self {
+        match value {
+            Dimension::Auto => taffy::Dimension::auto(),
+            Dimension::Length(val) => taffy::Dimension::length(val as f32),
+            Dimension::Percent(val) => taffy::Dimension::percent(val),
+        }
     }
-
-    #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-    pub enum AlignItems {
-        #[default]
-        /// Items are packed toward the start of the axis
-        Start,
-        /// Items are packed along the center of the cross axis
-        Center,
-        /// Items are packed toward the end of the axis
-        End,
-
-        /// Items are aligned such as their baselines align
-        Baseline,
-        /// Stretch to fill the container
-        Stretch,
+}
+impl From<Dimension> for taffy::LengthPercentage {
+    fn from(value: Dimension) -> Self {
+        match value {
+            Dimension::Auto => taffy::LengthPercentage::from_length(0.0),
+            Dimension::Length(val) => taffy::LengthPercentage::length(val as f32),
+            Dimension::Percent(val) => taffy::LengthPercentage::percent(val),
+        }
     }
-
-    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-    pub enum AlignContent {
-        /// Items are packed toward the start of the axis
-        Start,
-        /// Items are centered around the middle of the axis
-        Center,
-        /// Items are packed toward the end of the axis
-        End,
-
-        /// The first and last items are aligned flush with the edges of the container (no gap)
-        /// The gap between items is distributed evenly.
-        SpaceBetween,
-        /// The gap between the first and last items is exactly THE SAME as the gap between items.
-        /// The gaps are distributed evenly
-        SpaceEvenly,
-        /// The gap between the first and last items is exactly HALF the gap between items.
-        /// The gaps are distributed evenly in proportion to these ratios.
-        SpaceAround,
-
-        /// Items are stretched to fill the container
-        Stretch,
+}
+impl From<Dimension> for taffy::LengthPercentageAuto {
+    fn from(value: Dimension) -> Self {
+        match value {
+            Dimension::Auto => taffy::LengthPercentageAuto::auto(),
+            Dimension::Length(val) => taffy::LengthPercentageAuto::length(val as f32),
+            Dimension::Percent(val) => taffy::LengthPercentageAuto::percent(val),
+        }
     }
 }
 
-pub type Align = alignment::Align;
+pub type Edges = geometry::Edges<Dimension>;
 
-pub type AlignSelf = alignment::AlignItems;
-pub type AlignContent = alignment::AlignContent;
-pub type AlignItems = alignment::AlignItems;
+pub type AlignSelf = taffy::AlignItems;
+pub type AlignContent = taffy::AlignContent;
+pub type AlignItems = taffy::AlignItems;
 
-pub type JustifySelf = alignment::AlignItems;
-pub type JustifyContent = alignment::AlignContent;
-pub type JustifyItems = alignment::AlignItems;
+pub type JustifySelf = taffy::AlignItems;
+pub type JustifyContent = taffy::AlignContent;
+pub type JustifyItems = taffy::AlignItems;
 
 // Flex properties
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum FlexWrap {
-    /// Items will not wrap and stay on a single line
-    #[default]
-    NoWrap,
-    /// Items will wrap according to this item's [`FlexDirection`]
-    Wrap,
-    /// Items will wrap in the opposite direction to this item's [`FlexDirection`]
-    WrapReverse,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum FlexDirection {
-    /// Defines +x as the main axis
-    ///
-    /// Items will be added from left to right in a row.
-    #[default]
-    Row,
-    /// Defines +y as the main axis
-    ///
-    /// Items will be added from top to bottom in a column.
-    Column,
-    /// Defines -x as the main axis
-    ///
-    /// Items will be added from right to left in a row.
-    RowReverse,
-    /// Defines -y as the main axis
-    ///
-    /// Items will be added from bottom to top in a column.
-    ColumnReverse,
-}
+pub type FlexWrap = taffy::FlexWrap;
+pub type FlexDirection = taffy::FlexDirection;
 
 // Decoration properties
 
@@ -122,6 +69,7 @@ pub enum FontWeight {
     Normal,
     Bold,
 }
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub enum TextDecorationLine {
     #[default]
@@ -131,25 +79,10 @@ pub enum TextDecorationLine {
 }
 
 // Other properties
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum Overflow {
-    /// The automatic minimum size of this node as a flexbox/grid item should be based on the size of its content.
-    /// Content that overflows this node *should* contribute to the scroll region of its parent.
-    #[default]
-    Visible,
-    /// The automatic minimum size of this node as a flexbox/grid item should be based on the size of its content.
-    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
-    Clip,
-    /// The automatic minimum size of this node as a flexbox/grid item should be `0`.
-    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
-    Hidden,
-    /// The automatic minimum size of this node as a flexbox/grid item should be `0`. Additionally, space should be reserved
-    /// for a scrollbar. The amount of space reserved is controlled by the `scrollbar_width` property.
-    /// Content that overflows this node should *not* contribute to the scroll region of its parent.
-    Scroll,
-}
+pub type Overflow = taffy::Overflow;
 
-struct Layout {
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Layout {
     pub color: Color,
     pub background_color: Color,
     pub text_decoration: TextDecorationLine,
@@ -199,4 +132,58 @@ struct Layout {
 
     pub overflow: Axis<Overflow>,
     pub scrollbar_width: usize,
+}
+
+impl From<Layout> for taffy::Style {
+    fn from(value: Layout) -> Self {
+        Self {
+            padding: taffy::Rect {
+                left: value.padding.left.into(),
+                right: value.padding.right.into(),
+                top: value.padding.top.into(),
+                bottom: value.padding.bottom.into(),
+            },
+            margin: taffy::Rect {
+                left: value.margin.left.into(),
+                right: value.margin.right.into(),
+                top: value.margin.top.into(),
+                bottom: value.margin.bottom.into(),
+            },
+            border: match value.border {
+                Border::None => taffy::Rect::zero(),
+                Border::Solid => taffy::Rect {
+                    left: taffy::LengthPercentage::length(1.0),
+                    right: taffy::LengthPercentage::length(1.0),
+                    top: taffy::LengthPercentage::length(1.0),
+                    bottom: taffy::LengthPercentage::length(1.0),
+                },
+            },
+            size: taffy::Size {
+                width: value.size.width.into(),
+                height: value.size.height.into(),
+            },
+            max_size: taffy::Size {
+                width: value.max_size.width.into(),
+                height: value.max_size.height.into(),
+            },
+            min_size: taffy::Size {
+                width: value.min_size.width.into(),
+                height: value.min_size.height.into(),
+            },
+            align_items: value.align_items,
+            align_self: value.align_self,
+            justify_items: value.justify_items,
+            justify_self: value.justify_self,
+            align_content: value.align_content,
+            justify_content: value.justify_content,
+            flex_direction: value.flex_direction,
+            flex_wrap: value.flex_wrap,
+            flex_basis: value.flex_basis.into(),
+            flex_grow: value.flex_grow,
+            flex_shrink: value.flex_shrink,
+            overflow: taffy::Point { x: value.overflow.horizontal, y: value.overflow.vertical },
+            scrollbar_width: value.scrollbar_width as f32,
+            ..Default::default()
+        }
+    }
 }

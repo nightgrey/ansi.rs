@@ -42,7 +42,7 @@ impl Orchestrator {
 
         let computation = layouts[id].final_computation;
         let bounds = Rect::bounds(computation.content_box_x() as usize, computation.content_box_y() as usize, computation.content_box_width() as usize, computation.content_box_height() as usize);
-        let style = elements[id].style;
+        let style = elements[id].layout;
 
         let mut painter = Painter::new(&mut layers[id]);
         painter.push(bounds);

@@ -2,7 +2,10 @@
 resolver = "3"
 members = [
     "crates/ansi", "crates/geometry", "crates/grid",
-    "crates/sigil", "crates/tagged", "crates/tagged-derive", "crates/terminal", "crates/tree", "crates/utils",
+    "crates/sigil", "crates/terminal", "crates/utils",
+    "crates/utils/crates/tree",
+    "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
+    "crates/utils/crates/etwa/core", "crates/utils/crates/etwa/derive",
 ]
 
 [workspace.dependencies]
@@ -15,15 +18,21 @@ unicode-width = "0.2.2"
 bitflags = "2.10.0"
 bytemuck = "1.24.0"
 textwrap = "0.16.2"
+bitcraft = "0.9.2"
+
+# Workspace crates
 ansi = { path = "crates/ansi" }
-utils = { path = "crates/utils" }
 geometry = { path = "crates/geometry" }
-terminal = { path = "crates/terminal" }
 grid = { path = "crates/grid" }
-tree = { path = "crates/tree" }
-tagged = { path = "crates/tagged"}
-tagged-derive = { path = "crates/tagged-derive" }
-bitcraft = { version = "0.9.2" }
+sigil = { path = "crates/sigil" }
+terminal = { path = "crates/terminal" }
+utils = { path = "crates/utils" }
+tree = { path = "crates/utils/crates/tree" }
+
+tagged = { path = "crates/utils/crates/tagged/core" }
+tagged-derive = { path = "crates/utils/crates/tagged/derive" }
+etwa = { path = "crates/utils/crates/etwa/core" }
+etwa-derive = { path = "crates/utils/crates/etwa/derive" }
 
 [profile.bench]
 debug = true

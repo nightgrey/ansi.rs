@@ -1,4 +1,5 @@
 
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
 pub struct Axis<T> {
     pub horizontal: T,
     pub vertical: T,

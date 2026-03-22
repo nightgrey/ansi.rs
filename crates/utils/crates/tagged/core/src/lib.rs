@@ -9,6 +9,7 @@
 //!
 //! #[tagged(u32)]
 //! enum Dimension {
+//!     #[default]
 //!     Auto,
 //!     Length(u16),
 //!     Percent(u30),   // arbitrary_int type: 30-bit uint
@@ -23,6 +24,9 @@
 //! // Pseudo-types use arbitrary_int: accepts and returns u30
 //! let p = Dimension::percent(u30::new(500_000));
 //! assert_eq!(p.get_percent().value(), 500_000);
+//!
+//! // #[default] generates Default impl
+//! assert_eq!(Dimension::default(), Dimension::AUTO);
 //!
 //! // Everything fits in a single u32
 //! assert_eq!(size_of::<Dimension>(), 4);
@@ -62,6 +66,7 @@ mod tests {
 
     #[tagged(u32)]
     enum Dimension {
+        #[default]
         Auto,
         Length(u16),
         Percent(u30),
@@ -111,14 +116,9 @@ mod tests {
 
     #[test]
     fn dimension_debug() {
-        let s = format!("{:?}", Dimension::AUTO);
-        assert_eq!(s, "Auto");
-
-        let s = format!("{:?}", Dimension::length(120));
-        assert_eq!(s, "Length(120)");
-
-        let s = format!("{:?}", Dimension::percent(u30::new(999)));
-        assert_eq!(s, "Percent(999)");
+        assert_eq!(format!("{:?}", Dimension::AUTO), "Dimension::Auto");
+        assert_eq!(format!("{:?}", Dimension::length(120)), "Dimension::Length(120)");
+        assert_eq!(format!("{:?}", Dimension::percent(u30::new(999))), "Dimension::Percent(999)");
     }
 
     #[test]
@@ -290,6 +290,15 @@ mod tests {
         d.set_percent(u30::new(200));
         assert!(d.is_percent());
         assert_eq!(d.get_percent().value(), 200);
+    }
+
+    // ── Default ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn default_variant() {
+        let d = Dimension::default();
+        assert!(d.is_auto());
+        assert_eq!(d, Dimension::AUTO);
     }
 
     // ── Hash works ──────────────────────────────────────────────────────

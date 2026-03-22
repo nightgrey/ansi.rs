@@ -1,2 +1,5 @@
 [tools]
 rust = "nightly"
+
+[tasks.sandbox] # using a ":" means we need to add quotes
+run = "cargo run sandbox"

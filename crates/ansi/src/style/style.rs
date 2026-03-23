@@ -1,10 +1,11 @@
+
 use crate::{Attribute, Color, Escape};
 use bitflags::Flags;
 use std::cmp::PartialEq;
 use std::fmt::{from_fn, Debug};
 use std::ops::{BitAnd, BitOr, Sub, SubAssign};
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
-use etwa::Etwa;
+use etwa::Maybe;
 use utils::separate_by;
 
 #[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, BitXor, BitXorAssign, Sub, SubAssign, Not)]
@@ -13,7 +14,6 @@ pub struct Style {
     pub foreground: Color,
     pub background: Color,
 }
-
 #[allow(non_upper_case_globals)]
 impl Style {
     pub const None: Style = Self {
@@ -26,7 +26,6 @@ impl Style {
         attributes: Attribute::Reset,
         foreground: Color::Reset,
         background: Color::Reset,
-
     };
 
     pub const Bold: Self = Style {
@@ -494,7 +493,8 @@ impl Escape for Style {
     }
 }
 
-impl Etwa for Style {
+#[allow(non_upper_case_globals)]
+impl Maybe for Style {
     const None: Self = Self {
         attributes: Attribute::None,
         foreground: Color::None,
@@ -504,5 +504,4 @@ impl Etwa for Style {
     fn is_none(&self) -> bool {
         self == &Self::None
     }
-
 }

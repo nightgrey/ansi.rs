@@ -13,7 +13,7 @@ bitflags! {
     pub struct Attribute: u16 {
         /// No attributes.
         const None = 0;
-        /// Resets all the attributes.
+        /// Resets all attributes.
         const Reset = 1 << 0;
         /// Increases the text intensity.
         const Bold = 1 << 1;

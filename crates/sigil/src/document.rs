@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::{Element, ElementId, ElementKind, GraphemeArena, Layer};
-use tree::{RootTree, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, Tree, Map, Error, At};
+use tree::{RootTree, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, At};
 use geometry::{Rect, Size};
 use grid::{Spatial};
 use tree::table::Table;
@@ -220,6 +220,10 @@ impl Document {
     }
 
     pub fn compute_layouts(&mut self) {
+        for (id, node) in &self.elements {
+            node.layout.clone_into(&mut self.layouts[id].layout);
+        }
+        
         let viewport = self.size();
         let root_id = self.elements.root_id();
 

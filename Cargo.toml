@@ -5,7 +5,7 @@ members = [
     "crates/sigil", "crates/terminal", "crates/utils",
     "crates/utils/crates/tree",
     "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
-    "crates/utils/crates/etwa/core", "crates/utils/crates/etwa/derive",
+    "crates/utils/crates/etwa/core", "crates/utils/crates/etwa/derive", "crates/gloss",
 ]
 
 [workspace.dependencies]

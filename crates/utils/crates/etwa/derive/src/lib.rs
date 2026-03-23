@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Error, Meta};
 
-/// Derive the `Etwa` trait for an enum.
+/// Derive the `Maybe` trait for an enum.
 ///
 /// # None resolution (in order)
 /// 1. A variant marked `#[none]` — must be a unit variant.
@@ -11,13 +11,13 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Error, Meta};
 ///
 /// # Default
 /// Always emits `impl Default`. The default variant is:
-/// 1. The variant marked `#[etwa(default)]`, if any.
+/// 1. The variant marked `#[maybe(default)]`, if any.
 /// 2. Otherwise the none variant.
 ///
 /// Do **not** also `#[derive(Default)]` — this will conflict.
 ///
 /// # Generated impls
-/// - `impl Etwa for T`
+/// - `impl Maybe for T`
 /// - `impl Default for T`
 /// - `impl From<T> for Option<T>`
 /// - `impl From<Option<T>> for T`
@@ -25,7 +25,7 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Error, Meta};
 /// # Examples
 /// ```rust
 /// // Zero-config: variant named `None` is auto-detected
-/// #[derive(Etwa)]
+/// #[derive(Maybe)]
 /// enum Color {
 ///     None,
 ///     Black,
@@ -33,20 +33,20 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Error, Meta};
 /// }
 ///
 /// // Explicit none + separate default
-/// #[derive(Etwa)]
+/// #[derive(Maybe)]
 /// enum Weight {
 ///     #[none]
 ///     Unset,
-///     #[etwa(default)]
+///     #[maybe(default)]
 ///     Normal,
 ///     Bold,
 /// }
 /// ```
-#[proc_macro_derive(Etwa, attributes(none, etwa))]
-pub fn derive_etwa(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Maybe, attributes(none, maybe))]
+pub fn derive_maybe(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    match derive_etwa_inner(&input) {
+    match derive_maybe_inner(&input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
@@ -56,10 +56,10 @@ fn has_attr(attrs: &[syn::Attribute], ident: &str) -> bool {
     attrs.iter().any(|a| a.path().is_ident(ident))
 }
 
-/// Check for `#[etwa(default)]`
-fn has_etwa_default(attrs: &[syn::Attribute]) -> bool {
+/// Check for `#[maybe(default)]`
+fn has_maybe_default(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|a| {
-        if !a.path().is_ident("etwa") {
+        if !a.path().is_ident("maybe") {
             return false;
         }
         match a.meta {
@@ -73,13 +73,13 @@ fn has_etwa_default(attrs: &[syn::Attribute]) -> bool {
     })
 }
 
-fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let name = &input.ident;
     let (impl_generic, generic, where_clause) = input.generics.split_for_impl();
 
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
-        _ => return Err(Error::new_spanned(name, "Etwa can only be derived for enums")),
+        _ => return Err(Error::new_spanned(name, "Maybe can only be derived for enums")),
     };
 
     // --- Resolve none ---
@@ -122,7 +122,7 @@ fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
 
     let attr_default: Vec<_> = variants
         .iter()
-        .filter(|v| has_etwa_default(&v.attrs))
+        .filter(|v| has_maybe_default(&v.attrs))
         .collect();
 
     let default_ident = match attr_default.len() {
@@ -132,7 +132,7 @@ fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
             if !matches!(v.fields, Fields::Unit) {
                 return Err(Error::new_spanned(
                     &v.ident,
-                    "#[etwa(default)] variant must be a unit variant (no fields)",
+                    "#[maybe(default)] variant must be a unit variant (no fields)",
                 ));
             }
             &v.ident
@@ -140,13 +140,13 @@ fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
         _ => {
             return Err(Error::new_spanned(
                 &attr_default[1].ident,
-                "Multiple #[etwa(default)] variants — mark at most one",
+                "Multiple #[maybe(default)] variants — mark at most one",
             ))
         }
     };
 
     Ok(quote! {
-        impl #impl_generic Etwa for #name #generic #where_clause {
+        impl #impl_generic Maybe for #name #generic #where_clause {
             #[allow(non_upper_case_globals)]
             const None: Self = #name::#none_ident;
 
@@ -163,13 +163,12 @@ fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
             }
         }
 
-
         impl #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
             #[inline]
-            fn from(opt: Option<#name #generic>) -> Self {
-                match opt {
-                    Some(v) => v,
-                    None => <#name #generic as Etwa>::None,
+            fn from(value: Option<#name #generic>) -> Self {
+                match value {
+                    Some(value) => if value.is_some() { value } else { <#name #generic as Maybe>::None },
+                    None => <#name #generic as Maybe>::None,
                 }
             }
         }
@@ -177,8 +176,22 @@ fn derive_etwa_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
         impl #impl_generic PartialEq<Option<#name #generic>> for #name #generic #where_clause {
             #[inline]
             fn eq(&self, other: &Option<#name #generic>) -> bool {
-                self.etwa().eq(other)
+                match other {
+                    Some(rhs) => rhs == self,
+                    None => &Self::None == self,
+                }
             }
         }
+
+        impl #impl_generic PartialEq<#name #generic> for Option<#name #generic> #where_clause {
+            #[inline]
+            fn eq(&self, other: &#name #generic) -> bool {
+                match self {
+                    Some(lhs) => lhs == other,
+                    None => &#name #generic::None == other,
+                }
+            }
+        }
+
     })
 }

@@ -13,7 +13,8 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
 /// assert_eq!(size.width, 80);
 /// assert_eq!(size.height, 24);
 /// ```
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Copy, Debug)]
+#[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Size<T = usize> {
     /// Width in columns.
     pub width: T,

@@ -4,10 +4,10 @@ use std::io::Write;
 use std::marker::Destruct;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use bilge::prelude::*;
-use etwa::Etwa;
+use etwa::Maybe;
 
 #[derive_const(Clone, Eq, PartialEq)]
-#[derive(Copy, Etwa)]
+#[derive(Copy, Maybe)]
 pub enum Color {
     Black,
     Red,

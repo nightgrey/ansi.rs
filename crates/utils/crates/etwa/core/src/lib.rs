@@ -1,17 +1,9 @@
-pub use etwa_derive::Etwa;
+pub use etwa_derive::Maybe;
 
 /// A trait for types with a distinguished "none" and "some" state,
 /// providing [`Option`]-like combinators without wrapping.
-///
-/// # Note: `Option::Some(TNone)` -> `TNone` -> `Option::None` roundtrip
-///
-/// The `From` impls treat the none variant as `Option::None`.
-/// This means `Some(Color::None)` converts to `Color::None` which
-/// converts back to `Option::None` — the roundtrip is intentionally
-/// lossy. In an ideal world `Some(TNone)` wouldn't exist, but
-/// when it does, it collapses to none.
 #[allow(non_upper_case_globals, non_snake_case)]
-pub trait Etwa: Sized {
+pub trait Maybe: Sized {
     /// No value.
     const None: Self;
 
@@ -20,7 +12,7 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```
-    /// use etwa::Etwa;
+    /// use maybe::Maybe;
     ///
     /// enum Foo {
     ///     None,
@@ -40,7 +32,7 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```
-    /// use etwa::Etwa;
+    /// use maybe::Maybe;
     ///
     /// enum Foo {
     ///     None,
@@ -394,7 +386,7 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```
-    /// use etwa::Etwa;
+    /// use maybe::Maybe;
     ///
     /// enum Foo {
     ///     None,
@@ -402,13 +394,13 @@ pub trait Etwa: Sized {
     /// }
     ///
     /// let x: Foo = Foo::Something;
-    /// assert_eq!(x.etwa(), Some(Foo::Something));
+    /// assert_eq!(x.maybe(), Some(Foo::Something));
     ///
     /// let x: Foo = Foo::None;
-    /// assert_eq!(x.etwa(), None);
+    /// assert_eq!(x.maybe(), None);
     /// ```
     #[inline]
-    fn etwa(self) -> Option<Self> {
+    fn maybe(self) -> Option<Self> {
         if self.is_some() { Some(self) } else { None }
     }
 
@@ -417,8 +409,9 @@ pub trait Etwa: Sized {
     /// # Examples
     ///
     /// ```
-    /// use etwa::Etwa;
+    /// use maybe::Maybe;
     ///
+    /// #[derive(Maybe)]
     /// enum Foo {
     ///     None,
     ///     Something,
@@ -436,12 +429,440 @@ pub trait Etwa: Sized {
     }
 }
 
-impl<T> Etwa for Option<T> {
+impl<T> Maybe for Option<T> {
     #[allow(non_upper_case_globals)]
     const None: Self = None;
 
     #[inline]
     fn is_none(&self) -> bool {
         Option::is_none(self)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Maybe;
+
+    #[derive(Maybe, Clone, Copy, Debug, PartialEq)]
+    enum Color {
+        None,
+        Black,
+        Red,
+        Green,
+        Blue,
+    }
+
+    #[derive(Maybe, Clone, Copy, Debug, PartialEq)]
+    enum Weight {
+        #[none]
+        Unset,
+        #[maybe(default)]
+        Normal,
+        Bold,
+    }
+
+    // ---- none resolution ----
+
+    mod none_resolution {
+        use super::*;
+
+        #[test]
+        fn auto_detected_by_name() {
+            assert_eq!(Color::None, Color::None);
+            assert!(Color::None.is_none());
+        }
+
+        #[test]
+        fn explicit_attr() {
+            assert_eq!(Weight::None, Weight::Unset);
+            assert!(Weight::Unset.is_none());
+        }
+
+        #[test]
+        fn some_variants_are_some() {
+            assert!(Color::Red.is_some());
+            assert!(Color::Black.is_some());
+            assert!(Weight::Normal.is_some());
+            assert!(Weight::Bold.is_some());
+        }
+    }
+
+    // ---- default ----
+
+    mod default_impl {
+        use super::*;
+
+        #[test]
+        fn default_is_none_when_unspecified() {
+            assert_eq!(Color::default(), Color::None);
+        }
+
+        #[test]
+        fn default_respects_maybe_default_attr() {
+            assert_eq!(Weight::default(), Weight::Normal);
+            // none and default are distinct
+            assert_ne!(Weight::None, Weight::default());
+        }
+    }
+
+    // ---- maybe / conversions ----
+
+    mod conversions {
+        use super::*;
+
+        #[test]
+        fn maybe_some() {
+            assert_eq!(Color::Red.maybe(), Some(Color::Red));
+        }
+
+        #[test]
+        fn maybe_none() {
+            assert_eq!(Color::None.maybe(), None);
+        }
+
+        #[test]
+        fn from_option_some() {
+            let c: Color = Color::from_option(Some(Color::Red));
+            assert_eq!(c, Color::Red);
+        }
+
+        #[test]
+        fn from_option_none() {
+            let c: Color = Color::from_option(None);
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn into_option_from_some() {
+            let opt: Option<Color> = Color::Red.into();
+            assert_eq!(opt, Some(Color::Red));
+        }
+
+        #[test]
+        fn into_option_from_none() {
+            let opt: Option<Color> = Color::None.into();
+
+            assert_eq!(opt, Some(Color::None));
+        }
+
+        #[test]
+        fn from_impl_some() {
+            let c: Color = Some(Color::Blue).into();
+            assert_eq!(c, Color::Blue);
+        }
+
+        #[test]
+        fn from_impl_none() {
+            let c: Color = Option::<Color>::None.into();
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn roundtrip() {
+            let c: Color = Some(Color::None).into();
+            assert_eq!(c, Color::None);
+            let opt: Option<Color> = c.into();
+            assert_eq!(opt, Some(Color::None));
+        }
+    }
+
+    // ---- map ----
+
+    mod map {
+        use super::*;
+
+        #[test]
+        fn map_some() {
+            let c = Color::Red.map(|_| Color::Blue);
+            assert_eq!(c, Color::Blue);
+        }
+
+        #[test]
+        fn map_none() {
+            let c = Color::None.map(|_| Color::Blue);
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn map_or_some() {
+            let s = Color::Red.map_or("fallback", |c| match c {
+                Color::Red => "red",
+                _ => "other",
+            });
+            assert_eq!(s, "red");
+        }
+
+        #[test]
+        fn map_or_none() {
+            let s = Color::None.map_or("fallback", |_| "value");
+            assert_eq!(s, "fallback");
+        }
+
+        #[test]
+        fn map_or_else_some() {
+            let s = Color::Red.map_or_else(|| "fallback", |_| "value");
+            assert_eq!(s, "value");
+        }
+
+        #[test]
+        fn map_or_else_none() {
+            let s = Color::None.map_or_else(|| "fallback", |_| "value");
+            assert_eq!(s, "fallback");
+        }
+    }
+
+    // ---- and_then (cross-type) ----
+
+    mod and_then {
+        use super::*;
+
+        #[test]
+        fn and_then_some_to_some() {
+            let w = Color::Red.and_then(|_| Weight::Bold);
+            assert_eq!(w, Weight::Bold);
+        }
+
+        #[test]
+        fn and_then_some_to_none() {
+            let w = Color::Red.and_then(|_| Weight::Unset);
+            assert_eq!(w, Weight::Unset);
+        }
+
+        #[test]
+        fn and_then_none_propagates() {
+            let w = Color::None.and_then(|_| Weight::Bold);
+            assert_eq!(w, Weight::Unset); // UNone
+        }
+
+        #[test]
+        fn and_then_same_type() {
+            let c = Color::Red.and_then(|_| Color::Green);
+            assert_eq!(c, Color::Green);
+
+            let c = Color::None.and_then(|_| Color::Green);
+            assert_eq!(c, Color::None);
+        }
+    }
+
+    // ---- or ----
+
+    mod or_family {
+        use super::*;
+
+        #[test]
+        fn or_some_ignores_fallback() {
+            assert_eq!(Color::Red.or(Color::Blue), Color::Red);
+        }
+
+        #[test]
+        fn or_none_uses_fallback() {
+            assert_eq!(Color::None.or(Color::Blue), Color::Blue);
+        }
+
+        #[test]
+        fn or_else_some() {
+            assert_eq!(Color::Red.or_else(|| Color::Blue), Color::Red);
+        }
+
+        #[test]
+        fn or_else_none() {
+            assert_eq!(Color::None.or_else(|| Color::Blue), Color::Blue);
+        }
+
+        #[test]
+        fn or_else_lazy() {
+            let mut called = false;
+            Color::Red.or_else(|| { called = true; Color::Blue });
+            assert!(!called);
+        }
+    }
+
+    // ---- and ----
+
+    mod and_family {
+        use super::*;
+
+        #[test]
+        fn and_both_some() {
+            assert_eq!(Color::Red.and(Color::Blue), Color::Blue);
+        }
+
+        #[test]
+        fn and_first_none() {
+            assert_eq!(Color::None.and(Color::Blue), Color::None);
+        }
+
+        #[test]
+        fn and_second_none() {
+            assert_eq!(Color::Red.and(Color::None), Color::None);
+        }
+    }
+
+    // ---- filter ----
+
+    mod filter {
+        use super::*;
+
+        #[test]
+        fn filter_passes() {
+            let c = Color::Red.filter(|c| matches!(c, Color::Red));
+            assert_eq!(c, Color::Red);
+        }
+
+        #[test]
+        fn filter_rejects() {
+            let c = Color::Red.filter(|c| matches!(c, Color::Blue));
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn filter_none_stays_none() {
+            let c = Color::None.filter(|_| true);
+            assert_eq!(c, Color::None);
+        }
+    }
+
+    // ---- mutating ----
+
+    mod mutating {
+        use super::*;
+
+        #[test]
+        fn take_extracts_and_resets() {
+            let mut c = Color::Red;
+            let taken = c.take();
+            assert_eq!(taken, Color::Red);
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn take_none_stays_none() {
+            let mut c = Color::None;
+            let taken = c.take();
+            assert_eq!(taken, Color::None);
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn replace_returns_old() {
+            let mut c = Color::Red;
+            let old = c.replace(Color::Blue);
+            assert_eq!(old, Color::Red);
+            assert_eq!(c, Color::Blue);
+        }
+
+        #[test]
+        fn get_or_insert_when_none() {
+            let mut c = Color::None;
+            c.get_or_insert(Color::Green);
+            assert_eq!(c, Color::Green);
+        }
+
+        #[test]
+        fn get_or_insert_when_some() {
+            let mut c = Color::Red;
+            c.get_or_insert(Color::Green);
+            assert_eq!(c, Color::Red);
+        }
+
+        #[test]
+        fn get_or_insert_with_lazy() {
+            let mut called = false;
+            let mut c = Color::Red;
+            c.get_or_insert_with(|| { called = true; Color::Green });
+            assert!(!called);
+            assert_eq!(c, Color::Red);
+        }
+    }
+
+    // ---- Option<T> blanket impl ----
+
+    mod option_impl {
+        use super::*;
+
+        #[test]
+        fn option_none() {
+            assert_eq!(Option::<i32>::None, None);
+            assert!(Option::<i32>::None.is_none());
+        }
+
+        #[test]
+        fn option_some() {
+            assert!(Some(42).is_some());
+        }
+
+        #[test]
+        fn option_maybe() {
+            assert_eq!(Some(42).maybe(), Some(Some(42)));
+            assert_eq!(Option::<i32>::None.maybe(), None);
+        }
+
+        #[test]
+        fn option_or() {
+            assert_eq!(None.or(Some(42)), Some(42));
+            assert_eq!(Some(1).or(Some(42)), Some(1));
+        }
+
+        #[test]
+        fn option_and_then_cross_type() {
+            let c = Some(42).and_then(|n| if n > 0 { Some(Color::Red) } else { None });
+            assert_eq!(c, Some(Color::Red));
+
+            let c = Option::<i32>::None.and_then(|_| Some(Color::Red));
+            assert_eq!(c, Color::None);
+        }
+
+        #[test]
+        fn option_map_or() {
+            assert_eq!(Some(2).map_or(0, |v| v * 3), 6);
+            assert_eq!(Option::<i32>::None.map_or(0, |_| 99), 0);
+        }
+
+        #[test]
+        fn option_take() {
+            let mut o = Some(42);
+            let taken = Maybe::take(&mut o);
+            assert_eq!(taken, Some(42));
+            assert_eq!(o, None);
+        }
+    }
+
+    // ---- generic code over Maybe ----
+
+    mod generic {
+        use super::*;
+
+        fn fallback<T: Maybe>(a: T, b: T) -> T {
+            a.or(b)
+        }
+
+        fn reset<T: Maybe>(val: &mut T) {
+            *val = T::None;
+        }
+
+        #[test]
+        fn generic_fallback_enum() {
+            assert_eq!(fallback(Color::None, Color::Red), Color::Red);
+            assert_eq!(fallback(Color::Blue, Color::Red), Color::Blue);
+        }
+
+        #[test]
+        fn generic_fallback_option() {
+            assert_eq!(fallback(None, Some(42)), Some(42));
+            assert_eq!(fallback(Some(1), Some(42)), Some(1));
+        }
+
+        #[test]
+        fn generic_reset() {
+            let mut c = Color::Red;
+            reset(&mut c);
+            assert_eq!(c, Color::None);
+
+            let mut o = Some(42);
+            reset(&mut o);
+            assert_eq!(o, None);
+        }
     }
 }

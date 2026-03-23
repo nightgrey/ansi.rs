@@ -1,0 +1,11 @@
+[package]
+name = "gloss"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ansi = { workspace = true }
+geometry = { workspace = true }
+tree = { workspace = true }
+etwa = { workspace = true }
+tagged = { workspace = true }

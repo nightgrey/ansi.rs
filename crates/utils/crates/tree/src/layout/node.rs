@@ -10,7 +10,7 @@ use super::prelude::*;
 pub struct LayoutNode {
     #[deref]
     #[deref_mut]
-    pub layout: Layout,
+    pub layout: taffy::Style,
     pub cache: LayoutCache,
     pub unrounded_computation: LayoutComputation,
     pub final_computation: LayoutComputation,
@@ -18,7 +18,7 @@ pub struct LayoutNode {
 
 impl LayoutNode {
     /// Creates a new layout node with the given style and default (zero) layout.
-    pub fn new(layout: Layout) -> Self {
+    pub fn new(layout: taffy::Style) -> Self {
         Self {
             layout,
             cache: LayoutCache::new(),

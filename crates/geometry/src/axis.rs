@@ -1,5 +1,6 @@
 
-#[derive(Copy, Clone, PartialEq, Debug, Default)]
+#[derive(Copy, Debug)]
+#[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Axis<T> {
     pub horizontal: T,
     pub vertical: T,

@@ -3,7 +3,8 @@ use ansi::{Color};
 use geometry::{Size, Axis};
 
 // Base properties
-#[derive(Copy, Clone, PartialEq, Debug, Default)]
+#[derive_const(Clone, PartialEq, Default)]
+#[derive(Copy, Debug)]
 pub enum Dimension {
     #[default]
     Auto,
@@ -55,7 +56,6 @@ pub type FlexWrap = taffy::FlexWrap;
 pub type FlexDirection = taffy::FlexDirection;
 
 // Decoration properties
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub enum Border {
     #[default]
@@ -134,56 +134,86 @@ pub struct Layout {
     pub scrollbar_width: usize,
 }
 
+impl Layout {
+    pub const DEFAULT: Self = Self {
+        color: Color::None,
+        background_color: Color::None,
+        text_decoration: TextDecorationLine::None,
+        font_weight: FontWeight::Normal,
+
+        padding: Edges::default(),
+        margin: Edges::default(),
+        border: Border::None,
+        size: Size::default(),
+        max_size: Size::default(),
+        min_size: Size::default(),
+
+        align_items: None,
+        align_self: None,
+        justify_items: None,
+        justify_self: None,
+        align_content: None,
+        justify_content: None,
+
+        flex_direction: FlexDirection::Column,
+        flex_wrap: FlexWrap::NoWrap,
+
+        flex_basis: Dimension::Auto,
+        flex_grow: 0.0,
+        flex_shrink: 1.0,
+
+        overflow: Axis {
+            horizontal: Overflow::Visible,
+            vertical: Overflow::Visible,
+        },
+        scrollbar_width: 0,
+    };
+    pub fn clone_into(&self, layout: &mut taffy::Style) {
+        layout.padding.left = self.padding.left.into();
+        layout.padding.right = self.padding.right.into();
+        layout.padding.top = self.padding.top.into();
+        layout.padding.bottom = self.padding.bottom.into();
+        layout.margin.left = self.margin.left.into();
+        layout.margin.right = self.margin.right.into();
+        layout.margin.top = self.margin.top.into();
+        layout.margin.bottom = self.margin.bottom.into();
+        layout.border = match self.border {
+            Border::None => taffy::Rect::zero(),
+            Border::Solid => taffy::Rect {
+                left: taffy::LengthPercentage::length(1.0),
+                right: taffy::LengthPercentage::length(1.0),
+                top: taffy::LengthPercentage::length(1.0),
+                bottom: taffy::LengthPercentage::length(1.0),
+            },
+        };
+        layout.size.width = self.size.width.into();
+        layout.size.height = self.size.height.into();
+        layout.max_size.width = self.max_size.width.into();
+        layout.max_size.height = self.max_size.height.into();
+        layout.min_size.width = self.min_size.width.into();
+        layout.min_size.height = self.min_size.height.into();
+        layout.align_items = self.align_items;
+        layout.align_self = self.align_self;
+        layout.justify_items = self.justify_items;
+        layout.justify_self = self.justify_self;
+        layout.align_content = self.align_content;
+        layout.justify_content = self.justify_content;
+        layout.flex_direction = self.flex_direction;
+        layout.flex_wrap = self.flex_wrap;
+        layout.flex_basis = self.flex_basis.into();
+        layout.flex_grow = self.flex_grow;
+        layout.flex_shrink = self.flex_shrink;
+        layout.overflow.x = self.overflow.horizontal;
+        layout.overflow.y = self.overflow.vertical;
+
+        layout.scrollbar_width = self.scrollbar_width as f32;
+    }
+}
+
 impl From<Layout> for taffy::Style {
     fn from(value: Layout) -> Self {
-        Self {
-            padding: taffy::Rect {
-                left: value.padding.left.into(),
-                right: value.padding.right.into(),
-                top: value.padding.top.into(),
-                bottom: value.padding.bottom.into(),
-            },
-            margin: taffy::Rect {
-                left: value.margin.left.into(),
-                right: value.margin.right.into(),
-                top: value.margin.top.into(),
-                bottom: value.margin.bottom.into(),
-            },
-            border: match value.border {
-                Border::None => taffy::Rect::zero(),
-                Border::Solid => taffy::Rect {
-                    left: taffy::LengthPercentage::length(1.0),
-                    right: taffy::LengthPercentage::length(1.0),
-                    top: taffy::LengthPercentage::length(1.0),
-                    bottom: taffy::LengthPercentage::length(1.0),
-                },
-            },
-            size: taffy::Size {
-                width: value.size.width.into(),
-                height: value.size.height.into(),
-            },
-            max_size: taffy::Size {
-                width: value.max_size.width.into(),
-                height: value.max_size.height.into(),
-            },
-            min_size: taffy::Size {
-                width: value.min_size.width.into(),
-                height: value.min_size.height.into(),
-            },
-            align_items: value.align_items,
-            align_self: value.align_self,
-            justify_items: value.justify_items,
-            justify_self: value.justify_self,
-            align_content: value.align_content,
-            justify_content: value.justify_content,
-            flex_direction: value.flex_direction,
-            flex_wrap: value.flex_wrap,
-            flex_basis: value.flex_basis.into(),
-            flex_grow: value.flex_grow,
-            flex_shrink: value.flex_shrink,
-            overflow: taffy::Point { x: value.overflow.horizontal, y: value.overflow.vertical },
-            scrollbar_width: value.scrollbar_width as f32,
-            ..Default::default()
-        }
+        let mut taffy_style = Self::default();
+        value.clone_into(&mut taffy_style);
+        taffy_style
     }
 }

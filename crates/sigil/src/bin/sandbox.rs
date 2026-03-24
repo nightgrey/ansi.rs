@@ -6,25 +6,26 @@ fn main() -> io::Result<()> {
 }
 
 fn current_stage() -> io::Result<()> {
-    use sigil::*;
-    use ansi::*;
-    use tree::layout::prelude::*;
-    use std::io::{self, Write};
 
-    let mut orchestrator = Orchestrator::new(30, 5);
-    let stdout = io::stdout();
-    let mut lock = stdout.lock();
-
-    let mut root = orchestrator.document.root_mut();
-    root.style.background = Color::Red;
-
-    let text_id = orchestrator.document.insert_with_layout(Element::span("Hello World!"), Layout { padding: layout::Rect::length(1.0), ..Layout::default() });
-    let text = &mut orchestrator.document[text_id];
-    text.style.insert(Attribute::Bold);
-    text.style.foreground = Color::White;
-    orchestrator.render()?;
-    orchestrator.flush(&mut lock)?;
-
+    // use sigil::*;
+    // use ansi::*;
+    // use tree::layout::prelude::*;
+    // use std::io::{self, Write};
+    //
+    // let mut orchestrator = Orchestrator::new(30, 5);
+    // let stdout = io::stdout();
+    // let mut lock = stdout.lock();
+    //
+    // let mut root = orchestrator.document.root_mut();
+    // root.style.background = Color::Red;
+    //
+    // let text_id = orchestrator.document.insert_with_layout(Element::span("Hello World!"), Layout { padding: layout::Rect::length(1.0), ..Layout::default() });
+    // let text = &mut orchestrator.document[text_id];
+    // text.style.insert(Attribute::Bold);
+    // text.style.foreground = Color::White;
+    // orchestrator.render()?;
+    // orchestrator.flush(&mut lock)?;
+    //
     Ok(())
 }
 

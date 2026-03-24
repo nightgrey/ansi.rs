@@ -2,8 +2,7 @@ use smallvec::SmallVec;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::{Element, ElementId, ElementKind, GraphemeArena, Layer};
 use tree::{RootTree, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, At};
-use geometry::{Rect, Size};
-use spatial::{Spatial};
+use geometry::{Bounded, Rect, Size};
 use tree::table::Table;
 
 pub struct DocumentNode<'a> {

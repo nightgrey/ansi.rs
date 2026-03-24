@@ -1,4 +1,5 @@
-use crate::{Size};
+use std::fmt::{Display, Formatter};
+use crate::{Column, Position, Row, Size};
 use std::ops::{Add, AddAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
@@ -51,13 +52,45 @@ impl<T> Point<T> {
     pub fn transpose(self) -> Point<T> {
         Point { x: self.y, y: self.x }
     }
-
 }
 
 impl Point {
     pub const ZERO: Self = Self { x: 0, y: 0 };
-}
 
+    /// Add two points with overflow checking.
+    ///
+    /// Returns `None` if overflow would occur.
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
+        Some(Self {
+            x: self.x.checked_add(rhs.x)?,
+            y: self.y.checked_add(rhs.y)?,
+        })
+    }
+
+    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
+        Some(Self {
+            x: self.x.checked_sub(rhs.x)?,
+            y: self.y.checked_sub(rhs.y)?,
+        })
+    }
+
+    pub fn saturating_sub(self, rhs: Self) -> Self {
+        Self {
+            x: self.x.saturating_sub(rhs.x),
+            y: self.y.saturating_sub(rhs.y),
+        }
+    }
+
+    /// Add two points with saturating arithmetic.
+    ///
+    /// If overflow would occur, saturates at `usize::MAX`.
+    pub fn saturating_add(self, rhs: Self) -> Self {
+        Self {
+            x: self.x.saturating_add(rhs.x),
+            y: self.y.saturating_add(rhs.y),
+        }
+    }
+}
 
 impl<T> From<Size<T>> for Point<T> {
     fn from(value: Size<T>) -> Self {
@@ -68,6 +101,24 @@ impl<T> From<Size<T>> for Point<T> {
 impl<T> From<PointLike<T>> for Point<T> {
     fn from(value: PointLike<T>) -> Self {
         Self::new(value.0, value.1)
+    }
+}
+
+impl<T> From<Position<T>> for Point<T> {
+    fn from(value: Position<T>) -> Self {
+        Self::new(value.col, value.row)
+    }
+}
+
+impl From<Row> for Point {
+    fn from(value: Row) -> Self {
+        Self::new(0, value.0)
+    }
+}
+
+impl From<Column> for Point {
+    fn from(value: Column) -> Self {
+        Self::new(value.0, 0)
     }
 }
 
@@ -87,6 +138,27 @@ impl<T: AddAssign> AddAssign for Point<T> {
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
         self.y += rhs.y;
+    }
+}
+
+impl<T: Ord> PartialOrd for Point<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: Ord> Ord for Point<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.x.cmp(&other.x) {
+            std::cmp::Ordering::Equal => self.y.cmp(&other.y),
+            ord => ord,
+        }
+    }
+}
+
+impl<T: Display> Display for Point<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
     }
 }
 
@@ -208,9 +280,9 @@ mod tests {
 
     #[test]
     fn test_rect_zero() {
-        assert_eq!(Rect::ZERO.width(), 0);
-        assert_eq!(Rect::ZERO.height(), 0);
-        assert_eq!(Rect::ZERO.len(), 0);
+        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).width(), 0);
+        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).height(), 0);
+        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).len(), 0);
     }
 
     #[test]

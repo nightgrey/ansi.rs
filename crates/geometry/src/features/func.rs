@@ -1,4 +1,4 @@
-use crate::{Edges, Point, Rect, Size};
+use crate::{Area, Edges, Point, Rect, Size};
 
 pub trait Func<T, U> {
     type Output;

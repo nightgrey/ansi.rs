@@ -1,7 +1,11 @@
 use std::fmt::{Display, Formatter};
-use crate::{Column, Row};
-use geometry::{Point, Size};
+use crate::{Point, Column, Row, Size};
 use std::ops::{Add, AddAssign, Sub};
+
+/// Type alias for tuple-based positions: `(row, col)`.
+///
+/// Used for convenient position construction from tuples.
+pub type PositionLike<T = usize> = (T, T);
 
 /// A position in row/column coordinates.
 ///
@@ -34,28 +38,15 @@ use std::ops::{Add, AddAssign, Sub};
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Position {
+pub struct Position<T = usize> {
     /// Vertical position (row index, 0 = top).
-    pub row: usize,
+    pub row: T,
 
     /// Horizontal position (column index, 0 = left).
-    pub col: usize,
+    pub col: T,
 }
 
-/// Type alias for tuple-based positions: `(row, col)`.
-///
-/// Used for convenient position construction from tuples.
-pub type PositionLike = (usize, usize);
-
-impl Position {
-    /// The origin position (0, 0).
-    pub const ZERO: Self = Self::MIN;
-    pub const ONE: Self = Self { row: 1, col: 1 };
-    /// The minimum possible position (usize::MIN, usize::MIN).
-    pub const MIN: Self = Self { row: usize::MIN, col: usize::MIN };
-    /// The maximum possible position (usize::MAX, usize::MAX).
-    pub const MAX: Self = Self { row: usize::MAX, col: usize::MAX };
-
+impl<T> Position<T> {
     /// Create a new position at the given row and column.
     ///
     /// # Example
@@ -66,9 +57,19 @@ impl Position {
     /// assert_eq!(pos.row, 10);
     /// assert_eq!(pos.col, 20);
     /// ```
-    pub const fn new(row: usize, col: usize) -> Self {
+    pub const fn new(row: T, col: T) -> Self {
         Self { row, col }
     }
+
+}
+impl Position {
+    /// The origin position (0, 0).
+    pub const ZERO: Self = Self::MIN;
+    pub const ONE: Self = Self { row: 1, col: 1 };
+    /// The minimum possible position (usize::MIN, usize::MIN).
+    pub const MIN: Self = Self { row: usize::MIN, col: usize::MIN };
+    /// The maximum possible position (usize::MAX, usize::MAX).
+    pub const MAX: Self = Self { row: usize::MAX, col: usize::MAX };
 
     /// Create a new position at the given index inside a rectangular region.
     ///
@@ -126,14 +127,21 @@ impl Position {
     /// Add two positions with overflow checking.
     ///
     /// Returns `None` if overflow would occur.
-    fn checked_add(self, rhs: Self) -> Option<Self> {
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
         Some(Self {
             row: self.row.checked_add(rhs.row)?,
             col: self.col.checked_add(rhs.col)?,
         })
     }
 
-    pub const  fn saturating_sub(self, rhs: Self) -> Self {
+    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
+        Some(Self {
+            row: self.row.checked_sub(rhs.row)?,
+            col: self.col.checked_sub(rhs.col)?,
+        })
+    }
+
+    pub fn saturating_sub(self, rhs: Self) -> Self {
         Self {
             row: self.row.saturating_sub(rhs.row),
             col: self.col.saturating_sub(rhs.col),
@@ -143,7 +151,7 @@ impl Position {
     /// Add two positions with saturating arithmetic.
     ///
     /// If overflow would occur, saturates at `usize::MAX`.
-    fn saturating_add(self, rhs: Self) -> Self {
+    pub fn saturating_add(self, rhs: Self) -> Self {
         Self {
             row: self.row.saturating_add(rhs.row),
             col: self.col.saturating_add(rhs.col),
@@ -151,19 +159,25 @@ impl Position {
     }
 }
 
-impl From<PositionLike> for Position {
-    fn from(value: PositionLike) -> Self {
+impl<T> From<Size<T>> for Position<T> {
+    fn from(value: Size<T>) -> Self {
+        Self::new(value.width, value.height)
+    }
+}
+
+impl<T> From<PositionLike<T>> for Position<T> {
+    fn from(value: PositionLike<T>) -> Self {
         Self::new(value.0, value.1)
     }
 }
 
-impl From<Point> for Position {
-    fn from(value: Point) -> Self {
+impl<T> From<Point<T>> for Position<T> {
+    fn from(value: Point<T>) -> Self {
         Self::new(value.y, value.x)
     }
 }
 
-impl const From<Row> for Position {
+impl From<Row> for Position {
     fn from(value: Row) -> Self {
         Self::new(value.0, 0)
     }
@@ -175,7 +189,7 @@ impl From<Column> for Position {
     }
 }
 
-impl Add for Position {
+impl<T: Add<Output = T>> Add for Position<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -186,31 +200,21 @@ impl Add for Position {
     }
 }
 
-impl AddAssign for Position {
+impl<T: AddAssign> AddAssign for Position<T> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
+        self.row += rhs.row;
+        self.col += rhs.col;
     }
 }
 
-impl Add<usize> for Position {
-    type Output = Self;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        Self {
-            row: self.row,
-            col: self.col + rhs,
-        }
-    }
-}
-
-impl const PartialOrd for Position {
+impl<T: [const] Ord> const PartialOrd for Position<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl const Ord for Position {
+impl<T: [const] Ord> const Ord for Position<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.row.cmp(&other.row) {
             std::cmp::Ordering::Equal => self.col.cmp(&other.col),
@@ -219,18 +223,8 @@ impl const Ord for Position {
     }
 }
 
-impl From<Position> for Point {
-    fn from(value: Position) -> Self {
-        Self::new(value.col, value.row)
-    }
-}
-
-impl Display for Position {
+impl<T: Display> Display for Position<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.row, self.col)
     }
-}
-
-pub const fn pos(row: usize, col: usize) -> Position {
-    Position { row, col }
 }

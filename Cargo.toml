@@ -28,6 +28,7 @@ sigil = { path = "crates/sigil" }
 terminal = { path = "crates/terminal" }
 utils = { path = "crates/utils" }
 tree = { path = "crates/utils/crates/tree" }
+gloss = { path = "crates/gloss" }
 
 tagged = { path = "crates/utils/crates/tagged/core" }
 tagged-derive = { path = "crates/utils/crates/tagged/derive" }

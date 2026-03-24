@@ -21,6 +21,8 @@ typed-builder = "0.23.2"
 bon = "3.9.1"
 derive_more = { workspace = true }
 grid = { version = "1.0.0" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 
 [[bin]]
 name = "gloss"

@@ -3,7 +3,7 @@ use rustix::path::Arg;
 use ansi::escape;
 use ansi::io::Write;
 use ansi::sequences::*;
-use spatial::Row;
+use geometry::Row;
 
 use crate::buffer::{Buffer, GraphemeArena};
 use crate::{Cell};
@@ -116,7 +116,7 @@ impl Rasterizer {
         }
 
         // Swap prev ← new.
-        self.shadow.copy_from_slice(buffer);
+        self.shadow.copy_from_slice(buffer.as_ref());
     }
     pub fn write(&mut self, out: &mut impl io::Write) -> io::Result<()> {
             out.write_all(&self.output)
@@ -294,7 +294,7 @@ impl Rasterizer {
 
         // Reuse the allocation when dimensions match.
         if self.shadow.width == width && self.shadow.height == height {
-            self.shadow.copy_from_slice(next);
+            self.shadow.copy_from_slice(next.as_ref());
         } else {
             self.shadow.clone_from(next)
         }

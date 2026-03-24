@@ -1,7 +1,6 @@
 //! Custom assertions for testing.
 
-use spatial::{Position};
-use geometry::{Bounded, Rect};
+use geometry::{Bounded, Position, Rect};
 use sigil::{Buffer, GraphemeArena};
 
 macro_rules! assert_rect {
@@ -57,8 +56,7 @@ pub fn assert_rect_position(rect: &Rect, x: usize, y: usize) {
 pub fn buffer_text_at(buffer: &Buffer, arena: &GraphemeArena, row: usize, col_start: usize, col_end: usize) -> String {
     let mut result = String::new();
     for col in col_start..col_end {
-        let pos = Position::new(row, col);
-        if let Some(cell) = buffer.get(pos) {
+        if let cell = &buffer[(row, col)] {
             result.push_str(cell.as_str(arena));
         }
     }

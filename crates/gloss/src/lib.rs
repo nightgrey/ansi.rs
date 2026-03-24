@@ -5,7 +5,6 @@ mod render;
 mod layout_context;
 mod render_context;
 pub mod symbols;
-mod buffer;
 
 pub use style::*;
 pub use document::*;

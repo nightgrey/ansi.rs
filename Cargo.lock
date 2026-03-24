@@ -880,6 +880,7 @@ version = "0.1.0"
 dependencies = [
  "bitcraft",
  "derive_more",
+ "synonym",
 ]
 
 [[package]]
@@ -900,6 +901,8 @@ dependencies = [
  "etwa",
  "geometry",
  "grid",
+ "serde",
+ "serde_json",
  "sigil",
  "slotmap",
  "taffy",

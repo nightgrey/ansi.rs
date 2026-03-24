@@ -30,7 +30,7 @@ pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
     /// 4 bytes: either inline UTF-8 or a arena offset (see [`Grapheme`]).
-    pub grapheme: Grapheme,
+    grapheme: Grapheme,
 
     /// Column width of this cell's grapheme.
     ///
@@ -40,7 +40,7 @@ pub struct Cell {
     ///
     /// Wide characters (width 2) occupy this cell and the next cell to the
     /// right, which should be a "continuation" cell with an empty grapheme.
-    pub width: u8,
+    width: u8,
 
     /// Visual style: text attributes, foreground and background colors.
     pub style: Style,
@@ -174,13 +174,6 @@ impl Cell {
     pub fn set_width(&mut self, width: u8) {
         self.width = width;
     }
-
-    /// Set the visual style.
-    #[inline]
-    pub fn set_style(&mut self, style: Style) {
-        self.style = style;
-    }
-
 
     /// Reset this cell to empty (no grapheme, default style).
     ///

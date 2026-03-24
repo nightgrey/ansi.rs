@@ -3,6 +3,7 @@ use bon::__::IsSet;
 use ansi::Color;
 use geometry::{Axis, Size};
 
+pub type BorderStyle = crate::symbols::BorderStyle;
 pub enum Available {
     Definite(u32),
     Min,

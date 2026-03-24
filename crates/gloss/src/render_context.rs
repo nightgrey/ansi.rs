@@ -1,14 +1,14 @@
-use taffy::Position;
-use ansi::Style;
-use geometry::Rect;
-use sigil::Buffer;
-use crate::symbols::BorderStyle;
+use unicode_width::UnicodeWidthChar;
+use ansi::{Attribute, Color, Style};
+use geometry::{Bounded, Position, Point, Rect, Transform, Intersect, Contains, Sides};
+use sigil::{Buffer, Cell, Grapheme};
+use crate::{BorderStyle};
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone)]
 struct ContextState {
     clip: Rect,
-    origin: Position,
+    origin: Point,
     style: Style,
     fill_char: char,
     border: BorderStyle,
@@ -28,15 +28,15 @@ pub struct RenderContext<'buf> {
 impl<'buf> RenderContext<'buf> {
     /// Create a new context spanning the full buffer.
     pub fn new(buffer: &'buf mut Buffer) -> Self {
-        let clip = buffer.area(); // full buffer rect
+        let clip = buffer.bounds(); // full buffer rect
         Self {
             buffer,
             state: ContextState {
                 clip,
-                origin: Position::ZERO,
+                origin: Point::ZERO,
                 style: Style::default(),
                 fill_char: ' ',
-                border: BorderSet::PLAIN,
+                border: BorderStyle::Single,
             },
             stack: Vec::new(),
         }
@@ -67,13 +67,13 @@ impl<'buf> RenderContext<'buf> {
     // ── Coordinate transform ─────────────────────────────────────
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
-    pub fn translate(&mut self, offset: Offset) -> &mut Self {
+    pub fn translate(&mut self, offset: Point) -> &mut Self {
         self.state.origin = self.state.origin + offset;
         self
     }
 
     /// Current origin (local → buffer coords).
-    pub fn origin(&self) -> Position {
+    pub fn origin(&self) -> Point {
         self.state.origin
     }
 
@@ -83,7 +83,7 @@ impl<'buf> RenderContext<'buf> {
     /// Only narrows — you can never *expand* clip without restore.
     pub fn clip(&mut self, rect: Rect) -> &mut Self {
         let abs = rect.translate(self.state.origin);
-        self.state.clip = self.state.clip.intersect(abs);
+        self.state.clip = self.state.clip.intersect(&abs);
         self
     }
 
@@ -100,23 +100,24 @@ impl<'buf> RenderContext<'buf> {
     }
 
     pub fn set_fg(&mut self, color: Color) -> &mut Self {
-        self.state.style.fg = Some(color);
+        self.state.style.foreground = color;
         self
     }
 
     pub fn set_bg(&mut self, color: Color) -> &mut Self {
-        self.state.style.bg = Some(color);
+        self.state.style.background = color;
         self
     }
 
-    pub fn set_modifier(&mut self, modifier: Modifier) -> &mut Self {
-        self.state.style.modifier = modifier;
+    pub fn set_modifier(&mut self, modifier: Attribute) -> &mut Self {
+        self.state.style.attributes.insert(modifier);
         self
     }
 
     /// Merge `style` on top of the current style (non-None fields overwrite).
     pub fn merge_style(&mut self, style: Style) -> &mut Self {
-        self.state.style = self.state.style.merge(style);
+        // self.state.style = self.state.style.merge(style);
+        self.state.style = style;
         self
     }
 
@@ -125,7 +126,7 @@ impl<'buf> RenderContext<'buf> {
         self
     }
 
-    pub fn set_border(&mut self, border: BorderSet) -> &mut Self {
+    pub fn set_border(&mut self, border: BorderStyle) -> &mut Self {
         self.state.border = border;
         self
     }
@@ -162,21 +163,21 @@ impl<'buf> RenderContext<'buf> {
         &mut self,
         rect: Rect,
         style: Style,
-        border: BorderSet,
+        border: BorderStyle,
     ) -> &mut Self {
         self.stroke_inner(rect, style, border)
     }
 
     /// Draw a single line of text at `pos` (local coords), current style.
     /// Truncates at clip boundary. Returns number of columns consumed.
-    pub fn draw_text(&mut self, pos: Position, text: &str) -> usize {
+    pub fn draw_text(&mut self, pos: Point, text: &str) -> usize {
         self.draw_text_inner(pos, text, self.state.style)
     }
 
     /// Draw text with an explicit style.
     pub fn draw_text_styled(
         &mut self,
-        pos: Position,
+        pos: Point,
         text: &str,
         style: Style,
     ) -> usize {
@@ -184,22 +185,18 @@ impl<'buf> RenderContext<'buf> {
     }
 
     /// Set a single cell at `pos` (local coords). Respects clip.
-    pub fn set_cell(&mut self, pos: Position, cell: Cell) -> &mut Self {
+    pub fn set_cell(&mut self, pos: Point, cell: Cell) -> &mut Self {
         let abs = pos + self.state.origin;
-        if self.state.clip.contains(abs) {
-            self.buffer.set(abs, cell);
+        if self.state.clip.contains(&abs) {
+            self.buffer[abs] = cell;
         }
         self
     }
 
     /// Read a cell at `pos` (local coords). Returns None if outside clip.
-    pub fn get_cell(&self, pos: Position) -> Option<&Cell> {
+    pub fn get_cell(&self, pos: Point) -> Option<&Cell> {
         let abs = pos + self.state.origin;
-        if self.state.clip.contains(abs) {
-            Some(self.buffer.get(abs))
-        } else {
-            None
-        }
+        self.buffer.get(abs)
     }
 
     // ── Scoped helpers ───────────────────────────────────────────
@@ -220,8 +217,8 @@ impl<'buf> RenderContext<'buf> {
         f: impl FnOnce(&mut Self),
     ) -> &mut Self {
         self.save();
-        self.translate(rect.origin().into());
-        self.clip(Rect::from_size(rect.size()));
+        self.translate(rect.min);
+        self.clip(Rect::from(rect.size()));
         f(self);
         self.restore();
         self
@@ -230,15 +227,15 @@ impl<'buf> RenderContext<'buf> {
     // ── Internals ────────────────────────────────────────────────
 
     fn resolve(&self, rect: Rect) -> Option<Rect> {
-        let abs = rect.translate(self.state.origin);
-        let clipped = abs.intersect(self.state.clip);
+        let clipped = rect.translate(self.state.origin).intersect(&self.state.clip);
         if clipped.is_empty() { None } else { Some(clipped) }
     }
 
     fn fill_inner(&mut self, rect: Rect, style: Style, ch: char) -> &mut Self {
         if let Some(r) = self.resolve(rect) {
-            for pos in r.positions() {
-                self.buffer.set(pos, Cell::new(ch, style));
+            for pos in &r {
+                self.buffer[pos].set_char(ch);
+                self.buffer[pos].style = style;
             }
         }
         self
@@ -248,7 +245,7 @@ impl<'buf> RenderContext<'buf> {
         &mut self,
         rect: Rect,
         style: Style,
-        border: BorderSet,
+        border: BorderStyle,
     ) -> &mut Self {
         let abs = rect.translate(self.state.origin);
         // We clip each cell individually so partial borders work.
@@ -263,29 +260,32 @@ impl<'buf> RenderContext<'buf> {
             return self;
         }
 
-        let mut put = |x, y, ch: char| {
-            let p = Position::new(x, y);
-            if clip.contains(p) {
-                self.buffer.set(p, Cell::new(ch, style));
+        let borders = border.to_border();
+
+        let mut put = |x, y, str: &'static str| {
+            let p = Point::new(y, x);
+            if clip.contains(&p) {
+                self.buffer[p].set_char('x');
+                self.buffer[p].style = style;
             }
         };
 
         // corners
-        put(x0, y0, border.top_left);
-        put(x1, y0, border.top_right);
-        put(x0, y1, border.bottom_left);
-        put(x1, y1, border.bottom_right);
+        put(x0, y0, borders.top_left);
+        put(x1, y0, borders.top_right);
+        put(x0, y1, borders.bottom_left);
+        put(x1, y1, borders.bottom_right);
 
         // horizontal edges
         for x in (x0 + 1)..x1 {
-            put(x, y0, border.horizontal);
-            put(x, y1, border.horizontal);
+            put(x, y0, borders.top);
+            put(x, y1, borders.bottom);
         }
 
         // vertical edges
         for y in (y0 + 1)..y1 {
-            put(x0, y, border.vertical);
-            put(x1, y, border.vertical);
+            put(x0, y, borders.left);
+            put(x1, y, borders.right);
         }
 
         self
@@ -293,7 +293,7 @@ impl<'buf> RenderContext<'buf> {
 
     fn draw_text_inner(
         &mut self,
-        pos: Position,
+        pos: Point,
         text: &str,
         style: Style,
     ) -> usize {
@@ -302,22 +302,23 @@ impl<'buf> RenderContext<'buf> {
         let abs_x_start = pos.x + self.state.origin.x;
 
         for ch in text.chars() {
-            let w = unicode_width(ch); // your grapheme/char width fn
-            let abs_x = abs_x_start + col as i32; // or your coord type
+            let w = ch.width().unwrap_or(1); // your grapheme/char width fn
+            let abs_x = abs_x_start + col; // or your coord type
 
             // Stop if we've gone past clip right edge
-            if abs_x + w as i32 > self.state.clip.right() {
+            if abs_x + w > self.state.clip.right() {
                 break;
             }
 
-            let p = Position::new(abs_x, abs_y);
-            if self.state.clip.contains(p) {
-                self.buffer.set(p, Cell::new(ch, style));
+            let p = Point::new(abs_x, abs_y);
+            if self.state.clip.contains(&p) {
+                self.buffer[p].set_char(ch);
+                self.buffer[p].style = style;
                 // For wide chars, mark continuation cell(s)
                 for i in 1..w {
-                    let cont = Position::new(abs_x + i as i32, abs_y);
-                    if self.state.clip.contains(cont) {
-                        self.buffer.set(cont, Cell::continuation());
+                    let cont = Point::new(abs_x + i, abs_y);
+                    if self.state.clip.contains(&cont) {
+                        self.buffer[cont].set_continuation(style);
                     }
                 }
             }

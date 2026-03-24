@@ -14,17 +14,3 @@
 #![feature(slice_index_methods)]
 #![feature(const_try)]
 
-mod grid;
-mod area;
-mod location;
-mod locations;
-mod spatial;
-mod features;
-
-pub use grid::*;
-pub use area::*;
-pub use spatial::*;
-pub use location::*;
-pub use locations::*;
-pub use spatial::*;
-pub use features::*;

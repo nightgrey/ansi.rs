@@ -3,3 +3,6 @@ rust = "nightly"
 
 [tasks.sandbox] # using a ":" means we need to add quotes
 run = "cargo run sandbox"
+
+[tasks.gloss]
+run = "cargo run --bin gloss"

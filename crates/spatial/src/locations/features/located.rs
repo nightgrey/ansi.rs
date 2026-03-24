@@ -10,7 +10,7 @@ use crate::{Area, Column, IntoLocation, Steps, Location, Position, Row, Range, S
 /// # Examples
 ///
 /// ```rust
-/// # use grid::{Area, Position, Located};
+/// # use spatial::{Area, Position, Located};
 /// let area = Area::bounds(0, 0, 80, 24);
 /// let loc = Located::new(Position::new(0, 0), area);
 ///

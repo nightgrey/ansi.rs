@@ -21,9 +21,9 @@ mod locations;
 mod spatial;
 mod features;
 
-
-pub use area::*;
 pub use grid::*;
+pub use area::*;
+pub use spatial::*;
 pub use location::*;
 pub use locations::*;
 pub use spatial::*;

@@ -1,4 +1,4 @@
-use grid::{Area, Position};
+use spatial::{Area, Position};
 use criterion::{ criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 

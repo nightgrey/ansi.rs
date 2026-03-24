@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::{Element, ElementId, ElementKind, GraphemeArena, Layer};
 use tree::{RootTree, layout::prelude::*, id, Secondary, LayoutNode, LayoutContext, At};
 use geometry::{Rect, Size};
-use grid::{Spatial};
+use spatial::{Spatial};
 use tree::table::Table;
 
 pub struct DocumentNode<'a> {
@@ -223,7 +223,7 @@ impl Document {
         for (id, node) in &self.elements {
             node.layout.clone_into(&mut self.layouts[id].layout);
         }
-        
+
         let viewport = self.size();
         let root_id = self.elements.root_id();
 

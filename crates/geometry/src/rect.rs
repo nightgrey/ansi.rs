@@ -1,4 +1,4 @@
-use crate::{Point};
+use crate::{Edges, Point};
 
 /// An axis-aligned rectangle defined by min and max points.
 ///
@@ -51,6 +51,19 @@ impl Rect {
             min: Point::new(x, y),
             max: Point::new(x + width, y + height),
         }
+    }
+
+    pub const fn shrink(self, edges: Edges) -> Self {
+        let min_x = self.min.x.saturating_add(edges.left);
+        let min_y = self.min.y.saturating_add(edges.top);
+        let max_x = self.max.x.saturating_sub(edges.right);
+        let max_y = self.max.y.saturating_sub(edges.bottom);
+
+        Rect {
+            min: Point { x: min_x.min(max_x), y: min_y.min(max_y) },
+            max: Point { x: max_x, y: max_y },
+        }
+
     }
 }
 

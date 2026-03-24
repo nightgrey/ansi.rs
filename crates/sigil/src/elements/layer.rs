@@ -1,5 +1,5 @@
 use derive_more::{Deref, DerefMut};
-use grid::Position;
+use spatial::Position;
 use crate::Buffer;
 
 #[derive(Debug, Deref, DerefMut)]

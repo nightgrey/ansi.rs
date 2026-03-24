@@ -30,7 +30,7 @@ impl Area {
     /// # Example
     ///
     /// ```rust
-    /// # use grid::{Area, Position};
+    /// # use spatial::{Area, Position};
     /// let area = Area::bounds(5, 10, 10, 20);
     /// ```
     pub const fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {

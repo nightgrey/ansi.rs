@@ -17,6 +17,8 @@ macro_rules! id {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident) => {
         use slotmap::Key as _;
         use $crate::Id as _;
+
+
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;
@@ -24,6 +26,10 @@ macro_rules! id {
 
         impl $crate::Id for $name { }
     };
+    ($name:ident) => {
+        
+        id!(#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)] pub struct $name);
+    }
 }
 
 /// A node identifier with `Option`-like semantics.

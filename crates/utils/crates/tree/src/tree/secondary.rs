@@ -56,6 +56,11 @@ impl<K: Id, V> Secondary<K, V> {
     }
 }
 
+impl<K: Id, V: Default> Default for Secondary<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<K: Id, V: Debug> Debug for Secondary<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map().entries(self.iter()).finish()

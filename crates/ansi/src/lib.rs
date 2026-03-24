@@ -35,7 +35,6 @@ mod tests {
         /// Adapter for comparing bit-wise operations between [`Attribute`] (reference) and [`Color`].
         #[derive(PartialEq, Eq, Clone, Copy)]
         enum Bit {
-            Reset,
             None,
             Some
         }
@@ -43,7 +42,6 @@ mod tests {
         impl Debug for Bit {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    Bit::Reset => f.write_str("Bit::Reset"),
                     Bit::None => f.write_str("Bit::None"),
                     Bit::Some => f.write_str("Bit::Some"),
                 }
@@ -53,7 +51,6 @@ mod tests {
         impl From<Attribute> for Bit {
             fn from(value: Attribute) -> Self {
                 match value {
-                    Attribute::Reset => Bit::Reset,
                     Attribute::None => Bit::None,
                     _ => Bit::Some,
                 }
@@ -62,7 +59,6 @@ mod tests {
         impl From<Color> for Bit {
             fn from(value: Color) -> Self {
                 match value {
-                    Color::Reset => Bit::Reset,
                     Color::None => Bit::None,
                     _ => Bit::Some,
                 }
@@ -72,7 +68,6 @@ mod tests {
         impl From<Bit> for Attribute {
             fn from(value: Bit) -> Self {
                 match value {
-                    Bit::Reset => Attribute::Reset,
                     Bit::None => Attribute::None,
                     Bit::Some => Attribute::Bold,
                 }
@@ -81,7 +76,6 @@ mod tests {
         impl From<Bit> for Color {
             fn from(value: Bit) -> Self {
                 match value {
-                    Bit::Reset => Color::Reset,
                     Bit::None => Color::None,
                     Bit::Some => Color::Black,
                 }
@@ -115,18 +109,15 @@ mod tests {
             };
         }
 
-        const CASES: [(Bit, Bit); 9] = [
-            (Bit::None, Bit::None),
+        const CASES: [(Bit, Bit); 6] = [
             (Bit::None, Bit::Some),
-            (Bit::None, Bit::Reset),
+            (Bit::None, Bit::None),
 
             (Bit::Some, Bit::None),
             (Bit::Some, Bit::Some),
-            (Bit::Some, Bit::Reset),
 
-            (Bit::Reset, Bit::None),
-            (Bit::Reset, Bit::Some),
-            (Bit::Reset, Bit::Reset),
+            (Bit::None, Bit::None),
+            (Bit::None, Bit::Some),
         ];
 
         #[test]
@@ -142,19 +133,7 @@ mod tests {
 
         #[test]
         fn test_bitand() {
-            for (lhs, rhs) in  [
-                (Bit::None, Bit::None),
-                (Bit::None, Bit::Some),
-                (Bit::None, Bit::Reset),
-
-                (Bit::Some, Bit::None),
-                (Bit::Some, Bit::Some),
-                (Bit::Some, Bit::Reset),
-
-                (Bit::Reset, Bit::None),
-                (Bit::Reset, Bit::Some),
-                (Bit::Reset, Bit::Reset),
-            ] {
+            for (lhs, rhs) in  CASES {
                 dbg_bit!(lhs, rhs, bitand);
                 assert_bit!(lhs, rhs, bitand);
             }

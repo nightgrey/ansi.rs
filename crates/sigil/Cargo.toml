@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 ansi = { workspace = true }
 geometry = { workspace = true }
-grid = { workspace = true }
+spatial = { workspace = true }
+grid = { version = "1.0.0" }
 tree = { workspace = true }
 terminal = { workspace = true }
 unicode-width = { workspace = true }

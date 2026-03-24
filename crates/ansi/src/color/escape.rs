@@ -77,7 +77,6 @@ impl Escape for Foreground   {
 
         match self.0 {
             None => Ok(()),
-            Reset => w.write_all(b"39"),
             Black => w.write_all(b"30"),
             Red => w.write_all(b"31"),
             Green => w.write_all(b"32"),
@@ -113,7 +112,6 @@ impl Escape for Background {
 
         match self.color() {
             None => Ok(()),
-            Reset => w.write_all(b"49"),
             Black => w.write_all(b"40"),
             Red => w.write_all(b"41"),
             Green => w.write_all(b"42"),
@@ -147,7 +145,6 @@ impl Escape for Underline {
         use Color::*;
         match self.0 {
             None => Ok(()),
-            Reset => w.write_all(b"59"),
             Black => w.write_all(b"58;5;0"),
             Red => w.write_all(b"58;5;1"),
             Green => w.write_all(b"58;5;2"),

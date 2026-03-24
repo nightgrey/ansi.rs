@@ -42,24 +42,23 @@ impl Orchestrator {
 
         let computation = layouts[id].final_computation;
         let bounds = Rect::bounds(computation.content_box_x() as usize, computation.content_box_y() as usize, computation.content_box_width() as usize, computation.content_box_height() as usize);
-        let style = elements[id].layout;
 
         let mut painter = Painter::new(&mut layers[id]);
         painter.push(bounds);
 
-        match &elements[id].kind {
-            ElementKind::Span(content) => {
-                if !style.is_none() {
-                    painter.fill(bounds, style);
-                }
-                painter.text(bounds.min.y as i32, bounds.min.x as i32, content, style, arena);
-            }
-            ElementKind::Div => {
-                if !style.is_none() {
-                    painter.fill(bounds, style);
-                }
-            }
-        }
+        // match &elements[id].kind {
+        //     ElementKind::Span(content) => {
+        //         if !style.is_none() {
+        //             painter.fill(bounds, style);
+        //         }
+        //         painter.text(bounds.min.y as i32, bounds.min.x as i32, content, style, arena);
+        //     }
+        //     ElementKind::Div => {
+        //         if !style.is_none() {
+        //             painter.fill(bounds, style);
+        //         }
+        //     }
+        // }
 
         for child in self.document.elements.children(id).collect::<Vec<_>>() {
             self.paint_element(child);

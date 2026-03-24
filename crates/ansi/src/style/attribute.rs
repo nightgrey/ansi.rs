@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::from_fn;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
-use bitflags::{bitflags, bitflags_match, iter::{Iter, IterNames, IterDefinedNames}, Bits, Flag, Flags};
+use bitflags::{bitflags,  iter::{Iter, IterNames, IterDefinedNames}, Bits, Flag, Flags};
 use crate::Escape;
 
 bitflags! {
@@ -11,10 +11,6 @@ bitflags! {
 
     #[derive(Default, Copy, Clone, Eq, PartialEq, Hash)]
     pub struct Attribute: u16 {
-        /// No attributes.
-        const None = 0;
-        /// Resets all attributes.
-        const Reset = 1 << 0;
         /// Increases the text intensity.
         const Bold = 1 << 1;
         /// Decreases the text intensity.
@@ -44,6 +40,9 @@ bitflags! {
 }
 
 impl Attribute {
+    #[allow(non_upper_case_globals)]
+    pub const None: Self = Self::new(0);
+    
     pub const COUNT: usize = <Self as Flags>::FLAGS.len();
 
     /// All defined attributes combined.
@@ -61,16 +60,11 @@ impl Attribute {
         !self.is_none()
     }
 
-    pub  fn is_reset(&self) -> bool {
-        self == &Attribute::Reset
-    }
-
-    /// Returns an iterator over the SGR parameter strings for each attribute.
+    /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn sgr(self) -> impl Iterator<Item = &'static str> {
         static SGR: &[(Attribute, &str)] = &[
-            (Attribute::Reset, "0"),
             (Attribute::Bold, "1"),
             (Attribute::Faint, "2"),
             (Attribute::Italic, "3"),
@@ -131,9 +125,9 @@ impl Attribute {
     ///
     /// let attrs = Attribute::Bold | Attribute::Italic;
     ///
-    /// assert_eq!(attrs.as_string(), "Bold | Italic");
+    /// assert_eq!(attrs.to_string(), "Bold | Italic");
     /// ```
-    pub fn as_string(&self) -> Cow<str> {
+    pub fn to_string(&self) -> Cow<str> {
         self.names().map(|(str, attr)| str).intersperse(" | ").collect()
     }
 }
@@ -141,23 +135,12 @@ impl Attribute {
 
 impl std::fmt::Debug for Attribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() {
+        if self.is_none() {
             return f.write_str("Attribute::None");
         }
 
-        if self.is_reset() {
-            return f.write_str("Attribute::Reset");
-        }
-
         f.debug_tuple("Attribute").field(&from_fn(|f| {
-            for (i, (name, _)) in self.names().enumerate() {
-                if i > 0 {
-                    f.write_str(" | ")?;
-                }
-                f.write_str(name)?;
-            }
-
-            Ok(())
+            f.write_str(&self.to_string())
         })).finish()
     }
 }
@@ -299,12 +282,6 @@ mod tests {
             assert_eq!(sgr.len(), 3);
         }
 
-        #[test]
-        fn sgr_reset() {
-            let reset = Attribute::Reset;
-            let sgr: Vec<&str> = reset.sgr().collect();
-            assert_eq!(sgr, vec!["0"]);
-        }
 
         #[test]
         fn sgr_frame_encircle_overline() {
@@ -340,7 +317,6 @@ mod tests {
     #[test]
     fn constants_max() {
         let all = Attribute::MAX;
-        assert!(all.contains(Attribute::Reset));
         assert!(all.contains(Attribute::Bold));
         assert!(all.contains(Attribute::Italic));
         assert!(all.contains(Attribute::Overline));

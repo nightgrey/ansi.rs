@@ -56,7 +56,7 @@ impl Renderer {
     }
 
     pub(crate) fn raster(&mut self, arena: &GraphemeArena) {
-        self.rasterizer.render(&self.front, arena)
+        self.rasterizer.raster(&self.front, arena)
     }
     pub(crate) fn flush(&mut self, arena: &GraphemeArena, output: &mut impl std::io::Write) -> std::io::Result<()> {
         self.rasterizer.flush(output)

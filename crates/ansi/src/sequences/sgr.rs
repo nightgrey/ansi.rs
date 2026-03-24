@@ -1,3 +1,4 @@
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use etwa::Maybe;
 use utils::separate_by;
 use crate::{Escape, Style};
@@ -20,66 +21,37 @@ use crate::{Escape, Style};
 /// move with the characters.
 ///
 /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
-#[derive(Copy, Clone, Debug,  PartialEq, derive_more::Constructor, derive_more::From, derive_more::Into)]
+#[derive(Copy, Clone, Debug,  PartialEq, derive_more::Constructor, derive_more::From, derive_more::Into, Deref, DerefMut)]
 #[repr(transparent)]
 pub struct SelectGraphicRendition(pub Style);
 
 
+#[allow(non_upper_case_globals)]
+impl SelectGraphicRendition {
+    pub const Reset: Self = Self(Style::None);
+}
 
 impl Escape for SelectGraphicRendition {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        let this = self;
-        use crate::io::Write;
-        // Start CSI sequence
-        w.write(b"\x1B[")?;
-        let this = &this.0;
-
-        if this.is_none() {
-            w.write(b"0m")?;
-            return Ok(());
+        match self.0.is_none() {
+            true => w.write_all(b"\x1B[0m"),
+            false => Style::escape(&self.0, w),
         }
-
-        let bg = &this.background;
-        let fg = &this.foreground;
-
-        separate_by!({ w.write(b";") });
-
-        // Background color
-        if bg.is_some() {
-            separate!(w.escape(bg.as_background())?);
-        }
-
-        // Foreground color
-        if fg.is_some() {
-            separate!(w.escape(fg.as_foreground())?);
-        }
-
-        // Attributes (bold, underline, etc.)
-        for attr in this.attributes.sgr() {
-            separate!(w.write_all(attr.as_bytes())?);
-        }
-
-        // Terminate CSI sequence
-        write!(w, "m")
     }
 }
 
 pub type SGR = SelectGraphicRendition;
 
-
-sequence!(
-    /// [SGR] - Select Graphic Rendition (Reset)
-    ///
-    /// A shortcut and efficient alternative to `SGR(Style::RESET)`.
-    /// When possible, prefer this over `SGR` with reset styles.
-    ///
-    /// ## Format
-    ///
-    /// **CSI** 0 **m**
-    ///
-    /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
-    pub struct Reset => |this, w| {
-        write!(w, "\x1B[0m")
-    }
-);
+/// [SGR] - Select Graphic Rendition (Reset)
+///
+/// A shortcut and efficient alternative to `SGR(Style::RESET)`.
+/// When possible, prefer this over `SGR` with reset styles.
+///
+/// ## Format
+///
+/// **CSI** 0 **m**
+///
+/// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
+#[allow(non_upper_case_globals)]
+pub const Reset: SelectGraphicRendition = SelectGraphicRendition::Reset;
 

@@ -1,6 +1,6 @@
 //! Custom assertions for testing.
 
-use grid::{Position};
+use spatial::{Position};
 use geometry::{Bounded, Rect};
 use sigil::{Buffer, GraphemeArena};
 

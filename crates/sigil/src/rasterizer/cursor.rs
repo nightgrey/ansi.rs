@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use ansi::{escape, sequences::*, Escape, Style,};
 use ansi::io::Write;
 use super::capabilities::Capabilities;
@@ -166,19 +167,20 @@ impl Cursor {
         self.col = col;
     }
 
-    /// Update the pen (SGR state) to match `target_style`, emitting only
+    /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn update_style(&mut self, output: &mut Vec<u8>, style: &Style) {
-        if self.style == *style {
+    pub fn update_style(&mut self, out: &mut Vec<u8>, style: Style) {
+        if self.style == style {
             return;
         }
 
-        let diff = self.style.difference(*style);
+        let diff = self.style.symmetric_difference(style);
+
         if !diff.is_none() {
-            diff.escape(output).ok();
+            out.escape(SelectGraphicRendition(diff)).unwrap();
         }
 
-        self.style = *style;
+        self.style = style;
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
@@ -245,7 +247,7 @@ mod tests {
         let mut cursor = Cursor::new();
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor.update_style(&mut buf, &Style::default().bold());
+        cursor.update_style(&mut buf, Style::default().bold());
         assert!(buf.is_empty());
     }
 

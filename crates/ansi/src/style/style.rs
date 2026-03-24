@@ -22,12 +22,6 @@ impl Style {
         background: Color::None,
     };
 
-    pub const Reset: Self = Style {
-        attributes: Attribute::Reset,
-        foreground: Color::Reset,
-        background: Color::Reset,
-    };
-
     pub const Bold: Self = Style {
         attributes: Attribute::Bold,
         ..Self::None
@@ -146,12 +140,6 @@ impl Style {
     }
 
 
-    /// Sets [`Attribute::Reset`].
-    pub fn reset(mut self) -> Self {
-        self.insert(Attribute::Reset);
-        self
-    }
-
     /// Sets [`Attribute::Bold`].
     #[inline]
     pub fn bold(mut self) -> Self {
@@ -233,12 +221,6 @@ impl Style {
     #[inline]
     pub fn overline(mut self) -> Self {
         self.insert(Attribute::Overline);
-        self
-    }
-
-    /// Unsets: [`Attribute::Reset`]
-    pub fn no_reset(mut self) -> Self {
-        self.remove(Attribute::Reset);
         self
     }
 
@@ -354,9 +336,9 @@ impl Style {
     pub fn difference(self, other: Self) -> Self
     {
         Self {
-            attributes: self.attributes &! other.attributes,
-            foreground: self.foreground &! other.foreground,
-            background: self.background &! other.background,
+            attributes: self.attributes.difference(other.attributes),
+            foreground: self.foreground & !other.foreground,
+            background: self.background & !other.background,
 
         }
     }
@@ -368,7 +350,7 @@ impl Style {
     pub fn symmetric_difference(self, other: Self) -> Self
     {
         Self {
-            attributes: self.attributes ^ other.attributes,
+            attributes: self.attributes.symmetric_difference(other.attributes),
             foreground: self.foreground ^ other.foreground,
             background: self.background ^ other.background,
 
@@ -382,7 +364,7 @@ impl Style {
     pub fn complement(self) -> Self
     {
         Self {
-            attributes: !self.attributes,
+            attributes: self.attributes.complement(),
             foreground: !self.foreground,
             background: !self.background,
 
@@ -393,9 +375,6 @@ impl Style {
         self.foreground.is_some() || self.background.is_some()
     }
 
-    pub fn is_reset(&self) -> bool {
-        self == &Self::Reset
-    }
 
     /// Returns `true` if the style is none.
     pub fn is_none(&self) -> bool {
@@ -428,14 +407,11 @@ impl Debug for Style {
             return f.write_str("Style::None");
         }
 
-        if self.is_reset() {
-            return f.write_str("Style::Reset");
-        }
-
         let mut debug = f.debug_tuple("Style");
 
-
-        debug.field(&from_fn(|f| f.write_str(&self.attributes.as_string())));
+        if self.attributes.is_some() {
+            debug.field(&from_fn(|f| f.write_str(&self.attributes.to_string())));
+        }
 
         if self.is_colored() {
             debug.field(&from_fn(|f| {
@@ -459,15 +435,11 @@ impl Debug for Style {
 
 impl Escape for Style {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use crate::io::Write;
+        use crate::io::Write as _;
         use std::io::Write as _;
 
         if self.is_none() {
             return Ok(());
-        }
-
-        if self.contains(Attribute::Reset) {
-            return w.write_all(b"\x1B[0m");
         }
 
         w.write_all(b"\x1B[")?;

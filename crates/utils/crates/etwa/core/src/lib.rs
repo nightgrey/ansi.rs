@@ -445,20 +445,21 @@ mod tests {
     use super::*;
     use crate::Maybe;
 
-    #[derive(Maybe, Clone, Copy, Debug, PartialEq)]
+    #[derive(Maybe,Default, Clone, Copy, Debug, PartialEq)]
     enum Color {
+        #[default]
         None,
         Black,
         Red,
         Green,
-        Blue,
+        Blue, 
     }
 
-    #[derive(Maybe, Clone, Copy, Debug, PartialEq)]
+    #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
     enum Weight {
         #[none]
         Unset,
-        #[maybe(default)]
+        #[default]
         Normal,
         Bold,
     }

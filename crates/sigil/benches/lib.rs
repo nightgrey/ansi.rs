@@ -30,7 +30,7 @@ impl Rasterizer {
     }
 
     fn render(&mut self, buffer: &Buffer) {
-        self.0.render(buffer, &self.1);
+        self.0.raster(buffer, &self.1);
     }
 }
 

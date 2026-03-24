@@ -156,13 +156,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
             }
         }
 
-        impl #impl_generic ::core::default::Default for #name #generic #where_clause {
-            #[inline]
-            fn default() -> Self {
-                #name::#default_ident
-            }
-        }
-
+        
         impl #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
             #[inline]
             fn from(value: Option<#name #generic>) -> Self {

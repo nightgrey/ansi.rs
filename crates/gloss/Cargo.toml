@@ -8,4 +8,19 @@ ansi = { workspace = true }
 geometry = { workspace = true }
 tree = { workspace = true }
 etwa = { workspace = true }
+sigil = { workspace = true }
 tagged = { workspace = true }
+taffy = {  version = "0.9.2" }
+bitflags = "2.10.0"
+unicode-width = "0.2.2"
+unicode-segmentation = "1.12.0"
+
+slotmap = "1.1.1"
+derive_builder = "0.20.2"
+typed-builder = "0.23.2"
+bon = "3.9.1"
+derive_more = { workspace = true }
+grid = { version = "1.0.0" }
+
+[[bin]]
+name = "gloss"

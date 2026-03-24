@@ -110,6 +110,11 @@ impl Cell {
         self.width == 0
     }
 
+    /// Returns `true` if this cell has no grapheme (blank).
+    pub fn is_blank(&self) -> bool {
+        self.grapheme.is_empty()
+    }
+
     /// Returns `true` if this cell has no grapheme (blank) or style (default).
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -151,6 +156,7 @@ impl Cell {
     
     pub fn set_char(&mut self, char: char) {
         self.grapheme = Grapheme::from_char(char);
+        self.width = char.width().unwrap_or(0) as u8;
     }
     
     /// Release any arena storage held by this cell's grapheme.
@@ -160,6 +166,7 @@ impl Cell {
     pub fn release(&mut self, arena: &mut GraphemeArena) {
         self.grapheme.release(arena);
         self.grapheme = Grapheme::EMPTY;
+        self.width = 0;
     }
 
     /// Set the column width.

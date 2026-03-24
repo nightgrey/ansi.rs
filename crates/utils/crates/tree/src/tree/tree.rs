@@ -515,6 +515,11 @@ impl<K: Id, V> Tree<K, V> {
     }
 }
 
+impl<K: Id, V> Default for Tree<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<K: Id, V: Debug> Debug for Tree<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

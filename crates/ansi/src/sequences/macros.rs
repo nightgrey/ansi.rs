@@ -288,7 +288,7 @@ macro_rules! sequence_only {
 }
 
 #[macro_export]
-macro_rules! cost{
+macro_rules! cost {
     ($ty:ident => $calc:expr) => {
         impl $crate::Cost for $ty {
             #[inline]

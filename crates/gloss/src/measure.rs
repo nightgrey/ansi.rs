@@ -1,5 +1,5 @@
 use geometry::Size;
-use unicode_width::UnicodeWidthChar;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{Display, Node, NodeKind};
 
@@ -10,9 +10,9 @@ pub fn measure_node(
 ) -> taffy::Size<f32> {
     match &node.kind {
         NodeKind::Span(text) => {
-            let wrap_width = resolve_wrap_width(known.width, available.width, node.style.display);
+            let wrap_width = resolve_wrap_width(known.width, available.width, node.style.display());
 
-            let size = measure_text_block(text, wrap_width, node.style.display);
+            let size = measure_text_block(text, wrap_width, node.style.display());
 
             taffy::Size {
                 width: size.width as f32,
@@ -46,13 +46,12 @@ fn resolve_wrap_width(
     }
 }
 
-pub fn measure_text_block(
-    text: &str,
-    wrap_width: Option<u32>,
-    display: Display,
-) -> Size {
+pub fn measure_text_block(text: &str, wrap_width: Option<u32>, display: Display) -> Size {
     if text.is_empty() {
-        return Size { width: 0, height: 0 };
+        return Size {
+            width: 0,
+            height: 0,
+        };
     }
 
     let mut x = 0;

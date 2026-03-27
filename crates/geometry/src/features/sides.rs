@@ -1,5 +1,20 @@
+use crate::{Bounded, Edges, Location, Point, Rect, Size};
 use std::ops::Range;
-use crate::{Rect, Size, Bounded, Edges, Area};
+
+pub trait Outer: Bounded {
+    #[inline]
+    /// Returns the x-coordinate of the left edge.
+    fn top_left(&self) -> Self::Point;
+    #[inline]
+    /// Returns the y-coordinate of the top edge.
+    fn top_right(&self) -> Self::Point;
+    #[inline]
+    /// Returns the y-coordinate of the bottom edge.
+    fn bottom_right(&self) -> Self::Point;
+    #[inline]
+    /// Returns the x-coordinate of the right edge.
+    fn bottom_left(&self) -> Self::Point;
+}
 
 pub trait Sides: Bounded {
     #[inline]
@@ -16,75 +31,38 @@ pub trait Sides: Bounded {
     fn right(&self) -> usize;
 }
 
-impl Sides for Rect {
+impl<T: Bounded> Sides for T {
     fn top(&self) -> usize {
-        self.min.y
+        self.min_y()
     }
 
     fn left(&self) -> usize {
-        self.min.x
+        self.min_x()
     }
 
     fn bottom(&self) -> usize {
-        self.max.y
+        self.max_y()
     }
 
     fn right(&self) -> usize {
-        self.max.x
+        self.max_x()
     }
 }
-
-impl Sides for Area {
-    fn top(&self) -> usize {
-        self.min.row
+impl<T: Bounded> Outer for T {
+    fn top_right(&self) -> Self::Point {
+        Self::Point::new(self.max_x(), self.min_y())
     }
 
-    fn left(&self) -> usize {
-        self.min.col
+    fn top_left(&self) -> Self::Point {
+        self.min()
     }
 
-    fn bottom(&self) -> usize {
-        self.max.row
+    fn bottom_right(&self) -> Self::Point {
+        self.max()
     }
 
-    fn right(&self) -> usize {
-        self.max.col
-    }
-}
-
-impl Sides for Size {
-    fn top(&self) -> usize {
-        0
-    }
-
-    fn left(&self) -> usize {
-        0
-    }
-
-    fn bottom(&self) -> usize {
-        self.height
-    }
-
-    fn right(&self) -> usize {
-        self.width
-    }
-}
-
-impl Sides for Edges {
-    fn top(&self) -> usize {
-        0
-    }
-
-    fn left(&self) -> usize {
-        0
-    }
-
-    fn bottom(&self) -> usize {
-        self.top + self.bottom
-    }
-
-    fn right(&self) -> usize {
-        self.left + self.right
+    fn bottom_left(&self) -> Self::Point {
+        Self::Point::new(self.min_x(), self.max_y())
     }
 }
 
@@ -96,6 +74,10 @@ pub trait Ranges: Sides {
     #[inline]
     fn range_y(&self) -> Range<usize> {
         self.top()..self.bottom()
+    }
+
+    fn ranges(&self) -> impl Iterator<Item = (usize, usize)> {
+        self.range_x().flat_map(move |x| self.range_y().map(move |y| (x, y)))
     }
 }
 

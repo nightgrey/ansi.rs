@@ -1,5 +1,5 @@
+use crate::{Column, Row, Size};
 use std::fmt::{Display, Formatter};
-use crate::{Column, Position, Row, Size};
 use std::ops::{Add, AddAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
@@ -50,7 +50,10 @@ impl<T> Point<T> {
 
     /// Swap x and y components.
     pub fn transpose(self) -> Point<T> {
-        Point { x: self.y, y: self.x }
+        Point {
+            x: self.y,
+            y: self.x,
+        }
     }
 }
 
@@ -104,11 +107,11 @@ impl<T> From<PointLike<T>> for Point<T> {
     }
 }
 
-impl<T> From<Position<T>> for Point<T> {
-    fn from(value: Position<T>) -> Self {
-        Self::new(value.col, value.row)
-    }
-}
+// impl<T> From<Position<T>> for Point<T> {
+//     fn from(value: Position<T>) -> Self {
+//         Self::new(value.col, value.row)
+//     }
+// }
 
 impl From<Row> for Point {
     fn from(value: Row) -> Self {
@@ -164,10 +167,10 @@ impl<T: Display> Display for Point<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Bounded, Contains};
     use super::*;
     use crate::rect::Rect;
     use crate::size::Size;
+    use crate::{Bounded, Contains};
 
     // === Point Tests ===
 
@@ -276,7 +279,6 @@ mod tests {
         assert_eq!(size.width, 20);
         assert_eq!(size.height, 20);
     }
-
 
     #[test]
     fn test_rect_zero() {

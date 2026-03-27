@@ -1,7 +1,7 @@
-use crate::{Area, Edges, Point, Position, Rect, Size};
+use crate::{Edges, Location, Point, Rect, Size};
 /// Provides the bounds of a geometry.
 pub trait Bounded {
-    type Point: Copy;
+    type Point: Location;
     type Bounds: Copy;
 
     #[inline]
@@ -54,7 +54,7 @@ pub trait Bounded {
 
     #[inline]
     fn bounds(&self) -> Self::Bounds;
-    
+
     #[inline]
     fn size(&self) -> Size {
         Size {
@@ -95,41 +95,39 @@ impl Bounded for Rect {
     fn bounds(&self) -> Self::Bounds {
         *self
     }
-
 }
-impl Bounded for Area {
-    type Point = Position;
-    type Bounds = Area;
-
-    fn min_x(&self) -> usize {
-        self.min.col
-    }
-
-    fn min_y(&self) -> usize {
-        self.min.row
-    }
-
-    fn max_x(&self) -> usize {
-        self.max.col
-    }
-
-    fn max_y(&self) -> usize {
-        self.max.row
-    }
-
-    fn min(&self) -> Self::Point {
-        self.min
-    }
-
-    fn max(&self) -> Self::Point {
-        self.max
-    }
-
-    fn bounds(&self) -> Self::Bounds {
-        *self
-    }
-
-}
+// impl Bounded for Area {
+//     type Point = Position;
+//     type Bounds = Area;
+// 
+//     fn min_x(&self) -> usize {
+//         self.min.col
+//     }
+// 
+//     fn min_y(&self) -> usize {
+//         self.min.row
+//     }
+// 
+//     fn max_x(&self) -> usize {
+//         self.max.col
+//     }
+// 
+//     fn max_y(&self) -> usize {
+//         self.max.row
+//     }
+// 
+//     fn min(&self) -> Self::Point {
+//         self.min
+//     }
+// 
+//     fn max(&self) -> Self::Point {
+//         self.max
+//     }
+// 
+//     fn bounds(&self) -> Self::Bounds {
+//         *self
+//     }
+// }
 impl Bounded for Size {
     type Point = Point;
     type Bounds = Rect;
@@ -155,7 +153,10 @@ impl Bounded for Size {
     }
 
     fn max(&self) -> Self::Point {
-        Point { x: self.width, y: self.height }
+        Point {
+            x: self.width,
+            y: self.height,
+        }
     }
 
     fn width(&self) -> usize {

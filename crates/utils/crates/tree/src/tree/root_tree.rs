@@ -1,8 +1,8 @@
-use std::fmt::Debug;
-use crate::{At, Id, Node, Tree, Error};
+use crate::{At, Error, Id, Node, Tree};
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
-use std::ops::Deref;
 use smallvec::SmallVec;
+use std::fmt::Debug;
+use std::ops::Deref;
 
 /// A tree that always contains a root node.
 ///
@@ -28,18 +28,26 @@ impl<K: Id, V> RootTree<K, V> {
     pub fn new(root: V) -> Self {
         let mut tree = Tree::new();
         let root = tree.insert(root);
-        Self { inner: tree, root_id: root }
+        Self {
+            inner: tree,
+            root_id: root,
+        }
     }
 
     /// Creates a new tree with the given root value and pre-allocated capacity.
     pub fn with_capacity(root: V, capacity: usize) -> Self {
         let mut tree = Tree::with_capacity(capacity);
         let root = tree.insert(root);
-        Self { inner: tree, root_id: root }
+        Self {
+            inner: tree,
+            root_id: root,
+        }
     }
 
     /// Returns the id of the root node.
-    pub fn root_id(&self) -> K { self.root_id }
+    pub fn root_id(&self) -> K {
+        self.root_id
+    }
 
     /// Returns a reference to the root value.
     pub fn root(&self) -> &Node<K, V> {
@@ -63,7 +71,7 @@ impl<K: Id, V> RootTree<K, V> {
         if id == self.root_id {
             return None;
         }
-        
+
         self.inner.remove(id)
     }
 

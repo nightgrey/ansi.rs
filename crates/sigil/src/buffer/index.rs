@@ -1,162 +1,165 @@
-use std::ops;
-use std::slice::SliceIndex;
-use geometry::{Point, Position, PositionLike, Row};
 use crate::{Buffer, Cell};
+use geometry::{Point, PointLike, Row};
+use std::ops;
+use std::ops::Index;
+use std::slice::SliceIndex;
 
-pub trait IntoSliceIndex<Context, Slice: ?Sized = Context>: Clone {
+pub trait BufferIndex<Context, Slice: ?Sized = Context>: Clone {
     type Output: ?Sized;
     type Index: SliceIndex<Slice, Output = Self::Output>;
 
-    fn into_slice_index(self, context: &Context) -> Self::Index;
+    fn index_of(self, context: &Context) -> Self::Index;
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for Point {
+impl BufferIndex<Buffer, [Cell]> for Point {
     type Output = Cell;
     type Index = usize;
 
     #[inline]
-    fn into_slice_index(self, grid: &Buffer) -> usize {
+    fn index_of(self, grid: &Buffer) -> usize {
         self.y * grid.width + self.x
     }
-
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for Position {
-    type Output = Cell;
-    type Index = usize;
 
-    #[inline]
-    fn into_slice_index(self, grid: &Buffer) -> usize {
-        self.row * grid.width + self.col
-    }
-
-}
-
-impl IntoSliceIndex<Buffer, [Cell]> for Row {
+impl BufferIndex<Buffer, [Cell]> for Row {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::Range<usize> {
-        self.value() * area.width..(self.value()) * area.width
+    fn index_of(self, area: &Buffer) -> ops::Range<usize> {
+        let start = self.value() * area.width;
+        start..start + area.width
     }
 }
-impl IntoSliceIndex<Buffer, [Cell]> for ops::Range<Row> {
+impl BufferIndex<Buffer, [Cell]> for ops::Range<Row> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::Range<usize> {
-        self.start.value() * area.width..self.end.value() * area.width
+    fn index_of(self, area: &Buffer) -> ops::Range<usize> {
+        self.start.value() * area.width..self.end.value() * area.width + area.width
     }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeTo<Row> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeTo<Row> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::RangeTo<usize> {
-        ..self.end.value() * area.width
+    fn index_of(self, area: &Buffer) -> ops::RangeTo<usize> {
+        ..self.end.value() * area.width + area.width
+
     }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeFrom<Row> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeFrom<Row> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::RangeFrom<usize> {
+    fn index_of(self, area: &Buffer) -> ops::RangeFrom<usize> {
         self.start.value() * area.width..
+
     }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeInclusive<Row> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::RangeInclusive<usize> {
-        self.start().value() * area.width..=self.end().value() * area.width
+    fn index_of(self, area: &Buffer) -> ops::RangeInclusive<usize> {
+        self.start().value() * area.width..=self.end().value() * area.width + area.width
     }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeToInclusive<Row> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeToInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> ops::RangeToInclusive<usize> {
-        ..=self.end.value() * area.width
+    fn index_of(self, area: &Buffer) -> ops::RangeToInclusive<usize> {
+        ..=self.end.value() * area.width + area.width
     }
 }
 
-
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeFull {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeFull {
     type Output = [Cell];
     type Index = ops::RangeFull;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> ops::RangeFull { .. }
+    fn index_of(self, _: &Buffer) -> ops::RangeFull {
+        ..
+    }
 }
 
-
 // Convenience for `Index` and `Position`
-impl IntoSliceIndex<Buffer, [Cell]> for usize {
+impl BufferIndex<Buffer, [Cell]> for usize {
     type Output = Cell;
     type Index = usize;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> usize { self }
+    fn index_of(self, _: &Buffer) -> usize {
+        self
+    }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::Range<usize> {
+impl BufferIndex<Buffer, [Cell]> for ops::Range<usize> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> Self::Index { self }
+    fn index_of(self, _: &Buffer) -> Self::Index {
+        self
+    }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeTo<usize> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeTo<usize> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> Self::Index { self }
+    fn index_of(self, _: &Buffer) -> Self::Index {
+        self
+    }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeFrom<usize> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeFrom<usize> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> Self::Index { self }
+    fn index_of(self, _: &Buffer) -> Self::Index {
+        self
+    }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeInclusive<usize> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeInclusive<usize> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> Self::Index { self }
+    fn index_of(self, _: &Buffer) -> Self::Index {
+        self
+    }
 }
 
-impl IntoSliceIndex<Buffer, [Cell]> for ops::RangeToInclusive<usize> {
+impl BufferIndex<Buffer, [Cell]> for ops::RangeToInclusive<usize> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, _: &Buffer) -> Self::Index { self }
+    fn index_of(self, _: &Buffer) -> Self::Index {
+        self
+    }
 }
-
-impl IntoSliceIndex<Buffer, [Cell]> for PositionLike {
+impl BufferIndex<Buffer, [Cell]> for PointLike {
     type Output = Cell;
     type Index = usize;
 
     #[inline]
-    fn into_slice_index(self, area: &Buffer) -> usize {
-        self.0 * area.width + self.1
+    fn index_of(self, area: &Buffer) -> usize {
+        self.1 * area.width + self.0
     }
 }
-

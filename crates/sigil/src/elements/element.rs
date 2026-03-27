@@ -1,6 +1,6 @@
-use tree::id;
-use ansi::Style;
 use crate::Layout;
+use ansi::Style;
+use tree::id;
 
 id!(pub struct ElementId);
 
@@ -36,4 +36,3 @@ impl Element {
         false
     }
 }
-

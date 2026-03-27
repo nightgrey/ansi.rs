@@ -1,5 +1,5 @@
 use crate::{Mode, ModeSetting, ReportMode};
-use derive_more::{Deref, DerefMut,  From};
+use derive_more::{Deref, DerefMut, From};
 use std::collections::HashMap;
 
 /// Modes

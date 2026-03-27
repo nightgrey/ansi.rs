@@ -20,13 +20,7 @@ use crate::Escape;
 /// - Default margins are at the page limits
 ///
 /// [`DECSTBM`]: https://vt100.net/docs/vt510-rm/DECSTBM.html
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum SetTopBottomMargins {
     None,
     Some(usize, usize),

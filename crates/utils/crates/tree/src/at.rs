@@ -31,7 +31,6 @@ pub enum At<T> {
     After(T),
 }
 
-
 impl<T> At<T> {
     pub fn map<F, U>(self, f: F) -> At<U>
     where

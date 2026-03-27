@@ -1,8 +1,8 @@
+use heck::{ToShoutySnakeCase, ToSnakeCase};
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, Fields, ItemEnum};
-use heck::{ToShoutySnakeCase, ToSnakeCase};
 
 struct Variant {
     tag_const: proc_macro2::Ident,
@@ -20,19 +20,36 @@ struct Backing {
 
 impl Backing {
     fn new(input: &syn::Ident) -> Self {
-        Self::try_new(&input).unwrap_or_else(|| panic!(
-            "unsupported backing type {} — expected u8, u16, u32, u64, or u128",
-            input,
-        ))
+        Self::try_new(&input).unwrap_or_else(|| {
+            panic!(
+                "unsupported backing type {} — expected u8, u16, u32, u64, or u128",
+                input,
+            )
+        })
     }
 
     fn try_new(input: &syn::Ident) -> Option<Self> {
         match input.to_string().as_str() {
-            "u8" => Some(Self { width: 8, ident: quote!(u8) }),
-            "u16" => Some(Self { width: 16, ident: quote!(u16) }),
-            "u32" => Some(Self { width: 32, ident: quote!(u32) }),
-            "u64" => Some(Self { width: 64, ident: quote!(u64) }),
-            "u128" => Some(Self { width: 128, ident: quote!(u128) }),
+            "u8" => Some(Self {
+                width: 8,
+                ident: quote!(u8),
+            }),
+            "u16" => Some(Self {
+                width: 16,
+                ident: quote!(u16),
+            }),
+            "u32" => Some(Self {
+                width: 32,
+                ident: quote!(u32),
+            }),
+            "u64" => Some(Self {
+                width: 64,
+                ident: quote!(u64),
+            }),
+            "u128" => Some(Self {
+                width: 128,
+                ident: quote!(u128),
+            }),
             _ => None,
         }
     }
@@ -98,9 +115,7 @@ fn parse_field_type(ty: &syn::Type, payload_bits: u32) -> FieldType {
                     }
                     // Non-standard → arbitrary_int pseudo-type
                     if bits > payload_bits {
-                        panic!(
-                            "u{bits} exceeds available payload of {payload_bits} bits"
-                        );
+                        panic!("u{bits} exceeds available payload of {payload_bits} bits");
                     }
                     let storage = smallest_uint_tokens(bits);
                     return FieldType {
@@ -267,15 +282,13 @@ pub fn tagged(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     let tags_width = tags_width_needed(input.variants.len());
-    let payload_width = backing_width
-        .checked_sub(tags_width)
-        .unwrap_or_else(|| {
-            panic!(
-                "too many variants ({}) for {backing_ident}: \
+    let payload_width = backing_width.checked_sub(tags_width).unwrap_or_else(|| {
+        panic!(
+            "too many variants ({}) for {backing_ident}: \
                  need {tags_width} tag bits but only have {backing_width}",
-                input.variants.len(),
-            )
-        });
+            input.variants.len(),
+        )
+    });
 
     let tag_mask: u64 = if tags_width == 0 {
         0

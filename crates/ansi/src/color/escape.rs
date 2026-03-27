@@ -1,6 +1,6 @@
 use crate::Color;
 
-use crate::{Escape};
+use crate::Escape;
 use derive_more::{AsRef, Deref, DerefMut, From, Into};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]
@@ -38,7 +38,6 @@ impl Foreground {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, From, Into, AsRef)]
 #[repr(transparent)]
 pub struct Underline(Color);
@@ -71,7 +70,7 @@ impl Color {
     }
 }
 
-impl Escape for Foreground   {
+impl Escape for Foreground {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
@@ -99,9 +98,8 @@ impl Escape for Foreground   {
             }
             Rgb(r, g, b) => {
                 write!(w, "38;2;{};{};{}", r, g, b)
-            },
+            }
             _ => panic!("FIX"),
-
         }
     }
 }
@@ -133,9 +131,8 @@ impl Escape for Background {
             }
             Rgb(r, g, b) => {
                 write!(w, "38;2;{};{};{}", r, g, b)
-            },
+            }
             _ => panic!("FIX"),
-
         }
     }
 }
@@ -167,9 +164,8 @@ impl Escape for Underline {
             }
             Rgb(r, g, b) => {
                 write!(w, "58;2;{};{};{}", r, g, b)
-            },
+            }
             _ => panic!("FIX"),
-
         }
     }
 }

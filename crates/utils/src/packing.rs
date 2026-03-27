@@ -1,4 +1,3 @@
-
 pub trait Pack<T>: Sized {
     /// Converts to this type from the input type.
     #[must_use]
@@ -12,7 +11,6 @@ pub trait TryPack<T>: Sized {
     /// Performs the conversion.
     fn try_pack(self) -> Result<T, Self::Error>;
 }
-
 
 pub trait Unpack<T>: Sized {
     /// Converts this type into the (usually inferred) input type.

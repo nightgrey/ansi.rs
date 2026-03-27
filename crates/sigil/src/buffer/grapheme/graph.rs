@@ -1,6 +1,6 @@
+use crate::Grapheme;
 use std::fmt;
 use std::ops::Deref;
-use crate::Grapheme;
 
 /// A resolved grapheme cluster — the result of reading a [`Grapheme`] handle.
 ///
@@ -85,13 +85,13 @@ impl<T: AsRef<str>> PartialEq<T> for Graph<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::GraphemeArena;
     use super::*;
+    use crate::GraphemeArena;
 
     #[test]
     fn graph_copy() {
         let pool = GraphemeArena::new();
-        let g = Grapheme::from_char('A').as_graph(&pool);
+        let g = Grapheme::char('A').as_graph(&pool);
         let g2 = g; // Copy
         assert_eq!(g, g2);
     }
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn graph_eq() {
         let pool = GraphemeArena::new();
-        let g = Grapheme::from_char('A').as_graph(&pool);
+        let g = Grapheme::char('A').as_graph(&pool);
 
         // Graph == str
         assert_eq!(g, "A");
@@ -111,8 +111,13 @@ mod tests {
     fn graph_is_empty_covers_all_variants() {
         let pool = GraphemeArena::new();
         assert!(Graph::None.is_empty());
-        assert!(Graph::Inline { bytes: [0; 4], len: 0 }.is_empty());
-        assert!(!Grapheme::from_char('X').as_graph(&pool).is_empty());
+        assert!(
+            Graph::Inline {
+                bytes: [0; 4],
+                len: 0
+            }
+            .is_empty()
+        );
+        assert!(!Grapheme::char('X').as_graph(&pool).is_empty());
     }
-
 }

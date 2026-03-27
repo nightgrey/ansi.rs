@@ -1,13 +1,13 @@
-use derive_more::{Deref, DerefMut};
-use geometry::Position;
 use crate::Buffer;
+use derive_more::{Deref, DerefMut};
+use geometry::Point;
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct Layer {
     #[deref]
     #[deref_mut]
     buffer: Buffer,
-    pub position: Position,
+    pub position: Point,
     pub z_index: i32,
     pub is_dirty: bool,
 }
@@ -17,7 +17,7 @@ impl Layer {
         buffer: Buffer::EMPTY,
         z_index: 0,
         is_dirty: false,
-        position: Position::ZERO,
+        position: Point::ZERO,
     };
 
     pub fn new(width: usize, height: usize) -> Self {
@@ -25,7 +25,7 @@ impl Layer {
             buffer: Buffer::new(width, height),
             z_index: 0,
             is_dirty: false,
-            position: Position::default(),
+            position: Point::default(),
         }
     }
 }

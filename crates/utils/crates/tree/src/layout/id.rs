@@ -1,5 +1,5 @@
-use crate::{Id};
 use super::LayoutNodeId;
+use crate::Id;
 
 pub trait Bridge {
     fn into_layout_id(self) -> LayoutNodeId;

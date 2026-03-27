@@ -1,7 +1,7 @@
-use std::ops::Sub;
-use ansi::{escape, sequences::*, Escape, Style,};
-use ansi::io::Write;
 use super::capabilities::Capabilities;
+use ansi::io::Write;
+use ansi::{Escape, Style, escape, sequences::*};
+use std::ops::Sub;
 
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
@@ -34,13 +34,7 @@ impl Cursor {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn move_to(
-        &mut self,
-        row: usize,
-        col: usize,
-        w: &mut impl Write,
-        caps: Capabilities,
-    ) {
+    pub fn move_to(&mut self, row: usize, col: usize, w: &mut impl Write, caps: Capabilities) {
         if self.row == row && self.col == col {
             return;
         }
@@ -62,7 +56,11 @@ impl Cursor {
 
         // Strategy 3: VPA + CHA (requires capabilities)
         let cost_vpa_cha = if caps.contains(Capabilities::VPA | Capabilities::CHA) {
-            let v = if dr != 0 { VerticalPositionAbsolute(row).cost() } else { 0 };
+            let v = if dr != 0 {
+                VerticalPositionAbsolute(row).cost()
+            } else {
+                0
+            };
             let h = if dc != 0 || dr != 0 {
                 HorizontalPositionAbsolute(col).cost()
             } else {
@@ -119,12 +117,7 @@ impl Cursor {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(
-        &mut self,
-        row: usize,
-        col: usize,
-        w: &mut impl Write,
-    ) {
+    pub fn move_to_relative(&mut self, row: usize, col: usize, w: &mut impl Write) {
         if self.row == row && self.col == col {
             return;
         }
@@ -178,9 +171,10 @@ impl Cursor {
 
         if !diff.is_none() {
             out.escape(SelectGraphicRendition(diff)).unwrap();
-        }
 
+        }
         self.style = style;
+
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.

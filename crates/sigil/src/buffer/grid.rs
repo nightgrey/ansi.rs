@@ -61,11 +61,11 @@ use core::ops::IndexMut;
 use core::slice::Iter;
 use core::slice::IterMut;
 use core::{cmp, convert::TryInto};
+use derive_more::{Deref, DerefMut};
+use geometry::{Point, PointLike, Rect, Resolve};
 use std::ops;
 use std::ops::RangeBounds;
 use std::slice::SliceIndex;
-use derive_more::{Deref, DerefMut};
-use geometry::{Position, PositionLike, Rect, Resolve, Row};
 
 /// Stores elements of a certain type in a 2D grid structure.
 ///
@@ -195,7 +195,7 @@ impl<T> Grid<T> {
     {
         Self::new_with_order(rows, cols, Order::default())
     }
-    
+
     pub fn new_with_order(rows: usize, cols: usize, order: Order) -> Self
     where
         T: Default,
@@ -217,7 +217,7 @@ impl<T> Grid<T> {
             order,
         }
     }
-    
+
     #[inline]
     pub fn init(rows: usize, cols: usize, data: T) -> Self
     where
@@ -225,7 +225,7 @@ impl<T> Grid<T> {
     {
         Self::init_with_order(rows, cols, Order::default(), data)
     }
-    
+
     pub fn init_with_order(rows: usize, cols: usize, order: Order, data: T) -> Self
     where
         T: Clone,
@@ -245,12 +245,12 @@ impl<T> Grid<T> {
             order,
         }
     }
-    
+
     #[must_use]
     pub fn with_capacity(rows: usize, cols: usize) -> Self {
         Self::with_capacity_and_order(rows, cols, Order::default())
     }
-    
+
     #[must_use]
     pub fn with_capacity_and_order(rows: usize, cols: usize, order: Order) -> Self {
         Self {
@@ -260,13 +260,13 @@ impl<T> Grid<T> {
             order,
         }
     }
-    
+
     #[must_use]
     #[inline]
     pub fn from_vec(vec: Vec<T>, cols: usize) -> Self {
         Self::from_vec_with_order(vec, cols, Order::default())
     }
-    
+
     #[must_use]
     pub fn from_vec_with_order(vec: Vec<T>, cols: usize, order: Order) -> Self {
         let rows = vec.len().checked_div(cols).unwrap_or(0);
@@ -293,7 +293,7 @@ impl<T> Grid<T> {
             }
         }
     }
-    
+
     #[inline]
     #[must_use]
     const fn get_index(&self, row: usize, col: usize) -> usize {
@@ -302,14 +302,14 @@ impl<T> Grid<T> {
             Order::ColumnMajor => col * self.height + row,
         }
     }
-    
+
     #[inline]
     #[must_use]
     pub unsafe fn get_unchecked(&self, row: impl Into<usize>, col: impl Into<usize>) -> &T {
         let index = self.get_index(row.into(), col.into());
         self.data.get_unchecked(index)
     }
-    
+
     #[inline]
     #[must_use]
     pub unsafe fn get_unchecked_mut(
@@ -320,7 +320,7 @@ impl<T> Grid<T> {
         let index = self.get_index(row.into(), col.into());
         self.data.get_unchecked_mut(index)
     }
-    
+
     #[must_use]
     pub fn get(&self, row: impl TryInto<usize>, col: impl TryInto<usize>) -> Option<&T> {
         let row_usize = row.try_into().ok()?;
@@ -331,7 +331,7 @@ impl<T> Grid<T> {
             None
         }
     }
-    
+
     #[must_use]
     pub fn get_mut(
         &mut self,
@@ -346,46 +346,46 @@ impl<T> Grid<T> {
             None
         }
     }
-    
+
     #[must_use]
     pub const fn dimensions(&self) -> (usize, usize) {
         (self.height, self.width)
     }
-    
+
     #[must_use]
     pub const fn rows(&self) -> usize {
         self.height
     }
-    
+
     #[must_use]
     pub const fn cols(&self) -> usize {
         self.width
     }
-    
+
     #[must_use]
     pub const fn order(&self) -> Order {
         self.order
     }
-    
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
-    
+
     pub fn clear(&mut self) {
         self.height = 0;
         self.width = 0;
         self.data.clear();
     }
-    
+
     pub fn iter(&self) -> Iter<T> {
         self.data.iter()
     }
-    
+
     pub fn iter_mut(&mut self) -> IterMut<T> {
         self.data.iter_mut()
     }
-    
+
     pub fn iter_col(&self, col: usize) -> StepBy<Iter<T>> {
         assert!(
             col < self.width,
@@ -401,7 +401,7 @@ impl<T> Grid<T> {
             }
         }
     }
-    
+
     pub fn iter_col_mut(&mut self, col: usize) -> StepBy<IterMut<T>> {
         assert!(
             col < self.width,
@@ -413,11 +413,13 @@ impl<T> Grid<T> {
             Order::RowMajor => self.data[col..].iter_mut().step_by(self.width),
             Order::ColumnMajor => {
                 let start = col * self.height;
-                self.data[start..(start + self.height)].iter_mut().step_by(1)
+                self.data[start..(start + self.height)]
+                    .iter_mut()
+                    .step_by(1)
             }
         }
     }
-    
+
     pub fn iter_row(&self, row: usize) -> StepBy<Iter<T>> {
         assert!(
             row < self.height,
@@ -433,7 +435,7 @@ impl<T> Grid<T> {
             Order::ColumnMajor => self.data[row..].iter().step_by(self.height),
         }
     }
-    
+
     pub fn iter_row_mut(&mut self, row: usize) -> StepBy<IterMut<T>> {
         assert!(
             row < self.height,
@@ -449,7 +451,7 @@ impl<T> Grid<T> {
             Order::ColumnMajor => self.data[row..].iter_mut().step_by(self.height),
         }
     }
-    
+
     pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &T)> {
         self.data.iter().enumerate().map(move |(idx, i)| {
             let position = match self.order {
@@ -459,7 +461,7 @@ impl<T> Grid<T> {
             (position, i)
         })
     }
-    
+
     pub fn indexed_iter_mut(&mut self) -> impl Iterator<Item = ((usize, usize), &mut T)> {
         let order = self.order;
         let cols = self.width;
@@ -473,7 +475,7 @@ impl<T> Grid<T> {
             (position, i)
         })
     }
-    
+
     pub fn indexed_into_iter(self) -> impl Iterator<Item = ((usize, usize), T)> {
         let Self {
             data,
@@ -489,7 +491,7 @@ impl<T> Grid<T> {
             (position, i)
         })
     }
-    
+
     pub fn push_row(&mut self, row: Vec<T>) {
         assert_ne!(row.len(), 0);
         assert!(
@@ -510,7 +512,7 @@ impl<T> Grid<T> {
             self.width = self.data.len();
         }
     }
-    
+
     pub fn push_col(&mut self, col: Vec<T>) {
         assert_ne!(col.len(), 0);
         assert!(
@@ -531,7 +533,7 @@ impl<T> Grid<T> {
             self.height = self.data.len();
         }
     }
-    
+
     pub fn pop_row(&mut self) -> Option<Vec<T>> {
         if self.height == 0 {
             return None;
@@ -549,7 +551,7 @@ impl<T> Grid<T> {
         }
         Some(row)
     }
-    
+
     pub fn remove_row(&mut self, row_index: usize) -> Option<Vec<T>> {
         if self.width == 0 || self.height == 0 || row_index >= self.height {
             return None;
@@ -574,7 +576,7 @@ impl<T> Grid<T> {
         }
         Some(row)
     }
-    
+
     pub fn pop_col(&mut self) -> Option<Vec<T>> {
         if self.width == 0 {
             return None;
@@ -592,7 +594,7 @@ impl<T> Grid<T> {
         }
         Some(col)
     }
-    
+
     pub fn remove_col(&mut self, col_index: usize) -> Option<Vec<T>> {
         if self.width == 0 || self.height == 0 || col_index >= self.width {
             return None;
@@ -617,7 +619,7 @@ impl<T> Grid<T> {
         }
         Some(col)
     }
-    
+
     pub fn insert_row(&mut self, index: usize, row: Vec<T>) {
         let input_len = row.len();
         assert!(
@@ -647,7 +649,7 @@ impl<T> Grid<T> {
         self.width = input_len;
         self.height += 1;
     }
-    
+
     pub fn insert_col(&mut self, index: usize, col: Vec<T>) {
         let input_len = col.len();
         assert!(
@@ -677,23 +679,22 @@ impl<T> Grid<T> {
         self.height = input_len;
         self.width += 1;
     }
-    
+
     #[must_use]
     pub const fn flatten(&self) -> &Vec<T> {
         &self.data
     }
-    
+
     #[must_use]
     pub fn into_inner(self) -> Vec<T> {
         self.data
     }
 
-    
     pub fn transpose(&mut self) {
         self.order = self.order.counterpart();
         core::mem::swap(&mut self.height, &mut self.width);
     }
-    
+
     pub fn flip_cols(&mut self) {
         match self.order {
             Order::RowMajor => {
@@ -713,7 +714,7 @@ impl<T> Grid<T> {
             }
         }
     }
-    
+
     pub fn flip_rows(&mut self) {
         match self.order {
             Order::RowMajor => {
@@ -733,35 +734,35 @@ impl<T> Grid<T> {
             }
         }
     }
-    
+
     pub fn rotate_left(&mut self) {
         self.transpose();
         self.flip_rows();
     }
-    
+
     pub fn rotate_right(&mut self) {
         self.transpose();
         self.flip_cols();
     }
-    
+
     pub fn rotate_half(&mut self) {
         self.data.reverse();
     }
-    
+
     pub fn fill(&mut self, value: T)
     where
         T: Clone,
     {
         self.data.fill(value);
     }
-    
+
     pub fn fill_with<F>(&mut self, f: F)
     where
         F: FnMut() -> T,
     {
         self.data.fill_with(f);
     }
-    
+
     pub fn map<U, F>(self, f: F) -> Grid<U>
     where
         F: FnMut(T) -> U,
@@ -773,7 +774,7 @@ impl<T> Grid<T> {
             order: self.order,
         }
     }
-    
+
     #[must_use]
     pub fn map_ref<U, F>(&self, f: F) -> Grid<U>
     where
@@ -786,7 +787,7 @@ impl<T> Grid<T> {
             order: self.order,
         }
     }
-    
+
     #[must_use]
     pub const fn iter_rows(&self) -> GridRowIter<'_, T> {
         GridRowIter {
@@ -795,7 +796,7 @@ impl<T> Grid<T> {
             row_end_index: self.height,
         }
     }
-    
+
     #[must_use]
     pub const fn iter_cols(&self) -> GridColIter<'_, T> {
         GridColIter {
@@ -804,7 +805,7 @@ impl<T> Grid<T> {
             col_end_index: self.width,
         }
     }
-    
+
     pub fn swap(&mut self, (row_a, col_a): (usize, usize), (row_b, col_b): (usize, usize)) {
         assert!(
             !(row_a >= self.height || col_a >= self.width),
@@ -832,7 +833,10 @@ impl<T> Grid<T> {
         self.data.copy_within(src, dest);
     }
 
-    pub fn copy_from_slice(&mut self, other: &[T]) where T: Copy {
+    pub fn copy_from_slice(&mut self, other: &[T])
+    where
+        T: Copy,
+    {
         self.data.copy_from_slice(other);
     }
 
@@ -840,7 +844,10 @@ impl<T> Grid<T> {
         self.data.reserve(additional);
     }
 
-    pub fn resize(&mut self, new_len: usize, value: T) where T: Clone {
+    pub fn resize(&mut self, new_len: usize, value: T)
+    where
+        T: Clone,
+    {
         self.data.resize(new_len, value);
     }
 }
@@ -874,7 +881,7 @@ impl<T: Default> Grid<T> {
             self.height += rows;
         }
     }
-    
+
     pub fn expand_cols(&mut self, cols: usize) {
         if cols > 0 && self.height > 0 {
             self.data
@@ -892,7 +899,7 @@ impl<T: Default> Grid<T> {
             self.width += cols;
         }
     }
-    
+
     pub fn prepend_rows(&mut self, rows: usize) {
         if rows > 0 && self.width > 0 {
             self.data
@@ -919,7 +926,7 @@ impl<T: Default> Grid<T> {
             self.height += rows;
         }
     }
-    
+
     pub fn prepend_cols(&mut self, cols: usize) {
         if cols > 0 && self.height > 0 {
             self.data
@@ -1038,7 +1045,7 @@ impl<T> IndexMut<ops::RangeFrom<usize>> for Grid<T> {
 impl<T> Index<ops::RangeFull> for Grid<T> {
     type Output = [T];
     #[inline]
-    fn index(&self, _:  ops::RangeFull) -> &[T] {
+    fn index(&self, _: ops::RangeFull) -> &[T] {
         &self.data
     }
 }
@@ -1428,7 +1435,7 @@ macro_rules! grid_cm {
 pub enum Order {
     #[default]
     RowMajor,
-    
+
     ColumnMajor,
 }
 

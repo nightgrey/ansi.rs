@@ -1,6 +1,6 @@
+use ansi::Color;
+use geometry::{Axis, Size};
 use taffy::style_helpers::FromLength;
-use ansi::{Color};
-use geometry::{Size, Axis};
 
 // Base properties
 #[derive_const(Clone, PartialEq, Default)]
@@ -60,7 +60,7 @@ pub type FlexDirection = taffy::FlexDirection;
 pub enum Border {
     #[default]
     None,
-    Solid
+    Solid,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
@@ -128,7 +128,6 @@ pub struct Layout {
     ///
     /// 1.0 is the default value, and this value must be positive.
     pub flex_shrink: f32,
-
 
     pub overflow: Axis<Overflow>,
     pub scrollbar_width: usize,

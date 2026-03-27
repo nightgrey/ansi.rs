@@ -1,6 +1,6 @@
-use std::ops::{Index, IndexMut};
-use smallvec::{smallvec, SmallVec};
 use crate::{Error, Id};
+use smallvec::{SmallVec, smallvec};
+use std::ops::{Index, IndexMut};
 
 const TABLE_REVERSE_CAPACITY: usize = 4;
 
@@ -60,53 +60,42 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
 
     /// Returns `true` if `K` is related to any `R`.
     pub fn related(&self, key: K) -> bool {
-        self.reverse
-            .get(key)
-            .map_or(false, |r| !r.is_empty())
+        self.reverse.get(key).map_or(false, |r| !r.is_empty())
     }
 
     /// Returns a reference to the value related to the given `Other` key.
     pub fn get(&self, key: Other) -> Option<&V> {
-        self.forward
-            .get(key)
-            .and_then(|&to| self.inner.get(to))
+        self.forward.get(key).and_then(|&to| self.inner.get(to))
     }
 
     /// Returns a mutable reference to the value related to the given `Other` key.
     pub fn get_mut(&mut self, key: Other) -> Option<&mut V> {
-        self.forward
-            .get(key)
-            .and_then(|&to| self.inner.get_mut(to))
+        self.forward.get(key).and_then(|&to| self.inner.get_mut(to))
     }
 
     /// Resolves the `K` key that `Other` is related to.
     pub fn get_id(&self, key: Other) -> Option<K> {
         self.forward.get(key).copied()
     }
-    
+
     pub fn get_direct(&self, key: K) -> Option<&V> {
         self.inner.get(key)
     }
-    
+
     pub fn get_direct_mut(&mut self, key: K) -> Option<&mut V> {
         self.inner.get_mut(key)
     }
 
     /// Returns all `Other` keys that point to the given `K` value.
     pub fn resolve(&self, key: K) -> &[Other] {
-        self.reverse
-            .get(key)
-            .map_or(&[], SmallVec::as_slice)
+        self.reverse.get(key).map_or(&[], SmallVec::as_slice)
     }
 
     /// Returns mutable references to the values for `N` disjoint `Other` keys.
     ///
     /// Returns `None` if any key is missing or if two keys resolve to the
     /// same value (i.e. they are not disjoint at the value level).
-    pub fn get_disjoint_mut<const N: usize>(
-        &mut self,
-        keys: [Other; N],
-    ) -> Option<[&mut V; N]> {
+    pub fn get_disjoint_mut<const N: usize>(&mut self, keys: [Other; N]) -> Option<[&mut V; N]> {
         let mut resolved: [K; N] = unsafe { std::mem::zeroed() };
         for (i, from) in keys.into_iter().enumerate() {
             resolved[i] = self.forward.get(from).copied()?;
@@ -140,7 +129,8 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
         for &rel in relation {
             self.forward.insert(rel, key);
         }
-        self.reverse.insert(key, SmallVec::from_slice_copy(relation));
+        self.reverse
+            .insert(key, SmallVec::from_slice_copy(relation));
         key
     }
 
@@ -222,7 +212,8 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
     pub fn unrelate_many(&mut self, from: &[Other]) {
         // Collect targets so we can batch the reverse cleanup
         // SmallVec or tinyvec would be nice here
-        let mut by_target: SmallVec<(K, Other), TABLE_REVERSE_CAPACITY> = SmallVec::with_capacity(from.len());
+        let mut by_target: SmallVec<(K, Other), TABLE_REVERSE_CAPACITY> =
+            SmallVec::with_capacity(from.len());
 
         for &rel in from {
             if let Some(to) = self.forward.remove(rel) {
@@ -298,7 +289,6 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
         }
         self.inner.remove(key)
     }
-
 
     /// Number of values.
     pub fn len(&self) -> usize {
@@ -484,7 +474,12 @@ mod tests {
     type Layers = Table<LayerId, Layer, ElementId>;
 
     // Assumes ElementId keys come from an external SlotMap.
-    fn elements() -> (slotmap::SlotMap<ElementId, ()>, ElementId, ElementId, ElementId) {
+    fn elements() -> (
+        slotmap::SlotMap<ElementId, ()>,
+        ElementId,
+        ElementId,
+        ElementId,
+    ) {
         let mut sm = slotmap::SlotMap::with_key();
         let a = sm.insert(());
         let b = sm.insert(());

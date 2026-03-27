@@ -1,6 +1,5 @@
-use derive_more::{Deref, DerefMut};
 use super::prelude::*;
-
+use derive_more::{Deref, DerefMut};
 
 /// A layout-aware tree node.
 ///

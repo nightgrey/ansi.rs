@@ -1,51 +1,34 @@
+use super::Symbol;
+
 /// Line
 ///
 /// Defines symbols for edges, junctions, crosses and diagonal segments.
-pub struct Lines<'a> {
-    pub center: &'a str,
-    pub horizontal: &'a str,
-    pub vertical: &'a str,
+pub struct LineSymbols {
+    pub center: Symbol<char>,
+    pub horizontal: Symbol<char>,
+    pub vertical: Symbol<char>,
 
-    pub top_right: &'a str,
-    pub top_left: &'a str,
-    pub bottom_right: &'a str,
-    pub bottom_left: &'a str,
+    pub top_right: Symbol<char>,
+    pub top_left: Symbol<char>,
+    pub bottom_right: Symbol<char>,
+    pub bottom_left: Symbol<char>,
 
-    pub up: &'a str,
-    pub right: &'a str,
-    pub left: &'a str,
-    pub down: &'a str,
+    pub up: Symbol<char>,
+    pub right: Symbol<char>,
+    pub left: Symbol<char>,
+    pub down: Symbol<char>,
 
-    pub top_junction: &'a str,
-    pub bottom_junction: &'a str,
-    pub right_junction: &'a str,
-    pub left_junction: &'a str,
+    pub top_junction: Symbol<char>,
+    pub bottom_junction: Symbol<char>,
+    pub right_junction: Symbol<char>,
+    pub left_junction: Symbol<char>,
 
-    pub cross: &'a str,
+    pub cross: Symbol<char>,
 
-    pub diagonal_left: &'a str,
-    pub diagonal_right: &'a str,
+    pub diagonal_left: Symbol<char>,
+    pub diagonal_right: Symbol<char>,
 }
-
-impl<'a> Lines<'a> {
-    pub const fn top(&self) -> &'a str {
-        self.horizontal
-    }
-
-    pub const fn right(&self) -> &'a str {
-        self.vertical
-    }
-
-    pub const fn bottom(&self) -> &'a str {
-        self.horizontal
-    }
-
-    pub const fn left(&self) -> &'a str {
-        self.vertical
-    }
-}
-
-impl Lines<'static> {
+impl LineSymbols {
     /// Standard light single-line box drawing characters
     ///
     /// Creates clean, lightweight lines suitable for general use in terminal UIs.
@@ -57,30 +40,30 @@ impl Lines<'static> {
     /// ├─┼─┤
     /// └─┴─┘
     /// ```
-    pub const LIGHT: Lines<'static> = Lines {
-        top_junction: "┬",
-        bottom_junction: "┴",
-        right_junction: "┼",
-        left_junction: "├",
+    pub const LIGHT: LineSymbols = LineSymbols {
+        top_junction: Symbol { inner: '┬', width: 1 },
+        bottom_junction: Symbol { inner: '┴', width: 1 },
+        right_junction: Symbol { inner: '┼', width: 1 },
+        left_junction: Symbol { inner: '├', width: 1 },
 
-        center: "┼",
+        center: Symbol { inner: '┼', width: 1 },
 
-        horizontal: "─",
-        vertical: "│",
-        top_right: "┐",
-        top_left: "┌",
-        bottom_right: "┘",
-        bottom_left: "└",
+        horizontal: Symbol { inner: '─', width: 1 },
+        vertical: Symbol { inner: '│', width: 1 },
+        top_right: Symbol { inner: '┐', width: 1 },
+        top_left: Symbol { inner: '┌', width: 1 },
+        bottom_right: Symbol { inner: '┘', width: 1 },
+        bottom_left: Symbol { inner: '└', width: 1 },
 
-        up: "╵",
-        right: "╶",
-        left: "╴",
-        down: "╷",
+        up: Symbol { inner: '╵', width: 1 },
+        right: Symbol { inner: '╶', width: 1 },
+        left: Symbol { inner: '╴', width: 1 },
+        down: Symbol { inner: '╷', width: 1 },
 
-        cross: "╳",
+        cross: Symbol { inner: '╳', width: 1 },
 
-        diagonal_left: "╱",
-        diagonal_right: "╱",
+        diagonal_left: Symbol { inner: '╱', width: 1 },
+        diagonal_right: Symbol { inner: '╱', width: 1 },
     };
     /// Double-line box drawing characters with parallel lines
     ///
@@ -93,27 +76,27 @@ impl Lines<'static> {
     /// ┣╍╋╍┫
     /// ┗╍┻╍┛
     /// ```
-    pub const BOLD: Lines<'static> = Lines {
-        top_junction: "┳",
-        bottom_junction: "┻",
-        right_junction: "┫",
-        left_junction: "┣",
+    pub const BOLD: LineSymbols = LineSymbols {
+        top_junction: Symbol { inner: '┳', width: 1 },
+        bottom_junction: Symbol { inner: '┻', width: 1 },
+        right_junction: Symbol { inner: '┫', width: 1 },
+        left_junction: Symbol { inner: '┣', width: 1 },
 
-        center: "╋",
+        center: Symbol { inner: '╋', width: 1 },
 
-        horizontal: "━",
-        vertical: "┃",
-        top_right: "┓",
-        top_left: "┏",
-        bottom_right: "┛",
-        bottom_left: "┗",
+        horizontal: Symbol { inner: '━', width: 1 },
+        vertical: Symbol { inner: '┃', width: 1 },
+        top_right: Symbol { inner: '┓', width: 1 },
+        top_left: Symbol { inner: '┏', width: 1 },
+        bottom_right: Symbol { inner: '┛', width: 1 },
+        bottom_left: Symbol { inner: '┗', width: 1 },
 
-        up: "╹",
-        right: "╺",
-        left: "╸",
-        down: "╻",
+        up: Symbol { inner: '╹', width: 1 },
+        right: Symbol { inner: '╺', width: 1 },
+        left: Symbol { inner: '╸', width: 1 },
+        down: Symbol { inner: '╻', width: 1 },
 
-        ..Lines::LIGHT
+        ..LineSymbols::LIGHT
     };
     /// Rounded corner box drawing characters with smooth curves
     ///
@@ -126,11 +109,11 @@ impl Lines<'static> {
     /// ├─┼─┤
     /// ╰─┴─╯
     /// ```
-    pub const ROUNDED: Lines<'static> = Lines {
-        top_right: "╮",
-        top_left: "╭",
-        bottom_right: "╯",
-        bottom_left: "╰",
+    pub const ROUNDED: LineSymbols = LineSymbols {
+        top_right: Symbol { inner: '╮', width: 1 },
+        top_left: Symbol { inner: '╭', width: 1 },
+        bottom_right: Symbol { inner: '╯', width: 1 },
+        bottom_left: Symbol { inner: '╰', width: 1 },
         ..Self::LIGHT
     };
     /// Double-line box drawing characters with parallel lines
@@ -144,20 +127,20 @@ impl Lines<'static> {
     /// ╠═╬═╣
     /// ╚═╩═╝
     /// ```
-    pub const DOUBLE: Lines<'static> = Lines {
-        top_junction: "╦",
-        bottom_junction: "╩",
-        right_junction: "╣",
-        left_junction: "╠",
-        center: "╬",
-        horizontal: "═",
-        vertical: "║",
-        top_right: "╗",
-        top_left: "╔",
-        bottom_right: "╝",
-        bottom_left: "╚",
+    pub const DOUBLE: LineSymbols = LineSymbols {
+        top_junction: Symbol { inner: '╦', width: 1 },
+        bottom_junction: Symbol { inner: '╩', width: 1 },
+        right_junction: Symbol { inner: '╣', width: 1 },
+        left_junction: Symbol { inner: '╠', width: 1 },
+        center: Symbol { inner: '╬', width: 1 },
+        horizontal: Symbol { inner: '═', width: 1 },
+        vertical: Symbol { inner: '║', width: 1 },
+        top_right: Symbol { inner: '╗', width: 1 },
+        top_left: Symbol { inner: '╔', width: 1 },
+        bottom_right: Symbol { inner: '╝', width: 1 },
+        bottom_left: Symbol { inner: '╚', width: 1 },
 
-        ..Lines::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Double-dashed box drawing characters
@@ -171,10 +154,10 @@ impl Lines<'static> {
     /// ├╌┼╌┤
     /// └╌┴╌┘
     /// ```
-    pub const DASHED_DOUBLE: Lines<'static> = Lines {
-        vertical: "╎",
-        horizontal: "╌",
-        ..Lines::LIGHT
+    pub const DASHED_DOUBLE: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '╎', width: 1 },
+        horizontal: Symbol { inner: '╌', width: 1 },
+        ..LineSymbols::LIGHT
     };
     /// Bold single-dashed box drawing characters
     ///
@@ -187,10 +170,10 @@ impl Lines<'static> {
     /// ┣╍╋╍┫
     /// ┗╍┻╍┛
     /// ```
-    pub const DASHED_DOUBLE_BOLD: Lines<'static> = Lines {
-        vertical: "╏",
-        horizontal: "╍",
-        ..Lines::BOLD
+    pub const DASHED_DOUBLE_BOLD: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '╏', width: 1 },
+        horizontal: Symbol { inner: '╍', width: 1 },
+        ..LineSymbols::BOLD
     };
 
     /// Triple-dashed box drawing characters with three-dash segments
@@ -204,10 +187,10 @@ impl Lines<'static> {
     /// ├┄┼┄┤
     /// └┄┴┄┘
     /// ```
-    pub const DASHED_TRIPLE: Lines<'static> = Lines {
-        vertical: "┆",
-        horizontal: "┄",
-        ..Lines::LIGHT
+    pub const DASHED_TRIPLE: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '┆', width: 1 },
+        horizontal: Symbol { inner: '┄', width: 1 },
+        ..LineSymbols::LIGHT
     };
 
     /// Bold triple-dashed box drawing characters
@@ -221,10 +204,10 @@ impl Lines<'static> {
     /// ┣┅╋┅┫
     /// ┗┅┻┅┛
     /// ```
-    pub const DASHED_TRIPLE_BOLD: Lines<'static> = Lines {
-        vertical: "┇",
-        horizontal: "┅",
-        ..Lines::BOLD
+    pub const DASHED_TRIPLE_BOLD: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '┇', width: 1 },
+        horizontal: Symbol { inner: '┅', width: 1 },
+        ..LineSymbols::BOLD
     };
 
     /// Quadruple-dashed box drawing characters with four-dash segments
@@ -238,10 +221,10 @@ impl Lines<'static> {
     /// ├┈┼┈┤
     /// └┈┴┈┘
     /// ```
-    pub const DASHED_QUADRUPLE: Lines<'static> = Lines {
-        vertical: "┊",
-        horizontal: "┈",
-        ..Lines::LIGHT
+    pub const DASHED_QUADRUPLE: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '┊', width: 1 },
+        horizontal: Symbol { inner: '┈', width: 1 },
+        ..LineSymbols::LIGHT
     };
     /// Bold quadruple-dashed box drawing characters
     ///
@@ -258,10 +241,10 @@ impl Lines<'static> {
     /// # Available Characters
     /// - Bold Quadruple Dashed Edges: `┉` (horizontal) `┋` (vertical)
     /// - Corners and Junctions: inherited from bold lines
-    pub const DASHED_QUADRUPLE_BOLD: Lines<'static> = Lines {
-        vertical: "┋",
-        horizontal: "┉",
-        ..Lines::BOLD
+    pub const DASHED_QUADRUPLE_BOLD: LineSymbols = LineSymbols {
+        vertical: Symbol { inner: '┋', width: 1 },
+        horizontal: Symbol { inner: '┉', width: 1 },
+        ..LineSymbols::BOLD
     };
 
     // Mixed
@@ -277,30 +260,30 @@ impl Lines<'static> {
     /// ┠─╂─┨
     /// ┖─┸─┚
     /// ```
-    pub const LIGHT_HORIZONTAL_BOLD_VERTICAL: Lines<'static> = Lines {
-        horizontal: Lines::LIGHT.horizontal,
-        vertical: Lines::BOLD.vertical,
+    pub const LIGHT_HORIZONTAL_BOLD_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::LIGHT.horizontal,
+        vertical: LineSymbols::BOLD.vertical,
 
-        top_left: "┎",
-        top_right: "┒",
-        bottom_left: "┖",
-        bottom_right: "┚",
+        top_left: Symbol { inner: '┎', width: 1 },
+        top_right: Symbol { inner: '┒', width: 1 },
+        bottom_left: Symbol { inner: '┖', width: 1 },
+        bottom_right: Symbol { inner: '┚', width: 1 },
 
-        top_junction: "┰",
-        bottom_junction: "┸",
-        left_junction: "┠",
-        right_junction: "┨",
+        top_junction: Symbol { inner: '┰', width: 1 },
+        bottom_junction: Symbol { inner: '┸', width: 1 },
+        left_junction: Symbol { inner: '┠', width: 1 },
+        right_junction: Symbol { inner: '┨', width: 1 },
 
-        up: Lines::BOLD.up,
-        right: Lines::LIGHT.right,
-        left: Lines::BOLD.left,
-        down: Lines::LIGHT.down,
+        up: LineSymbols::BOLD.up,
+        right: LineSymbols::LIGHT.right,
+        left: LineSymbols::BOLD.left,
+        down: LineSymbols::LIGHT.down,
 
-        center: "╂",
+        center: Symbol { inner: '╂', width: 1 },
 
-        cross: "╳",
-        diagonal_left: "╱",
-        diagonal_right: "╲",
+        cross: Symbol { inner: '╳', width: 1 },
+        diagonal_left: Symbol { inner: '╱', width: 1 },
+        diagonal_right: Symbol { inner: '╲', width: 1 },
     };
 
     /// Bold horizontal / light vertical
@@ -314,28 +297,28 @@ impl Lines<'static> {
     /// ┝━┿━┥
     /// ┕━┷━┙
     /// ```
-    pub const BOLD_HORIZONTAL_LIGHT_VERTICAL: Lines<'static> = Lines {
-        horizontal: Lines::BOLD.horizontal,
-        vertical: Lines::LIGHT.vertical,
+    pub const BOLD_HORIZONTAL_LIGHT_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::BOLD.horizontal,
+        vertical: LineSymbols::LIGHT.vertical,
 
-        top_left: "┍",
-        top_right: "┑",
-        bottom_left: "┕",
-        bottom_right: "┙",
+        top_left: Symbol { inner: '┍', width: 1 },
+        top_right: Symbol { inner: '┑', width: 1 },
+        bottom_left: Symbol { inner: '┕', width: 1 },
+        bottom_right: Symbol { inner: '┙', width: 1 },
 
-        top_junction: "┯",
-        bottom_junction: "┷",
-        left_junction: "┝",
-        right_junction: "┥",
+        top_junction: Symbol { inner: '┯', width: 1 },
+        bottom_junction: Symbol { inner: '┷', width: 1 },
+        left_junction: Symbol { inner: '┝', width: 1 },
+        right_junction: Symbol { inner: '┥', width: 1 },
 
-        center: "┿",
+        center: Symbol { inner: '┿', width: 1 },
 
-        up: Lines::LIGHT.up,
-        right: Lines::BOLD.right,
-        left: Lines::BOLD.left,
-        down: Lines::LIGHT.down,
+        up: LineSymbols::LIGHT.up,
+        right: LineSymbols::BOLD.right,
+        left: LineSymbols::BOLD.left,
+        down: LineSymbols::LIGHT.down,
 
-        ..Lines::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Single horizontal / double vertical
@@ -346,23 +329,23 @@ impl Lines<'static> {
     /// ╟─╫─╢
     /// ╙─╨─╜
     /// ```
-    pub const SINGLE_HORIZONTAL_DOUBLE_VERTICAL: Lines<'static> = Lines {
-        horizontal: Lines::LIGHT.horizontal,
-        vertical: Lines::DOUBLE.vertical,
+    pub const SINGLE_HORIZONTAL_DOUBLE_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::LIGHT.horizontal,
+        vertical: LineSymbols::DOUBLE.vertical,
 
-        top_left: "╓",
-        top_right: "╖",
-        bottom_left: "╙",
-        bottom_right: "╜",
+        top_left: Symbol { inner: '╓', width: 1 },
+        top_right: Symbol { inner: '╖', width: 1 },
+        bottom_left: Symbol { inner: '╙', width: 1 },
+        bottom_right: Symbol { inner: '╜', width: 1 },
 
-        top_junction: "╥",
-        bottom_junction: "╨",
-        left_junction: "╟",
-        right_junction: "╢",
+        top_junction: Symbol { inner: '╥', width: 1 },
+        bottom_junction: Symbol { inner: '╨', width: 1 },
+        left_junction: Symbol { inner: '╟', width: 1 },
+        right_junction: Symbol { inner: '╢', width: 1 },
 
-        center: "╫",
+        center: Symbol { inner: '╫', width: 1 },
 
-        ..Lines::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Double horizontal / single vertical
@@ -373,28 +356,47 @@ impl Lines<'static> {
     /// ╞═╪═╡
     /// ╘═╧═╛
     /// ```
-    pub const DOUBLE_HORIZONTAL_SINGLE_VERTICAL: Lines<'static> = Lines {
-        horizontal: Lines::DOUBLE.horizontal,
-        vertical: Lines::LIGHT.vertical,
+    pub const DOUBLE_HORIZONTAL_SINGLE_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::DOUBLE.horizontal,
+        vertical: LineSymbols::LIGHT.vertical,
 
-        top_left: "╒",
-        top_right: "╕",
-        bottom_left: "╘",
-        bottom_right: "╛",
+        top_left: Symbol { inner: '╒', width: 1 },
+        top_right: Symbol { inner: '╕', width: 1 },
+        bottom_left: Symbol { inner: '╘', width: 1 },
+        bottom_right: Symbol { inner: '╛', width: 1 },
 
-        top_junction: "╤",
-        bottom_junction: "╧",
-        left_junction: "╞",
-        right_junction: "╡",
+        top_junction: Symbol { inner: '╤', width: 1 },
+        bottom_junction: Symbol { inner: '╧', width: 1 },
+        left_junction: Symbol { inner: '╞', width: 1 },
+        right_junction: Symbol { inner: '╡', width: 1 },
 
-        center: "╪",
+        center: Symbol { inner: '╪', width: 1 },
 
-        ..Lines::LIGHT
+        ..LineSymbols::LIGHT
     };
 }
-impl Default for Lines<'static> {
+
+impl LineSymbols {
+    pub const fn top(&self) -> char {
+       self.horizontal.inner
+    }
+
+    pub const fn right(&self) -> char {
+        self.vertical.inner
+    }
+
+    pub const fn bottom(&self) -> char {
+        self.horizontal.inner
+    }
+
+    pub const fn left(&self) -> char {
+        self.vertical.inner
+    }
+}
+
+impl Default for LineSymbols {
     fn default() -> Self {
-        Lines::LIGHT
+        LineSymbols::LIGHT
     }
 }
 /// Visual line style
@@ -571,27 +573,27 @@ pub enum LineStyle {
 }
 
 impl LineStyle {
-    /// Convert line style into a [`Lines`].
-    pub fn as_line(self) -> Lines<'static> {
+    /// Convert line style into a [`LineSymbols`].
+    pub fn as_line(self) -> LineSymbols {
         match self {
-            LineStyle::Light => Lines::LIGHT,
-            LineStyle::Bold => Lines::BOLD,
-            LineStyle::Rounded => Lines::ROUNDED,
-            LineStyle::Double => Lines::DOUBLE,
-            LineStyle::Dashed => Lines::DASHED_DOUBLE,
-            LineStyle::DashedBold => Lines::DASHED_DOUBLE_BOLD,
-            LineStyle::DashedTriple => Lines::DASHED_TRIPLE,
-            LineStyle::DashedTripleBold => Lines::DASHED_TRIPLE_BOLD,
-            LineStyle::DashedQuadruple => Lines::DASHED_QUADRUPLE,
-            LineStyle::DashedQuadrupleBold => Lines::DASHED_QUADRUPLE_BOLD,
-            LineStyle::LightHorizontalBoldVertical => Lines::LIGHT_HORIZONTAL_BOLD_VERTICAL,
-            LineStyle::BoldHorizontalLightVertical => Lines::BOLD_HORIZONTAL_LIGHT_VERTICAL,
-            LineStyle::SingleHorizontalDoubleVertical => Lines::SINGLE_HORIZONTAL_DOUBLE_VERTICAL,
-            LineStyle::DoubleHorizontalSingleVertical => Lines::DOUBLE_HORIZONTAL_SINGLE_VERTICAL,
+            LineStyle::Light => LineSymbols::LIGHT,
+            LineStyle::Bold => LineSymbols::BOLD,
+            LineStyle::Rounded => LineSymbols::ROUNDED,
+            LineStyle::Double => LineSymbols::DOUBLE,
+            LineStyle::Dashed => LineSymbols::DASHED_DOUBLE,
+            LineStyle::DashedBold => LineSymbols::DASHED_DOUBLE_BOLD,
+            LineStyle::DashedTriple => LineSymbols::DASHED_TRIPLE,
+            LineStyle::DashedTripleBold => LineSymbols::DASHED_TRIPLE_BOLD,
+            LineStyle::DashedQuadruple => LineSymbols::DASHED_QUADRUPLE,
+            LineStyle::DashedQuadrupleBold => LineSymbols::DASHED_QUADRUPLE_BOLD,
+            LineStyle::LightHorizontalBoldVertical => LineSymbols::LIGHT_HORIZONTAL_BOLD_VERTICAL,
+            LineStyle::BoldHorizontalLightVertical => LineSymbols::BOLD_HORIZONTAL_LIGHT_VERTICAL,
+            LineStyle::SingleHorizontalDoubleVertical => LineSymbols::SINGLE_HORIZONTAL_DOUBLE_VERTICAL,
+            LineStyle::DoubleHorizontalSingleVertical => LineSymbols::DOUBLE_HORIZONTAL_SINGLE_VERTICAL,
         }
     }
 }
-impl From<LineStyle> for Lines<'static> {
+impl From<LineStyle> for LineSymbols {
     fn from(style: LineStyle) -> Self {
         style.as_line()
     }

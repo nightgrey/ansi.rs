@@ -1,56 +1,55 @@
 use std::borrow::Cow;
 use std::io;
-use std::io::{Write};
-
-use ansi::{escape, Attribute, Color, Style};
-use geometry::{Axis, Bounded, Contains, Intersect, Point, Rect, Size};
-use sigil::{Buffer, Capabilities, Grapheme, GraphemeArena, Rasterizer};
+use bon::__::ide::builder_top_level::start_fn::doc;
+use ansi::{Color, Style};
 use gloss::*;
+use sigil::{ Buffer, GraphemeArena, Rasterizer};
 use tree::At;
 
 fn main() {
     let mut document = Document::new();
 
     let root = document.node_mut(document.root);
-    root.align_items.insert(AlignItems::Start);
-    root.justify_items.insert(JustifyItems::Start);
+    root.set_display(Display::Flex);
+    root.set_flex_direction(FlexDirection::Column);
 
-    let n = document.insert_with(Node::Span(Cow::Borrowed("Hello Worldwwwwwwwwwwwwwwwww!")), |node| {
-        node.color = Color::Red;
-    });
+    let title = document.insert_with(
+        Node::Span(Cow::Borrowed("Hello World!")),
+        |node| {
+            node.set_border(Border::Solid);
+            node.set_background_color(Color::White);
+        },
+    );
 
     let row = document.insert_with(Node::Div(), |node| {
-        node.flex_direction = FlexDirection::Row;
-        node.flex_grow = 1.0;
-        node.gap = Axis { horizontal: Dimension::Length(1), vertical: Dimension::Length(1) };
+        node.set_flex_direction(FlexDirection::Row);
+        node.set_width(Dimension::Percent(1.0));
     });
 
     let a = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.background_color = Color::Green;
+        node.set_background_color(Color::Green);
     });
 
-
     let b = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.background_color = Color::Yellow;
+        node.set_background_color(Color::Yellow);
     });
 
     let c = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.background_color = Color::Blue;
+        node.set_background_color(Color::Blue);
     });
 
     let mut arena = GraphemeArena::new();
-    let mut buffer = Buffer::new(10, 11);
-    let mut out = io::stdout().lock();
+    let mut buffer = Buffer::new(20, 30);
     let mut rasterizer = Rasterizer::inline(buffer.width, buffer.height);
 
-    document.compute_layout(Space { width: Available::Definite(80), height: Available::Definite(24) });
-    // let mut renderer = Renderer::new(BufferContext::new(&mut buffer, &mut arena));
-    // 
-    // 
-    // renderer.render(&document).unwrap();
-    // rasterizer.raster(&buffer, &arena);
-    // rasterizer.write(&mut out).unwrap();
-    // 
-    // dbg!(document.bounds(n));
-}
+    document.compute_layout(Space::new(buffer.width, buffer.height));
 
+    let mut renderer = Renderer::new(BufferRenderingContext::new(&mut buffer, &mut arena));
+
+    renderer.render(&document).unwrap();
+    rasterizer.raster(&buffer, &arena).unwrap();
+    rasterizer.flush(&mut io::stdout()).unwrap();
+
+    document.print_layout();
+
+}

@@ -1,14 +1,29 @@
-
 use crate::{Attribute, Color, Escape};
 use bitflags::Flags;
-use std::cmp::PartialEq;
-use std::fmt::{from_fn, Debug};
-use std::ops::{BitAnd, BitOr, Sub, SubAssign};
-use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
+use derive_more::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
+};
 use etwa::Maybe;
+use std::cmp::PartialEq;
+use std::fmt::{Debug, from_fn};
+use std::ops::{BitAnd, BitOr, Sub, SubAssign};
 use utils::separate_by;
 
-#[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, BitXor, BitXorAssign, Sub, SubAssign, Not)]
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    BitOr,
+    BitOrAssign,
+    BitAnd,
+    BitAndAssign,
+    BitXor,
+    BitXorAssign,
+    Sub,
+    SubAssign,
+    Not,
+)]
 pub struct Style {
     pub attributes: Attribute,
     pub foreground: Color,
@@ -67,7 +82,6 @@ impl Style {
         ..Self::None
     };
 
-
     pub const Frame: Self = Style {
         attributes: Attribute::Frame,
         ..Self::None
@@ -88,7 +102,6 @@ impl Style {
             attributes: attribute,
             foreground: Color::None,
             background: Color::None,
-
         }
     }
 
@@ -138,7 +151,6 @@ impl Style {
         self.foreground = color;
         self
     }
-
 
     /// Sets [`Attribute::Bold`].
     #[inline]
@@ -296,35 +308,28 @@ impl Style {
         self
     }
 
-
     ///   The bitwise and ( `&` ) of the bits in two flags values.
     #[inline]
     #[must_use]
-    pub fn intersection(self, other: Self) -> Self
-    {
+    pub fn intersection(self, other: Self) -> Self {
         Self {
             attributes: self.attributes & other.attributes,
             foreground: self.foreground & other.foreground,
             background: self.background & other.background,
-
         }
     }
-
 
     ///   The bitwise or ( `|` ) of the bits in two flags values.
     #[inline]
     #[must_use]
-    pub fn union(self, other: Self) -> Self
-    {
+    pub fn union(self, other: Self) -> Self {
         self.attributes.sub(other.attributes);
         Self {
             attributes: self.attributes | other.attributes,
             foreground: self.foreground | other.foreground,
             background: self.background | other.background,
-
         }
     }
-
 
     ///   The intersection of a source flags value with the complement of a target flags
     ///   value ( `&!` ).
@@ -333,48 +338,39 @@ impl Style {
     ///   `difference`  won't truncate  `other` , but the  `!`  operator will.
     #[inline]
     #[must_use]
-    pub fn difference(self, other: Self) -> Self
-    {
+    pub fn difference(self, other: Self) -> Self {
         Self {
             attributes: self.attributes.difference(other.attributes),
             foreground: self.foreground & !other.foreground,
             background: self.background & !other.background,
-
         }
     }
-
 
     ///   The bitwise exclusive-or ( `^` ) of the bits in two flags values.
     #[inline]
     #[must_use]
-    pub fn symmetric_difference(self, other: Self) -> Self
-    {
+    pub fn symmetric_difference(self, other: Self) -> Self {
         Self {
             attributes: self.attributes.symmetric_difference(other.attributes),
             foreground: self.foreground ^ other.foreground,
             background: self.background ^ other.background,
-
         }
     }
-
 
     ///   The bitwise negation ( `!` ) of the bits in a flags value, truncating the result.
     #[inline]
     #[must_use]
-    pub fn complement(self) -> Self
-    {
+    pub fn complement(self) -> Self {
         Self {
             attributes: self.attributes.complement(),
             foreground: !self.foreground,
             background: !self.background,
-
         }
     }
 
     pub fn is_colored(&self) -> bool {
         self.foreground.is_some() || self.background.is_some()
     }
-
 
     /// Returns `true` if the style is none.
     pub fn is_none(&self) -> bool {
@@ -429,7 +425,6 @@ impl Debug for Style {
         }
 
         debug.finish()
-
     }
 }
 
@@ -454,12 +449,10 @@ impl Escape for Style {
             separate!(w.escape(self.foreground.as_foreground())?);
         }
 
-
         // Attributes (bold, underline, etc.)
         for attr in self.attributes.sgr() {
             separate!(w.write(attr.as_bytes())?);
         }
-
 
         w.write_all(b"m")
     }

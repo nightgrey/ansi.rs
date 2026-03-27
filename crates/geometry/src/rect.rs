@@ -31,7 +31,10 @@ impl<T> Rect<T> {
         Self { min, max }
     }
 
-    pub fn iter(self) -> Steps<Self, T> where Self: Bounded<Point = T> + Step<T> {
+    pub fn iter(self) -> Steps<Self, T>
+    where
+        Self: Bounded<Point = T> + Step<T>,
+    {
         Steps::new(self)
     }
 }
@@ -44,7 +47,7 @@ impl<T: [const] Zero> const Rect<T> {
     };
 }
 
-impl<T: [const] Location> const Rect<T> {
+ impl<T: [const] Location> const Rect<T> {
     pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
         Self {
             min: T::new(x, y),
@@ -61,10 +64,12 @@ impl Rect {
         let max_y = self.max.y.saturating_sub(edges.bottom);
 
         Rect {
-            min: Point { x: min_x.min(max_x), y: min_y.min(max_y) },
+            min: Point {
+                x: min_x.min(max_x),
+                y: min_y.min(max_y),
+            },
             max: Point { x: max_x, y: max_y },
         }
-
     }
 }
 
@@ -74,7 +79,11 @@ impl From<Size> for Rect {
     }
 }
 
-impl<T: Location> IntoIterator for &Rect<T> where Rect<T>: Bounded<Point = T> + Step<T>, Steps<Rect<T>, T>: Iterator {
+impl<T: Location> IntoIterator for &Rect<T>
+where
+    Rect<T>: Bounded<Point = T> + Step<T>,
+    Steps<Rect<T>, T>: Iterator,
+{
     type Item = <Steps<Rect<T>, T> as Iterator>::Item;
     type IntoIter = Steps<Rect<T>, T>;
 

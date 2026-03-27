@@ -1,14 +1,14 @@
+use crate::{Cell, GraphemeArena, BufferIndex};
+use ansi::Style;
 use core::slice::IterMut;
-use std::slice::Iter;
+use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
+use geometry::{Bounded, Intersect, Point, Rect, Resolve};
+use std::cmp;
 use std::fmt::Debug;
 use std::iter::StepBy;
-use std::{cmp};
 use std::ops::{Index, IndexMut};
+use std::slice::Iter;
 use std::slice::SliceIndex;
-use derive_more::{AsMut, AsRef, Deref, DerefMut,  IntoIterator};
-use ansi::{Style};
-use geometry::{Area, Bounded, Intersect, Point, Position, PositionLike, Rect, Resolve, Row};
-use crate::{Cell, GraphemeArena, IntoSliceIndex};
 
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
@@ -17,21 +17,21 @@ pub struct Buffer {
     #[as_ref(forward)]
     #[as_mut(forward)]
     #[into_iterator(owned, ref, ref_mut)]
-    pub data: Vec<Cell>,
+    inner: Vec<Cell>,
     pub width: usize,
     pub height: usize,
 }
 
 impl Buffer {
     pub const EMPTY: Self = Self {
-        data: Vec::new(),
+        inner: Vec::new(),
         width: 0,
         height: 0,
     };
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            data: Vec::with_capacity(width * height),
+            inner: vec![Cell::EMPTY; width * height],
             width,
             height,
         }
@@ -58,14 +58,20 @@ impl Buffer {
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub fn get<I: IntoSliceIndex<Buffer, [Cell]>>(&self, index: I) -> Option<&<I::Index as SliceIndex<[Cell]>>::Output> {
-        index.into_slice_index(self).get(self.as_ref())
+    pub fn get<I: BufferIndex<Buffer, [Cell]>>(
+        &self,
+        index: I,
+    ) -> Option<&<I::Index as SliceIndex<[Cell]>>::Output> {
+        index.index_of(self).get(self.as_ref())
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub fn get_mut<I: IntoSliceIndex<Buffer, [Cell]>>(&mut self, index: I) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output> {
-        index.into_slice_index(self).get_mut(self.as_mut())
+    pub fn get_mut<I: BufferIndex<Buffer, [Cell]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output> {
+        index.index_of(self).get_mut(self.as_mut())
     }
 
     /// Returns a pointer to the output at this location, without
@@ -75,8 +81,11 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked<I: IntoSliceIndex<Buffer, [Cell]>>(&self, index: I) -> *const <I::Index as SliceIndex<[Cell]>>::Output {
-        SliceIndex::get_unchecked(index.into_slice_index(self), self.as_ref())
+    pub unsafe fn get_unchecked<I: BufferIndex<Buffer, [Cell]>>(
+        &self,
+        index: I,
+    ) -> *const <I::Index as SliceIndex<[Cell]>>::Output {
+        SliceIndex::get_unchecked(index.index_of(self), self.as_ref())
     }
 
     /// Returns a mutable pointer to the output at this location, without
@@ -86,11 +95,14 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked_mut<I: IntoSliceIndex<Buffer, [Cell]>>(&mut self, index: I) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
-        SliceIndex::get_unchecked_mut(index.into_slice_index(self), self.as_mut())
+    pub unsafe fn get_unchecked_mut<I: BufferIndex<Buffer, [Cell]>>(
+        &mut self,
+        index: I,
+    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
+        SliceIndex::get_unchecked_mut(index.index_of(self), self.as_mut())
     }
 
-    pub fn index_of<T: Resolve<usize, Area>>(&self, value: T) -> usize {
+    pub fn index_of<T: Resolve<usize, Rect>>(&self, value: T) -> usize {
         value.resolve(self.bounds().into())
     }
 
@@ -105,10 +117,10 @@ impl Buffer {
             self.width,
             input_len
         );
-        self.data.extend(row);
+        self.inner.extend(row);
         self.height += 1;
         if self.width == 0 {
-            self.width = self.data.len();
+            self.width = self.inner.len();
         }
     }
 
@@ -116,7 +128,7 @@ impl Buffer {
         if self.height == 0 {
             return None;
         }
-        let row = self.data.split_off(self.data.len() - self.width);
+        let row = self.inner.split_off(self.inner.len() - self.width);
         self.height -= 1;
         if self.height == 0 {
             self.width = 0;
@@ -129,7 +141,7 @@ impl Buffer {
             return None;
         }
         let row = self
-            .data
+            .inner
             .drain((row_index * self.width)..((row_index + 1) * self.width))
             .collect();
         self.height -= 1;
@@ -155,7 +167,7 @@ impl Buffer {
             self.height
         );
         let data_idx = index * input_len;
-        self.data.splice(data_idx..data_idx, row);
+        self.inner.splice(data_idx..data_idx, row);
         self.width = input_len;
         self.height += 1;
     }
@@ -165,7 +177,7 @@ impl Buffer {
             for col in 0..self.width {
                 let cell1 = self.index_of((row, col));
                 let cell2 = self.index_of((self.height - row - 1, col));
-                self.data.swap(cell1, cell2);
+                self.inner.swap(cell1, cell2);
             }
         }
     }
@@ -182,14 +194,14 @@ impl Buffer {
             self.height,
             input_len
         );
-        self.data.extend(col);
+        self.inner.extend(col);
         for i in (1..self.height).rev() {
             let row_idx = i * self.width;
-            self.data[row_idx..row_idx + self.width + i].rotate_right(i);
+            self.inner[row_idx..row_idx + self.width + i].rotate_right(i);
         }
         self.width += 1;
         if self.height == 0 {
-            self.height = self.data.len();
+            self.height = self.inner.len();
         }
     }
 
@@ -199,9 +211,9 @@ impl Buffer {
         }
         for i in 1..self.height {
             let row_idx = i * (self.width - 1);
-            self.data[row_idx..row_idx + self.width + i - 1].rotate_left(i);
+            self.inner[row_idx..row_idx + self.width + i - 1].rotate_left(i);
         }
-        let col = self.data.split_off(self.data.len() - self.height);
+        let col = self.inner.split_off(self.inner.len() - self.height);
         self.width -= 1;
         if self.width == 0 {
             self.height = 0;
@@ -226,7 +238,7 @@ impl Buffer {
         );
         for (row_iter, col_val) in col.enumerate() {
             let data_idx = row_iter * self.width + index + row_iter;
-            self.data.insert(data_idx, col_val);
+            self.inner.insert(data_idx, col_val);
         }
         self.height = input_len;
         self.width += 1;
@@ -239,10 +251,10 @@ impl Buffer {
         let col = {
             for i in 0..self.height {
                 let row_idx = col_index + i * (self.width - 1);
-                let end = cmp::min(row_idx + self.width + i, self.data.len());
-                self.data[row_idx..end].rotate_left(i + 1);
+                let end = cmp::min(row_idx + self.width + i, self.inner.len());
+                self.inner[row_idx..end].rotate_left(i + 1);
             }
-            self.data.split_off(self.data.len() - self.height)
+            self.inner.split_off(self.inner.len() - self.height)
         };
         self.width -= 1;
         if self.width == 0 {
@@ -254,13 +266,13 @@ impl Buffer {
     pub fn flip_cols(&mut self) {
         for row in 0..self.height {
             let idx = row * self.width;
-            self.data[idx..idx + self.width].reverse();
+            self.inner[idx..idx + self.width].reverse();
         }
     }
 
     pub fn map_or<I, F>(&mut self, index: I, default: Cell, mut f: F)
     where
-        I: IntoSliceIndex<Buffer, [Cell], Output = Cell>,
+        I: BufferIndex<Buffer, [Cell], Output = Cell>,
         F: FnMut(&mut Cell),
     {
         match self.get_mut(index.clone()) {
@@ -271,7 +283,7 @@ impl Buffer {
 
     pub fn map<I, F>(&mut self, index: I, mut f: F)
     where
-        I: IntoSliceIndex<Buffer, [Cell], Output = Cell>,
+        I: BufferIndex<Buffer, [Cell], Output = Cell>,
         F: FnMut(&mut Cell),
     {
         match self.get_mut(index) {
@@ -305,7 +317,7 @@ impl Buffer {
     }
 
     /// Insert `n` lines at row `y` within specific bounds.
-    /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.row` are lost.
+    /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.y` are lost.
     /// New lines are filled with `cell`.
     pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
         if n == 0 {
@@ -313,27 +325,26 @@ impl Buffer {
         }
 
         // Clip to buffer bounds and ensure y is within bounds
-        let bounds = self.clip(&Area::from(bounds));
-        let y = y.clamp(bounds.min.row, bounds.max.row);
-        let n = n.min(bounds.max.row - y);
+        let bounds = self.clip(&Rect::from(bounds));
+        let y = y.clamp(bounds.min.y, bounds.max.y);
+        let n = n.min(bounds.max.y - y);
         let width = bounds.width();
 
-        if width == 0 || y >= bounds.max.row {
+        if width == 0 || y >= bounds.max.y {
             return;
         }
 
-
         // Move lines down (backwards to prevent overwriting)
         // Source: [y, max-n) -> Dest: [y+n, max)
-        for row in (y..(bounds.max.row - n)).rev() {
-            let src_start = row * self.width() + bounds.min.col;
-            let dst_start = (row + n) * self.width() + bounds.min.col;
+        for row in (y..(bounds.max.y - n)).rev() {
+            let src_start = row * self.width() + bounds.min.x;
+            let dst_start = (row + n) * self.width() + bounds.min.x;
             self.copy_within(src_start..src_start + width, dst_start);
         }
 
         // Fill new lines with the provided cell
         for row in y..(y + n) {
-            let start = row * self.width() + bounds.min.col;
+            let start = row * self.width() + bounds.min.x;
             &mut self[start..start + width].fill(cell);
         }
     }
@@ -344,12 +355,12 @@ impl Buffer {
         if n == 0 {
             return;
         }
-        let bounds = self.clip(&Area::from(bounds));
-        let y = y.clamp(bounds.min.row, bounds.max.row);
-        let n = n.min(bounds.max.row - y);
+        let bounds = self.clip(&Rect::from(bounds));
+        let y = y.clamp(bounds.min.y, bounds.max.y);
+        let n = n.min(bounds.max.y - y);
         let width = bounds.width();
 
-        if width == 0 || y >= bounds.max.row {
+        if width == 0 || y >= bounds.max.y {
             return;
         }
 
@@ -357,15 +368,15 @@ impl Buffer {
 
         // Move lines up
         // Source: [y+n, max) -> Dest: [y, max-n)
-        for row in y..(bounds.max.row - n) {
-            let src_start = (row + n) * row_stride + bounds.min.col;
-            let dst_start = row * row_stride + bounds.min.col;
+        for row in y..(bounds.max.y - n) {
+            let src_start = (row + n) * row_stride + bounds.min.x;
+            let dst_start = row * row_stride + bounds.min.x;
             self.copy_within(src_start..src_start + width, dst_start);
         }
 
         // Clear bottom n lines
-        for row in (bounds.max.row - n)..bounds.max.row {
-            let start = row * row_stride + bounds.min.col;
+        for row in (bounds.max.y - n)..bounds.max.y {
+            let start = row * row_stride + bounds.min.x;
             self[start..start + width].fill(cell);
         }
     }
@@ -377,15 +388,15 @@ impl Buffer {
             return;
         }
 
-        let bounds = self.clip(&Area::from(bounds));
+        let bounds = self.clip(&Rect::from(bounds));
 
         // Validate y is within vertical bounds
-        if row < bounds.min.row || row >= bounds.max.row {
+        if row < bounds.min.y || row >= bounds.max.y {
             return;
         }
 
-        let x = col.clamp(bounds.min.col, bounds.max.col);
-        let n = n.min(bounds.max.col - x);
+        let x = col.clamp(bounds.min.x, bounds.max.x);
+        let n = n.min(bounds.max.x - x);
 
         if n == 0 {
             return;
@@ -394,9 +405,9 @@ impl Buffer {
         let row_offset = row * self.width();
 
         // Shift cells right: [x, max-n) -> [x+n, max)
-        if x + n < bounds.max.col {
+        if x + n < bounds.max.x {
             let src_start = row_offset + x;
-            let src_end = row_offset + bounds.max.col - n;
+            let src_end = row_offset + bounds.max.x - n;
             let dst_start = row_offset + x + n;
             self.copy_within(src_start..src_end, dst_start);
         }
@@ -414,14 +425,14 @@ impl Buffer {
             return;
         }
 
-        let bounds = self.clip(&Area::from(bounds));
+        let bounds = self.clip(&Rect::from(bounds));
 
-        if row < bounds.min.row || row >= bounds.max.row {
+        if row < bounds.min.y || row >= bounds.max.y {
             return;
         }
 
-        let x = col.clamp(bounds.min.col, bounds.max.col);
-        let n = n.min(bounds.max.col - x);
+        let x = col.clamp(bounds.min.x, bounds.max.x);
+        let n = n.min(bounds.max.x - x);
 
         if n == 0 {
             return;
@@ -431,24 +442,24 @@ impl Buffer {
         let row_offset = row * self.width();
 
         // Shift cells left: [x+n, max) -> [x, max-n)
-        if x + n < bounds.max.col {
+        if x + n < bounds.max.x {
             let src_start = row_offset + x + n;
-            let src_end = row_offset + bounds.max.col;
+            let src_end = row_offset + bounds.max.x;
             let dst_start = row_offset + x;
             self.copy_within(src_start..src_end, dst_start);
         }
 
         // Clear rightmost cells
-        let clear_start = row_offset + bounds.max.col - n;
-        let clear_end = row_offset + bounds.max.col;
+        let clear_start = row_offset + bounds.max.x - n;
+        let clear_end = row_offset + bounds.max.x;
         self[clear_start..clear_end].fill(fill_cell);
     }
 
-    pub fn copy_from_area(&mut self, area: &Area) -> Self {
+    pub fn copy_from_area(&mut self, area: &Rect) -> Self {
         let mut next = Self::from(self.clip(area));
 
         for position in area {
-            next[(position.row - area.min.row, position.col - area.min.col)] = self[position];
+            next[(position.y - area.min.y, position.x - area.min.x)] = self[position];
         }
 
         next
@@ -458,53 +469,57 @@ impl Buffer {
         self.resize_with(width, height, Cell::default());
     }
 
+
     pub fn resize_with(&mut self, width: usize, height: usize, value: Cell) {
-        let (current_width, current_height) = (self.width(), self.height());
-        if current_width == width && current_height == height {
+        let (cur_w, cur_h) = (self.width, self.height);
+        if cur_w == width && cur_h == height {
             return;
         }
 
+        if width != cur_w {
+            let copy_w = width.min(cur_w);
 
-        if width != current_width {
-            let copy_w = width.min(current_width);
-
-            if width > current_width {
+            if width > cur_w {
                 // Growing: extend first, then shift rows back-to-front
-                for y in (1..current_height).rev() {
-                    let src = y * current_width;
+                self.inner.resize(width * cur_h, value);
+                for y in (1..cur_h).rev() {
+                    let src = y * cur_w;
                     let dst = y * width;
-                    self.copy_within(src..src + copy_w, dst);
+                    self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self[dst + copy_w..dst + width].fill(value);
+                    &mut self.inner[dst + copy_w..dst + width].fill(value);
                 }
                 // Row 0: just fill the tail
-                &mut self[copy_w..width].fill(value);
+                &mut self.inner[copy_w..width].fill(value);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
-                for y in 1..current_height {
-                    let src = y * current_width;
+                for y in 1..cur_h {
+                    let src = y * cur_w;
                     let dst = y * width;
-                    self.copy_within(src..src + copy_w, dst);
+                    self.inner.copy_within(src..src + copy_w, dst);
                 }
-                self.truncate(width * current_height);
+                self.inner.truncate(width * cur_h);
             }
+
+            self.width = width;
         }
 
-        if height > current_height {
-            self.data.resize(width * height, value);
-        } else if height < current_height {
-            self.truncate(width * height);
+        if height > cur_h {
+            self.inner.resize(width * height, value);
+        } else if height < cur_h {
+            self.inner.truncate(width * height);
         }
-
-        self.width = width;
         self.height = height;
     }
 
     pub fn resize_inner(&mut self, width: usize, height: usize) {
-        self.data.reserve(width * height - self.len());
-        self.data.fill(Cell::default());
+        self.inner.reserve(width * height - self.len());
+        self.inner.fill(Cell::default());
     }
-
+    
+    pub fn clear(&mut self) {
+        self.inner.fill(Cell::default());
+    }
 
     pub fn iter_col(&self, col: usize) -> StepBy<Iter<Cell>> {
         assert!(
@@ -514,7 +529,7 @@ impl Buffer {
             col
         );
 
-        self.data[col..].iter().step_by(self.width)
+        self.inner[col..].iter().step_by(self.width)
     }
 
     pub fn iter_col_mut(&mut self, col: usize) -> StepBy<IterMut<Cell>> {
@@ -524,7 +539,7 @@ impl Buffer {
             self.width,
             col
         );
-        self.data[col..].iter_mut().step_by(self.width)
+        self.inner[col..].iter_mut().step_by(self.width)
     }
 
     pub fn iter_row(&self, row: usize) -> StepBy<Iter<Cell>> {
@@ -534,7 +549,7 @@ impl Buffer {
             self.height,
             row
         );
-        self[Row(row)].iter().step_by(1)
+        self[row * self.width..row * self.width + self.width].iter().step_by(1)
     }
 
     pub fn iter_row_mut(&mut self, row: usize) -> StepBy<IterMut<Cell>> {
@@ -544,22 +559,23 @@ impl Buffer {
             self.height,
             row
         );
+        let width = self.width;
 
-        self[Row(row)].iter_mut().step_by(1)
+        self[row * width..row * width + width].iter_mut().step_by(1)
     }
 
     pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &Cell)> {
-        self.iter().enumerate().map(move |(idx, i)| {
-            ((idx / self.width, idx % self.width), i)
-        })
+        self.iter()
+            .enumerate()
+            .map(move |(idx, i)| ((idx / self.width, idx % self.width), i))
     }
 
     pub fn indexed_iter_mut(&mut self) -> impl Iterator<Item = ((usize, usize), &mut Cell)> {
         let cols = self.width;
 
-        self.iter_mut().enumerate().map(move |(idx, i)| {
-            ((idx / cols, idx % cols), i)
-        })
+        self.iter_mut()
+            .enumerate()
+            .map(move |(idx, i)| ((idx / cols, idx % cols), i))
     }
 
     pub fn iter_rows(&self) -> impl Iterator<Item = StepBy<Iter<Cell>>> {
@@ -571,7 +587,7 @@ impl Buffer {
     }
 
     pub fn iter(&self) -> Iter<Cell> {
-        self.data.iter()
+        self.inner.iter()
     }
 
     pub fn iter_mut(&mut self) -> IterMut<Cell> {
@@ -579,9 +595,10 @@ impl Buffer {
     }
 
     pub fn to_string(&self, arena: &GraphemeArena) -> String {
-        self.iter_rows().map(|row| {
-            row.map(|cell| cell.as_str(arena)).collect::<String>()
-        }).intersperse(String::from("\n")).collect()
+        self.iter_rows()
+            .map(|row| row.map(|cell| cell.as_str(arena)).collect::<String>())
+            .intersperse(String::from("\n"))
+            .collect()
     }
 }
 
@@ -591,24 +608,20 @@ impl From<Rect> for Buffer {
     }
 }
 
-impl From<Area> for Buffer {
-    fn from(value: Area) -> Self {
-        Self::new(value.width(), value.height())
-    }
-}
 
-impl<I: IntoSliceIndex<Buffer, [Cell]>> Index<I> for Buffer {
+impl<I: BufferIndex<Buffer, [Cell]>> Index<I> for Buffer {
     type Output = I::Output;
     fn index(&self, index: I) -> &Self::Output {
-        index.into_slice_index(self).index(self.as_ref())
+        index.index_of(self).index(self)
     }
 }
 
-impl<I: IntoSliceIndex<Buffer, [Cell]>> IndexMut<I> for Buffer {
+impl<I: BufferIndex<Buffer, [Cell]>> IndexMut<I> for Buffer {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        index.into_slice_index(self).index_mut(self.as_mut())
+        index.index_of(self).index_mut(self)
     }
 }
+
 impl Bounded for Buffer {
     type Point = Point;
     type Bounds = Rect;
@@ -616,7 +629,6 @@ impl Bounded for Buffer {
     fn min_x(&self) -> usize {
         0
     }
-
 
     fn min_y(&self) -> usize {
         0
@@ -686,49 +698,6 @@ impl Intersect<Rect> for Buffer {
         r
     }
 }
-impl Intersect<Area> for Buffer {
-    type Output = Area;
-
-    fn intersect(&self, other: &Area) -> Self::Output {
-        if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Area::ZERO;
-        }
-
-        let mut r = Area::ZERO;
-
-        let x1 = 0.max(other.min.col);
-        let y1 = 0.max(other.min.row);
-        let x2 = self.width().min(other.max.col);
-        let y2 = self.height().min(other.max.row);
-
-        r.min.col = x1;
-        r.min.row = y1;
-
-        let mut w = x2 - x1;
-        let mut h = y2 - y1;
-
-        if w < 0 {
-            w = 0;
-        }
-
-        if h < 0 {
-            h = 0;
-        }
-
-        if w > usize::MAX {
-            w = usize::MAX;
-        }
-
-        if h > usize::MAX {
-            h = usize::MAX;
-        }
-
-        r.max.col = r.min.col + w;
-        r.max.row = r.min.row + h;
-
-        r
-    }
-}
 
 impl Intersect<Buffer> for Rect {
     type Output = Rect;
@@ -773,49 +742,6 @@ impl Intersect<Buffer> for Rect {
         r
     }
 }
-impl Intersect<Buffer> for Area {
-    type Output = Area;
-
-    fn intersect(&self, other: &Buffer) -> Self::Output {
-        if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Area::ZERO;
-        }
-
-        let mut r = Area::ZERO;
-
-        let x1 = self.min_x().max(other.min_x());
-        let y1 = self.min_y().max(other.min_y());
-        let x2 = self.width().min(other.max_x());
-        let y2 = self.height().min(other.max_y());
-
-        r.min.col = x1;
-        r.min.row = y1;
-
-        let mut w = x2 - x1;
-        let mut h = y2 - y1;
-
-        if w < 0 {
-            w = 0;
-        }
-
-        if h < 0 {
-            h = 0;
-        }
-
-        if w > usize::MAX {
-            w = usize::MAX;
-        }
-
-        if h > usize::MAX {
-            h = usize::MAX;
-        }
-
-        r.max.col = r.min.col + w;
-        r.max.row = r.min.row + h;
-
-        r
-    }
-}
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
@@ -830,11 +756,11 @@ impl Debug for Buffer {
                 */
                 let width = f.width().unwrap_or_else(|| {
                     // Conditionally calculate the longest item by default.
-                    self.data
+                    self.inner
                         .iter()
                         .map(|i| format!("{i:?}").len())
                         .max()
-                        .unwrap()
+                        .unwrap_or(0)
                 });
                 let precision = f.precision().unwrap_or(2);
                 for mut row in self.iter_rows().map(Iterator::peekable) {
@@ -868,5 +794,25 @@ impl PartialEq for Buffer {
             }
         }
         true
+    }
+}
+
+#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
+pub struct Buf<'a> {
+    #[deref]
+    #[deref_mut]
+    #[index]
+    #[index_mut]
+    inner: &'a mut Buffer,
+    arena: &'a mut GraphemeArena,
+}
+
+impl<'a> Buf<'a> {
+    pub fn new(buffer: &'a mut Buffer, arena: &'a mut GraphemeArena) -> Self {
+        Self { inner: buffer, arena }
+    }
+
+    pub fn arena(&mut self) -> &mut GraphemeArena {
+        self.arena
     }
 }

@@ -1,6 +1,6 @@
-use std::fmt::Debug;
 use crate::{Error, Id};
 use derive_more::{Deref, DerefMut, Index, IndexMut};
+use std::fmt::Debug;
 
 /// A secondary map for associating auxiliary data with tree nodes.
 ///
@@ -14,7 +14,7 @@ use derive_more::{Deref, DerefMut, Index, IndexMut};
 #[derive(Deref, DerefMut, Index, IndexMut)]
 #[repr(transparent)]
 pub struct Secondary<K: Id, V> {
-   inner: slotmap::SecondaryMap<K, V>,
+    inner: slotmap::SecondaryMap<K, V>,
 }
 
 impl<K: Id, V> Secondary<K, V> {
@@ -44,7 +44,7 @@ impl<K: Id, V> Secondary<K, V> {
     pub fn get_mut(&mut self, id: K) -> Option<&mut V> {
         self.inner.get_mut(id)
     }
-    
+
     /// Inserts a value at the given id, returning the previous value if any.
     pub fn insert(&mut self, id: K, value: V) -> Option<V> {
         self.inner.insert(id, value)

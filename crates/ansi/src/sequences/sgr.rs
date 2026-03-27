@@ -1,7 +1,7 @@
+use crate::{Escape, Style};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use etwa::Maybe;
 use utils::separate_by;
-use crate::{Escape, Style};
 /// [SGR] - Select Graphic Rendition
 ///
 ///
@@ -21,10 +21,19 @@ use crate::{Escape, Style};
 /// move with the characters.
 ///
 /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
-#[derive(Copy, Clone, Debug,  PartialEq, derive_more::Constructor, derive_more::From, derive_more::Into, Deref, DerefMut)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    derive_more::Constructor,
+    derive_more::From,
+    derive_more::Into,
+    Deref,
+    DerefMut,
+)]
 #[repr(transparent)]
 pub struct SelectGraphicRendition(pub Style);
-
 
 #[allow(non_upper_case_globals)]
 impl SelectGraphicRendition {
@@ -54,4 +63,3 @@ pub type SGR = SelectGraphicRendition;
 /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
 #[allow(non_upper_case_globals)]
 pub const Reset: SelectGraphicRendition = SelectGraphicRendition::Reset;
-

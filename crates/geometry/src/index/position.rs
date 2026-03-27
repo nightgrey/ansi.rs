@@ -1,5 +1,5 @@
+use crate::{Column, Point, Row, Size};
 use std::fmt::{Display, Formatter};
-use crate::{Point, Column, Row, Size};
 use std::ops::{Add, AddAssign, Sub};
 
 /// Type alias for tuple-based positions: `(row, col)`.
@@ -11,7 +11,7 @@ pub type PositionLike<T = usize> = (T, T);
 ///
 /// Unlike [`Point`] which uses (x, y) screen coordinates,
 /// `Position` uses row and column:
-/// 
+///
 /// - `row` is the vertical position (0 = top)
 /// - `col` is the horizontal position (0 = left)
 ///
@@ -60,16 +60,21 @@ impl<T> Position<T> {
     pub const fn new(row: T, col: T) -> Self {
         Self { row, col }
     }
-
 }
 impl Position {
     /// The origin position (0, 0).
     pub const ZERO: Self = Self::MIN;
     pub const ONE: Self = Self { row: 1, col: 1 };
     /// The minimum possible position (usize::MIN, usize::MIN).
-    pub const MIN: Self = Self { row: usize::MIN, col: usize::MIN };
+    pub const MIN: Self = Self {
+        row: usize::MIN,
+        col: usize::MIN,
+    };
     /// The maximum possible position (usize::MAX, usize::MAX).
-    pub const MAX: Self = Self { row: usize::MAX, col: usize::MAX };
+    pub const MAX: Self = Self {
+        row: usize::MAX,
+        col: usize::MAX,
+    };
 
     /// Create a new position at the given index inside a rectangular region.
     ///

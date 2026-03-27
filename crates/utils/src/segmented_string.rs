@@ -1,9 +1,9 @@
 // Copyright (c) 2025. Licensed under MIT or Apache-2.0.
 
-use std::sync::Arc;
-use std::ops::Range;
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
+use std::ops::Range;
+use std::sync::Arc;
 
 // ============================================================================
 // Coordinate Types - Strongly typed to prevent mixing up byte/grapheme/column
@@ -38,10 +38,10 @@ impl ColumnWidth {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Segment {
     pub byte_start: ByteIndex,
-    pub byte_len: u8,              // Max 255 bytes (enough for any grapheme)
-    pub width: ColumnWidth,        // Display width (0, 1, or 2)
+    pub byte_len: u8,       // Max 255 bytes (enough for any grapheme)
+    pub width: ColumnWidth, // Display width (0, 1, or 2)
     pub grapheme_index: GraphemeIndex,
-    pub col_start: ColumnIndex,    // Cumulative display column at start
+    pub col_start: ColumnIndex, // Cumulative display column at start
 }
 
 impl Segment {
@@ -67,10 +67,7 @@ pub const SSO_CAPACITY: usize = 23;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum SmartString {
-    Inline {
-        len: u8,
-        buf: [u8; SSO_CAPACITY],
-    },
+    Inline { len: u8, buf: [u8; SSO_CAPACITY] },
     Heap(String),
 }
 
@@ -79,7 +76,10 @@ impl SmartString {
         if s.len() <= SSO_CAPACITY {
             let mut buf = [0u8; SSO_CAPACITY];
             buf[..s.len()].copy_from_slice(s.as_bytes());
-            Self::Inline { len: s.len() as u8, buf }
+            Self::Inline {
+                len: s.len() as u8,
+                buf,
+            }
         } else {
             Self::Heap(s.to_string())
         }
@@ -87,9 +87,9 @@ impl SmartString {
 
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Inline { len, buf } => {
-                unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) }
-            }
+            Self::Inline { len, buf } => unsafe {
+                std::str::from_utf8_unchecked(&buf[..*len as usize])
+            },
             Self::Heap(s) => s.as_str(),
         }
     }
@@ -120,7 +120,10 @@ impl fmt::Display for SmartString {
 
 impl Default for SmartString {
     fn default() -> Self {
-        Self::Inline { len: 0, buf: [0; SSO_CAPACITY] }
+        Self::Inline {
+            len: 0,
+            buf: [0; SSO_CAPACITY],
+        }
     }
 }
 
@@ -196,13 +199,24 @@ impl SegmentedString {
 
         // ASCII fast path
         if first_byte < 0x80 {
-            return (1, if first_byte == 0 { ColumnWidth(0) } else { ColumnWidth(1) });
+            return (
+                1,
+                if first_byte == 0 {
+                    ColumnWidth(0)
+                } else {
+                    ColumnWidth(1)
+                },
+            );
         }
 
         // Multi-byte UTF-8 (simplified)
-        let char_len = if first_byte < 0xE0 { 2 }
-        else if first_byte < 0xF0 { 3 }
-        else { 4 };
+        let char_len = if first_byte < 0xE0 {
+            2
+        } else if first_byte < 0xF0 {
+            3
+        } else {
+            4
+        };
 
         // Approximate width (real impl would use unicode-width crate)
         let ch = s[..char_len].chars().next().unwrap();
@@ -244,7 +258,8 @@ impl SegmentedString {
     // -------------------------------------------------------------------------
 
     pub fn byte_to_grapheme(&self, pos: ByteIndex) -> Option<GraphemeIndex> {
-        self.segments.binary_search_by_key(&pos, |s| s.byte_start)
+        self.segments
+            .binary_search_by_key(&pos, |s| s.byte_start)
             .map(|i| GraphemeIndex(i))
             .ok()
     }
@@ -258,12 +273,14 @@ impl SegmentedString {
     }
 
     pub fn column_to_grapheme(&self, col: ColumnIndex) -> Option<GraphemeIndex> {
-        self.segments.binary_search_by_key(&col, |s| s.col_start)
+        self.segments
+            .binary_search_by_key(&col, |s| s.col_start)
             .map(|i| GraphemeIndex(i))
             .ok()
             .or_else(|| {
                 // If exact not found, find containing segment
-                self.segments.iter()
+                self.segments
+                    .iter()
                     .position(|s| s.col_start.0 <= col.0 && col.0 < s.col_end().0)
                     .map(GraphemeIndex)
             })
@@ -308,7 +325,9 @@ impl SegmentedString {
         let start_idx = range.start.0.min(self.segments.len());
         let end_idx = range.end.0.min(self.segments.len());
 
-        let col_start = self.segments.get(start_idx)
+        let col_start = self
+            .segments
+            .get(start_idx)
             .map(|s| s.col_start)
             .unwrap_or(ColumnIndex(self.total_width.0 as usize));
 
@@ -320,15 +339,20 @@ impl SegmentedString {
     }
 
     pub fn columns(&self, range: Range<ColumnIndex>) -> SegmentedSlice {
-        let start = self.column_to_grapheme(range.start)
+        let start = self
+            .column_to_grapheme(range.start)
             .unwrap_or(GraphemeIndex(self.segments.len()));
-        let end = self.column_to_grapheme(range.end)
+        let end = self
+            .column_to_grapheme(range.end)
             .unwrap_or(GraphemeIndex(self.segments.len()));
         self.slice(start..end)
     }
 
     pub fn split_at(&self, idx: GraphemeIndex) -> (SegmentedSlice, SegmentedSlice) {
-        (self.slice(GraphemeIndex(0)..idx), self.slice(idx..self.grapheme_count))
+        (
+            self.slice(GraphemeIndex(0)..idx),
+            self.slice(idx..self.grapheme_count),
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -347,7 +371,9 @@ impl SegmentedString {
             return self.appended(text);
         }
 
-        let byte_pos = self.grapheme_to_byte(idx).unwrap_or(ByteIndex(self.byte_len));
+        let byte_pos = self
+            .grapheme_to_byte(idx)
+            .unwrap_or(ByteIndex(self.byte_len));
         let mut new_text = String::with_capacity(self.byte_len + text.as_ref().len());
         new_text.push_str(&self.text.as_str()[..byte_pos.0]);
         new_text.push_str(text.as_ref());
@@ -410,8 +436,16 @@ impl<'a> SegmentedSlice<'a> {
         let first = self.grapheme_range.start.0;
         let last = self.grapheme_range.end.0.saturating_sub(1);
 
-        let start_byte = self.source.segments.get(first).map(|s| s.byte_start.0).unwrap_or(0);
-        let end_byte = self.source.segments.get(last)
+        let start_byte = self
+            .source
+            .segments
+            .get(first)
+            .map(|s| s.byte_start.0)
+            .unwrap_or(0);
+        let end_byte = self
+            .source
+            .segments
+            .get(last)
             .map(|s| s.byte_end().0)
             .unwrap_or(start_byte);
 
@@ -419,11 +453,20 @@ impl<'a> SegmentedSlice<'a> {
     }
 
     pub fn grapheme_count(&self) -> GraphemeIndex {
-        GraphemeIndex(self.grapheme_range.end.0.saturating_sub(self.grapheme_range.start.0))
+        GraphemeIndex(
+            self.grapheme_range
+                .end
+                .0
+                .saturating_sub(self.grapheme_range.start.0),
+        )
     }
 
     pub fn display_width(&self) -> ColumnWidth {
-        let cols = self.grapheme_range.end.0.saturating_sub(self.grapheme_range.start.0) as u8;
+        let cols = self
+            .grapheme_range
+            .end
+            .0
+            .saturating_sub(self.grapheme_range.start.0) as u8;
         ColumnWidth(cols) // Simplified - should sum actual widths
     }
 
@@ -450,7 +493,9 @@ impl<'a> fmt::Display for SegmentedSlice<'a> {
 
 impl<'a> fmt::Debug for SegmentedSlice<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("SegmentedSlice").field(&self.as_str()).finish()
+        f.debug_tuple("SegmentedSlice")
+            .field(&self.as_str())
+            .finish()
     }
 }
 

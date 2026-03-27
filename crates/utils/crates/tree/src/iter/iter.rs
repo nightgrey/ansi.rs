@@ -1,7 +1,7 @@
+use super::NodeEdge;
 use crate::{Id, Tree};
 use derive_more::{Deref, DerefMut};
 use std::iter::FusedIterator;
-use super::NodeEdge;
 
 /// Single-cursor base iterator used internally by unidirectional traversals.
 #[derive(Clone, Debug)]
@@ -60,8 +60,6 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIter<'a, K, V> {
         }
     }
 }
-
-
 
 /// Iterates upward from a node through its ancestors toward the root.
 ///
@@ -200,8 +198,7 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for PrecedingSiblings<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0
-            .next_head(|tree, node| tree[node].previous_sibling())
+        self.0.next_head(|tree, node| tree[node].previous_sibling())
     }
 }
 
@@ -242,8 +239,7 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for FollowingSiblings<'a, K, V> {
 
 impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.0
-            .next_tail(|tree, node| tree[node].previous_sibling())
+        self.0.next_tail(|tree, node| tree[node].previous_sibling())
     }
 }
 
@@ -344,7 +340,10 @@ impl<K: Id, V> Iterator for ReverseTraverse<'_, K, V> {
             },
             NodeEdge::Start(id) => {
                 let node = &self.tree[id];
-                node.previous_sibling().map_or_else(|| node.parent().map(NodeEdge::Start), |id| Some(NodeEdge::End(id)))
+                node.previous_sibling().map_or_else(
+                    || node.parent().map(NodeEdge::Start),
+                    |id| Some(NodeEdge::End(id)),
+                )
             }
         };
 

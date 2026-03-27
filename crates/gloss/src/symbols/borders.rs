@@ -1,23 +1,23 @@
-use super::{Blocks, Lines};
-use crate::Edges;
-use unicode_width::UnicodeWidthStr;
+use super::{Blocks, LineSymbols, Symbol};
+use etwa::Maybe;
+use geometry::Edges;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct Borders<'a> {
-    pub top_left: &'a str,
-    pub top: &'a str,
-    pub top_right: &'a str,
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct BorderSymbols {
+    pub top_left: Symbol<char>,
+    pub top: Symbol<char>,
+    pub top_right: Symbol<char>,
 
-    pub right: &'a str,
+    pub right: Symbol<char>,
 
-    pub bottom_left: &'a str,
-    pub bottom: &'a str,
-    pub bottom_right: &'a str,
+    pub bottom_left: Symbol<char>,
+    pub bottom: Symbol<char>,
+    pub bottom_right: Symbol<char>,
 
-    pub left: &'a str,
+    pub left: Symbol<char>,
 }
 
-impl<'a> Borders<'a> {
+impl BorderSymbols {
     pub fn top_width(&self) -> usize {
         let top_left = self.top_left.width();
         let top = self.top.width();
@@ -50,7 +50,7 @@ impl<'a> Borders<'a> {
         top_left.max(left).max(bottom_left)
     }
 
-    pub fn to_edges(self) -> Edges {
+    pub fn to_edges(self) -> Edges<usize> {
         Edges::new(
             self.top_width(),
             self.right_width(),
@@ -59,7 +59,7 @@ impl<'a> Borders<'a> {
         )
     }
 
-    pub const fn from_line(line: Lines<'a>) -> Self {
+    pub const fn from_line(line: LineSymbols) -> Self {
         Self {
             top_left: line.top_left,
             top_right: line.top_right,
@@ -73,7 +73,7 @@ impl<'a> Borders<'a> {
     }
 }
 
-impl Borders<'static> {
+impl BorderSymbols {
     /// A standard border using normal line-drawing characters
     ///
     /// Creates a clean, lightweight border suitable for general use.
@@ -87,7 +87,7 @@ impl Borders<'static> {
     ///  │       │
     ///  └───────┘
     /// ```
-    pub const SINGLE: Self = Borders::from_line(Lines::LIGHT);
+    pub const SINGLE: Self = BorderSymbols::from_line(LineSymbols::LIGHT);
     /// A bold border using bold line-drawing characters
     ///
     /// Creates a prominent border with increased visual weight.
@@ -101,7 +101,7 @@ impl Borders<'static> {
     ///  ┃       ┃
     ///  ┗━━━━━━━┛
     /// ```
-    pub const BOLD: Self = Borders::from_line(Lines::BOLD);
+    pub const BOLD: Self = BorderSymbols::from_line(LineSymbols::BOLD);
 
     /// A rounded border with smooth corners
     ///
@@ -116,7 +116,7 @@ impl Borders<'static> {
     ///  │       │
     ///  ╰───────╯
     /// ```
-    pub const ROUNDED: Self = Borders::from_line(Lines::ROUNDED);
+    pub const ROUNDED: Self = BorderSymbols::from_line(LineSymbols::ROUNDED);
 
     /// A border using double-line characters
     ///
@@ -131,7 +131,7 @@ impl Borders<'static> {
     ///  ║       ║
     ///  ╚═══════╝
     /// ```
-    pub const DOUBLE: Self = Borders::from_line(Lines::DOUBLE);
+    pub const DOUBLE: Self = BorderSymbols::from_line(LineSymbols::DOUBLE);
 
     /// A border using single-dashed lines
     ///
@@ -146,7 +146,7 @@ impl Borders<'static> {
     ///  ╎       ╎
     ///  └╌╌╌╌╌╌╌┘
     /// ```
-    pub const DASHED: Self = Borders::from_line(Lines::DASHED_DOUBLE);
+    pub const DASHED: Self = BorderSymbols::from_line(LineSymbols::DASHED_DOUBLE);
 
     /// A bold border using single-dashed lines
     ///
@@ -161,7 +161,7 @@ impl Borders<'static> {
     ///  ╏       ╏
     ///  ┗╍╍╍╍╍╍╍┛
     /// ```
-    pub const DASHED_BOLD: Self = Borders::from_line(Lines::DASHED_DOUBLE_BOLD);
+    pub const DASHED_BOLD: Self = BorderSymbols::from_line(LineSymbols::DASHED_DOUBLE_BOLD);
 
     /// A border using triple-dashed lines
     ///
@@ -176,7 +176,7 @@ impl Borders<'static> {
     ///  ┆       ┆
     ///  └┄┄┄┄┄┄┄┘
     /// ```
-    pub const DASHED_TRIPLE: Self = Borders::from_line(Lines::DASHED_TRIPLE);
+    pub const DASHED_TRIPLE: Self = BorderSymbols::from_line(LineSymbols::DASHED_TRIPLE);
 
     /// A bold border using triple-dashed lines
     ///
@@ -191,7 +191,7 @@ impl Borders<'static> {
     ///  ┇       ┇
     ///  ┗┅┅┅┅┅┅┅┛
     /// ```
-    pub const DASHED_TRIPLE_BOLD: Self = Borders::from_line(Lines::DASHED_TRIPLE_BOLD);
+    pub const DASHED_TRIPLE_BOLD: Self = BorderSymbols::from_line(LineSymbols::DASHED_TRIPLE_BOLD);
 
     /// A border using quadruple-dashed lines
     ///
@@ -206,7 +206,7 @@ impl Borders<'static> {
     ///  ┊       ┊
     ///  └┈┈┈┈┈┈┈┘
     /// ```
-    pub const DASHED_QUADRUPLE: Self = Borders::from_line(Lines::DASHED_QUADRUPLE);
+    pub const DASHED_QUADRUPLE: Self = BorderSymbols::from_line(LineSymbols::DASHED_QUADRUPLE);
 
     /// A bold border using quadruple-dashed lines
     ///
@@ -221,7 +221,7 @@ impl Borders<'static> {
     ///  ┋       ┋
     ///  ┗┉┉┉┉┉┉┉┛
     /// ```
-    pub const DASHED_QUADRUPLE_BOLD: Self = Borders::from_line(Lines::DASHED_QUADRUPLE_BOLD);
+    pub const DASHED_QUADRUPLE_BOLD: Self = BorderSymbols::from_line(LineSymbols::DASHED_QUADRUPLE_BOLD);
 
     /// A thick border using bold block characters pointing outward
     ///
@@ -236,7 +236,7 @@ impl Borders<'static> {
     ///  ▌       ▐
     ///  ▙▄▄▄▄▄▄▄▟
     /// ```
-    pub const BLOCK_THICK_OUTER: Self = Borders {
+    pub const BLOCK_THICK_OUTER: Self = BorderSymbols {
         top_left: Blocks::CORNERS.top_left,
         top_right: Blocks::CORNERS.top_right,
         bottom_left: Blocks::CORNERS.bottom_left,
@@ -261,7 +261,7 @@ impl Borders<'static> {
     /// ▐       ▌
     /// ▝▀▀▀▀▀▀▀▘
     /// ```
-    pub const BLOCK_THICK_INNER: Self = Borders {
+    pub const BLOCK_THICK_INNER: Self = BorderSymbols {
         top_right: Blocks::CORNERS.bottom_left,
         top_left: Blocks::CORNERS.bottom_right,
         bottom_right: Blocks::CORNERS.top_left,
@@ -285,7 +285,7 @@ impl Borders<'static> {
     ///  ▏       ▕
     ///  ▔▔▔▔▔▔▔▔▔
     /// ```
-    pub const BLOCK_THIN: Self = Borders {
+    pub const BLOCK_THIN: Self = BorderSymbols {
         top_right: Blocks::TOP.one_eighth,
         top_left: Blocks::TOP.one_eighth,
         bottom_right: Blocks::BOTTOM.one_eighth,
@@ -308,11 +308,11 @@ impl Borders<'static> {
     ///  ▕       ▏
     ///  ▕▁▁▁▁▁▁▁▏
     /// ```
-    pub const BLOCK_THIN_TALL: Self = Borders {
-        top_right: Lines::LIGHT.top_right,
+    pub const BLOCK_THIN_TALL: Self = BorderSymbols {
+        top_right: LineSymbols::LIGHT.top_right,
         top_left: Blocks::RIGHT.one_eighth,
-        bottom_right: Lines::LIGHT.bottom_right,
-        bottom_left: Lines::LIGHT.bottom_left,
+        bottom_right: LineSymbols::LIGHT.bottom_right,
+        bottom_left: LineSymbols::LIGHT.bottom_left,
         left: Blocks::LEFT.one_eighth,
         right: Blocks::RIGHT.one_eighth,
         top: Blocks::TOP.one_eighth,
@@ -333,7 +333,7 @@ impl Borders<'static> {
     ///  █       █
     ///  ▀▀▀▀▀▀▀▀▀
     /// ```
-    pub const BLOCK_MEDIUM: Self = Borders {
+    pub const BLOCK_MEDIUM: Self = BorderSymbols {
         top_left: Blocks::BOTTOM.four_eighth,
         top: Blocks::BOTTOM.four_eighth,
         top_right: Blocks::BOTTOM.four_eighth,
@@ -361,7 +361,7 @@ impl Borders<'static> {
     ///  ▕█       █
     ///  ▕█▄▄▄▄▄▄▄█
     /// ```
-    pub const BLOCK_MEDIUM_TALL: Self = Borders {
+    pub const BLOCK_MEDIUM_TALL: Self = BorderSymbols {
         top_left: Blocks::BOTTOM.eight_eighth,
         top: Blocks::TOP.four_eighth,
         top_right: Blocks::BOTTOM.eight_eighth,
@@ -388,7 +388,7 @@ impl Borders<'static> {
     ///  █        █
     ///  ██████████
     /// ```
-    pub const BLOCK_SOLID: Self = Borders {
+    pub const BLOCK_SOLID: Self = BorderSymbols {
         top_left: Blocks::BOTTOM.eight_eighth,
         top: Blocks::BOTTOM.eight_eighth,
         top_right: Blocks::BOTTOM.eight_eighth,
@@ -416,29 +416,29 @@ impl Borders<'static> {
     ///
     ///
     /// ```
-    pub const INVISIBLE: Self = Borders {
-        top_left: " ",
-        top_right: " ",
-        bottom_left: " ",
-        bottom_right: " ",
-        left: " ",
-        right: " ",
-        top: " ",
-        bottom: " ",
+    pub const INVISIBLE: Self = BorderSymbols {
+        top_left: Symbol { inner: ' ', width: 1 },
+        top_right: Symbol { inner: ' ', width: 1 },
+        bottom_left: Symbol { inner: ' ', width: 1 },
+        bottom_right: Symbol { inner: ' ', width: 1 },
+        left: Symbol { inner: ' ', width: 1 },
+        right: Symbol { inner: ' ', width: 1 },
+        top: Symbol { inner: ' ', width: 1 },
+        bottom: Symbol { inner: ' ', width: 1 },
     };
-    pub const NONE: Self = Borders {
-        top_left: "",
-        top_right: "",
-        bottom_left: "",
-        bottom_right: "",
-        left: "",
-        right: "",
-        top: "",
-        bottom: "",
+    pub const NONE: Self = BorderSymbols {
+        top_left: Symbol { inner: char::MIN, width: 0 },
+        top_right: Symbol { inner: char::MIN, width: 0 },
+        bottom_left: Symbol { inner: char::MIN, width: 0 },
+        bottom_right: Symbol { inner: char::MIN, width: 0 },
+        left: Symbol { inner: char::MIN, width: 0 },
+        right: Symbol { inner: char::MIN, width: 0 },
+        top: Symbol { inner: char::MIN, width: 0 },
+        bottom: Symbol { inner: char::MIN, width: 0 },
     };
 }
 
-impl Default for Borders<'static> {
+impl Default for BorderSymbols {
     fn default() -> Self {
         Self::SINGLE
     }
@@ -448,8 +448,10 @@ impl Default for Borders<'static> {
 ///
 /// Each variant maps to a concrete set of Unicode (or ASCII) characters that
 /// are used for the top, bottom, left, right, corners and edge centers.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Copy, Maybe, Clone, PartialEq, Eq, Debug, Default)]
+#[repr(u8)]
 pub enum BorderStyle {
+    #[none]
     None,
     /// A standard border using normal line-drawing characters
     ///
@@ -465,7 +467,7 @@ pub enum BorderStyle {
     ///  └───────┘
     /// ```
     #[default]
-    Single,
+    Solid,
 
     /// A bold border using bold line-drawing characters
     ///
@@ -727,22 +729,13 @@ pub enum BorderStyle {
 }
 
 impl BorderStyle {
-    pub fn is_some(&self) -> bool {
-        match self {
-            BorderStyle::None => false,
-            _ => true,
-        }
-    }
-
-    pub fn is_none(&self) -> bool {
-        !self.is_some()
-    }
     pub fn is_visible(&self) -> bool {
         match self {
             BorderStyle::None | BorderStyle::Invisible => false,
             _ => true,
         }
     }
+
     pub fn width(&self) -> usize {
         match self {
             BorderStyle::None => 0,
@@ -751,41 +744,41 @@ impl BorderStyle {
     }
 
     /// Returns the width of the borders as [`Edges`].
-    pub fn to_edges(self) -> Edges {
+    pub fn into_edges(self) -> Edges<usize> {
         if !self.is_some() {
             return Edges::ZERO;
         }
 
-        self.to_border().to_edges()
+        self.into_symbols().to_edges()
     }
 
-    /// Convert a border style into a [`Borders`].
-    pub fn to_border(self) -> Borders<'static> {
+    /// Convert a border style into a [`BorderSymbols`].
+    pub fn into_symbols(self) ->   BorderSymbols {
         match self {
-            BorderStyle::Single => Borders::SINGLE,
-            BorderStyle::Bold => Borders::BOLD,
-            BorderStyle::Rounded => Borders::ROUNDED,
-            BorderStyle::Double => Borders::DOUBLE,
-            BorderStyle::Dashed => Borders::DASHED,
-            BorderStyle::DashedBold => Borders::DASHED_BOLD,
-            BorderStyle::DashedTriple => Borders::DASHED_TRIPLE,
-            BorderStyle::DashedTripleBold => Borders::DASHED_TRIPLE_BOLD,
-            BorderStyle::DashedQuadruple => Borders::DASHED_QUADRUPLE,
-            BorderStyle::DashedQuadrupleBold => Borders::DASHED_QUADRUPLE_BOLD,
-            BorderStyle::BlockThickOuter => Borders::BLOCK_THICK_OUTER,
-            BorderStyle::BlockThickInner => Borders::BLOCK_THICK_INNER,
-            BorderStyle::BlockThin => Borders::BLOCK_THIN,
-            BorderStyle::BlockThinTall => Borders::BLOCK_THIN_TALL,
-            BorderStyle::BlockMedium => Borders::BLOCK_MEDIUM,
-            BorderStyle::BlockTallMediumTall => Borders::BLOCK_MEDIUM_TALL,
-            BorderStyle::BlockSolid => Borders::BLOCK_SOLID,
-            BorderStyle::Invisible => Borders::INVISIBLE,
-            BorderStyle::None => Borders::NONE,
+            BorderStyle::Solid =>BorderSymbols::SINGLE,
+            BorderStyle::Bold => BorderSymbols::BOLD,
+            BorderStyle::Rounded => BorderSymbols::ROUNDED,
+            BorderStyle::Double => BorderSymbols::DOUBLE,
+            BorderStyle::Dashed => BorderSymbols::DASHED,
+            BorderStyle::DashedBold => BorderSymbols::DASHED_BOLD,
+            BorderStyle::DashedTriple => BorderSymbols::DASHED_TRIPLE,
+            BorderStyle::DashedTripleBold => BorderSymbols::DASHED_TRIPLE_BOLD,
+            BorderStyle::DashedQuadruple => BorderSymbols::DASHED_QUADRUPLE,
+            BorderStyle::DashedQuadrupleBold => BorderSymbols::DASHED_QUADRUPLE_BOLD,
+            BorderStyle::BlockThickOuter => BorderSymbols::BLOCK_THICK_OUTER,
+            BorderStyle::BlockThickInner => BorderSymbols::BLOCK_THICK_INNER,
+            BorderStyle::BlockThin => BorderSymbols::BLOCK_THIN,
+            BorderStyle::BlockThinTall => BorderSymbols::BLOCK_THIN_TALL,
+            BorderStyle::BlockMedium => BorderSymbols::BLOCK_MEDIUM,
+            BorderStyle::BlockTallMediumTall => BorderSymbols::BLOCK_MEDIUM_TALL,
+            BorderStyle::BlockSolid => BorderSymbols::BLOCK_SOLID,
+            BorderStyle::Invisible => BorderSymbols::INVISIBLE,
+            BorderStyle::None => BorderSymbols::NONE,
         }
     }
 }
-impl From<BorderStyle> for Borders<'_> {
+impl From<BorderStyle> for BorderSymbols {
     fn from(style: BorderStyle) -> Self {
-        style.to_border()
+        style.into_symbols()
     }
 }

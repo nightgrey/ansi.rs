@@ -1,8 +1,9 @@
-use std::fmt::Debug;
-use unicode_width::UnicodeWidthChar;
-use ansi::Style;
-use crate::Offset;
 use super::{Graph, Grapheme, GraphemeArena};
+use crate::Offset;
+use ansi::Style;
+use std::fmt::Debug;
+use indextree::Arena;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// A single terminal cell — the fundamental unit of the framebuffer.
 ///
@@ -69,7 +70,7 @@ impl Cell {
     /// in 4 UTF-8 bytes).
     pub fn from_char(char: char, style: Style) -> Self {
         Self {
-            grapheme: Grapheme::from_char(char),
+            grapheme: Grapheme::char(char),
             width: char.width().unwrap_or(0) as u8,
             style,
         }
@@ -127,58 +128,87 @@ impl Cell {
         self.style.is_none()
     }
 
-    /// Replace the grapheme, releasing the old one from the arena if needed.
-    pub fn set_grapheme(&mut self, grapheme: Grapheme, arena: &mut GraphemeArena) {
-        self.grapheme.release(arena);
-        self.grapheme = grapheme;
+    pub fn set_char(&mut self, char: char, arena: &mut GraphemeArena) -> &mut Self {
+        self.set_char_and_width(char, char.width().unwrap_or(0) as u8, arena)
+    }
+    pub fn set_char_and_width(&mut self, char: char, width: u8, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
+
+        if char == ' ' {
+            return self.set_space(arena);
+        }
+
+        self.grapheme = Grapheme::char(char);
+        self.width = width;
+        
+        self
+    }
+    pub fn set_str(&mut self, str: &str, arena: &mut GraphemeArena) -> &mut Self {
+        self.set_str_and_width(str, str.width() as u8, arena)
     }
 
-    /// Set grapheme, width, and style atomically.
-    pub fn set(&mut self, grapheme: Grapheme, width: u8, style: Style) {
-        self.grapheme = grapheme;
+    pub fn set_str_and_width(&mut self, str: &str, width: u8, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
+        self.grapheme = Grapheme::extended(str, arena);
         self.width = width;
-        self.style = style;
+        self
     }
 
     /// Set this cell to a width-1 space with the given style.
-    pub fn set_space(&mut self, style: Style) {
+    pub fn set_space(&mut self, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
         self.grapheme = Grapheme::SPACE;
         self.width = 1;
-        self.style = style;
+        self
     }
 
     /// Set this cell as a width-0 continuation cell with the given style.
-    pub fn set_continuation(&mut self, style: Style) {
+    pub fn set_continuation(&mut self, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
         self.grapheme = Grapheme::EMPTY;
         self.width = 0;
+        self
+    }
+
+    pub fn set_style(&mut self, style: Style)  -> &mut Self {
         self.style = style;
+        self
     }
-    
-    pub fn set_char(&mut self, char: char) {
-        self.grapheme = Grapheme::from_char(char);
-        self.width = char.width().unwrap_or(0) as u8;
+
+    pub fn replace_grapheme(&mut self, grapheme: Grapheme, width: u8, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
+        self.grapheme = grapheme;
+        self.width = width;
+        self
     }
-    
+
     /// Release any arena storage held by this cell's grapheme.
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
     /// may be arena-stored. No-op for inline and empty graphemes.
-    pub fn release(&mut self, arena: &mut GraphemeArena) {
-        self.grapheme.release(arena);
+    pub fn release_grapheme(&mut self, arena: &mut GraphemeArena) -> &mut Self {
+        if self.grapheme.is_extended() {
+            arena.release(self.grapheme);
+        }
         self.grapheme = Grapheme::EMPTY;
         self.width = 0;
-    }
-
-    /// Set the column width.
-    #[inline]
-    pub fn set_width(&mut self, width: u8) {
-        self.width = width;
+        self
     }
 
     /// Reset this cell to empty (no grapheme, default style).
     ///
     /// Does **not** release arena storage — call
-    /// [`release`](Self::release) first if needed.
+    /// [`release`](Self::release_grapheme) first if needed.
     pub fn clear(&mut self) {
         *self = Self::EMPTY;
     }
@@ -189,7 +219,7 @@ impl Cell {
     pub fn as_str<'a>(&'a self, arena: &'a GraphemeArena) -> &'a str {
         self.grapheme.as_str(arena)
     }
-    
+
     pub fn as_bytes<'a>(&'a self, arena: &'a GraphemeArena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)
     }
@@ -202,9 +232,8 @@ impl Cell {
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         if self.is_empty() {
-            return f.write_str("Cell::EMPTY")
+            return f.write_str("Cell::EMPTY");
         }
         let mut debug = f.debug_tuple("Cell");
 
@@ -241,8 +270,6 @@ impl Offset for &mut Cell {
         self.grapheme.offset()
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -285,15 +312,14 @@ mod tests {
         let mut arena = GraphemeArena::new();
         let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
 
-        let g = Grapheme::encode(family, &mut arena);
+        let g = Grapheme::extended(family, &mut arena);
         let mut cell = Cell::new(g, 2, Style::None);
 
         assert_eq!(cell.as_graph(&arena), family);
         assert!(!arena.is_empty());
 
         // Replace with an inline grapheme — old one gets released.
-        let g2 = Grapheme::from_char('X');
-        cell.set_grapheme(g2, &mut arena);
+        cell.set_char('X', &mut arena);
 
         assert_eq!(cell.as_graph(&arena), "X");
         assert!(arena.is_empty()); // Pool storage was freed.

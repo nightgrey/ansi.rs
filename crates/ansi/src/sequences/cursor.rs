@@ -1,4 +1,4 @@
-use crate::{cost, decimal_width, sequence, Escape};
+use crate::{Escape, cost, decimal_width, sequence};
 use derive_more::{Deref, DerefMut};
 
 sequence!(
@@ -33,8 +33,6 @@ sequence!(
         write!(w, "\x1B[{} q", *this as usize)
     }
 );
-
-
 
 pub type DECSCUSR = SetCursorStyle;
 
@@ -93,8 +91,6 @@ sequence!(
 
 pub type CUB = CursorBackward;
 
-
-
 sequence!(
     /// [CUD] - Cursor Down
     ///
@@ -125,8 +121,6 @@ sequence!(
 
 pub type CUD = CursorDown;
 
-
-
 sequence!(
     /// [CUF] - Cursor Forward
     ///
@@ -155,8 +149,6 @@ sequence!(
 );
 
 pub type CUF = CursorForward;
-
-
 
 sequence!(
     /// [CUU] - Cursor Up
@@ -251,7 +243,6 @@ sequence!(
 );
 pub type CHF = CursorHorizontalForwardTabulation;
 
-
 sequence!(
     /// [CBT] - Cursor Backward Tabulation
     ///
@@ -275,7 +266,6 @@ sequence!(
 );
 
 type CBT = CursorBackwardTabulation;
-
 
 sequence!(
     /// [CR] — Carriage Return
@@ -364,8 +354,6 @@ sequence!(
     }
 );
 
-
-
 sequence!(
     /// [DECSC] — Save Cursor
     ///
@@ -390,7 +378,6 @@ sequence!(
         write!(w, "\x1B7")
     }
 );
-
 
 sequence!(
     /// [DECRC] — Restore Cursor

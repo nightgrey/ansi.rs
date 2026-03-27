@@ -1,6 +1,6 @@
+use crate::{Edges, Point, Position, Rect, Steps};
 use std::iter::FusedIterator;
 use std::ops::{Deref, IntoBounds, RangeBounds};
-use crate::{Edges, Point, Position, Rect, Steps};
 
 /// An axis-aligned rectangle for buffer-space coordinates.
 ///
@@ -15,36 +15,34 @@ impl Area {
         let max_col = self.max.col.saturating_sub(edges.right);
 
         Self {
-            min: Position { row: min_row.min(max_row), col: min_col.min(max_col) },
-            max: Position { row: max_row, col: max_col },
+            min: Position {
+                row: min_row.min(max_row),
+                col: min_col.min(max_col),
+            },
+            max: Position {
+                row: max_row,
+                col: max_col,
+            },
         }
-
     }
 }
 
 impl From<Rect> for Area {
     fn from(value: Rect) -> Self {
-        Area::new(
-            Position::from(value.min),
-            Position::from(value.max),
-        )
+        Area::new(Position::from(value.min), Position::from(value.max))
     }
 }
 
 impl From<Area> for Rect {
     fn from(value: Area) -> Self {
-        Rect::new(
-            Point::from(value.min),
-            Point::from(value.max),
-        )
+        Rect::new(Point::from(value.min), Point::from(value.max))
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{Bounded, Contains};
     use super::*;
+    use crate::{Bounded, Contains};
 
     #[test]
     fn test_area_new() {

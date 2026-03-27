@@ -3,10 +3,10 @@
 //! Provides shortcuts to set ([`SetMode`]) and reset ([`ResetMode`]) common modes.
 //!
 //! For anything beyond, check out [`sequences`].
-use crate::sequences::modes::*;
 use crate::Escape;
 use crate::io::Write;
-use crate::{SetMode, ResetMode};
+use crate::sequences::modes::*;
+use crate::{ResetMode, SetMode};
 
 sequence!(
     /// (25) Text Cursor Enable Mode (DECTCEM) is a mode that shows/hides the cursor.
@@ -78,5 +78,3 @@ sequence!(
         }
     }
 );
-
-

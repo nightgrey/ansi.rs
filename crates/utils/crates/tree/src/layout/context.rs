@@ -1,21 +1,33 @@
+use crate::{Bridge, LayoutNodeId, prelude::*};
 use crate::{Id, LayoutNode, Secondary, Tree};
-use crate::{prelude::*, Bridge, LayoutNodeId};
 
 /// Layout context that holds the tree itself along with a reference to the context.
 /// It implements taffy's layout traits and allows for layout computation.
 #[derive(Debug)]
 pub struct LayoutContext<'t, K: Id, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     pub tree: &'t mut Tree<K, V>,
     pub layouts: &'t mut Secondary<K, LayoutNode>,
     pub measure_function: MeasureFunction,
 }
 
-impl<'t, K: Id, V,MeasureFunction> LayoutContext<'t, K, V,  MeasureFunction>
+impl<'t, K: Id, V, MeasureFunction> LayoutContext<'t, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     #[inline(always)]
     fn get(&self, layout_id: LayoutNodeId) -> &LayoutNode {
@@ -38,12 +50,19 @@ impl<K: Id, V> Iterator for LayoutChildren<'_, K, V> {
     }
 }
 
-impl<K: Id, V, MeasureFunction> TraverseLayoutPartialTree for LayoutContext<'_, K, V, MeasureFunction>
+impl<K: Id, V, MeasureFunction> TraverseLayoutPartialTree
+    for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     type ChildIter<'a>
-    = LayoutChildren<'a, K, V>
+        = LayoutChildren<'a, K, V>
     where
         Self: 'a;
 
@@ -52,27 +71,44 @@ where
     }
 
     fn child_count(&self, parent_node_id: LayoutNodeId) -> usize {
-        self.tree.children(K::from_layout_id(parent_node_id)).count()
+        self.tree
+            .children(K::from_layout_id(parent_node_id))
+            .count()
     }
 
     fn get_child_id(&self, parent_node_id: LayoutNodeId, child_index: usize) -> LayoutNodeId {
-        let child_key = self.tree.children(K::from_layout_id(parent_node_id)).nth(child_index).unwrap();
+        let child_key = self
+            .tree
+            .children(K::from_layout_id(parent_node_id))
+            .nth(child_index)
+            .unwrap();
         child_key.into_layout_id()
     }
 }
 
-impl<K: Id, V, MeasureFunction> TraverseLayoutTree for LayoutContext<'_, K, V, MeasureFunction>
-where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+impl<K: Id, V, MeasureFunction> TraverseLayoutTree for LayoutContext<'_, K, V, MeasureFunction> where
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>
 {
 }
 
 impl<K: Id, V, MeasureFunction> LayoutPartialTree for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     type CoreContainerStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
     type CustomIdent = String;
@@ -113,7 +149,13 @@ where
                     let node = &mut ctx.tree[node_key];
                     let layout = &ctx.layouts[node_key].layout;
                     let measure_function = |known_dimensions, available_space| {
-                        (ctx.measure_function)(known_dimensions, available_space, node_key, node, layout)
+                        (ctx.measure_function)(
+                            known_dimensions,
+                            available_space,
+                            node_key,
+                            node,
+                            layout,
+                        )
                     };
                     // TODO: implement calc() in high-level API
                     taffy::compute_leaf_layout(inputs, layout, |_, _| 0.0, measure_function)
@@ -125,7 +167,13 @@ where
 
 impl<K: Id, V, MeasureFunction> CacheLayoutTree for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     fn cache_get(
         &self,
@@ -147,9 +195,12 @@ where
         run_mode: RunMode,
         layout_output: LayoutOutput,
     ) {
-        self.get_mut(node_id)
-            .cache
-            .store(known_dimensions, available_space, run_mode, layout_output);
+        self.get_mut(node_id).cache.store(
+            known_dimensions,
+            available_space,
+            run_mode,
+            layout_output,
+        );
     }
 
     fn cache_clear(&mut self, node_id: LayoutNodeId) {
@@ -159,19 +210,28 @@ where
 
 impl<K: Id, V, MeasureFunction> LayoutFlexboxContainer for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     type FlexboxContainerStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
     type FlexboxItemStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
 
-    fn get_flexbox_container_style(&self, node_id: LayoutNodeId) -> Self::FlexboxContainerStyle<'_> {
-       self.get_core_container_style(node_id)
+    fn get_flexbox_container_style(
+        &self,
+        node_id: LayoutNodeId,
+    ) -> Self::FlexboxContainerStyle<'_> {
+        self.get_core_container_style(node_id)
     }
 
     fn get_flexbox_child_style(&self, child_node_id: LayoutNodeId) -> Self::FlexboxItemStyle<'_> {
@@ -181,14 +241,20 @@ where
 
 impl<K: Id, V, MeasureFunction> LayoutGridContainer for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     type GridContainerStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
     type GridItemStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
 
@@ -203,14 +269,20 @@ where
 
 impl<K: Id, V, MeasureFunction> LayoutBlockContainer for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     type BlockContainerStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
     type BlockItemStyle<'a>
-    = &'a Layout
+        = &'a Layout
     where
         Self: 'a;
 
@@ -225,7 +297,13 @@ where
 
 impl<K: Id, V, MeasureFunction> RoundLayoutTree for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     fn get_unrounded_layout(&self, node_id: LayoutNodeId) -> LayoutComputation {
         self.get(node_id).unrounded_computation
@@ -238,7 +316,13 @@ where
 
 impl<K: Id, V, MeasureFunction> PrintLayoutTree for LayoutContext<'_, K, V, MeasureFunction>
 where
-    MeasureFunction: FnMut(layout::Size<Option<f32>>, layout::Size<AvailableSpace>, K, &mut V, &Layout) -> layout::Size<f32>,
+    MeasureFunction: FnMut(
+        layout::Size<Option<f32>>,
+        layout::Size<AvailableSpace>,
+        K,
+        &mut V,
+        &Layout,
+    ) -> layout::Size<f32>,
 {
     fn get_debug_label(&self, node_id: LayoutNodeId) -> &'static str {
         let layout = self.get_core_container_style(node_id);

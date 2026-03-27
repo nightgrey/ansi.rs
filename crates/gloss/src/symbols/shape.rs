@@ -1,5 +1,5 @@
-use std::ops::Deref;
 use derive_more::Deref;
+use std::ops::Deref;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deref)]
 pub struct Circle(&'static str);
@@ -10,7 +10,6 @@ impl Circle {
     pub const DOTTED: Circle = Circle("◌");
     pub const DOUBLE: Circle = Circle("◎");
 }
-
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deref)]
 pub struct Diamond(&'static str);

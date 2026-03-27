@@ -1,8 +1,8 @@
-mod iter;
 mod edge;
+mod iter;
 
-pub use iter::*;
 pub use edge::*;
+pub use iter::*;
 
 use crate::{Id, Node};
 

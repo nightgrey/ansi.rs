@@ -1,8 +1,8 @@
-use std::ops::{Index, IndexMut};
-use derive_more::{Deref, DerefMut};
-use geometry::{Rect};
-use crate::{Element, ElementId, ElementKind, Layer, LayerId, Renderer, Document};
 use crate::painter::Painter;
+use crate::{Document, Element, ElementId, ElementKind, Layer, LayerId, Renderer};
+use derive_more::{Deref, DerefMut};
+use geometry::Rect;
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct Orchestrator {
@@ -38,10 +38,21 @@ impl Orchestrator {
     }
 
     fn paint_element(&mut self, id: ElementId) {
-        let Document { ref elements, ref layouts, ref mut layers, ref mut arena, .. } = self.document;
+        let Document {
+            ref elements,
+            ref layouts,
+            ref mut layers,
+            ref mut arena,
+            ..
+        } = self.document;
 
         let computation = layouts[id].final_computation;
-        let bounds = Rect::bounds(computation.content_box_x() as usize, computation.content_box_y() as usize, computation.content_box_width() as usize, computation.content_box_height() as usize);
+        let bounds = Rect::bounds(
+            computation.content_box_x() as usize,
+            computation.content_box_y() as usize,
+            computation.content_box_width() as usize,
+            computation.content_box_height() as usize,
+        );
 
         let mut painter = Painter::new(&mut layers[id]);
         painter.push(bounds);
@@ -67,7 +78,11 @@ impl Orchestrator {
 
     fn composite(&mut self) {
         self.renderer.front.clear();
-        Renderer::composite(&mut self.renderer.front, &self.document, self.document.root_id());
+        Renderer::composite(
+            &mut self.renderer.front,
+            &self.document,
+            self.document.root_id(),
+        );
     }
 
     pub fn raster(&mut self) -> std::io::Result<()> {
@@ -111,20 +126,38 @@ impl IndexMut<LayerId> for Orchestrator {
 
 #[cfg(test)]
 mod tests {
-    use ansi::{Color, Style};
-    use crate::Cell;
-    use tree::layout::prelude::*;
-    use tree::At;
     use super::*;
+    use crate::Cell;
+    use ansi::{Color, Style};
+    use tree::At;
+    use tree::layout::prelude::*;
 
     #[test]
     fn layout_distributes_remainder_cells() {
         let mut orchestrator = Orchestrator::new(5, 4);
         let mut root = orchestrator.root_mut();
         root.layout_mut().flex_direction = FlexDirection::Row;
-        let a = orchestrator.insert_with_layout(Element::span("abc"), Layout { flex_grow: 1.0, ..Layout::default() });
-        let b = orchestrator.insert_with_layout(Element::span("b"), Layout { flex_grow: 1.0, ..Layout::default() });
-        let c = orchestrator.insert_with_layout(Element::span("c"), Layout { flex_grow: 1.0, ..Layout::default() });
+        let a = orchestrator.insert_with_layout(
+            Element::span("abc"),
+            Layout {
+                flex_grow: 1.0,
+                ..Layout::default()
+            },
+        );
+        let b = orchestrator.insert_with_layout(
+            Element::span("b"),
+            Layout {
+                flex_grow: 1.0,
+                ..Layout::default()
+            },
+        );
+        let c = orchestrator.insert_with_layout(
+            Element::span("c"),
+            Layout {
+                flex_grow: 1.0,
+                ..Layout::default()
+            },
+        );
 
         orchestrator.layout();
 
@@ -139,7 +172,10 @@ mod tests {
         assert_eq!(b_rect.size.height, 4.0);
         assert_eq!(c_rect.size.height, 4.0);
         // Total width should equal viewport width
-        assert_eq!(a_rect.size.width + b_rect.size.width + c_rect.size.width, 5.0);
+        assert_eq!(
+            a_rect.size.width + b_rect.size.width + c_rect.size.width,
+            5.0
+        );
         // Children should be contiguous
         assert_eq!(a_rect.location.x, 0.0);
         assert_eq!(b_rect.location.x, a_rect.size.width);
@@ -178,7 +214,13 @@ mod tests {
 
         orchestrator.composite();
 
-        assert_eq!(orchestrator.renderer.front[(0, 0)].as_str(&orchestrator.document.arena), "b");
-        assert_eq!(orchestrator.renderer.front[(0, 0)].style, Style::default().foreground(Color::Index(2)));
+        assert_eq!(
+            orchestrator.renderer.front[(0, 0)].as_str(&orchestrator.document.arena),
+            "b"
+        );
+        assert_eq!(
+            orchestrator.renderer.front[(0, 0)].style,
+            Style::default().foreground(Color::Index(2))
+        );
     }
 }

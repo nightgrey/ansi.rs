@@ -66,7 +66,7 @@ impl GraphemeArena {
     };
     /// Maximum arena size: 16 MiB. This is the addressable range of the
     /// 24-bit offset stored in an extended [`Grapheme`](crate::Grapheme).
-    pub const MAX_POOL_SIZE: usize = (1 << 24) - 1; // 0x00FF_FFFF = 16,777,215
+    pub const MAX_CAPACITY: usize = (1 << 24) - 1; // 0x00FF_FFFF = 16,777,215
 
     /// Create a new, empty arena.
     pub fn new() -> Self {
@@ -79,10 +79,10 @@ impl GraphemeArena {
 
     /// Create a arena with pre-allocated capacity (in bytes).
     ///
-    /// Capacity is clamped to [`MAX_POOL_SIZE`](Self::MAX_POOL_SIZE).
+    /// Capacity is clamped to [`MAX_POOL_SIZE`](Self::MAX_CAPACITY).
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            inner: Vec::with_capacity(capacity.min(Self::MAX_POOL_SIZE)),
+            inner: Vec::with_capacity(capacity.min(Self::MAX_CAPACITY)),
             used: 0,
             free: Vec::new(),
         }
@@ -90,12 +90,12 @@ impl GraphemeArena {
 
     /// Store a length-prefixed UTF-8 grapheme cluster and return its offset.
     ///
-    /// This is called by [`Grapheme::encode`](crate::Grapheme::encode) when the
+    /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
     /// cluster exceeds 4 bytes.
-    pub fn stash(&mut self, s: &str) -> Result<Grapheme, GraphemePoolError> {
+    pub fn insert(&mut self, s: &str) -> Result<Grapheme, GraphemeError> {
         let str_len = s.len();
         if str_len > MAX_ENTRY_LEN {
-            return Err(GraphemePoolError::StringTooLong {
+            return Err(GraphemeError::TooLong {
                 len: str_len,
                 max: MAX_ENTRY_LEN,
             });
@@ -114,7 +114,7 @@ impl GraphemeArena {
         self.inner[offset + PREFIX_SIZE..offset + needed].copy_from_slice(s.as_bytes());
 
         self.used += needed;
-        Ok(Grapheme::from_offset(offset))
+        Ok(Grapheme::arena(offset))
     }
 
     /// Reset the arena entirely, invalidating **all** outstanding grapheme
@@ -227,14 +227,14 @@ impl GraphemeArena {
     ///    Leftover space is re-inserted into the free list if large enough.
     /// 2. **Append path**: extend the backing vec with doubling growth.
     /// 3. **Full**: arena has reached `MAX_POOL_SIZE` with no usable gaps.
-    fn allocate(&mut self, needed: usize) -> Result<usize, GraphemePoolError> {
+    fn allocate(&mut self, needed: usize) -> Result<usize, GraphemeError> {
         // Path 1: try the free list (best-fit).
         if let Some(offset) = self.alloc_from_free_list(needed) {
             return Ok(offset);
         }
 
         // Path 2: append to the end.
-        if self.inner.len() + needed <= Self::MAX_POOL_SIZE {
+        if self.inner.len() + needed <= Self::MAX_CAPACITY {
             let offset = self.inner.len();
             self.ensure_capacity(offset + needed);
             // Extend with zeros; stash will overwrite immediately.
@@ -243,7 +243,7 @@ impl GraphemeArena {
         }
 
         // Path 3: no room.
-        Err(GraphemePoolError::Full)
+        Err(GraphemeError::Full)
     }
 
     /// Search the free list for the smallest slot >= `needed` bytes.
@@ -285,7 +285,7 @@ impl GraphemeArena {
         let target = (self.inner.capacity() * 2)
             .max(MINIMUM_ALLOC)
             .max(min_capacity)
-            .min(Self::MAX_POOL_SIZE);
+            .min(Self::MAX_CAPACITY);
 
         self.inner.reserve(target - self.inner.len());
     }
@@ -356,21 +356,19 @@ impl Offset for &mut Grapheme {
 
 use packed_struct::prelude::bits::ByteArray;
 // ── GraphemePoolError ───────────────────────────────────────────────────────
-use thiserror::Error;
 use crate::buffer::Grapheme;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum GraphemePoolError {
+pub enum GraphemeError {
     /// The arena has reached its 16 MiB limit with no reclaimable gaps.
     #[error("grapheme arena is full (16 MiB limit reached)")]
     Full,
 
-    /// The string exceeds the maximum length encodable in a u16 prefix.
-    #[error("string length {len} exceeds maximum entry size ({max} bytes)")]
-    StringTooLong { len: usize, max: usize },
+    /// The given string exceeds the maximum length encodable.
+    #[error("length {len} exceeds maximum ({max} bytes)")]
+    TooLong { len: usize, max: usize },
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -389,7 +387,7 @@ mod tests {
         let mut arena = GraphemeArena::new();
         let s = "hello, 世界!";
 
-        let offset = arena.stash(s).unwrap();
+        let offset = arena.insert(s).unwrap();
         assert_eq!(arena.resolve(offset), s);
         assert_eq!(arena.used(), PREFIX_SIZE + s.len());
     }
@@ -404,7 +402,7 @@ mod tests {
             "👨\u{200D}👩\u{200D}👧\u{200D}👦",
         ];
 
-        let offsets: Vec<_> = entries.iter().map(|s| arena.stash(s).unwrap()).collect();
+        let offsets: Vec<_> = entries.iter().map(|s| arena.insert(s).unwrap()).collect();
 
         for (offset, expected) in offsets.iter().zip(entries.iter()) {
             assert_eq!(arena.resolve(*offset), *expected);
@@ -417,8 +415,8 @@ mod tests {
 
         let s1 = "hello!"; // 6 bytes + 2 prefix = 8
         let s2 = "world!"; // 6 bytes + 2 prefix = 8
-        let offset1 = arena.stash(s1).unwrap();
-        let _offset2 = arena.stash(s2).unwrap();
+        let offset1 = arena.insert(s1).unwrap();
+        let _offset2 = arena.insert(s2).unwrap();
 
         let len_before = arena.len();
 
@@ -428,7 +426,7 @@ mod tests {
 
         // Stash something that fits in the freed slot.
         let s3 = "reuse!"; // same size — should land at offset1
-        let offset3 = arena.stash(s3).unwrap();
+        let offset3 = arena.insert(s3).unwrap();
         assert_eq!(offset3, offset1);
         assert_eq!(arena.resolve(offset3), s3);
 
@@ -441,9 +439,9 @@ mod tests {
         let mut arena = GraphemeArena::new();
 
         // Create slots of varying sizes.
-        let small = arena.stash("ab").unwrap(); // 4 total
-        let _medium_offset = arena.stash("medium").unwrap(); // 8 total
-        let large = arena.stash("a]larger-entry").unwrap(); // 16 total
+        let small = arena.insert("ab").unwrap(); // 4 total
+        let _medium_offset = arena.insert("medium").unwrap(); // 8 total
+        let large = arena.insert("a]larger-entry").unwrap(); // 16 total
 
         // Release small and large, keeping medium alive.
         arena.release(small);
@@ -451,18 +449,18 @@ mod tests {
 
         // A 4-byte request should pick the small slot (best-fit).
         let s = "xy"; // 2 + 2 = 4 total
-        let offset = arena.stash(s).unwrap();
+        let offset = arena.insert(s).unwrap();
         assert_eq!(offset, small);
     }
 
     #[test]
     fn clear_resets_everything() {
         let mut arena = GraphemeArena::new();
-        arena.stash("some text here").unwrap();
-        arena.stash("more text").unwrap();
+        arena.insert("some text here").unwrap();
+        arena.insert("more text").unwrap();
 
         // Release one to populate the free list.
-        let off = arena.stash("temp").unwrap();
+        let off = arena.insert("temp").unwrap();
         arena.release(off);
 
         assert!(!arena.is_empty());
@@ -487,8 +485,8 @@ mod tests {
         let s1 = "alpha-entry";
         let s2 = "bravo-entry";
 
-        let off1 = arena.stash(s1).unwrap();
-        let off2 = arena.stash(s2).unwrap();
+        let off1 = arena.insert(s1).unwrap();
+        let off2 = arena.insert(s2).unwrap();
 
         let total_used = arena.used();
         let s1_cost = PREFIX_SIZE + s1.len();
@@ -513,17 +511,20 @@ mod tests {
 
         // Stash a large entry, then release it.
         let big = "a]]relatively-large-entry-here!"; // 30 bytes + 2 = 32 total
-        let big_offset = arena.stash(big).unwrap();
+        let big_offset = arena.insert(big).unwrap();
         arena.release(big_offset);
 
         // Stash something much smaller — should reuse the slot and split.
         let small = "hi"; // 2 + 2 = 4 total
-        let small_offset = arena.stash(small).unwrap();
+        let small_offset = arena.insert(small).unwrap();
         assert_eq!(small_offset, big_offset);
 
         // The remainder (32 - 4 = 28 bytes) should be on the free list.
         assert_eq!(arena.free.len(), 1);
-        assert_eq!(arena.free[0].len, PREFIX_SIZE + big.len() - (PREFIX_SIZE + small.len()));
+        assert_eq!(
+            arena.free[0].len,
+            PREFIX_SIZE + big.len() - (PREFIX_SIZE + small.len())
+        );
     }
 
     #[test]
@@ -531,7 +532,7 @@ mod tests {
         let mut arena = GraphemeArena::new();
 
         // First allocation should jump to at least MINIMUM_ALLOC.
-        arena.stash("hello").unwrap();
+        arena.insert("hello").unwrap();
         assert!(
             arena.capacity() >= MINIMUM_ALLOC,
             "expected capacity >= {MINIMUM_ALLOC}, got {}",
@@ -541,7 +542,7 @@ mod tests {
         // Subsequent allocations shouldn't cause capacity to grow linearly.
         let cap_after_first = arena.capacity();
         for i in 0..10 {
-            arena.stash(&format!("entry-{i:04}-some-padding")).unwrap();
+            arena.insert(&format!("entry-{i:04}-some-padding")).unwrap();
         }
         assert!(arena.capacity() <= cap_after_first * 4);
     }
@@ -554,8 +555,11 @@ mod tests {
         // (We can't easily create a 65535-byte string in a test, so test the
         // error path with a mock check.)
         let long = "x".repeat(MAX_ENTRY_LEN + 1);
-        let result = arena.stash(&long);
-        assert!(matches!(result, Err(GraphemePoolError::StringTooLong { .. })));
+        let result = arena.insert(&long);
+        assert!(matches!(
+            result,
+            Err(GraphemeError::TooLong { .. })
+        ));
     }
 
     #[test]
@@ -565,7 +569,7 @@ mod tests {
         let mut offsets = Vec::new();
         for i in 0..100 {
             let s = format!("entry-{i:04}-padding-to-be-longer");
-            offsets.push(arena.stash(&s).unwrap());
+            offsets.push(arena.insert(&s).unwrap());
         }
 
         let len_when_full = arena.len();
@@ -583,7 +587,7 @@ mod tests {
         let arena_len_before = arena.len();
         for i in (0..100).step_by(2) {
             let s = format!("entry-{i:04}-padding-to-be-longer");
-            arena.stash(&s).unwrap();
+            arena.insert(&s).unwrap();
         }
         // Pool should not have grown — everything went into gaps.
         assert_eq!(arena.len(), arena_len_before);

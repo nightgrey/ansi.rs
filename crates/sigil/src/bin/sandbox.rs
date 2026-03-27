@@ -6,7 +6,6 @@ fn main() -> io::Result<()> {
 }
 
 fn current_stage() -> io::Result<()> {
-
     // use sigil::*;
     // use ansi::*;
     // use tree::layout::prelude::*;

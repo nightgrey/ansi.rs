@@ -61,8 +61,8 @@ pub use tagged_derive::tagged;
 
 #[cfg(test)]
 mod tests {
-    use arbitrary_int::prelude::*;
     use super::*;
+    use arbitrary_int::prelude::*;
 
     #[tagged(u32)]
     enum Dimension {
@@ -117,8 +117,14 @@ mod tests {
     #[test]
     fn dimension_debug() {
         assert_eq!(format!("{:?}", Dimension::AUTO), "Dimension::Auto");
-        assert_eq!(format!("{:?}", Dimension::length(120)), "Dimension::Length(120)");
-        assert_eq!(format!("{:?}", Dimension::percent(u30::new(999))), "Dimension::Percent(999)");
+        assert_eq!(
+            format!("{:?}", Dimension::length(120)),
+            "Dimension::Length(120)"
+        );
+        assert_eq!(
+            format!("{:?}", Dimension::percent(u30::new(999))),
+            "Dimension::Percent(999)"
+        );
     }
 
     #[test]
@@ -312,5 +318,4 @@ mod tests {
         set.insert(Dimension::length(42)); // duplicate
         assert_eq!(set.len(), 2);
     }
-
 }

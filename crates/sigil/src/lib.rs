@@ -31,18 +31,18 @@
 extern crate core;
 
 pub mod buffer;
-pub mod rasterizer;
-pub mod painter;
-pub mod orchestrator;
-mod elements;
-mod renderer;
 mod document;
+mod elements;
 mod layout;
+pub mod orchestrator;
+pub mod painter;
+pub mod rasterizer;
+mod renderer;
 
 pub use buffer::*;
-pub use rasterizer::*;
-pub use orchestrator::*;
-pub use elements::*;
-pub use renderer::*;
 pub use document::*;
+pub use elements::*;
 pub use layout::*;
+pub use orchestrator::*;
+pub use rasterizer::*;
+pub use renderer::*;

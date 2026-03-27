@@ -1,5 +1,5 @@
-use tree::Map;
 use crate::{Buffer, Document, ElementId, GraphemeArena, Layer, LayerId, Rasterizer};
+use tree::Map;
 
 #[derive(Debug)]
 pub struct Renderer {
@@ -29,13 +29,13 @@ impl Renderer {
     pub(crate) fn composite(buffer: &mut Buffer, document: &Document, id: ElementId) {
         let layer = &document.layers[id];
         for row in 0..layer.height {
-            let front_row = layer.position.row + row;
+            let front_row = layer.position.y + row;
             if front_row >= buffer.height {
                 continue;
             }
 
             for col in 0..layer.width {
-                let front_col = layer.position.col + col;
+                let front_col = layer.position.x + col;
                 if front_col >= buffer.width {
                     continue;
                 }
@@ -55,11 +55,14 @@ impl Renderer {
         }
     }
 
-    pub(crate) fn raster(&mut self, arena: &GraphemeArena) {
+    pub(crate) fn raster(&mut self, arena: &GraphemeArena) -> std::io::Result<()> {
         self.rasterizer.raster(&self.front, arena)
     }
-    pub(crate) fn flush(&mut self, arena: &GraphemeArena, output: &mut impl std::io::Write) -> std::io::Result<()> {
+    pub(crate) fn flush(
+        &mut self,
+        arena: &GraphemeArena,
+        output: &mut impl std::io::Write,
+    ) -> std::io::Result<()> {
         self.rasterizer.flush(output)
     }
-
 }

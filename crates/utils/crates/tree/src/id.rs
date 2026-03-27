@@ -27,7 +27,7 @@ macro_rules! id {
         impl $crate::Id for $name { }
     };
     ($name:ident) => {
-        
+
         id!(#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)] pub struct $name);
     }
 }
@@ -82,7 +82,7 @@ pub trait Id: slotmap::Key {
     #[inline]
     fn map<U, F>(self, f: F) -> Option<U>
     where
-        F: FnOnce(Self) -> U
+        F: FnOnce(Self) -> U,
     {
         match self.is_some() {
             true => Some(f(self)),
@@ -94,7 +94,7 @@ pub trait Id: slotmap::Key {
     #[inline]
     fn map_or<U, F>(self, default: U, f: F) -> U
     where
-        F: FnOnce(Self) -> U ,
+        F: FnOnce(Self) -> U,
     {
         match self.is_some() {
             true => f(self),
@@ -106,8 +106,8 @@ pub trait Id: slotmap::Key {
     #[inline]
     fn map_or_else<U, D, F>(self, default: D, f: F) -> U
     where
-        D: FnOnce() -> U ,
-        F: FnOnce(Self) -> U ,
+        D: FnOnce() -> U,
+        F: FnOnce(Self) -> U,
     {
         match self.is_some() {
             true => f(self),
@@ -120,7 +120,7 @@ pub trait Id: slotmap::Key {
     fn map_or_default<U, F>(self, f: F) -> U
     where
         U: Default,
-        F: FnOnce(Self) -> U ,
+        F: FnOnce(Self) -> U,
     {
         match self.is_some() {
             true => f(self),
@@ -155,7 +155,6 @@ pub trait Id: slotmap::Key {
 
         self
     }
-
 
     /// Returns `f(self)` if non-null, or the null sentinel otherwise.
     #[inline]
@@ -199,8 +198,6 @@ pub trait Id: slotmap::Key {
             false => Self::default(),
         }
     }
-
-
 }
 
 /// A general-purpose default id type for trees that don't need a custom key.

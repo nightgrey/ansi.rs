@@ -158,11 +158,7 @@ pub trait Maybe: Sized {
     /// # }
     /// ```
     #[inline]
-    fn map_or_else<U>(
-        self,
-        default: impl FnOnce() -> U,
-        f: impl FnOnce(Self) -> U,
-    ) -> U {
+    fn map_or_else<U>(self, default: impl FnOnce() -> U, f: impl FnOnce(Self) -> U) -> U {
         if self.is_some() { f(self) } else { default() }
     }
 
@@ -183,7 +179,11 @@ pub trait Maybe: Sized {
     /// [default value]: Default::default
     #[inline]
     fn map_or_default<U: Default>(self, f: impl FnOnce(Self) -> U) -> U {
-        if self.is_some() { f(self) } else { U::default() }
+        if self.is_some() {
+            f(self)
+        } else {
+            U::default()
+        }
     }
 
     /// Returns the value if it contains a value, otherwise returns `other`.
@@ -287,7 +287,11 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn filter(self, pred: impl FnOnce(&Self) -> bool) -> Self {
-        if self.is_some() && pred(&self) { self } else { Self::None }
+        if self.is_some() && pred(&self) {
+            self
+        } else {
+            Self::None
+        }
     }
 
     /// Inserts `value` into [`Self`] if it is [`Self::None`], then
@@ -312,7 +316,9 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn get_or_insert(&mut self, value: Self) -> &mut Self {
-        if self.is_none() { *self = value; }
+        if self.is_none() {
+            *self = value;
+        }
         self
     }
 
@@ -335,7 +341,9 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn get_or_insert_with(&mut self, f: impl FnOnce() -> Self) -> &mut Self {
-        if self.is_none() { let _ = core::mem::replace(self, f()); }
+        if self.is_none() {
+            let _ = core::mem::replace(self, f());
+        }
         self
     }
 
@@ -439,20 +447,19 @@ impl<T> Maybe for Option<T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Maybe;
 
-    #[derive(Maybe,Default, Clone, Copy, Debug, PartialEq)]
+    #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
     enum Color {
         #[default]
         None,
         Black,
         Red,
         Green,
-        Blue, 
+        Blue,
     }
 
     #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
@@ -675,7 +682,10 @@ mod tests {
         #[test]
         fn or_else_lazy() {
             let mut called = false;
-            Color::Red.or_else(|| { called = true; Color::Blue });
+            Color::Red.or_else(|| {
+                called = true;
+                Color::Blue
+            });
             assert!(!called);
         }
     }
@@ -772,7 +782,10 @@ mod tests {
         fn get_or_insert_with_lazy() {
             let mut called = false;
             let mut c = Color::Red;
-            c.get_or_insert_with(|| { called = true; Color::Green });
+            c.get_or_insert_with(|| {
+                called = true;
+                Color::Green
+            });
             assert!(!called);
             assert_eq!(c, Color::Red);
         }

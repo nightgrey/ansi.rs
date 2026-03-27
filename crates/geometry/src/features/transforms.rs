@@ -1,14 +1,18 @@
+use std::ops::Add;
 use crate::{Point, Rect};
 
-pub trait Transform<T = Point>  {
+pub trait Translate<T = Point> {
     type Output;
-    fn translate(self, by: T) -> Self::Output;
+    fn translate(self, by: &T) -> Self::Output;
 }
 
-impl Transform<Point> for Rect<Point> {
+impl<T: Copy + Add<T, Output = T>> Translate<T> for Rect<T> {
     type Output = Self;
 
-    fn translate(self, by: Point) -> Self::Output {
-        Self { min: self.min + by, max: self.max + by }
+    fn translate(self, by: &T) -> Self::Output {
+        Self {
+            min: self.min + *by,
+            max: self.max + *by,
+        }
     }
 }

@@ -1,4 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
+use crate::Zero;
 
 /// A 2D size representing width and height.
 ///
@@ -23,13 +24,7 @@ pub struct Size<T = usize> {
     pub height: T,
 }
 
-impl Size {
-    /// A size of zero (0×0).
-    pub const ZERO: Self = Self {
-        width: 0,
-        height: 0,
-    };
-
+impl<T> Size<T> {
     /// Create a new size with the given dimensions.
     ///
     /// # Example
@@ -38,15 +33,32 @@ impl Size {
     /// # use geometry::Size;
     /// let size = Size::new(40, 12);
     /// ```
-    pub const fn new(width: usize, height: usize) -> Self {
+    pub const fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
+    
+    /// Create a size with equal width and height.
+    pub const fn both(value: T) -> Self where T: Copy {
+        Self::new(value, value)
+    }
 }
+
+impl<T: Zero> Size<T> {
+    /// A size of zero (0×0).
+    pub const ZERO: Self = Self {
+        width: T::ZERO,
+        height: T::ZERO,
+    };
+}
+
 impl<U, T: Add<U, Output = T>> Add<Size<U>> for Size<T> {
     type Output = Size<T>;
 
     fn add(self, rhs: Size<U>) -> Self::Output {
-        Size { width: self.width + rhs.width, height: self.height + rhs.height }
+        Size {
+            width: self.width + rhs.width,
+            height: self.height + rhs.height,
+        }
     }
 }
 
@@ -61,7 +73,10 @@ impl<U: Copy, T: Sub<U, Output = T>> Sub<U> for Size<T> {
     type Output = Size<T>;
 
     fn sub(self, rhs: U) -> Self::Output {
-        Size { width: self.width - rhs, height: self.height - rhs }
+        Size {
+            width: self.width - rhs,
+            height: self.height - rhs,
+        }
     }
 }
 
@@ -69,7 +84,10 @@ impl<U: Copy, T: Div<U, Output = T>> Div<U> for Size<T> {
     type Output = Size<T>;
 
     fn div(self, rhs: U) -> Self::Output {
-        Size { width: self.width / rhs, height: self.height / rhs }
+        Size {
+            width: self.width / rhs,
+            height: self.height / rhs,
+        }
     }
 }
 

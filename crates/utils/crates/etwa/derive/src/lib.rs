@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Error, Meta};
+use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
 
 /// Derive the `Maybe` trait for an enum.
 ///
@@ -63,11 +63,10 @@ fn has_maybe_default(attrs: &[syn::Attribute]) -> bool {
             return false;
         }
         match a.meta {
-            Meta::List(ref list) => {
-                list.parse_args::<syn::Ident>()
-                    .map(|id| id == "default")
-                    .unwrap_or(false)
-            }
+            Meta::List(ref list) => list
+                .parse_args::<syn::Ident>()
+                .map(|id| id == "default")
+                .unwrap_or(false),
             _ => false,
         }
     })
@@ -79,7 +78,12 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
 
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
-        _ => return Err(Error::new_spanned(name, "Maybe can only be derived for enums")),
+        _ => {
+            return Err(Error::new_spanned(
+                name,
+                "Maybe can only be derived for enums",
+            ))
+        }
     };
 
     // --- Resolve none ---
@@ -90,16 +94,13 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
         .collect();
 
     let none_variant = match attr_none.len() {
-        0 => {
-            variants
-                .iter()
-                .find(|v| v.ident == "None")
-                .ok_or_else(|| Error::new_spanned(
-                    name,
-                    "No #[none] attribute and no variant named `None`. \
+        0 => variants.iter().find(|v| v.ident == "None").ok_or_else(|| {
+            Error::new_spanned(
+                name,
+                "No #[none] attribute and no variant named `None`. \
                      Mark a unit variant with #[none] or name one `None`.",
-                ))?
-        }
+            )
+        })?,
         1 => attr_none[0],
         _ => {
             return Err(Error::new_spanned(
@@ -156,7 +157,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
             }
         }
 
-        
+
         impl #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
             #[inline]
             fn from(value: Option<#name #generic>) -> Self {

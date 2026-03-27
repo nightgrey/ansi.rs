@@ -16,11 +16,10 @@ mod style;
 mod escape;
 pub mod sequences;
 
-pub use escape::*;
-pub use style::*;
 pub use color::*;
+pub use escape::*;
 pub use sequences::*;
-
+pub use style::*;
 
 #[cfg(test)]
 mod tests {
@@ -28,15 +27,15 @@ mod tests {
 
     #[cfg(test)]
     mod color_vs_attribute {
-        use std::fmt::Debug;
         use super::*;
+        use std::fmt::Debug;
         use std::ops::*;
 
         /// Adapter for comparing bit-wise operations between [`Attribute`] (reference) and [`Color`].
         #[derive(PartialEq, Eq, Clone, Copy)]
         enum Bit {
             None,
-            Some
+            Some,
         }
 
         impl Debug for Bit {
@@ -86,25 +85,45 @@ mod tests {
             ($lhs:expr, $rhs:expr, $op:ident) => {
                 let (color, attribute) = (
                     Color::from($lhs).$op(Color::from($rhs)),
-                    Attribute::from($lhs).$op(Attribute::from($rhs))
+                    Attribute::from($lhs).$op(Attribute::from($rhs)),
                 );
 
                 let (actual, expected) = (Bit::from(color), Bit::from(attribute));
-                assert_eq!(actual, expected, "{:?}.{}({:?})", $lhs, stringify!($op), $rhs);
+                assert_eq!(
+                    actual,
+                    expected,
+                    "{:?}.{}({:?})",
+                    $lhs,
+                    stringify!($op),
+                    $rhs
+                );
             };
         }
-        
+
         macro_rules! dbg_bit {
             ($lhs:expr, $rhs:expr, $op:ident) => {
                 let (color, attribute) = (
                     Color::from($lhs).$op(Color::from($rhs)),
-                    Attribute::from($lhs).$op(Attribute::from($rhs))
+                    Attribute::from($lhs).$op(Attribute::from($rhs)),
                 );
 
                 if Bit::from(color) == Bit::from(attribute) {
-                    eprintln!("✅ ({:?}.{}({:?})) = ({:?})", $lhs, stringify!($op), $rhs, Bit::from(color));
+                    eprintln!(
+                        "✅ ({:?}.{}({:?})) = ({:?})",
+                        $lhs,
+                        stringify!($op),
+                        $rhs,
+                        Bit::from(color)
+                    );
                 } else {
-                    eprintln!("❌ ({:?}.{}({:?})) = ({:?} / {:?})", $lhs, stringify!($op), $rhs, color, attribute);
+                    eprintln!(
+                        "❌ ({:?}.{}({:?})) = ({:?} / {:?})",
+                        $lhs,
+                        stringify!($op),
+                        $rhs,
+                        color,
+                        attribute
+                    );
                 }
             };
         }
@@ -112,28 +131,26 @@ mod tests {
         const CASES: [(Bit, Bit); 6] = [
             (Bit::None, Bit::Some),
             (Bit::None, Bit::None),
-
             (Bit::Some, Bit::None),
             (Bit::Some, Bit::Some),
-
             (Bit::None, Bit::None),
             (Bit::None, Bit::Some),
         ];
 
         #[test]
         fn test_bitor() {
-            for (lhs, rhs) in  CASES {
+            for (lhs, rhs) in CASES {
                 dbg_bit!(lhs, rhs, bitor);
             }
 
-            for (lhs, rhs) in  CASES {
+            for (lhs, rhs) in CASES {
                 assert_bit!(lhs, rhs, bitor);
             }
         }
 
         #[test]
         fn test_bitand() {
-            for (lhs, rhs) in  CASES {
+            for (lhs, rhs) in CASES {
                 dbg_bit!(lhs, rhs, bitand);
                 assert_bit!(lhs, rhs, bitand);
             }
@@ -141,11 +158,11 @@ mod tests {
 
         #[test]
         fn test_bitxor() {
-            for (lhs, rhs) in  CASES {
+            for (lhs, rhs) in CASES {
                 dbg_bit!(lhs, rhs, bitxor);
             }
 
-            for (lhs, rhs) in  CASES {
+            for (lhs, rhs) in CASES {
                 assert_bit!(lhs, rhs, bitxor);
             }
         }

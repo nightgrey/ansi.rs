@@ -6,27 +6,20 @@
 #![feature(const_convert)]
 #![feature(range_into_bounds)]
 #![feature(const_destruct)]
-
 #![feature(const_option_ops)]
-mod area;
+mod axis;
 mod edges;
+pub mod features;
 mod point;
+pub mod prelude;
 mod rect;
 mod size;
-pub mod features;
-pub mod prelude;
-mod axis;
-mod position;
-mod column;
-mod row;
+mod index;
 
+pub use axis::*;
 pub use edges::*;
+pub use features::*;
 pub use point::*;
 pub use rect::*;
 pub use size::*;
-pub use features::*;
-pub use axis::*;
-pub use position::*;
-pub use column::*;
-pub use row::*;
-pub use area::*;
+pub use index::*;

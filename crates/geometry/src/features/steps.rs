@@ -1,7 +1,7 @@
+use crate::{Bounded, ContextualResolve, Point, Rect, Resolve};
 use std::iter::FusedIterator;
 use std::marker::Destruct;
-use std::ops::{Deref};
-use crate::{Position, Point, Rect, Area, Bounded, Row, Column, ContextualResolve, Resolve};
+use std::ops::Deref;
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -104,280 +104,39 @@ impl Step<Point> for Rect {
             return Some(Point::new(start.x, start.y - count));
         }
         // General path: linearize through the exclusive end.
-        let idx = if start >= self.max() { self.len() } else { self.resolve(start) };
+        let idx = if start >= self.max() {
+            self.len()
+        } else {
+            self.resolve(start)
+        };
         let target = idx.checked_sub(count)?;
         Some(self.resolve(target))
     }
 }
-impl Step<Position> for Area {
-    fn steps_between(&self, start: Position, end: Position) -> (usize, Option<usize>) {
-        if start > end {
-            return (0, None);
-        }
-        let current: usize = self.resolve(start);
-        let remaining: usize = end.resolve(self);
-
-        let dist = remaining - current;
-
-        (dist, Some(dist))
-    }
-
-    fn forward_checked(&self, start: Position, count: usize) -> Option<Position> {
-        // Fast path for single step (Iterator usage).
-        if count == 1 {
-            let mut next = start;
-            next.col += 1;
-
-            if next.col >= self.max().col {
-                next.col = self.min().col;
-                next.row += 1;
-
-                if next.row >= self.max().row {
-                    return None;
-                }
-            }
-
-            return Some(next);
-        }
-
-        // General path for arbitrary steps.
-        let index: usize = self.resolve(start);
-
-        let index = index.checked_add(count)?;
-        if index >= self.len() {
-            return None;
-        }
-
-        Some(self.resolve(index))
-    }
-
-    fn backward_checked(&self, start: Position, count: usize) -> Option<Position> {
-        // Fast path: stay on the same row.
-        if start.row < self.max().row && count <= start.col - self.min().col {
-            return Some(Position::new(start.row, start.col - count));
-        }
-        // General path: linearize through the exclusive end.
-        let idx = if start >= self.max() { self.len() } else { self.resolve(start) };
-        let target = idx.checked_sub(count)?;
-        Some(self.resolve(target))
-    }
-}
-
-impl Step<Row> for Area {
-    fn steps_between(&self, start: Row, end: Row) -> (usize, Option<usize>) {
-        if start.value() <= end.value() {
-            let steps = end.value() - start.value();
-            (steps, Some(steps))
-        } else {
-            (0, None)
-        }
-    }
-
-    fn forward_checked(&self, start: Row, count: usize) -> Option<Row> {
-        let row = start.value().checked_add(count)?;
-        if row >= self.max().row {
-            return None;
-        }
-        Some(Row(row))
-    }
-
-    fn backward_checked(&self, start: Row, count: usize) -> Option<Row> {
-        let row = start.value().checked_sub(count)?;
-        if row < self.min().row {
-            return None;
-        }
-        Some(Row(row))
-    }
-}
-
-impl Step<Column> for Area {
-    fn steps_between(&self, start: Column, end: Column) -> (usize, Option<usize>) {
-        if start.value() <= end.value() {
-            let steps = end.value() - start.value();
-            (steps, Some(steps))
-        } else {
-            (0, None)
-        }
-    }
-
-    fn forward_checked(&self, start: Column, count: usize) -> Option<Column> {
-        let col = start.value().checked_add(count)?;
-        if col >= self.max().col {
-            return None;
-        }
-        Some(Column(col))
-    }
-
-    fn backward_checked(&self, start: Column, count: usize) -> Option<Column> {
-        let col = start.value().checked_sub(count)?;
-        if col < self.min().col {
-            return None;
-        }
-        Some(Column(col))
-    }
-}
-
-
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
 ///
 /// Created by [`Area::iter`].
-#[derive(Copy, Debug)]
-#[derive(Clone)]
+#[derive(Copy, Debug, Clone)]
 pub struct Steps<Ctx: Bounded<Point = T> + Step<T>, T> {
     pub(crate) context: Ctx,
     pub(crate) front: T,
     pub(crate) back: T,
 }
 
-impl<Ctx: Bounded<Point = T> + Step<T>, T> Steps<Ctx, T>  {
+impl<Ctx: Bounded<Point = T> + Step<T>, T> Steps<Ctx, T> {
     pub fn new(context: Ctx) -> Self {
-        let front = if context.is_empty() { context.max() } else { context.min() };
+        let front = if context.is_empty() {
+            context.max()
+        } else {
+            context.min()
+        };
         let back = context.max();
 
         Self {
             context,
             front,
-            back
+            back,
         }
-    }
-}
-impl Iterator for Steps<Area, Position> {
-    type Item = Position;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.front >= self.back {
-            return None;
-        }
-        let next = self.front;
-
-        match self.context.forward_checked(next, 1) {
-            Some(next) => self.front = next,
-            None => self.front = self.back,
-        }
-
-        Some(next)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if  self.front >= self.back {
-            return (0, Some(0));
-        }
-        let count = self.count();
-        (count, Some(count))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        if self.front >= self.back {
-            return 0;
-        }
-        let current: usize = self.context.resolve(self.front);
-        let remaining = self.context.len();
-        remaining - current
-    }
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        if self.front >= self.back {
-            return None;
-        }
-
-        if let Some(plus_n) = self.context.forward_checked(self.front, n) {
-            if plus_n < self.context.max {
-                self.front =
-                    self.context.forward_checked(plus_n, 1).expect("`Step` invariants not upheld");
-                return Some(plus_n);
-            }
-        }
-
-        None
-    }
-
-    fn for_each<F>(self, mut f: F)
-    where
-        Self: Sized,
-        F: FnMut(Self::Item),
-    {
-        if self.front >= self.back { return; }
-        let mut pos = self.front;
-        while pos.row < self.context.max.row {
-            while pos.col < self.context.max.col {
-                f(pos);
-                pos.col += 1;
-            }
-            pos.col = self.context.min.col;
-            pos.row += 1;
-        }
-    }
-
-    fn fold<B, F>(self, init: B, mut f: F) -> B
-    where
-        F: FnMut(B, Self::Item) -> B,
-    {
-        if self.front >= self.back { return init; }
-        let mut acc = init;
-        let mut pos = self.front;
-        while pos.row < self.context.max.row {
-            while pos.col < self.context.max.col {
-                acc = f(acc, pos);
-                pos.col += 1;
-            }
-            pos.col = self.context.min.col;
-            pos.row += 1;
-        }
-        acc
-    }
-
-    fn max(mut self) -> Option<Self::Item> {
-        self.next_back()
-    }
-
-    #[inline]
-    fn min(mut self) -> Option<Self::Item> {
-        self.next()
-    }
-
-    #[inline]
-    fn is_sorted(self) -> bool {
-        true
-    }
-}
-impl DoubleEndedIterator for Steps<Area, Position> {
-    #[inline]
-    fn next_back(&mut self) -> Option<Position> {
-        if self.front >= self.back {
-            return None;
-        }
-        match self.context.backward_checked(self.back, 1) {
-            Some(prev) => {
-                self.back = prev;
-                Some(prev)
-            }
-            None => {
-                let last = self.front;
-                self.front = self.back;
-                Some(last)
-            }
-        }
-    }
-
-    #[inline]
-    fn nth_back(&mut self, n: usize) -> Option<Position> {
-        if self.front >= self.back {
-            return None;
-        }
-
-        if let Some(minus_n) = self.context.backward_checked(self.back, n) {
-            if minus_n < self.context.max {
-                self.back =
-                    self.context.backward_checked(minus_n, 1).expect("`Step` invariants not upheld");
-                return Some(minus_n);
-            }
-        }
-
-        None
     }
 }
 
@@ -401,7 +160,7 @@ impl Iterator for Steps<Rect, Point> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if  self.front >= self.back {
+        if self.front >= self.back {
             return (0, Some(0));
         }
         let count = self.count();
@@ -426,8 +185,10 @@ impl Iterator for Steps<Rect, Point> {
 
         if let Some(plus_n) = self.context.forward_checked(self.front, n) {
             if plus_n < self.context.max {
-                self.front =
-                    self.context.forward_checked(plus_n, 1).expect("`Step` invariants not upheld");
+                self.front = self
+                    .context
+                    .forward_checked(plus_n, 1)
+                    .expect("`Step` invariants not upheld");
                 return Some(plus_n);
             }
         }
@@ -440,7 +201,9 @@ impl Iterator for Steps<Rect, Point> {
         Self: Sized,
         F: FnMut(Self::Item),
     {
-        if self.front >= self.back { return; }
+        if self.front >= self.back {
+            return;
+        }
         let mut pos = self.front;
         while pos.y < self.context.max.y {
             while pos.x < self.context.max.x {
@@ -456,7 +219,9 @@ impl Iterator for Steps<Rect, Point> {
     where
         F: FnMut(B, Self::Item) -> B,
     {
-        if self.front >= self.back { return init; }
+        if self.front >= self.back {
+            return init;
+        }
         let mut acc = init;
         let mut pos = self.front;
         while pos.y < self.context.max.y {
@@ -511,8 +276,10 @@ impl DoubleEndedIterator for Steps<Rect, Point> {
 
         if let Some(minus_n) = self.context.backward_checked(self.back, n) {
             if minus_n < self.context.max {
-                self.back =
-                    self.context.backward_checked(minus_n, 1).expect("`Step` invariants not upheld");
+                self.back = self
+                    .context
+                    .backward_checked(minus_n, 1)
+                    .expect("`Step` invariants not upheld");
                 return Some(minus_n);
             }
         }
@@ -526,136 +293,151 @@ impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where
 
 // ─── Tests ─────────────────────────────────────────────────────────────
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(test)]
-    mod off_by_one {
-        use super::*;
-
-        // #[test]
-        // @TODO: Fix this test
-        fn from_0() {
-            for x in 0..2 {
-                for y in 0..2 {
-                    let bounds = Area::new(Position::new(0, 0), Position::new(x, y));
-
-                    let area = bounds.len();
-                    let len = bounds.iter().collect::<Vec<_>>().len();
-                    let count = bounds.iter().count();
-                    let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-
-                    assert_eq!(area, len, "Area len mismatch: {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area, count, "Area count mismatch: {area} != {count}. bounds={bounds:?}");
-                    assert_eq!(area, size_hint, "Area size hint mismatch: {area} != {size_hint}. bounds={bounds:?}");
-                }
-            }
-        }
-
-        #[test]
-        fn from_1() {
-            for x in 1..2 {
-                for y in 1..3 {
-                    let bounds = Area::new(Position::new(1, 1), Position::new(x, y));
-
-                    let area = bounds.len();
-                    let len = bounds.iter().collect::<Vec<_>>().len().saturating_sub(1);
-                    let count = bounds.iter().count();
-                    let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-
-                    assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
-                    assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
-                }
-            }
-        }
-
-        #[test]
-        fn to_plus_one() {
-            for x in 0..3 {
-                for y in 0..3 {
-                    let bounds = Area::new(Position::new(x, y), Position::new(x + 1, y + 1));
-
-                    let area = bounds.len();
-                    let len = bounds.iter().collect::<Vec<_>>().len();
-                    let count = bounds.iter().count();
-                    let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-
-                    assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
-                    assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
-                    assert_eq!(area, size_hint, "area {area} != {size_hint}. bounds={bounds:?}");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_bounds_iter_basic() {
-        let bounds = Area::new(Position::new(0, 0), Position::new(2, 3));
-        let positions: Vec<_> = bounds.iter().collect();
-
-        assert_eq!(positions.len(), 6); // 2 rows * 3 cols
-
-        // Check row-major order
-        assert_eq!(positions[0], Position::new(0, 0));
-        assert_eq!(positions[1], Position::new(0, 1));
-        assert_eq!(positions[2], Position::new(0, 2));
-        assert_eq!(positions[3], Position::new(1, 0));
-        assert_eq!(positions[4], Position::new(1, 1));
-        assert_eq!(positions[5], Position::new(1, 2));
-    }
-
-    #[test]
-    fn test_bounds_iter_empty_width() {
-        let bounds = Area::new(Position::new(0, 5), Position::new(0, 5));
-        assert_eq!(bounds.iter().count(), 0);
-    }
-
-    #[test]
-    fn test_bounds_iter_empty_height() {
-        let bounds = Area::new(Position::new(5, 0), Position::new(5, 1));
-        assert_eq!(bounds.iter().count(), 0);
-    }
-
-    #[test]
-    fn test_bounds_iter_single_cell() {
-        let bounds = Area::new(Position::new(5, 10), Position::new(6, 11));
-        let positions: Vec<_> = bounds.iter().collect();
-
-        assert_eq!(positions.len(), 1);
-        assert_eq!(positions[0], Position::new(5, 10));
-    }
-
-    #[test]
-    fn test_bounds_iter_size_hint() {
-        let bounds = Area::new(Position::new(0, 0), Position::new(3, 4));
-        let iter = bounds.iter();
-        let (min, max) = iter.size_hint();
-
-        assert_eq!(min, 12);
-        assert_eq!(max, Some(12));
-    }
-
-    #[test]
-    fn test_bounds_iter_exact_size() {
-        let bounds = Area::new(Position::new(0, 0), Position::new(5, 10));
-        let iter = bounds.iter();
-
-        assert_eq!(iter.count(), 50);
-    }
-
-    #[test]
-    fn test_bounds_into_iter() {
-        let bounds = Area::new(Position::new(0, 0), Position::new(2, 2));
-        let count = bounds.iter().count();
-        assert_eq!(count, 4);
-    }
-
-    #[test]
-    fn test_bounds_into_iter_ref() {
-        let bounds = Area::new(Position::new(0, 0), Position::new(3, 3));
-        let count = (bounds).iter().count();
-        assert_eq!(count, 9);
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+// 
+//     #[cfg(test)]
+//     mod off_by_one {
+//         use super::*;
+// 
+//         // #[test]
+//         // @TODO: Fix this test
+//         fn from_0() {
+//             for x in 0..2 {
+//                 for y in 0..2 {
+//                     let bounds = Area::new(Position::new(0, 0), Position::new(x, y));
+// 
+//                     let area = bounds.len();
+//                     let len = bounds.iter().collect::<Vec<_>>().len();
+//                     let count = bounds.iter().count();
+//                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
+// 
+//                     assert_eq!(
+//                         area, len,
+//                         "Area len mismatch: {area} != {len}. bounds={bounds:?}"
+//                     );
+//                     assert_eq!(
+//                         area, count,
+//                         "Area count mismatch: {area} != {count}. bounds={bounds:?}"
+//                     );
+//                     assert_eq!(
+//                         area, size_hint,
+//                         "Area size hint mismatch: {area} != {size_hint}. bounds={bounds:?}"
+//                     );
+//                 }
+//             }
+//         }
+// 
+//         #[test]
+//         fn from_1() {
+//             for x in 1..2 {
+//                 for y in 1..3 {
+//                     let bounds = Area::new(Position::new(1, 1), Position::new(x, y));
+// 
+//                     let area = bounds.len();
+//                     let len = bounds.iter().collect::<Vec<_>>().len().saturating_sub(1);
+//                     let count = bounds.iter().count();
+//                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
+// 
+//                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
+//                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
+//                     assert_eq!(
+//                         area, size_hint,
+//                         "area {area} != {size_hint}. bounds={bounds:?}"
+//                     );
+//                 }
+//             }
+//         }
+// 
+//         #[test]
+//         fn to_plus_one() {
+//             for x in 0..3 {
+//                 for y in 0..3 {
+//                     let bounds = Area::new(Position::new(x, y), Position::new(x + 1, y + 1));
+// 
+//                     let area = bounds.len();
+//                     let len = bounds.iter().collect::<Vec<_>>().len();
+//                     let count = bounds.iter().count();
+//                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
+// 
+//                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
+//                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
+//                     assert_eq!(
+//                         area, size_hint,
+//                         "area {area} != {size_hint}. bounds={bounds:?}"
+//                     );
+//                 }
+//             }
+//         }
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_basic() {
+//         let bounds = Area::new(Position::new(0, 0), Position::new(2, 3));
+//         let positions: Vec<_> = bounds.iter().collect();
+// 
+//         assert_eq!(positions.len(), 6); // 2 rows * 3 cols
+// 
+//         // Check row-major order
+//         assert_eq!(positions[0], Position::new(0, 0));
+//         assert_eq!(positions[1], Position::new(0, 1));
+//         assert_eq!(positions[2], Position::new(0, 2));
+//         assert_eq!(positions[3], Position::new(1, 0));
+//         assert_eq!(positions[4], Position::new(1, 1));
+//         assert_eq!(positions[5], Position::new(1, 2));
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_empty_width() {
+//         let bounds = Area::new(Position::new(0, 5), Position::new(0, 5));
+//         assert_eq!(bounds.iter().count(), 0);
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_empty_height() {
+//         let bounds = Area::new(Position::new(5, 0), Position::new(5, 1));
+//         assert_eq!(bounds.iter().count(), 0);
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_single_cell() {
+//         let bounds = Area::new(Position::new(5, 10), Position::new(6, 11));
+//         let positions: Vec<_> = bounds.iter().collect();
+// 
+//         assert_eq!(positions.len(), 1);
+//         assert_eq!(positions[0], Position::new(5, 10));
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_size_hint() {
+//         let bounds = Area::new(Position::new(0, 0), Position::new(3, 4));
+//         let iter = bounds.iter();
+//         let (min, max) = iter.size_hint();
+// 
+//         assert_eq!(min, 12);
+//         assert_eq!(max, Some(12));
+//     }
+// 
+//     #[test]
+//     fn test_bounds_iter_exact_size() {
+//         let bounds = Area::new(Position::new(0, 0), Position::new(5, 10));
+//         let iter = bounds.iter();
+// 
+//         assert_eq!(iter.count(), 50);
+//     }
+// 
+//     #[test]
+//     fn test_bounds_into_iter() {
+//         let bounds = Area::new(Position::new(0, 0), Position::new(2, 2));
+//         let count = bounds.iter().count();
+//         assert_eq!(count, 4);
+//     }
+// 
+//     #[test]
+//     fn test_bounds_into_iter_ref() {
+//         let bounds = Area::new(Position::new(0, 0), Position::new(3, 3));
+//         let count = (bounds).iter().count();
+//         assert_eq!(count, 9);
+//     }
+// }

@@ -1,5 +1,5 @@
-use crate::Escape;
 use super::*;
+use crate::Escape;
 
 /// Byte-length calculation for escape sequences.
 ///
@@ -29,7 +29,6 @@ pub const fn decimal_width(n: usize) -> usize {
     }
     count
 }
-
 
 /// Cost of a CSI sequence that moves the cursor relative to its current position.
 #[inline(always)]
@@ -74,10 +73,9 @@ impl Cost for CursorForward {
 
 impl Cost for CursorUp {
     fn cost(&self) -> usize {
-       relative_cursor_cost(self.value())
+        relative_cursor_cost(self.value())
     }
 }
-
 
 impl Cost for HorizontalPositionAbsolute {
     fn cost(&self) -> usize {
@@ -122,7 +120,11 @@ mod tests {
 
     #[test]
     fn cursor_position_cost() {
-        assert_cost!(PARAMS.iter().flat_map(|&r| PARAMS.iter().map(move |&c| CursorPosition(r, c))));
+        assert_cost!(
+            PARAMS
+                .iter()
+                .flat_map(|&r| PARAMS.iter().map(move |&c| CursorPosition(r, c)))
+        );
     }
 
     #[test]
@@ -147,28 +149,22 @@ mod tests {
 
     #[test]
     fn vertical_position_absolute_cost() {
-        assert_cost!(
-            PARAMS.iter().map(|&n| VerticalPositionAbsolute(n))
-        );
+        assert_cost!(PARAMS.iter().map(|&n| VerticalPositionAbsolute(n)));
     }
 
     #[test]
     fn horizontal_position_absolute_cost() {
-        assert_cost!(
-            PARAMS.iter().map(|&n| HorizontalPositionAbsolute(n))
-        );
+        assert_cost!(PARAMS.iter().map(|&n| HorizontalPositionAbsolute(n)));
     }
 
     #[test]
     fn set_cursor_style_cost() {
-        assert_cost!(
-            [
-                SetCursorStyle::Default,
-                SetCursorStyle::BlinkBlock,
-                SetCursorStyle::SteadyBlock,
-                SetCursorStyle::BlinkUnderline,
-                SetCursorStyle::SteadyUnderline,
-            ]
-        );
+        assert_cost!([
+            SetCursorStyle::Default,
+            SetCursorStyle::BlinkBlock,
+            SetCursorStyle::SteadyBlock,
+            SetCursorStyle::BlinkUnderline,
+            SetCursorStyle::SteadyUnderline,
+        ]);
     }
 }

@@ -1,8 +1,11 @@
+use crate::Escape;
+use bitflags::{
+    Bits, Flag, Flags, bitflags,
+    iter::{Iter, IterDefinedNames, IterNames},
+};
 use std::borrow::Cow;
 use std::fmt::from_fn;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
-use bitflags::{bitflags,  iter::{Iter, IterNames, IterDefinedNames}, Bits, Flag, Flags};
-use crate::Escape;
 
 bitflags! {
     /// Attribute
@@ -42,7 +45,7 @@ bitflags! {
 impl Attribute {
     #[allow(non_upper_case_globals)]
     pub const None: Self = Self::new(0);
-    
+
     pub const COUNT: usize = <Self as Flags>::FLAGS.len();
 
     /// All defined attributes combined.
@@ -52,11 +55,11 @@ impl Attribute {
         Self::from_bits_truncate(bits)
     }
 
-    pub  fn is_none(&self) -> bool {
+    pub fn is_none(&self) -> bool {
         self == &Attribute::None
     }
 
-    pub  fn is_some(&self) -> bool {
+    pub fn is_some(&self) -> bool {
         !self.is_none()
     }
 
@@ -79,9 +82,8 @@ impl Attribute {
             (Attribute::Overline, "53"),
         ];
 
-        SGR.iter().filter_map(move |&(attr, sgr)| {
-            self.contains(attr).then_some(sgr)
-        })
+        SGR.iter()
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
     }
 
     /// Returns an iterator over the names of the attributes.
@@ -128,10 +130,12 @@ impl Attribute {
     /// assert_eq!(attrs.to_string(), "Bold | Italic");
     /// ```
     pub fn to_string(&self) -> Cow<str> {
-        self.names().map(|(str, attr)| str).intersperse(" | ").collect()
+        self.names()
+            .map(|(str, attr)| str)
+            .intersperse(" | ")
+            .collect()
     }
 }
-
 
 impl std::fmt::Debug for Attribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -139,9 +143,9 @@ impl std::fmt::Debug for Attribute {
             return f.write_str("Attribute::None");
         }
 
-        f.debug_tuple("Attribute").field(&from_fn(|f| {
-            f.write_str(&self.to_string())
-        })).finish()
+        f.debug_tuple("Attribute")
+            .field(&from_fn(|f| f.write_str(&self.to_string())))
+            .finish()
     }
 }
 
@@ -157,15 +161,14 @@ impl Escape for Attribute {
     }
 }
 
-
 pub type AttributeIter = Iter<Attribute>;
 pub type AttributeNames = IterNames<Attribute>;
 pub type AttributeVariants = IterDefinedNames<Attribute>;
 
 #[cfg(test)]
 mod tests {
-    use bitflags::Flags;
     use super::*;
+    use bitflags::Flags;
 
     #[test]
     fn empty_attributes() {
@@ -281,7 +284,6 @@ mod tests {
             assert!(sgr.contains(&"4")); // Underline
             assert_eq!(sgr.len(), 3);
         }
-
 
         #[test]
         fn sgr_frame_encircle_overline() {

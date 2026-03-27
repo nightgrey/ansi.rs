@@ -14,16 +14,11 @@ use crate::Escape;
 /// ## Parameters
 /// - `Pd` are mode values from [`Mode`]
 /// [`RM`]: https://vt100.net/docs/vt510-rm/SM.html
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    PartialEq
-)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
 pub struct SetMode<M = Mode>(pub M);
 
-impl<M> const SetMode<M> {
+const impl<M> SetMode<M> {
     #[inline]
     pub fn value(&self) -> &M {
         &self.0
@@ -52,7 +47,6 @@ impl Escape for SetMode<DecMode> {
 }
 
 pub type SM<M = Mode> = SetMode<M>;
-
 
 /// [RM] - Reset Mode
 ///
@@ -84,16 +78,11 @@ pub type SM<M = Mode> = SetMode<M>;
 /// See the Report Mode (DECRPM) section in this chapter for details.
 ///
 /// [`RM`]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    PartialEq,
-)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
 pub struct ResetMode<M = Mode>(pub M);
 
-impl<M> const ResetMode<M> {
+const impl<M> ResetMode<M> {
     #[inline]
     pub fn value(&self) -> &M {
         &self.0
@@ -150,12 +139,7 @@ pub type RM<M = Mode> = ResetMode<M>;
 /// changed them.
 ///
 /// [`DECRPM`]: https://vt100.net/docs/vt510-rm/DECRPM.html
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    PartialEq,
-)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ReportMode<M = Mode> {
     pub mode: M,
     pub setting: ModeSetting,
@@ -183,5 +167,3 @@ impl Escape for ReportMode<DecMode> {
 }
 
 pub type DECRPM<M = Mode> = ReportMode<M>;
-
-

@@ -1,4 +1,4 @@
-use crate::{Area, Edges, Point, Rect, Size};
+use crate::{Edges, Point, Rect, Size};
 
 pub trait Func<T, U> {
     type Output;
@@ -15,7 +15,10 @@ impl<T, U> Func<T, U> for Rect<T> {
     where
         F: Fn(T) -> U,
     {
-        Rect { min: f(self.min), max: f(self.max) }
+        Rect {
+            min: f(self.min),
+            max: f(self.max),
+        }
     }
 }
 
@@ -26,7 +29,10 @@ impl<T, U> Func<T, U> for Size<T> {
     where
         F: Fn(T) -> U,
     {
-        Size { width: f(self.width), height: f(self.height) }
+        Size {
+            width: f(self.width),
+            height: f(self.height),
+        }
     }
 }
 
@@ -37,7 +43,10 @@ impl<T, U> Func<T, U> for Point<T> {
     where
         F: Fn(T) -> U,
     {
-        Point { x: f(self.x), y: f(self.y) }
+        Point {
+            x: f(self.x),
+            y: f(self.y),
+        }
     }
 }
 
@@ -48,6 +57,11 @@ impl<T, U> Func<T, U> for Edges<T> {
     where
         F: Fn(T) -> U,
     {
-        Edges { top: f(self.top), right: f(self.right), bottom: f(self.bottom), left: f(self.left) }
+        Edges {
+            top: f(self.top),
+            right: f(self.right),
+            bottom: f(self.bottom),
+            left: f(self.left),
+        }
     }
 }

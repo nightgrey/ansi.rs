@@ -1,6 +1,6 @@
+use super::position::Position;
 use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
 use synonym::Synonym;
-use crate::Position;
 
 /// A row in buffer coordinates.
 #[derive_const(Synonym)]

@@ -1,8 +1,8 @@
+use super::Tree;
 use super::iter::*;
-use super::{Tree};
+use crate::Id;
 use derive_more::{Deref, DerefMut};
 use std::ops::{Deref, DerefMut};
-use crate::Id;
 
 /// A tree node that stores a value alongside embedded structural links.
 ///
@@ -79,7 +79,6 @@ impl<K: Id, V: PartialEq> PartialEq<V> for Node<K, V> {
     }
 }
 
-
 impl<K: Id, V: PartialEq> PartialEq<&V> for Node<K, V> {
     fn eq(&self, other: &&V) -> bool {
         &&self.inner == other
@@ -97,7 +96,6 @@ impl<K: Id, V: PartialEq> AsMut<V> for Node<K, V> {
         &mut self.inner
     }
 }
-
 
 /// An immutable reference to a node within a [`Tree`].
 ///

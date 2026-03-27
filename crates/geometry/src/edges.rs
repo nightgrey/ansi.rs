@@ -1,3 +1,4 @@
+use crate::Zero;
 use std::ops::Add;
 
 /// Edge insets for padding or margins.
@@ -29,13 +30,8 @@ pub struct Edges<T = usize> {
     pub left: T,
 }
 
-impl Edges {
-    pub const ZERO: Self = Self {
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-    };
+impl<T: Zero> Edges<T> {
+    pub const ZERO: Self = Self::new(T::ZERO, T::ZERO, T::ZERO, T::ZERO);
 }
 
 impl<T> Edges<T> {
@@ -75,7 +71,10 @@ impl<T> Edges<T> {
     /// assert_eq!(edges.top, 1);
     /// assert_eq!(edges.bottom, 1);
     /// ```
-    pub const fn sides(x: T, y: T) -> Self where T: Copy {
+    pub const fn sides(x: T, y: T) -> Self
+    where
+        T: Copy,
+    {
         Self {
             top: y,
             right: x,
@@ -94,7 +93,10 @@ impl<T> Edges<T> {
     /// assert_eq!(edges.horizontal(), 4);
     /// assert_eq!(edges.vertical(), 4);
     /// ```
-    pub const fn all(n: T) -> Self where T: Copy {
+    pub const fn all(n: T) -> Self
+    where
+        T: Copy,
+    {
         Self {
             top: n,
             right: n,
@@ -112,7 +114,10 @@ impl<T> Edges<T> {
     /// let edges = Edges::new(1, 2, 1, 3);
     /// assert_eq!(edges.horizontal(), 5);  // 3 + 2
     /// ```
-    pub fn horizontal(&self) -> T where T: Copy + Add<Output = T> {
+    pub fn horizontal(&self) -> T
+    where
+        T: Copy + Add<Output = T>,
+    {
         self.left + self.right
     }
 
@@ -125,7 +130,10 @@ impl<T> Edges<T> {
     /// let edges = Edges::new(2, 1, 3, 1);
     /// assert_eq!(edges.vertical(), 5);  // 2 + 3
     /// ```
-    pub fn vertical(&self) -> T where T: Copy + Add<Output = T> {
+    pub fn vertical(&self) -> T
+    where
+        T: Copy + Add<Output = T>,
+    {
         self.top + self.bottom
     }
 }

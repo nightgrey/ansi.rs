@@ -46,19 +46,19 @@
 #![feature(bool_to_result)]
 #![feature(array_try_map)]
 
+mod at;
+mod error;
+mod id;
 #[macro_export]
 pub mod iter;
+pub mod layout;
 pub mod node;
 mod tree;
-pub mod layout;
-mod error;
-mod at;
-mod id;
 
-pub use node::*;
-pub use tree::*;
-pub use layout::*;
-pub use error::*;
 pub use at::*;
+pub use error::*;
 pub use id::*;
 pub use iter::*;
+pub use layout::*;
+pub use node::*;
+pub use tree::*;

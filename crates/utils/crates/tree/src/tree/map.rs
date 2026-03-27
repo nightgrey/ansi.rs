@@ -1,4 +1,4 @@
-use crate::{Id};
+use crate::Id;
 use derive_more::{Deref, DerefMut, Index, IndexMut, IntoIterator};
 
 #[derive(Debug, Deref, DerefMut, Index, IndexMut, IntoIterator)]

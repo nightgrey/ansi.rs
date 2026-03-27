@@ -1,10 +1,10 @@
-use std::fmt::Debug;
-use crate::{Id, Node, iter::*, Error, At};
+use crate::{At, Error, Id, Node, iter::*};
 use crate::{NodeRef, NodeRefMut};
 use derive_more::{Index, IndexMut, IntoIterator};
+use smallvec::SmallVec;
+use std::fmt::Debug;
 use std::iter::FusedIterator;
 use std::ops::Deref;
-use smallvec::SmallVec;
 
 /// An arena-allocated tree with O(1) node access and linked-list child ordering.
 ///
@@ -27,7 +27,7 @@ use smallvec::SmallVec;
 ///
 /// Rich iterators are available for children, ancestors, descendants,
 /// siblings, and full pre-/post-order traversal.
-#[derive( Index, IndexMut, IntoIterator)]
+#[derive(Index, IndexMut, IntoIterator)]
 #[into_iterator(owned, ref, ref_mut)]
 #[repr(transparent)]
 pub struct Tree<K: Id, V> {
@@ -37,12 +37,14 @@ pub struct Tree<K: Id, V> {
 impl<K: Id, V> Tree<K, V> {
     /// Creates a new tree with a default capacity of 16 nodes.
     pub fn new() -> Self {
-       Self::with_capacity(16)
+        Self::with_capacity(16)
     }
 
     /// Creates a new tree pre-allocated for `capacity` nodes.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { inner: slotmap::SlotMap::with_capacity_and_key(capacity) }
+        Self {
+            inner: slotmap::SlotMap::with_capacity_and_key(capacity),
+        }
     }
 
     /// Returns `true` if a node with the given key exists in the tree.
@@ -107,8 +109,8 @@ impl<K: Id, V> Tree<K, V> {
             At::Before(id) => {
                 self.ensure_exists(id)?;
                 if id == id {
-                   Ok(())
-                }  else {
+                    Ok(())
+                } else {
                     let parent = self.inner[id].parent();
                     if parent.is_null() {
                         Err(Error::NoParent(id))
@@ -149,13 +151,9 @@ impl<K: Id, V> Tree<K, V> {
     ///
     /// Panics on missing nodes or cycles. See
     /// [`try_insert_at_with_children`](Self::try_insert_at_with_children).
-    pub fn insert_at_with_children(
-        &mut self,
-        value: V,
-        children: &[K],
-        at: At<K>,
-    ) -> K {
-        self.try_insert_at_with_children(value, children, at).unwrap()
+    pub fn insert_at_with_children(&mut self, value: V, children: &[K], at: At<K>) -> K {
+        self.try_insert_at_with_children(value, children, at)
+            .unwrap()
     }
 
     /// Fallible version of [`insert_at_with_children`](Self::insert_at_with_children).
@@ -308,17 +306,15 @@ impl<K: Id, V> Tree<K, V> {
         if !self.contains(id) {
             return None;
         }
-        
 
         // Detach root of subtree from parent first.
         let _ = self.detach(id);
 
         // Remove itself and all descendants
-        let mut elements = self
-            .descendants(id).collect::<SmallVec<_, _>>();
-        
+        let mut elements = self.descendants(id).collect::<SmallVec<_, _>>();
+
         elements.push(id);
-            
+
         for &k in &elements {
             self.inner.remove(k);
         }
@@ -355,7 +351,9 @@ impl<K: Id, V> Tree<K, V> {
 
     /// Returns `true` if the node has no children.
     pub fn is_leaf(&self, id: K) -> bool {
-        self.inner.get(id).map_or(true, |n| n.first_child().is_none())
+        self.inner
+            .get(id)
+            .map_or(true, |n| n.first_child().is_none())
     }
 
     /// Returns `true` if the node has no parent.
@@ -366,51 +364,81 @@ impl<K: Id, V> Tree<K, V> {
     // --- Capacity & bulk operations ----------------------------------------
 
     /// Returns the number of nodes in the tree.
-    pub fn len(&self) -> usize { self.inner.len() }
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
 
     /// Returns `true` if the tree contains no nodes.
-    pub fn is_empty(&self) -> bool { self.inner.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 
     // --- Iteration ---------------------------------------------------------
 
     /// Iterates over all `(key, node)` pairs in insertion order.
-    pub fn iter(&self) -> Iter<'_, K, Node<K, V>> { self.inner.iter() }
+    pub fn iter(&self) -> Iter<'_, K, Node<K, V>> {
+        self.inner.iter()
+    }
 
     /// Mutably iterates over all `(key, node)` pairs.
-    pub fn iter_mut(&mut self) -> IterMut<'_, K, Node<K, V>> { self.inner.iter_mut() }
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, Node<K, V>> {
+        self.inner.iter_mut()
+    }
 
     /// Iterates over all keys in insertion order.
-    pub fn keys(&self) -> Keys<'_, K, Node<K, V>> { self.inner.keys() }
+    pub fn keys(&self) -> Keys<'_, K, Node<K, V>> {
+        self.inner.keys()
+    }
 
     /// Iterates over all nodes (values) in insertion order.
-    pub fn nodes(&self) -> Nodes<'_, K, Node<K, V>> { self.inner.values() }
+    pub fn nodes(&self) -> Nodes<'_, K, Node<K, V>> {
+        self.inner.values()
+    }
 
     /// Mutably iterates over all nodes.
-    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, Node<K, V>> { self.inner.values_mut() }
+    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, Node<K, V>> {
+        self.inner.values_mut()
+    }
 
     /// Returns a double-ended iterator over the direct children of a node.
-    pub fn children(&self, id: K) -> Children<'_, K, V> { Children::new(self, id) }
+    pub fn children(&self, id: K) -> Children<'_, K, V> {
+        Children::new(self, id)
+    }
 
     /// Returns an iterator over all descendants in pre-order (depth-first).
-    pub fn descendants(&self, id: K) -> Descendants<'_, K, V> { Descendants::new(self, id) }
+    pub fn descendants(&self, id: K) -> Descendants<'_, K, V> {
+        Descendants::new(self, id)
+    }
 
     /// Returns an iterator that walks upward through the node's ancestors.
-    pub fn ancestors(&self, id: K) -> Ancestors<'_, K, V> { Ancestors::new(self, id) }
+    pub fn ancestors(&self, id: K) -> Ancestors<'_, K, V> {
+        Ancestors::new(self, id)
+    }
 
     /// Returns an iterator over this node, its preceding siblings, then ancestors.
-    pub fn predecessors(&self, id: K) -> Predecessors<'_, K, V> { Predecessors::new(self, id) }
+    pub fn predecessors(&self, id: K) -> Predecessors<'_, K, V> {
+        Predecessors::new(self, id)
+    }
 
     /// Returns a double-ended iterator over the node and its following siblings.
-    pub fn following_siblings(&self, id: K) -> FollowingSiblings<'_, K, V> { FollowingSiblings::new(self, id) }
+    pub fn following_siblings(&self, id: K) -> FollowingSiblings<'_, K, V> {
+        FollowingSiblings::new(self, id)
+    }
 
     /// Returns a double-ended iterator over the node and its preceding siblings.
-    pub fn preceding_siblings(&self, id: K) -> PrecedingSiblings<'_, K, V> { PrecedingSiblings::new(self, id) }
+    pub fn preceding_siblings(&self, id: K) -> PrecedingSiblings<'_, K, V> {
+        PrecedingSiblings::new(self, id)
+    }
 
     /// Returns a pre-order traversal iterator yielding [`NodeEdge`] events.
-    pub fn traverse(&self, id: K) -> Traverse<'_, K, V> { Traverse::new(self, id) }
+    pub fn traverse(&self, id: K) -> Traverse<'_, K, V> {
+        Traverse::new(self, id)
+    }
 
     /// Returns a reverse (post-order) traversal iterator yielding [`NodeEdge`] events.
-    pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> { ReverseTraverse::new(self, id) }
+    pub fn reverse_traverse(&self, id: K) -> ReverseTraverse<'_, K, V> {
+        ReverseTraverse::new(self, id)
+    }
 
     /// Removes all nodes from the tree, yielding them as `(key, node)` pairs.
     pub fn drain(&mut self) -> Drain<K, Node<K, V>> {
@@ -430,7 +458,10 @@ impl<K: Id, V> Tree<K, V> {
 
     fn ensure_no_cycle(&self, node: K, target_parent: K) -> Result<(), Error<K>> {
         if node == target_parent || self.is_ancestor(node, target_parent) {
-            Err(Error::Cycle { node, target: target_parent })
+            Err(Error::Cycle {
+                node,
+                target: target_parent,
+            })
         } else {
             Ok(())
         }
@@ -631,7 +662,10 @@ mod tests {
         let x = tree.insert_at("x", At::Before(b));
         let y = tree.insert_at("y", At::After(b));
 
-        let kids: Vec<_> = tree.children(root).map(|id| tree[id].inner().clone()).collect();
+        let kids: Vec<_> = tree
+            .children(root)
+            .map(|id| tree[id].inner().clone())
+            .collect();
         assert_eq!(kids, vec!["a", "x", "b", "y", "c"]);
     }
 
@@ -818,17 +852,7 @@ mod tests {
                 .map(|id| tree.get(id).unwrap())
                 .collect();
 
-            assert_eq!(
-                names,
-                vec![
-                    &"root",
-                    &"a",
-                    &"b",
-                    &"d",
-                    &"e",
-                    &"c"
-                ]
-            );
+            assert_eq!(names, vec![&"root", &"a", &"b", &"d", &"e", &"c"]);
         }
 
         #[test]

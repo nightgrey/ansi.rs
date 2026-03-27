@@ -6,13 +6,13 @@
 //! the neighbor is outside the current clip (the one exception to clip
 //! enforcement — required for correctness).
 
+use crate::{Buffer, Grapheme, GraphemeArena};
+use ansi::Style;
 use derive_more::{Deref, DerefMut, Index, IndexMut};
+use geometry::prelude::*;
+use geometry::{Point, Rect};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use ansi::Style;
-use geometry::{Point, Rect};
-use geometry::prelude::*;
-use crate::{Buffer, Grapheme, GraphemeArena};
 
 // ---------------------------------------------------------------------------
 // Painter
@@ -102,41 +102,32 @@ impl<'a> Painter<'a> {
     ///
     /// **Clip exception**: the paired half of a broken wide glyph is cleared
     /// even when that neighbor is outside the current clip.
-    fn write_grapheme(
-        &mut self,
-        row: usize,
-        col: usize,
-        grapheme: Grapheme,
-        style: Style,
-    ) -> bool {
-        if col >= self.width || row >= self.height {
-            return false;
-        }
-        if !self.contains(row as i32, col as i32) {
+    fn write_grapheme(&mut self, row: usize, col: usize, grapheme: Grapheme, style: Style) -> bool {
+        if col >= self.width || row >= self.height && col <= 0 || row <= 0 {
             return false;
         }
 
         // If target is a continuation cell, its lead (col-1) is now orphaned.
-        if self[(row, col)].is_continuation() {
+        if self.buffer[(row, col)].is_continuation() {
             if col > 0 {
-                self[(row, col - 1)].set_space(style);
+                // self.buffer[(row, col - 1)].set_space().set_style(style);
             }
         }
 
         // If target is a wide lead, its continuation (col+1) is now orphaned.
-        if self[(row, col)].is_wide() {
+        if self.buffer[(row, col)].is_wide() {
             if col + 1 < self.width {
-                self[(row, col + 1)].set_space(style);
+                // self.buffer[(row, col + 1)].set_space().set_style(style);
             }
         }
 
         // If *next* cell is a continuation whose lead we're about to erase,
         // clear it too.
-        if col + 1 < self.width && self[(row, col + 1)].is_continuation() {
-            self[(row, col + 1)].set_space(style);
+        if col + 1 < self.width && self.buffer[(row, col + 1)].is_continuation() {
+            // self.buffer[(row, col + 1)].set_space().set_style(style);
         }
 
-        self[(row, col)].set(grapheme, 1, style);
+        // self.buffer[(row, col)].replace_grapheme(grapheme, 1).set_style(style);
         true
     }
 
@@ -164,8 +155,8 @@ impl<'a> Painter<'a> {
         }
 
         // Now install the wide pair.
-        self[(row, col)].set(grapheme, 2, style);
-        self[(row, col + 1)].set_continuation(style);
+        // self[(row, col)].replace_grapheme(grapheme, 2).set_style(style);
+        // self[(row, col + 1)].set_continuation().set_style(style);
         true
     }
 
@@ -176,14 +167,7 @@ impl<'a> Painter<'a> {
     /// **Replacement policy** (deterministic, never produces half-glyphs):
     /// - `width == 2` but only one cell fits → replaced with `U+FFFD` (width 1)
     /// - grapheme bytes exceed inline capacity and arena stash fails → `U+FFFD`
-    pub fn put(
-        &mut self,
-        row: i32,
-        col: i32,
-        grapheme: Grapheme,
-        width: u8,
-        style: Style,
-    ) {
+    pub fn put(&mut self, row: i32, col: i32, grapheme: Grapheme, width: u8, style: Style) {
         if col < 0 || row < 0 {
             return;
         }
@@ -208,9 +192,7 @@ impl<'a> Painter<'a> {
 
     /// Fill `rect` with spaces in the given style.
     pub fn fill(&mut self, rect: Rect, style: Style) {
-        let effective = self.bounds()
-            .intersect(&self.clip())
-            .intersect(&rect);
+        let effective = self.bounds().intersect(&self.clip()).intersect(&rect);
         if effective.is_empty() {
             return;
         }
@@ -228,7 +210,14 @@ impl<'a> Painter<'a> {
     ///
     /// Cursor advance is **stable**: clipping affects what's drawn, not how
     /// far the cursor moves. This keeps layout deterministic.
-    pub fn text(&mut self, row: i32, col: i32, text: &str, style: Style, arena: &mut GraphemeArena) {
+    pub fn text(
+        &mut self,
+        row: i32,
+        col: i32,
+        text: &str,
+        style: Style,
+        arena: &mut GraphemeArena,
+    ) {
         if row < 0 || text.is_empty() {
             return;
         }
@@ -243,7 +232,7 @@ impl<'a> Painter<'a> {
                 continue;
             }
 
-            let grapheme = Grapheme::encode(cluster, arena);
+            let grapheme = Grapheme::extended(cluster, arena);
 
             if width == 2 {
                 // Wide: need both cells touchable, else replace.
@@ -277,7 +266,7 @@ impl<'a> Painter<'a> {
         if len <= 0 {
             return;
         }
-        let g = Grapheme::from_char(ch);
+        let g = Grapheme::char(ch);
         for i in 0..len {
             self.put(row, col.saturating_add(i), g, 1, style);
         }
@@ -288,7 +277,7 @@ impl<'a> Painter<'a> {
         if len <= 0 {
             return;
         }
-        let g = Grapheme::from_char(ch);
+        let g = Grapheme::char(ch);
         for i in 0..len {
             self.put(row.saturating_add(i), col, g, 1, style);
         }
@@ -307,7 +296,7 @@ impl<'a> Painter<'a> {
         );
 
         if w == 1 && h == 1 {
-            self.put(y, x, Grapheme::from_char('+'), 1, style);
+            self.put(y, x, Grapheme::char('+'), 1, style);
             return;
         }
 
@@ -315,7 +304,7 @@ impl<'a> Painter<'a> {
         let bottom = y + h - 1;
 
         // Corners
-        let corner = Grapheme::from_char('+');
+        let corner = Grapheme::char('+');
         self.put(y, x, corner, 1, style);
         self.put(y, right, corner, 1, style);
         self.put(bottom, x, corner, 1, style);
@@ -381,7 +370,13 @@ impl<'a> Painter<'a> {
                     let repl = Grapheme::REPLACEMENT_CHARACTER;
                     self.put(dy as i32, dx as i32, repl, 1, *cell.style());
                 } else {
-                    self.put(dy as i32, dx as i32, cell.grapheme(), cell.width(), *cell.style());
+                    self.put(
+                        dy as i32,
+                        dx as i32,
+                        cell.grapheme(),
+                        cell.width(),
+                        *cell.style(),
+                    );
                 }
             }
         }
@@ -389,12 +384,7 @@ impl<'a> Painter<'a> {
 }
 
 /// Compute forward/reverse iteration ranges for overlap-safe copy.
-fn blit_order(
-    dst: Rect,
-    src: Rect,
-    w: usize,
-    h: usize,
-) -> (IterRange, IterRange) {
+fn blit_order(dst: Rect, src: Rect, w: usize, h: usize) -> (IterRange, IterRange) {
     let y_range = if dst.top() > src.top() {
         IterRange::reverse(h)
     } else {

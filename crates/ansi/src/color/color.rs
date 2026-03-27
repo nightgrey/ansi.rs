@@ -1,10 +1,12 @@
-use std::fmt::Debug;
 use crate::{ColorSpace, Escape};
-use std::io::Write;
-use std::marker::Destruct;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use bilge::prelude::*;
 use etwa::Maybe;
+use std::fmt::Debug;
+use std::io::Write;
+use std::marker::Destruct;
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
+};
 
 #[derive_const(Default, Clone, Eq, PartialEq)]
 #[derive(Copy, Maybe)]
@@ -75,6 +77,43 @@ impl Color {
     }
 }
 
+impl From<u32> for Color {
+    fn from(value: u32) -> Self {
+        let (r, g, b) = ((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+        Color::Rgb(r as u8, g as u8, b as u8)
+    }
+}
+
+impl From<(u8, u8, u8)> for Color {
+    fn from(value: (u8, u8, u8)) -> Self {
+        Color::Rgb(value.0, value.1, value.2)
+    }
+}
+
+impl From<u8> for Color {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Color::Black,
+            1 => Color::Red,
+            2 => Color::Green,
+            3 => Color::Yellow,
+            4 => Color::Blue,
+            5 => Color::Magenta,
+            6 => Color::Cyan,
+            7 => Color::White,
+            8 => Color::BrightBlack,
+            9 => Color::BrightRed,
+            10 => Color::BrightGreen,
+            11 => Color::BrightYellow,
+            12 => Color::BrightBlue,
+            13 => Color::BrightMagenta,
+            14 => Color::BrightCyan,
+            15 => Color::BrightWhite,
+            16..=255 => Color::Index(value),
+        }
+    }
+}
+
 impl Debug for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -96,7 +135,12 @@ impl Debug for Color {
             Color::BrightCyan => f.write_str("Color::BrightCyan"),
             Color::BrightWhite => f.write_str("Color::BrightWhite"),
             Color::Index(i) => f.debug_tuple("Color::Index").field(i).finish(),
-            Color::Rgb(r, g, b) => f.debug_tuple("Color::Rgb").field(r).field(g).field(b).finish(),
+            Color::Rgb(r, g, b) => f
+                .debug_tuple("Color::Rgb")
+                .field(r)
+                .field(g)
+                .field(b)
+                .finish(),
         }
     }
 }
@@ -157,7 +201,7 @@ impl const Sub for Color {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        self &! rhs
+        self & !rhs
     }
 }
 
@@ -181,13 +225,11 @@ mod tests {
 
     #[test]
     fn test_bitand() {
-        for (lhs, rhs, expected) in  [
+        for (lhs, rhs, expected) in [
             (Color::None, Color::Black, Color::None),
             (Color::None, Color::None, Color::None),
-
             (Color::Black, Color::None, Color::None),
             (Color::Black, Color::Black, Color::Black),
-
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::None),
         ] {
@@ -197,13 +239,11 @@ mod tests {
 
     #[test]
     fn test_bitor() {
-        for (lhs, rhs, expected) in  [
+        for (lhs, rhs, expected) in [
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::Black),
-
             (Color::Black, Color::None, Color::Black),
             (Color::Black, Color::Black, Color::Black),
-
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::Black),
         ] {
@@ -213,13 +253,11 @@ mod tests {
 
     #[test]
     fn test_bitxor() {
-        for (lhs, rhs, expected) in  [
+        for (lhs, rhs, expected) in [
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::Black),
-
             (Color::Black, Color::None, Color::Black),
             (Color::Black, Color::Black, Color::None),
-
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::Black),
         ] {
@@ -237,5 +275,4 @@ mod tests {
             assert_eq!(value.not(), expected, "{:?}", value);
         }
     }
-
 }

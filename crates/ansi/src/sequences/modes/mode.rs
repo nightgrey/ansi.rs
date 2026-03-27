@@ -1,6 +1,6 @@
+use crate::{ResetMode, SetMode};
 use std::fmt;
 use std::fmt::{Display, Write};
-use crate::{ResetMode, SetMode};
 
 /// Mode
 ///
@@ -10,7 +10,6 @@ pub enum Mode {
     Ansi(AnsiMode),
     Dec(DecMode),
 }
-
 
 /// Mode Setting
 ///
@@ -439,7 +438,6 @@ pub enum DecMode {
     /// - https://github.com/contour-terminal/vt-extensions/blob/master/synchronized-output.md
     SynchronizedOutput = 2026,
 }
-
 
 impl From<DecMode> for Mode {
     fn from(mode: DecMode) -> Self {

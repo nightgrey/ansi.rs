@@ -1,12 +1,14 @@
 use std::borrow::Cow;
-use std::io;
+use std::io::{self, Write as _};
+use ansi::io::{Write as _};
 use bon::__::ide::builder_top_level::start_fn::doc;
-use ansi::{Color, Style};
+use ansi::{Color, EraseDisplay, EraseDisplayToEnd, Home, Style, SGR};
+use ansi::ModeSetting::Reset;
 use gloss::*;
 use sigil::{ Buffer, GraphemeArena, Rasterizer};
 use tree::At;
 
-fn main() {
+fn main() -> io::Result<()> {
     let mut document = Document::new();
 
     let root = document.node_mut(document.root);
@@ -46,10 +48,12 @@ fn main() {
 
     let mut renderer = Renderer::new(BufferRenderingContext::new(&mut buffer, &mut arena));
 
-    renderer.render(&document).unwrap();
-    rasterizer.raster(&buffer, &arena).unwrap();
-    rasterizer.flush(&mut io::stdout()).unwrap();
+    let mut stdout = io::stdout();
 
-    document.print_layout();
+    renderer.render(&document)?;
+    rasterizer.raster(&buffer, &arena)?;
+    rasterizer.flush(&mut stdout)?;
 
+    dbg!(buffer);
+    Ok(())
 }

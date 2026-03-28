@@ -9,7 +9,8 @@ use crate::Available;
 pub struct Edges(geometry::Edges<Dimension>);
 
 impl Edges {
-    pub const Auto: Self = Self::all(Dimension::Auto);
+    pub const AUTO: Self = Self::all(Dimension::Auto);
+    pub const ZERO: Self = Self::all(Dimension::Length(0));
 }
 
 impl Edges {
@@ -139,7 +140,8 @@ impl Into<taffy::Size<taffy::AvailableSpace>> for Space {
 #[repr(transparent)]
 pub struct Gap(geometry::Axis<Dimension>);
 impl Gap {
-    pub const Auto: Self = Self(Axis::new(Dimension::Auto, Dimension::Auto));
+    pub const ZERO: Self = Self(Axis::new(Dimension::Length(0), Dimension::Length(0)));
+    pub const AUTO: Self = Self(Axis::new(Dimension::Auto, Dimension::Auto));
 
     pub const fn new(horizontal: impl [const] Into<Dimension>, vertical: impl [const] Into<Dimension>) -> Self {
         Self(Axis::new(horizontal.into(), vertical.into()))

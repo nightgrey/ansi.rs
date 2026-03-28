@@ -126,7 +126,6 @@ impl Rasterizer {
         if !self.output.is_empty() {
             out.write_all(&self.output)?;
             self.output.clear();
-            out.escape(SGR::Reset)?;
         }
         out.flush()
     }
@@ -163,17 +162,17 @@ impl Rasterizer {
     }
 
     /// Returns the last output as bytes.
-    /// 
+    ///
     /// For testing and debugging.
     pub fn as_bytes(&self) -> &[u8] {
         &self.output
     }
 
     /// Returns the last output as a string.
-    /// 
+    ///
     /// For testing and debugging.
-    pub fn as_str(&self) -> Cow<str> {
-        String::from_utf8_lossy(self.as_bytes())
+    pub fn as_str(&self) -> &str {
+       unsafe { str::from_utf8_unchecked(&self.output) }
     }
 
     /// Clear the output buffer without flushing.

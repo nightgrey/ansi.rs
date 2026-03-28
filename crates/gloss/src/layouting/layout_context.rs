@@ -1,12 +1,11 @@
 use crate::{Border, Display, FlexDirection, LayoutNode, Node, NodeId, NodeKind, Space, Style};
-use taffy::TraversePartialTree;
 use tree::{Bridge, Id, Secondary, Tree};
 use compact_str::CompactString;
-
+use taffy::{TraversePartialTree};
 /// Layout context that holds the tree itself along with a reference to the context.
 /// It implements taffy's layout traits and allows for layout computation.
 #[derive(Debug)]
-pub struct LayoutContext<'a, 'b, MeasureFunction>
+pub struct LayoutContext<'d, 'n, MeasureFunction>
 where
     MeasureFunction: FnMut(
         taffy::Size<Option<f32>>,
@@ -16,8 +15,8 @@ where
         &Style,
     ) -> taffy::Size<f32>,
 {
-    pub tree: &'a mut Tree<NodeId, Node<'b>>,
-    pub layouts: &'a mut Secondary<NodeId, LayoutNode>,
+    pub tree: &'d mut Tree<NodeId, Node<'n>>,
+    pub layouts: &'d mut Secondary<NodeId, LayoutNode>,
     pub measure_function: MeasureFunction,
 }
 
@@ -174,7 +173,7 @@ where
             let style = &node.style.clone();
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
-            match (style.display(), has_children) {
+            match (style.get_display(), has_children) {
                 (Display::None, _) => taffy::compute_hidden_layout(ctx, node_id),
                 (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs),
                 (Display::Flex, true) => taffy::compute_flexbox_layout(ctx, node_id, inputs),
@@ -356,7 +355,7 @@ where
         let num_children = self.child_count(node_id);
 
 
-        match (num_children, layout.display()) {
+        match (num_children, layout.get_display()) {
             (_, Display::None) => "None",
             (0, _) =>
                 match &self.element(node_id).kind {
@@ -364,7 +363,7 @@ where
                     NodeKind::Span(_) => "Node::Span"
                 },
             (_, Display::Block) => "Block",
-            (_, Display::Flex) => match layout.flex_direction() {
+            (_, Display::Flex) => match layout.get_flex_direction() {
                 FlexDirection::Row | FlexDirection::RowReverse => "Flex Row",
                 FlexDirection::Column | FlexDirection::ColumnReverse => "Flex Col",
             },

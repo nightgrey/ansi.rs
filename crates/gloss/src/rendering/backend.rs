@@ -1,7 +1,6 @@
-use crate::{Document, FontStyle, FontWeight, NodeId, NodeKind, Style};
-use derive_more::{AsMut, AsRef, Deref, DerefMut};
+use crate::{Style};
 use etwa::Maybe;
-use geometry::{Bounded, Intersect, Point, Rect, Size};
+use geometry::{Bounded, Point, Rect, Size};
 
 pub trait Backend {
     type Error;
@@ -10,7 +9,7 @@ pub trait Backend {
     fn stroke(&mut self, bounds: Rect, style: Style);
 
     fn clear(&mut self, bounds: Rect) {
-        self.fill(bounds, Style::Default, ' ');
+        self.fill(bounds, Style::DEFAULT, ' ');
     }
 
     /// Fill an area with a style.
@@ -60,7 +59,7 @@ pub trait Backend {
     ///
     /// [`restore`]: Backend::restore
     /// [`save`]: Backend::save
-    fn with_state(
+    fn with(
         &mut self,
         f: impl FnOnce(&mut Self) -> Result<(), Self::Error>,
     ) -> Result<(), Self::Error> {
@@ -68,70 +67,9 @@ pub trait Backend {
         f(self).and(self.restore())
     }
 
-    /// Do graphics operations within a clipped region.
-    ///
-    /// The closure sees (0,0) as `rect.top_left` and is clipped to it.
-    fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self) -> Result<(), Self::Error>) -> Result<(), Self::Error> {
-        self.save()?;
-        self.translate(rect.min)?;
-        self.clip(Rect::from(rect.size()))?;
-        let result = f(self);
-        self.restore()?;
-        result
-    }
-
     /// Resize the canvas, if necessary.
     fn resize(&mut self, size: Size) -> Result<(), Self::Error>;
 
     /// Finish any pending operations.
     fn finish(&mut self) -> Result<(), Self::Error>;
-}
-
-#[derive(Default, Deref, DerefMut, AsRef, AsMut)]
-pub struct Renderer<B: Backend>(pub B);
-
-impl<B: Backend> Renderer<B> {
-    pub fn new(backend: B) -> Self {
-        Self(backend)
-    }
-
-    pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
-        self.resize(doc.size(doc.root))?;
-        self.render_node(doc, doc.root, crate::Style::Default)?;
-        self.finish()
-    }
-
-    fn render_node(
-        &mut self,
-        doc: &Document<'_>,
-        id: NodeId,
-        inherited: Style,
-    ) -> Result<(), B::Error> {
-        let mut node = doc.node(id);
-        let bounds = doc.bounds(id);
-        let content_bounds = doc.content_bounds(id);
-        let style = node.style.inherit_from(inherited);
-
-
-        if style.background_color().is_some() { self.fill_style(content_bounds.clone(), style) }
-        if style.border().is_some() { self.stroke(bounds, style) }
-
-            // Leaf text.
-            match &node.kind {
-                NodeKind::Span(text) => {
-                        // MVP: left-aligned only in actual paint pass.
-                        // Center/right can be added once line layout is shared with measurement.
-                        self.draw_text(content_bounds.min, text, style);
-                }
-                _ => {}
-            }
-
-        for child in doc.children(id) {
-            self.render_node(doc, child, style)?;
-        }
-        
-        self.finish()?;
-
-        Ok(())
-    }
 }

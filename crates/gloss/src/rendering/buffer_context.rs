@@ -1,10 +1,9 @@
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
-use ansi::{Color, Style as AnsiStyle};
 use geometry::{Bounded, Contains, ContextualResolve, Intersect, Outer, Point, Ranges, Rect, Sides, Size, Translate};
-use sigil::{Buffer, Cell, Grapheme, GraphemeArena};
+use sigil::{Buffer, Cell, GraphemeArena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{Style as GlossStyle, Border, Backend};
+use crate::{Style, Border, Backend, Renderer};
 use crate::symbols::Symbol;
 
 /// Snapshot of all context state, pushed/popped via save/restore.
@@ -12,7 +11,7 @@ use crate::symbols::Symbol;
 pub struct ContextState {
     clip: Rect,
     origin: Point,
-    style: AnsiStyle,
+    style: ansi::Style,
     border: Border,
     fill: char,
 }
@@ -22,29 +21,29 @@ pub struct ContextState {
 /// Modeled after HTML Canvas — mutable "current state" with a save/restore
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
-pub struct BufferRenderingContext<'a> {
+pub struct BufferRenderer<'a> {
     pub(crate) buffer: &'a mut Buffer,
     arena: &'a mut GraphemeArena,
     state: ContextState,
     stacks: Vec<ContextState>,
 }
 
-impl<'buf> BufferRenderingContext<'buf> {
+impl<'buf> BufferRenderer<'buf> {
     /// Create a new context spanning the full buffer.
-    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut GraphemeArena) -> Self {
+    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut GraphemeArena) -> Renderer<Self> {
         let clip = buffer.bounds(); // full buffer rect
-        Self {
+        Renderer(Self {
             buffer,
             arena,
             state: ContextState {
                 clip,
                 origin: Point::ZERO,
-                style: AnsiStyle::None,
+                style: ansi::Style::None,
                 border: Border::None,
                 fill: ' ',
             },
             stacks: Vec::new(),
-        }
+        })
     }
 
     /// Current clip
@@ -87,7 +86,7 @@ impl<'buf> BufferRenderingContext<'buf> {
         self
     }
 
-    pub fn fill(&mut self, rect: Rect, style: AnsiStyle, fill: char) -> &mut Self {
+    pub fn fill(&mut self, rect: Rect, style: ansi::Style, fill: char) -> &mut Self {
         self.fill_impl(rect, style, fill)
     }
 
@@ -95,17 +94,17 @@ impl<'buf> BufferRenderingContext<'buf> {
         self.fill_impl(rect, self.state.style, fill)
     }
 
-    pub fn stroke(&mut self, rect: Rect, style: AnsiStyle, border: Border) -> &mut Self {
+    pub fn stroke(&mut self, rect: Rect, style: ansi::Style, border: Border) -> &mut Self {
         self.stroke_impl(rect, style, border)
     }
 
-    pub fn draw_text(&mut self, text: &str, position: Point, style: AnsiStyle) -> usize {
+    pub fn draw_text(&mut self, text: &str, position: Point, style: ansi::Style) -> usize {
         self.draw_text_impl(text, position, style)
     }
 
     /// Reset a region to default cells.
     pub fn clear(&mut self, rect: Rect) -> &mut Self {
-        self.fill_impl(rect, AnsiStyle::default(), ' ')
+        self.fill_impl(rect, ansi::Style::default(), ' ')
     }
 
     /// Set a single cell at `pos` (local coords). Respects clip.
@@ -156,7 +155,7 @@ impl<'buf> BufferRenderingContext<'buf> {
         }
     }
 
-    fn fill_impl(&mut self, rect: Rect, style: AnsiStyle, ch: char) -> &mut Self {
+    fn fill_impl(&mut self, rect: Rect, style: ansi::Style, ch: char) -> &mut Self {
         if let Some(r) = self.clipped(rect) {
             for pos in &r {
                 let index: usize = self.buffer.bounds().resolve(pos);
@@ -167,7 +166,7 @@ impl<'buf> BufferRenderingContext<'buf> {
         self
     }
 
-    fn stroke_impl(&mut self, rect: Rect, style: AnsiStyle, border: Border) -> &mut Self {
+    fn stroke_impl(&mut self, rect: Rect, style: ansi::Style, border: Border) -> &mut Self {
         let  mut bounds = rect.clone().translate(&self.state.origin);
         let border = border.into_symbols();
 
@@ -208,7 +207,7 @@ impl<'buf> BufferRenderingContext<'buf> {
         self
     }
 
-    fn draw_text_impl(&mut self, text: &str, pos: Point, style: AnsiStyle) -> usize {
+    fn draw_text_impl(&mut self, text: &str, pos: Point, style: ansi::Style) -> usize {
         let mut col = 0usize;
         let abs_y = pos.y + self.state.origin.y;
         let abs_x_start = pos.x + self.state.origin.x;
@@ -241,22 +240,22 @@ impl<'buf> BufferRenderingContext<'buf> {
     }
 }
 
-impl<'a> Backend for BufferRenderingContext<'a> {
+impl<'a> Backend for BufferRenderer<'a> {
     type Error = io::Error;
 
-    fn stroke(&mut self, bounds: Rect, style: GlossStyle) {
-        BufferRenderingContext::stroke(self, bounds, style.into(), style.border());
+    fn stroke(&mut self, bounds: Rect, style: Style) {
+        BufferRenderer::stroke(self, bounds, style.into(), style.get_border());
     }
 
-    fn fill(&mut self, bounds: Rect, style: GlossStyle, char: char) {
-        BufferRenderingContext::fill(self, bounds, style.into(), char);
+    fn fill(&mut self, bounds: Rect, style: Style, char: char) {
+        BufferRenderer::fill(self, bounds, style.into(), char);
     }
 
     fn fill_char(&mut self, bounds: Rect, char: char) {
         self.fill(bounds, self.state.style, char);
     }
 
-    fn fill_style(&mut self, bounds: Rect, style: GlossStyle) {
+    fn fill_style(&mut self, bounds: Rect, style: Style) {
         if let Some(r) = self.clipped(bounds) {
             for pos in &r {
                 let index: usize = self.buffer.bounds().resolve(pos);
@@ -265,27 +264,27 @@ impl<'a> Backend for BufferRenderingContext<'a> {
         }
     }
 
-    fn draw_text(&mut self, position: Point, text: &str, style: GlossStyle) {
-        BufferRenderingContext::draw_text(self, text, position, style.into());
+    fn draw_text(&mut self, position: Point, text: &str, style: Style) {
+        BufferRenderer::draw_text(self, text, position, style.into());
     }
 
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error> {
-        BufferRenderingContext::clip(self, bounds);
+        BufferRenderer::clip(self, bounds);
         Ok(())
     }
 
     fn translate(&mut self, offset: Point) -> Result<(), Self::Error> {
-        BufferRenderingContext::translate(self, offset);
+        BufferRenderer::translate(self, offset);
         Ok(())
     }
 
     fn save(&mut self) -> Result<(), Self::Error> {
-        BufferRenderingContext::save(self);
+        BufferRenderer::save(self);
         Ok(())
     }
 
     fn restore(&mut self) -> Result<(), Self::Error> {
-        BufferRenderingContext::restore(self);
+        BufferRenderer::restore(self);
         Ok(())
     }
 

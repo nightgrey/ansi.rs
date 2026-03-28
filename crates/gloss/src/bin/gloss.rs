@@ -9,6 +9,8 @@ use sigil::{ Buffer, GraphemeArena, Rasterizer};
 use tree::At;
 
 fn main() -> io::Result<()> {
+    let mut stdout = io::stdout();
+
     let mut document = Document::new();
 
     let root = document.node_mut(document.root);
@@ -46,14 +48,13 @@ fn main() -> io::Result<()> {
 
     document.compute_layout(Space::new(buffer.width, buffer.height));
 
-    let mut renderer = Renderer::new(BufferRenderingContext::new(&mut buffer, &mut arena));
 
-    let mut stdout = io::stdout();
+    let mut renderer = BufferRenderer::new(&mut buffer, &mut arena);
 
     renderer.render(&document)?;
     rasterizer.raster(&buffer, &arena)?;
-    rasterizer.flush(&mut stdout)?;
+    dbg!(rasterizer.as_str());
+    rasterizer.write(&mut stdout)?;
 
-    dbg!(buffer);
     Ok(())
 }

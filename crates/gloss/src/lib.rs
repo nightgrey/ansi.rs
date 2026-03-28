@@ -4,16 +4,11 @@
 #![feature(const_convert)]
 #![feature(const_option_ops)]
 mod document;
-mod layout;
-mod layout_context;
-mod measure;
-mod render;
-mod context;
-pub mod symbols;
+mod style;
+mod rendering;
+pub mod layouting;
 
 pub use document::*;
-pub use layout::*;
-pub use layout_context::*;
-pub use measure::*;
-pub use render::*;
-pub use context::*;
+pub use style::*;
+pub use rendering::*;
+pub use layouting::*;

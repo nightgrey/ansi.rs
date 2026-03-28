@@ -35,6 +35,8 @@ pub enum Dimension {
 }
 
 impl Dimension {
+    pub const DEFAULT: Self = Self::Auto;
+    pub const ZERO: Self = Self::Length(0);
     pub const fn or(self, other: Self) -> Self {
         match (self, other) {
             (Self::Auto, x) => x,

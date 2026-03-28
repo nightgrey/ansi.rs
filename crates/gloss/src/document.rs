@@ -1,11 +1,10 @@
-use crate::layout_context::LayoutContext;
-use crate::measure::measure_node;
+use crate::LayoutContext;
+use crate::measure_node;
 use crate::{Available, Dimension, Space, Style};
 use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
-use geometry::{Edges, Point, Rect, Size};
+use geometry::{Point, Rect, Size};
 use std::borrow::Cow;
-use sigil::ElementId;
 use tree::{At, Secondary, Tree, id};
 
 id!(pub struct NodeId);
@@ -154,7 +153,7 @@ impl<'a> Document<'a> {
         self.nodes[id].style = style;
         self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
-
+    
     pub fn compute_layout(&mut self, space: Space) {
         match space.width {
             Available::Definite(w) => {

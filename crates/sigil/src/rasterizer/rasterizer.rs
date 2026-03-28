@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::Write as _;
 use ansi::escape;
 use ansi::io::Write;
@@ -125,6 +126,7 @@ impl Rasterizer {
         if !self.output.is_empty() {
             out.write_all(&self.output)?;
             self.output.clear();
+            out.escape(SGR::Reset)?;
         }
         out.flush()
     }
@@ -160,13 +162,18 @@ impl Rasterizer {
         self.invalidated = true;
     }
 
-    /// Access the internal output buffer (for testing).
-    pub fn output(&self) -> &[u8] {
+    /// Returns the last output as bytes.
+    /// 
+    /// For testing and debugging.
+    pub fn as_bytes(&self) -> &[u8] {
         &self.output
     }
 
-    pub fn debug_output(&self) -> &str {
-        self.output.as_str().unwrap()
+    /// Returns the last output as a string.
+    /// 
+    /// For testing and debugging.
+    pub fn as_str(&self) -> Cow<str> {
+        String::from_utf8_lossy(self.as_bytes())
     }
 
     /// Clear the output buffer without flushing.
@@ -422,7 +429,7 @@ mod tests {
         let mut r = Rasterizer::new(5, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(output.contains("\x1B["), "expected SGR sequence: {output}");
         assert!(output.contains('H'), "expected 'H': {output}");
         assert!(output.contains('i'), "expected 'i': {output}");
@@ -443,7 +450,7 @@ mod tests {
 
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             !output_str.contains('A'),
             "should not re-emit 'A': {output_str}"
@@ -479,7 +486,7 @@ mod tests {
 
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(output_str.contains('X'), "should emit 'X': {output_str}");
         assert!(
             !output_str.contains('A'),
@@ -502,7 +509,7 @@ mod tests {
         r.invalidate();
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("\x1B[2J"),
             "should contain ED2: {output_str}"
@@ -523,7 +530,7 @@ mod tests {
         let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'B', style)]);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("\x1B[2J"),
             "should contain ED2 after resize: {output_str}"
@@ -556,7 +563,7 @@ mod tests {
         let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("\x1B[K"),
             "should contain EL: {output_str}"
@@ -579,7 +586,7 @@ mod tests {
         let buf2 = Buffer::new(3, 1);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("\x1B[K"),
             "should contain EL when row cleared: {output_str}"
@@ -603,7 +610,7 @@ mod tests {
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             !output_str.contains("\x1B[K"),
             "should not contain EL: {output_str}"
@@ -619,7 +626,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             output.starts_with("\x1B[?2026h"),
             "should start with begin_sync: {output}"
@@ -636,7 +643,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             !output.contains("\x1B[?2026h"),
             "should not contain begin_sync: {output}"
@@ -658,7 +665,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         let sgr_count = output_str.matches("\x1B[38;2;").count();
         assert_eq!(sgr_count, 1, "should emit SGR only once: {output_str}");
     }
@@ -676,7 +683,7 @@ mod tests {
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("38;2;0;0;255"),
             "should emit new style: {output_str}"
@@ -691,7 +698,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
 
         let hide = "\x1B[?25l";
         let show = "\x1B[?25h";
@@ -719,7 +726,7 @@ mod tests {
         let mut r = Rasterizer::new(3, 1);
 
         r.enter_alt_screen();
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             output.contains("\x1B[?1047h"),
             "should enter alt screen: {output}"
@@ -728,7 +735,7 @@ mod tests {
         r.clear_output();
 
         r.exit_alt_screen();
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             output.contains("\x1B[?1047l"),
             "should exit alt screen: {output}"
@@ -744,7 +751,7 @@ mod tests {
         r.raster(&buffer, &GraphemeArena::new());
 
         assert!(
-            !r.output().is_empty(),
+            !r.as_bytes().is_empty(),
             "output should be non-empty before flush"
         );
 
@@ -752,7 +759,7 @@ mod tests {
         r.flush(&mut sink).unwrap();
 
         assert!(!sink.is_empty(), "sink should receive output");
-        assert!(r.output().is_empty(), "output should be empty after flush");
+        assert!(r.as_bytes().is_empty(), "output should be empty after flush");
     }
 
     // ── Constructor API ────────────────────────────────────────────────
@@ -800,7 +807,7 @@ mod tests {
         let mut r = Rasterizer::inline(5, 2);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = r.output();
+        let output = r.as_bytes();
         let has_cup = output.windows(2).enumerate().any(|(i, w)| {
             w == b"\x1B[" && {
                 let rest = &output[i + 2..];
@@ -827,7 +834,7 @@ mod tests {
         let mut r = Rasterizer::inline(10, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = r.output();
+        let output = r.as_bytes();
         // Count space characters — should NOT have 8 trailing spaces.
         let space_count = output.iter().filter(|&&b| b == b' ').count();
         assert!(
@@ -857,7 +864,7 @@ mod tests {
 
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             output.contains("\x1B[") && output.contains('A'),
             "should contain CUU: {output}"
@@ -872,7 +879,7 @@ mod tests {
         let mut r = Rasterizer::inline(3, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             !output.contains("\x1B[?1049h"),
             "should not enter alt screen: {output}"
@@ -891,7 +898,7 @@ mod tests {
         let mut r = Rasterizer::inline(3, 2);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             !output.contains("\x1B[2J"),
             "should not contain ED2: {output}"
@@ -932,7 +939,7 @@ mod tests {
         );
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains('X'),
             "should emit changed cell: {output_str}"
@@ -971,7 +978,7 @@ mod tests {
 
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             !output_str.contains('a'),
             "should not re-emit 'a': {output_str}"
@@ -998,7 +1005,7 @@ mod tests {
         );
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output = r.output();
+        let output = r.as_bytes();
         assert!(output.contains(&b'\n'), "should emit newline for growth");
         let output_str = String::from_utf8_lossy(output);
         assert!(
@@ -1023,7 +1030,7 @@ mod tests {
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', style)]);
         r.raster(&buf2, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         assert!(
             output_str.contains("\x1B[K"),
             "should clear orphan rows: {output_str}"
@@ -1036,7 +1043,7 @@ mod tests {
         let mut r = Rasterizer::inline(3, 1);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output_str = String::from_utf8_lossy(r.output());
+        let output_str = r.as_str();
         let hide = "\x1B[?25l";
         let show = "\x1B[?25h";
         assert!(
@@ -1062,7 +1069,7 @@ mod tests {
         let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
         r.raster(&buffer, &GraphemeArena::new());
 
-        let output = String::from_utf8_lossy(r.output());
+        let output = r.as_str();
         assert!(
             output.starts_with("\x1B[?2026h"),
             "should start with begin_sync: {output}"

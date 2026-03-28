@@ -235,7 +235,7 @@ fn terminal_rerender(c: &mut Criterion) {
     c.bench_function("terminal-rerender", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -261,7 +261,7 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
     c.bench_function("terminal-frame-fill/1-dirty-line", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -283,7 +283,7 @@ fn terminal_frame_fill_40(c: &mut Criterion) {
     c.bench_function("terminal-frame-fill/40-dirty-lines", |b| {
         b.iter(|| {
             r.render(black_box(&buf_b));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf_a);
             r.clear_output();
@@ -312,7 +312,7 @@ fn terminal_screen_transition(c: &mut Criterion) {
     c.bench_function("terminal-screen-transition", |b| {
         b.iter(|| {
             r.render(black_box(&buf_b));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf_a);
             r.clear_output();
@@ -338,7 +338,7 @@ fn terminal_full_ui(c: &mut Criterion) {
     c.bench_function("terminal-full-ui", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -366,7 +366,7 @@ fn terminal_strict_ui(c: &mut Criterion) {
     c.bench_function("terminal-strict-ui", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -386,7 +386,7 @@ fn terminal_virtual_list(c: &mut Criterion) {
     c.bench_function("terminal-virtual-list", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -412,7 +412,7 @@ fn terminal_table(c: &mut Criterion) {
     c.bench_function("terminal-table", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -459,7 +459,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
     c.bench_function("terminal-fps-stream", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -480,7 +480,7 @@ fn first_render(c: &mut Criterion) {
         b.iter(|| {
             let mut r = Rasterizer::new(W, H);
             r.render(black_box(&buffer));
-            black_box(r.output());
+            black_box(r.as_bytes());
         });
     });
 }
@@ -497,7 +497,7 @@ fn identical_frame(c: &mut Criterion) {
     c.bench_function("identical-frame", |b| {
         b.iter(|| {
             r.render(black_box(&buffer));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
         });
     });
@@ -535,7 +535,7 @@ fn scroll_up(c: &mut Criterion) {
     c.bench_function("scroll-up", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -556,7 +556,7 @@ fn invalidate_rerender(c: &mut Criterion) {
         b.iter(|| {
             r.invalidate();
             r.render(black_box(&buffer));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
         });
     });
@@ -571,7 +571,7 @@ fn inline_first_render(c: &mut Criterion) {
         b.iter(|| {
             let mut r = Rasterizer::inline(W, 10);
             r.render(black_box(&buffer));
-            black_box(r.output());
+            black_box(r.as_bytes());
         });
     });
 }
@@ -594,7 +594,7 @@ fn inline_rerender(c: &mut Criterion) {
     c.bench_function("inline-rerender", |b| {
         b.iter(|| {
             r.render(black_box(&buf2));
-            black_box(r.output());
+            black_box(r.as_bytes());
             r.clear_output();
             r.render(&buf1);
             r.clear_output();
@@ -612,7 +612,7 @@ fn rep_long_run(c: &mut Criterion) {
         b.iter(|| {
             let mut r = Rasterizer::new(200, 1).with_capabilities(caps);
             r.render(black_box(&buffer));
-            black_box(r.output());
+            black_box(r.as_bytes());
         });
     });
 }

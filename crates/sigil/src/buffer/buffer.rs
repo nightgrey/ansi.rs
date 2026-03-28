@@ -516,7 +516,7 @@ impl Buffer {
         self.inner.reserve(width * height - self.len());
         self.inner.fill(Cell::default());
     }
-    
+
     pub fn clear(&mut self) {
         self.inner.fill(Cell::default());
     }

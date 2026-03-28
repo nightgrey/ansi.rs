@@ -119,7 +119,7 @@ impl Cell {
     /// Returns `true` if this cell has no grapheme (blank) or style (default).
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.grapheme.is_empty() && self.is_unstyled()
+        self == &Cell::EMPTY
     }
 
     /// Returns `true` if this cell has no style (default).
@@ -142,7 +142,7 @@ impl Cell {
 
         self.grapheme = Grapheme::char(char);
         self.width = width;
-        
+
         self
     }
     pub fn set_str(&mut self, str: &str, arena: &mut GraphemeArena) -> &mut Self {
@@ -238,7 +238,7 @@ impl Debug for Cell {
         let mut debug = f.debug_tuple("Cell");
 
         if self.is_continuation() {
-            debug.field(&"");
+            debug.field(&" ");
         } else {
             debug.field(&self.grapheme);
         }

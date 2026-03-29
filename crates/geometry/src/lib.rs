@@ -15,6 +15,7 @@ pub mod prelude;
 mod rect;
 mod size;
 mod index;
+pub mod num;
 
 pub use axis::*;
 pub use edges::*;
@@ -23,3 +24,4 @@ pub use point::*;
 pub use rect::*;
 pub use size::*;
 pub use index::*;
+pub use num::*;

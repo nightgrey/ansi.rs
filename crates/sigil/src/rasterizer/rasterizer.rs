@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::io::Write as _;
 use ansi::escape;
 use ansi::io::Write;
@@ -34,17 +33,6 @@ impl Rasterizer {
         }
     }
 
-    pub fn for_buffer(buffer: &Buffer) -> Self {
-        Self {
-            output: Vec::with_capacity(buffer.width * buffer.height * 4),
-            shadow: Buffer::new(buffer.width, buffer.height),
-            pen: Cursor::new(),
-            capabilities: Capabilities::default(),
-            invalidated: true,
-            inline: None,
-        }
-    }
-
     /// Create an inline rasterizer (renders in the normal scrollback region).
     pub fn inline(width: usize, height: usize) -> Self {
         Self {
@@ -53,6 +41,17 @@ impl Rasterizer {
                 first_render: true,
             }),
             ..Self::new(width, height)
+        }
+    }
+
+    pub fn for_buffer(buffer: &Buffer) -> Self {
+        Self {
+            output: Vec::with_capacity(buffer.width * buffer.height * 4),
+            shadow: Buffer::new(buffer.width, buffer.height),
+            pen: Cursor::new(),
+            capabilities: Capabilities::default(),
+            invalidated: true,
+            inline: None,
         }
     }
 
@@ -72,7 +71,7 @@ impl Rasterizer {
         let (shadow, next) = (&mut self.shadow, buffer);
 
         if self.inline.is_some() {
-            return self.render_inline(next, arena);
+            return self.raster_inline_impl(next, arena);
         }
 
         let width = next.width;
@@ -96,7 +95,7 @@ impl Rasterizer {
 
         let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
-            Self::diff_row(
+            Self::row(
                 &shadow[Row(y)],
                 &next[Row(y)],
                 arena,
@@ -180,10 +179,49 @@ impl Rasterizer {
         self.output.clear();
     }
 
-    // ── Inline rendering ───────────────────────────────────────────
+    /// Render an entire buffer to the writer, no diffing.
+    pub fn once(buffer: &Buffer, arena: &GraphemeArena, out: &mut impl io::Write) -> io::Result<()> {
+        let mut pen = Cursor::new();
+        let mut output = Vec::with_capacity(buffer.width * buffer.height * 4);
+
+        output.escape(TextCursorEnable::Reset)?;
+        output.escape(Home)?;
+
+        for y in 0..buffer.height {
+            if y > 0 {
+                output.push(b'\n');
+                output.escape(CarriageReturn)?;
+            }
+
+            let row = &buffer[Row(y)];
+            let last_content = (0..buffer.width)
+                .rev()
+                .find(|&x| !row[x].is_empty());
+
+            if let Some(end) = last_content {
+                for col in 0..=end {
+                    let cell = &row[col];
+                    pen.transition(&mut output, cell.style)?;
+                    if cell.is_blank() {
+                        output.push(b' ');
+                    } else {
+                        output.extend_from_slice(cell.as_bytes(arena));
+                    }
+                }
+            }
+
+            output.escape(EraseLineToEnd)?;
+        }
+
+        output.escape(SelectGraphicRendition::RESET)?;
+        output.escape(TextCursorEnable::Set)?;
+
+        out.write_all(&output)?;
+        out.flush()
+    }
 
     /// Render in inline mode (no alternate screen, relative cursor only).
-    fn render_inline(&mut self, buffer: &Buffer, arena: &GraphemeArena) -> io::Result<()> {
+    fn raster_inline_impl(&mut self, buffer: &Buffer, arena: &GraphemeArena) -> io::Result<()> {
         let (prev, next) = (&mut self.shadow, buffer);
         let width = next.width;
         let height = next.height;
@@ -270,7 +308,7 @@ impl Rasterizer {
 
             // Diff each row using relative movement.
             for y in 0..height {
-                Self::diff_row(
+                Self::row(
                     &self.shadow[y * width..(y) * width + width],
                     &next[y * width..(y) * width + width],
                     arena,
@@ -320,7 +358,7 @@ impl Rasterizer {
     ///
     /// Uses left→right and right→left scanning to find the minimal dirty
     /// region, plus a trailing EL optimization when the tail goes empty.
-    fn diff_row(
+    fn row(
         prev: &[Cell],
         next: &[Cell],
         arena: &GraphemeArena,

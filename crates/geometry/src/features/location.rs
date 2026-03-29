@@ -1,20 +1,5 @@
-use crate::{Point};
+use crate::{One, Point, Zero};
 
-pub const trait Zero {
-    const ZERO: Self;
-}
-
-impl const Zero for usize {
-    const ZERO: Self = 0;
-}
-// 
-// impl const Zero for Position {
-//     const ZERO: Self = Self::MIN;
-// }
-
-impl const Zero for Point {
-    const ZERO: Self = Self::ZERO;
-}
 
 pub const trait Location<T: Copy = usize>: Copy {
     fn new(x: T, y: T) -> Self;

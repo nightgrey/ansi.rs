@@ -1,7 +1,5 @@
-mod buffer_context;
-mod backend;
-pub mod renderer;
+mod buffer;
+mod renderer;
 
-pub use buffer_context::*;
-pub use backend::*;
+pub use buffer::*;
 pub use renderer::*;

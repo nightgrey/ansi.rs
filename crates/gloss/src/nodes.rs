@@ -22,9 +22,9 @@ pub struct Node<'a> {
 
 #[allow(non_snake_case)]
 impl<'a> Node<'a> {
-    pub fn Span(text: Cow<'a, str>) -> Self {
+    pub fn Span(text: impl Into<Cow<'a, str>>) -> Self {
         Self {
-            kind: NodeKind::Span(text),
+            kind: NodeKind::Span(text.into()),
             style: Style::default().display(Display::Inline),
         }
     }

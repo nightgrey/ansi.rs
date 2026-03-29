@@ -2,7 +2,7 @@ use crate::{Cell, GraphemeArena, BufferIndex};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Rect, Resolve};
+use geometry::{Bounded, Intersect, Point, Ranges, Rect, Resolve};
 use std::cmp;
 use std::fmt::Debug;
 use std::iter::StepBy;
@@ -564,6 +564,10 @@ impl Buffer {
         self[row * width..row * width + width].iter_mut().step_by(1)
     }
 
+    pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item = &Cell> {
+       rect.iter().map(|point| &self[point])
+    }
+
     pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &Cell)> {
         self.iter()
             .enumerate()
@@ -704,7 +708,7 @@ impl Intersect<Buffer> for Rect {
 
     fn intersect(&self, other: &Buffer) -> Self::Output {
         if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Rect::<Point>::ZERO;
+            return Rect::ZERO;
         }
 
         let mut r = Rect::<Point>::ZERO;

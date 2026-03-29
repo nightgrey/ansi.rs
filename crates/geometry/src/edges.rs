@@ -1,5 +1,6 @@
-use crate::Zero;
+use crate::{One, Zero};
 use std::ops::Add;
+use crate::Number;
 
 /// Edge insets for padding or margins.
 ///
@@ -34,6 +35,9 @@ impl<T: Zero> Edges<T> {
     pub const ZERO: Self = Self::new(T::ZERO, T::ZERO, T::ZERO, T::ZERO);
 }
 
+impl<T: One> Edges<T> {
+    pub const ONE: Self = Self::new(T::ONE, T::ONE, T::ONE, T::ONE);
+}
 impl<T> Edges<T> {
     /// Create edges with individual values for each side.
     ///

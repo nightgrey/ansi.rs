@@ -1,17 +1,17 @@
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, ContextualResolve, Intersect, Outer, Point, Ranges, Rect, Sides, Size, Translate};
+use geometry::{Bounded, Contains, ContextualResolve, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate};
 use sigil::{Buffer, Cell, GraphemeArena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{Style, Border, Backend, Renderer};
+use crate::{Border, RendererBackend, Renderer};
 use crate::symbols::Symbol;
-
+use ansi::Style;
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ContextState {
     clip: Rect,
     origin: Point,
-    style: ansi::Style,
+    style: Style,
     border: Border,
     fill: char,
 }
@@ -22,7 +22,7 @@ pub struct ContextState {
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
 pub struct BufferRenderer<'a> {
-    pub(crate) buffer: &'a mut Buffer,
+    buffer: &'a mut Buffer,
     arena: &'a mut GraphemeArena,
     state: ContextState,
     stacks: Vec<ContextState>,
@@ -38,7 +38,7 @@ impl<'buf> BufferRenderer<'buf> {
             state: ContextState {
                 clip,
                 origin: Point::ZERO,
-                style: ansi::Style::None,
+                style: Style::None,
                 border: Border::None,
                 fill: ' ',
             },
@@ -51,7 +51,7 @@ impl<'buf> BufferRenderer<'buf> {
         &self.state
     }
 
-    pub fn set_style(&mut self, style: ansi::Style) -> &mut Self {
+    pub fn set_style(&mut self, style: Style) -> &mut Self {
         self.state.style = style;
         self
     }
@@ -100,15 +100,15 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    pub fn fill(&mut self, rect: Option<Rect>, style: Option<ansi::Style>, fill: Option<char>) -> &mut Self {
+    pub fn fill(&mut self, rect: Option<Rect>, style: Option<Style>, fill: Option<char>) -> &mut Self {
         self.fill_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), fill.unwrap_or(self.state.fill))
     }
 
-    pub fn stroke(&mut self, rect: Option<Rect>, style: Option<ansi::Style>, border: Option<Border>) -> &mut Self {
+    pub fn stroke(&mut self, rect: Option<Rect>, style: Option<Style>, border: Option<Border>) -> &mut Self {
         self.stroke_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), border.map(|b| b.into()).unwrap_or(self.state.border))
     }
 
-    pub fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<ansi::Style>) -> usize {
+    pub fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<Style>) -> usize {
         self.draw_text_impl(text, position.map(|p| self.local(p)).unwrap_or(Point::ZERO), style.map(|s| s.into()).unwrap_or(self.state.style))
     }
 
@@ -152,7 +152,7 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    fn fill_impl(&mut self, rect: Rect, style: ansi::Style, ch: char) -> &mut Self {
+    fn fill_impl(&mut self, rect: Rect, style: Style, ch: char) -> &mut Self {
         if let Some(r) = self.intersect(rect) {
             for pos in &r {
                 let index: usize = self.buffer.bounds().resolve(pos);
@@ -163,7 +163,7 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    fn stroke_impl(&mut self, rect: Rect, style: ansi::Style, border: Border) -> &mut Self {
+    fn stroke_impl(&mut self, rect: Rect, style: Style, border: Border) -> &mut Self {
         let mut rect = rect;
         let border = border.into_symbols();
 
@@ -177,7 +177,7 @@ impl<'buf> BufferRenderer<'buf> {
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
             if self.state.clip.contains(&(x, y)) {
-                self.buffer[(x, y)].set_char_and_width('x', border.width() as u8, self.arena);
+                self.buffer[(x, y)].set_char_and_width(border.symbol(), border.width() as u8, self.arena);
             }
         };
 
@@ -202,7 +202,7 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    fn draw_text_impl(&mut self, text: &str, pos: Point, style: ansi::Style) -> usize {
+    fn draw_text_impl(&mut self, text: &str, pos: Point, style: Style) -> usize {
         let pos = pos;
 
         let y = pos.y;
@@ -251,10 +251,10 @@ impl<'buf> BufferRenderer<'buf> {
 
 }
 
-impl<'a> Backend for BufferRenderer<'a> {
+impl<'a> RendererBackend for BufferRenderer<'a> {
     type Error = io::Error;
 
-    fn set_style(&mut self, style: Style) {
+    fn set_style(&mut self, style: crate::Style) {
         self.state.style = style.into();
     }
 
@@ -271,15 +271,15 @@ impl<'a> Backend for BufferRenderer<'a> {
         Ok(())
     }
 
-    fn stroke(&mut self, bounds: Option<Rect>, style: Option<Style>) {
+    fn stroke(&mut self, bounds: Option<Rect>, style: Option<crate::Style>) {
         BufferRenderer::stroke(self, bounds, style.map(|s| s.into()), style.map_or(Some(Border::Solid), |s| Some(s.get_border())));
     }
 
-    fn fill(&mut self, bounds: Option<Rect>, style: Option<Style>, char: Option<char>) {
+    fn fill(&mut self, bounds: Option<Rect>, style: Option<crate::Style>, char: Option<char>) {
         BufferRenderer::fill(self, bounds, style.map(|s| s.into()), char);
     }
 
-    fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<Style>) {
+    fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<crate::Style>) {
         BufferRenderer::draw_text(self, text, position, style.map(|s| s.into()));
     }
 
@@ -309,5 +309,98 @@ impl<'a> Backend for BufferRenderer<'a> {
 
     fn finish(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+    use std::ops::{Add, Sub};
+    use ansi::Color;
+    use sigil::Grapheme;
+    use tree::At;
+    use crate::{Document, FlexDirection, FontWeight, Node, TextDecoration};
+    use super::*;
+
+    struct Context<'a> {
+        buffer: Buffer,
+        arena: GraphemeArena,
+        document: Document<'a>,
+    }
+
+    fn add_content(context: &mut Context) {
+        let document = &mut context.document;
+        let root = document.node_mut(document.root);
+
+        root.set_border(Border::Solid);
+        root.set_margin((2, 2));
+        root.set_padding((1, 1));
+
+        let heading = document.insert_with(
+            Node::Span(Cow::Borrowed("Title")),
+            |node| {
+                node.set_color(Color::Red);
+                node.set_text_decoration(TextDecoration::Underline);
+                node.set_font_weight(FontWeight::Bold);
+            },
+        );
+
+        let footer = document.insert_with(Node::Div(), |node| {
+            node.set_background(Color::BrightBlack);
+            node.set_flex_direction(FlexDirection::Row);
+        });
+
+        let footer_left = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
+            node.set_padding((1, 1));
+        });
+        let footer_left_content = document.insert_at(Node::Span("Gloss Rendering"), At::Child(footer_left));
+
+        let footer_right = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
+            node.set_padding((1, 1));
+        });
+        let footer_right_content = document.insert_at(Node::Span("Test Consortium"), At::Child(footer_right));
+
+    }
+
+    fn context<'a>(width: usize, height: usize) -> Context<'a> {
+        let mut arena = GraphemeArena::new();
+        let mut buffer = Buffer::new(width, height);
+        let mut document = Document::new();
+
+        Context {
+            buffer,
+            arena,
+            document,
+        }
+    }
+
+    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferRenderer<'a>> {
+        BufferRenderer::new(&mut context.buffer, &mut context.arena)
+    }
+
+    #[test]
+    fn test_basic_fill() {
+        let mut context = context(10, 10);
+        let mut renderer = renderer(&mut context);
+
+        renderer.fill(None, Some(Style::default().foreground(Color::White)), Some('x'));
+
+        assert_eq!(context.buffer.iter().all(|c| c.style.foreground == Color::White && c.grapheme() == Grapheme::char('x')), true);
+    }
+
+
+    #[test]
+    fn test_basic_stroke() {
+        let mut context = context(10, 10);
+        let mut renderer = renderer(&mut context);
+
+        renderer.stroke(None, Some(Style::default().foreground(Color::White)), Some(Border::Solid));
+
+        assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
+        assert_eq!(context.buffer.iter_col(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
+        assert_eq!(context.buffer.iter_col(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
+        assert_eq!(context.buffer.iter_row(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
+        context.buffer.iter_rect(&context.buffer.bounds().sub(Edges::all(1))).for_each(|c| assert_eq!(c.grapheme(), Grapheme::EMPTY));
+
     }
 }

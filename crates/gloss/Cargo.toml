@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 synonym = "0.1.6"
 ansi = { workspace = true }
+num = "0.4.3"
 geometry = { workspace = true }
 tree = { workspace = true }
 etwa = { workspace = true }

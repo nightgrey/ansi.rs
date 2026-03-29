@@ -25,8 +25,14 @@ impl<'a> Document<'a> {
     }
 
     pub fn insert(&mut self, node: Node<'a>) -> NodeId {
-        let id = self.nodes.insert_at(node, At::Child(self.root));
-        self.layouts.insert(id, LayoutNode::default());
+        self.insert_at(node, At::Child(self.root))
+    }
+
+    pub fn insert_with_children(&mut self, node: Node<'a>, children: Vec<Node<'a>>) -> NodeId {
+        let id = self.insert(node);
+        for child in children {
+            self.insert_at(child, At::Child(id));
+        }
         id
     }
 
@@ -35,13 +41,21 @@ impl<'a> Document<'a> {
         self.layouts.insert(id, LayoutNode::default());
         id
     }
+    
+    pub fn insert_with_children_at(&mut self, node: Node<'a>, children: Vec<Node<'a>>, at: At<NodeId>) -> NodeId {
+        let id = self.insert_at(node, at);
+        for child in children {
+            self.insert_at(child, At::Child(id));
+        }
+        id
+    }
 
     pub fn insert_with(&mut self, node: Node<'a>, with: impl FnOnce(&mut Node<'a>)) -> NodeId {
         let id = self.insert(node);
         with(&mut self.nodes[id]);
         id
     }
-
+    
     pub fn insert_at_with(
         &mut self,
         node: Node<'a>,
@@ -49,21 +63,6 @@ impl<'a> Document<'a> {
         with: impl FnOnce(&mut Node<'a>),
     ) -> NodeId {
         let id = self.insert_at(node, at);
-        with(&mut self.nodes[id]);
-        id
-    }
-
-    pub fn insert_at_with_children(
-        &mut self,
-        node: Node<'a>,
-        children: impl IntoIterator<Item = Node<'a>>,
-        at: At<NodeId>,
-        with: impl FnOnce(&mut Node<'a>),
-    ) -> NodeId {
-        let id = self.insert_at(node, at);
-        for child in children {
-            self.insert_at(child, At::Child(id));
-        }
         with(&mut self.nodes[id]);
         id
     }

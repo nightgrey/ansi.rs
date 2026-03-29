@@ -1,5 +1,5 @@
-use std::ops::Sub;
-use crate::{Bounded, Edges, Location, Point, Size, Step, Steps, Zero};
+use std::ops::{Add, Sub};
+use crate::{Bounded, Edges, Location, Point, SaturatingAdd, SaturatingSub, Size, Step, Steps, Zero};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///
@@ -40,7 +40,7 @@ impl<T> Rect<T> {
     }
 }
 
-impl<T: [const] Zero> const Rect<T> {
+impl<T: Zero> const Rect<T> {
     /// An empty rectangle at the origin.
     pub const ZERO: Self = Self {
         min: T::ZERO,
@@ -74,8 +74,8 @@ impl Rect {
     }
 }
 
-impl From<Size> for Rect {
-    fn from(value: Size) -> Self {
+impl<T: Zero> From<Size<T>> for Rect<Point<T>> {
+    fn from(value: Size<T>) -> Self {
         Self::new(Point::ZERO, Point::new(value.width, value.height))
     }
 }
@@ -100,6 +100,38 @@ impl<T: Sub<T, Output = T>> Sub<Rect<T>> for Rect<T> {
         Self {
             min: self.min - rhs.min,
             max: self.max - rhs.max,
+        }
+    }
+}
+
+impl<T: SaturatingAdd<T> + SaturatingSub<T>> Add<Edges<T>> for Rect<Point<T>> {
+    type Output = Self;
+
+    fn add(self, rhs: Edges<T>) -> Self {
+        let min_x = self.min.x.saturating_sub(rhs.left);
+        let min_y = self.min.y.saturating_sub(rhs.top);
+        let max_x = self.max.x.saturating_add(rhs.right);
+        let max_y = self.max.y.saturating_add(rhs.bottom);
+
+        Rect {
+            min: Point { x: min_x, y: min_y },
+            max: Point { x: max_x, y: max_y },
+        }
+    }
+}
+
+impl<T: SaturatingAdd<T> + SaturatingSub<T>> Sub<Edges<T>> for Rect<Point<T>> {
+    type Output = Self;
+
+    fn sub(self, rhs: Edges<T>) -> Self {
+        let min_x = self.min.x.saturating_add(rhs.left);
+        let min_y = self.min.y.saturating_add(rhs.top);
+        let max_x = self.max.x.saturating_sub(rhs.right);
+        let max_y = self.max.y.saturating_sub(rhs.bottom);
+
+        Rect {
+            min: Point { x: min_x, y: min_y },
+            max: Point { x: max_x, y: max_y },
         }
     }
 }

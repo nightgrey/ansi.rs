@@ -30,7 +30,7 @@ fn main() -> io::Result<()> {
         node.set_width(Dimension::MAX);
         node.set_color(Color::White);
     });
-
+/*
     let a = document.insert_at_with_children(Node::Div(), [Node::Span(Cow::Borrowed("A"))], At::Child(row), |node| {
         node.set_background(Color::Green);
 
@@ -47,7 +47,7 @@ fn main() -> io::Result<()> {
     document.insert_at_with_children(Node::Span(Cow::Borrowed("D")), [Node::Span(Cow::Borrowed("D"))], At::Child(c), |node| {
         node.set_background(Color::Red);
     });
-
+*/
     let mut arena = GraphemeArena::new();
     let mut buffer = Buffer::new(20, 30);
     let mut rasterizer = Rasterizer::inline(buffer.width, buffer.height);

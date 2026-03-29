@@ -1,4 +1,4 @@
-use crate::{Column, Row, Size};
+use crate::{Column, One, Row, Size, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -33,6 +33,14 @@ pub struct Point<T = usize> {
     /// Vertical position (row).
     pub y: T,
 }
+
+impl<T: One> Point<T> {
+    pub const ONE: Self = Point { x: T::ONE, y: T::ONE };
+}
+
+impl<T: Zero> Point<T> {
+    pub const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
+}
 impl<T> Point<T> {
     /// Create a new point at the given coordinates.
     ///
@@ -58,8 +66,6 @@ impl<T> Point<T> {
 }
 
 impl Point {
-    pub const ZERO: Self = Self { x: 0, y: 0 };
-
     /// Add two points with overflow checking.
     ///
     /// Returns `None` if overflow would occur.
@@ -95,6 +101,14 @@ impl Point {
     }
 }
 
+impl<T: Zero> const Zero for Point<T> {
+    const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
+}
+
+impl<T: One> const One for Point<T> {
+    const ONE: Self = Point { x: T::ONE, y: T::ONE };
+}
+
 impl<T> From<Size<T>> for Point<T> {
     fn from(value: Size<T>) -> Self {
         Self::new(value.width, value.height)
@@ -107,11 +121,6 @@ impl<T> From<PointLike<T>> for Point<T> {
     }
 }
 
-// impl<T> From<Position<T>> for Point<T> {
-//     fn from(value: Position<T>) -> Self {
-//         Self::new(value.col, value.row)
-//     }
-// }
 
 impl From<Row> for Point {
     fn from(value: Row) -> Self {

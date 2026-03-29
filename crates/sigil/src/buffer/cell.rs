@@ -2,7 +2,6 @@ use super::{Graph, Grapheme, GraphemeArena};
 use crate::Offset;
 use ansi::Style;
 use std::fmt::Debug;
-use indextree::Arena;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// A single terminal cell — the fundamental unit of the framebuffer.

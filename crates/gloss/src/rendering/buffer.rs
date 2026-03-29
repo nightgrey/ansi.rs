@@ -6,14 +6,15 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{Border, RendererBackend, Renderer};
 use crate::symbols::Symbol;
 use ansi::Style;
+
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ContextState {
-    clip: Rect,
+    rect: Rect,
     origin: Point,
-    style: Style,
-    border: Border,
-    fill: char,
+    fill_style: Style,
+    fill_char: char,
+    stroke_type: Border,
 }
 
 /// 2D drawing context for terminal buffers.
@@ -36,63 +37,39 @@ impl<'buf> BufferRenderer<'buf> {
             buffer,
             arena,
             state: ContextState {
-                clip,
+                rect: clip,
                 origin: Point::ZERO,
-                style: Style::None,
-                border: Border::None,
-                fill: ' ',
+                fill_style: Style::None,
+                fill_char: ' ',
+                stroke_type: Border::None,
             },
             stacks: Vec::new(),
         })
     }
 
-    /// Current state
-    pub fn state(&self) -> &ContextState {
-        &self.state
-    }
-
-    pub fn set_style(&mut self, style: Style) -> &mut Self {
-        self.state.style = style;
+    pub fn fill_style(&mut self, style: Style) -> &mut Self {
+        self.state.fill_style = style;
         self
     }
 
-    pub fn set_border(&mut self, border: Border) -> &mut Self {
-        self.state.border = border;
+    pub fn fill_char(&mut self, char: char) -> &mut Self {
+        self.state.fill_char = char;
         self
     }
 
-    pub fn set_fill(&mut self, fill: char) -> &mut Self {
-        self.state.fill = fill;
+    pub fn stroke_type(&mut self, border: Border) -> &mut Self {
+        self.state.stroke_type = border;
         self
     }
 
-    /// Intersect the current clip with `rect` (in local coords).
-    /// Only narrows — you can never *expand* clip without restore.
+    pub fn local<T: Translate<Point>>(&self, rect: T) -> T::Output {
+        rect.translate(&self.state.origin)
+    }
+
     pub fn clip(&mut self, rect: Rect) -> &mut Self {
-        self.state.clip = self.state.clip.intersect(&self.local(rect));
+        self.state.rect = self.state.rect.intersect(&self.local(rect));
         self
     }
-
-    /// Push the full current state (clip, origin, style, fill_char, border).
-    pub fn save(&mut self) -> &mut Self {
-        self.stacks.push(self.state.clone());
-        self
-    }
-
-    /// Pop and restore the most recently saved state.
-    /// No-op if the stack is empty (defensive, avoids panics in widget code).
-    pub fn restore(&mut self) -> &mut Self {
-        if let Some(prev) = self.stacks.pop() {
-            self.state = prev;
-        }
-        self
-    }
-
-    pub fn reset(&mut self) -> &mut Self {
-        self.state = ContextState::default();
-        self
-    }
-
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
     pub fn translate(&mut self, offset: Point) -> &mut Self {
@@ -100,72 +77,56 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    pub fn fill(&mut self, rect: Option<Rect>, style: Option<Style>, fill: Option<char>) -> &mut Self {
-        self.fill_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), fill.unwrap_or(self.state.fill))
-    }
+    fn intersect(&self, rect: Rect) -> Option<Rect> {
+        let result = self.state.rect
+            .intersect(&rect);
 
-    pub fn stroke(&mut self, rect: Option<Rect>, style: Option<Style>, border: Option<Border>) -> &mut Self {
-        self.stroke_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), border.map(|b| b.into()).unwrap_or(self.state.border))
-    }
-
-    pub fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<Style>) -> usize {
-        self.draw_text_impl(text, position.map(|p| self.local(p)).unwrap_or(Point::ZERO), style.map(|s| s.into()).unwrap_or(self.state.style))
-    }
-
-    pub fn clear(&mut self, rect: Option<Rect>) -> &mut Self {
-        self.fill_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), self.state.style, self.state.fill)
-    }
-
-    /// Set a single cell at `pos` (local coords). Respects clip.
-    pub fn set(&mut self, pos: Point, cell: Cell) -> &mut Self {
-        let abs = pos + self.state.origin;
-        if self.state.clip.contains(&abs) {
-            self.buffer[abs] = cell;
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
         }
-        self
     }
 
-    /// Read a cell at `pos` (local coords). Returns None if outside clip.
-    pub fn get(&self, pos: Point) -> Option<&Cell> {
-        let abs = pos + self.state.origin;
-        self.buffer.get(abs)
+    fn resolve_rect(&self, rect: impl Into<Option<Rect>>) -> Rect {
+        rect.into().map(|r| self.local(r)).unwrap_or(self.state.rect)
     }
 
-    // ── Scoped helpers ───────────────────────────────────────────
-
-    /// save → run closure → restore. Guarantees balanced stack.
-    pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.save();
-        f(self);
-        self.restore();
-        self
+    fn resolve_position(&self, pos: impl Into<Option<Point>>) -> Point {
+        pos.into().map(|p| self.local(p)).unwrap_or(Point::ZERO)
     }
 
-    /// save → translate + clip to `rect` → run closure → restore.
-    /// The closure sees (0,0) as `rect.top_left` and is clipped to it.
-    pub fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.save();
-        self.translate(rect.min);
-        self.clip(Rect::from(rect.size()));
-        f(self);
-        self.restore();
-        self
+    fn resolve_fill_style(&self, style: impl Into<Option<Style>>) -> Style {
+        style.into().unwrap_or(self.state.fill_style)
     }
 
-    fn fill_impl(&mut self, rect: Rect, style: Style, ch: char) -> &mut Self {
+    fn resolve_stroke_type(&self, border: impl Into<Option<Border>>) -> Border {
+        border.into().unwrap_or(self.state.stroke_type)
+    }
+
+    fn resolve_fill_char(&self, char: impl Into<Option<char>>) -> char {
+        char.into().unwrap_or(self.state.fill_char)
+    }
+
+    pub fn fill(&mut self, bounds: impl Into<Option<Rect>>, fill_style: impl Into<Option<Style>>, fill_char: impl Into<Option<char>>) -> &mut Self {
+        let rect = self.resolve_rect(bounds);
+        let fill_style = self.resolve_fill_style(fill_style);
+        let fill_char = self.resolve_fill_char(fill_char);
+
         if let Some(r) = self.intersect(rect) {
             for pos in &r {
                 let index: usize = self.buffer.bounds().resolve(pos);
-                self.buffer[index].set_char(ch, self.arena).set_style(style);
+                self.buffer[index].set_char(fill_char, self.arena).set_style(fill_style);
             }
 
         }
         self
     }
 
-    fn stroke_impl(&mut self, rect: Rect, style: Style, border: Border) -> &mut Self {
-        let mut rect = rect;
-        let border = border.into_symbols();
+    pub fn stroke(&mut self, rect: impl Into<Option<Rect>>, stroke_type: impl Into<Option<Border>>) -> &mut Self {
+        let mut rect = self.resolve_rect(rect);
+        let stroke_type = self.resolve_stroke_type(stroke_type);
+        let border = stroke_type.into_symbols();
 
         rect.max.x -= border.right.width();
         rect.max.y -= border.bottom.width();
@@ -176,7 +137,7 @@ impl<'buf> BufferRenderer<'buf> {
 
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
-            if self.state.clip.contains(&(x, y)) {
+            if self.state.rect.contains(&(x, y)) {
                 self.buffer[(x, y)].set_char_and_width(border.symbol(), border.width() as u8, self.arena);
             }
         };
@@ -202,27 +163,28 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    fn draw_text_impl(&mut self, text: &str, pos: Point, style: Style) -> usize {
-        let pos = pos;
+    pub fn text(&mut self, position: impl Into<Option<Point>>, fill_style: impl Into<Option<Style>>, str: impl AsRef<str>) -> usize {
+        let position = self.resolve_position(position);
+        let style = self.resolve_fill_style(fill_style);
 
-        let y = pos.y;
+        let y = position.y;
         let mut i = 0;
 
-        for (grapheme, width) in text.graphemes(true)
+        for (grapheme, width) in str.as_ref().graphemes(true)
             .map(|g| (g, g.width())) {
-            let x = pos.x + i; // or your coord type
+            let x = position.x + i; // or your coord type
 
             // Stop if we've gone past clip right edge
-            if x + width > self.state.clip.right() {
+            if x + width > self.state.rect.right() {
                 break;
             }
 
-            if self.state.clip.contains(&(x, y)) {
+            if self.state.rect.contains(&(x, y))  {
                 self.buffer[(x, y)].set_str_and_width(grapheme, width as u8, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
                     let cont = (x + i, y);
-                    if self.state.clip.contains(&cont) {
+                    if self.state.rect.contains(&cont) {
                         self.buffer[cont].set_continuation(self.arena).set_style(style);
                     }
                 }
@@ -234,19 +196,41 @@ impl<'buf> BufferRenderer<'buf> {
         i
     }
 
-    fn intersect(&self, rect: Rect) -> Option<Rect> {
-        let result = self.state.clip
-            .intersect(&rect);
-
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
+    pub fn clear(&mut self, bounds: impl Into<Option<Rect>>) -> &mut Self {
+        self.fill(bounds, self.state.fill_style, self.state.fill_char)
     }
 
-    fn local<T: Translate<Point>>(&self, rect: T) -> T::Output {
-        rect.translate(&self.state.origin)
+    pub fn save(&mut self) -> &mut Self {
+        self.stacks.push(self.state.clone());
+        self
+    }
+
+    pub fn restore(&mut self) -> &mut Self {
+        if let Some(prev) = self.stacks.pop() {
+            self.state = prev;
+        }
+        self
+    }
+
+    pub fn reset(&mut self) -> &mut Self {
+        self.state = ContextState::default();
+        self
+    }
+
+    pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
+        self.save();
+        f(self);
+        self.restore();
+        self
+    }
+
+    pub fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self {
+        self.save();
+        self.translate(rect.min);
+        self.clip(Rect::from(rect.size()));
+        f(self);
+        self.restore();
+        self
     }
 
 }
@@ -254,51 +238,47 @@ impl<'buf> BufferRenderer<'buf> {
 impl<'a> RendererBackend for BufferRenderer<'a> {
     type Error = io::Error;
 
-    fn set_style(&mut self, style: crate::Style) {
-        self.state.style = style.into();
+    fn fill_style(&mut self, style: crate::Style) {
+        self.fill_style(style.into());
     }
 
-    fn set_border(&mut self, border: Border) {
-        self.state.border = border;
+    fn fill_char(&mut self, fill: char) {
+        self.fill_char(fill);
     }
 
-    fn set_fill(&mut self, fill: char) {
-        self.state.fill = fill;
+    fn stroke_type(&mut self, border: Border) {
+        self.stroke_type(border);
     }
 
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error> {
-        BufferRenderer::clip(self, bounds);
+        self.clip(bounds);
         Ok(())
-    }
-
-    fn stroke(&mut self, bounds: Option<Rect>, style: Option<crate::Style>) {
-        BufferRenderer::stroke(self, bounds, style.map(|s| s.into()), style.map_or(Some(Border::Solid), |s| Some(s.get_border())));
-    }
-
-    fn fill(&mut self, bounds: Option<Rect>, style: Option<crate::Style>, char: Option<char>) {
-        BufferRenderer::fill(self, bounds, style.map(|s| s.into()), char);
-    }
-
-    fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<crate::Style>) {
-        BufferRenderer::draw_text(self, text, position, style.map(|s| s.into()));
-    }
-
-    fn current_clip(&self) -> Rect {
-        self.state.clip.translate(&self.state.origin)
     }
 
     fn translate(&mut self, offset: Point) -> Result<(), Self::Error> {
-        BufferRenderer::translate(self, offset);
+        self.translate(offset);
         Ok(())
     }
 
+    fn fill(&mut self, bounds: impl Into<Option<Rect>>, fill_style: impl Into<Option<crate::Style>>, fill_char: impl Into<Option<char>>) {
+        self.fill(bounds, fill_style.into().map(|s| s.into()), fill_char);
+    }
+
+    fn stroke(&mut self, bounds: impl Into<Option<Rect>>, stroke_type: impl Into<Option<Border>>) {
+        self.stroke(bounds, stroke_type);
+    }
+
+    fn text(&mut self, position: impl Into<Option<Point>>, fill_style: impl Into<Option<crate::Style>>, str: impl AsRef<str>) {
+        self.text(position, fill_style.into().map(|s| s.into()), str);
+    }
+
     fn save(&mut self) -> Result<(), Self::Error> {
-        BufferRenderer::save(self);
+        self.save();
         Ok(())
     }
 
     fn restore(&mut self) -> Result<(), Self::Error> {
-        BufferRenderer::restore(self);
+        self.restore();
         Ok(())
     }
 
@@ -394,13 +374,259 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.stroke(None, Some(Style::default().foreground(Color::White)), Some(Border::Solid));
+        renderer.stroke(None, Some(Border::Solid));
 
         assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
         assert_eq!(context.buffer.iter_col(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
         assert_eq!(context.buffer.iter_col(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
         assert_eq!(context.buffer.iter_row(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
         context.buffer.iter_rect(&context.buffer.bounds().sub(Edges::all(1))).for_each(|c| assert_eq!(c.grapheme(), Grapheme::EMPTY));
+    }
 
+    #[test]
+    fn test_save_restore_origin() {
+        let mut context = context(10, 10);
+        let mut renderer = renderer(&mut context);
+
+        renderer.save();
+        renderer.translate(Point::new(3, 3));
+        renderer.text(Some(Point::ZERO), None, "A");
+        renderer.restore();
+
+        // After restore, origin is back to (0,0)
+        renderer.text(Some(Point::ZERO), None, "B");
+
+        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::char('A'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::char('B'));
+    }
+
+    #[test]
+    fn test_save_restore_clip() {
+        let mut context = context(10, 10);
+
+        {
+            let mut renderer = renderer(&mut context);
+            renderer.save();
+            renderer.clip(Rect::from(Size::new(5, 5)));
+            renderer.fill(None, None, Some('X'));
+            renderer.restore();
+        }
+
+        // Inside the old clip — should be filled
+        assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::char('X'));
+        // Outside the old clip — should be empty
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
+
+        {
+            // After restore, full clip is back — can write outside
+            let mut renderer = renderer(&mut context);
+            renderer.text(Some(Point::new(7, 7)), None, "Y");
+        }
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::char('Y'));
+    }
+
+    #[test]
+    fn test_within_scoped_translate_and_clip() {
+        let mut context = context(10, 10);
+        let mut renderer = renderer(&mut context);
+
+        renderer.within(Rect::new(Point::new(2, 2), Point::new(6, 6)), |r| {
+            r.fill(None, None, Some('W'));
+        });
+
+        // Inside the within rect — filled
+        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::char('W'));
+        // Outside — empty
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn test_nested_translate() {
+        let mut context = context(20, 20);
+        let mut renderer = renderer(&mut context);
+
+        // Translate twice — offsets accumulate within the same save frame
+        renderer.save();
+        renderer.translate(Point::new(3, 3));
+        renderer.save();
+        renderer.translate(Point::new(2, 2));
+        renderer.text(Some(Point::ZERO), None, "N");
+        renderer.restore();
+        renderer.restore();
+
+        // (3+2, 3+2) = (5, 5)
+        assert_eq!(context.buffer[(5, 5)].grapheme(), Grapheme::char('N'));
+    }
+
+    #[test]
+    fn test_draw_text_position() {
+        let mut context = context(20, 5);
+        let mut renderer = renderer(&mut context);
+
+        renderer.text(Some(Point::new(4, 1)), None, "Hi");
+
+        assert_eq!(context.buffer[(4, 1)].grapheme(), Grapheme::char('H'));
+        assert_eq!(context.buffer[(5, 1)].grapheme(), Grapheme::char('i'));
+        // Adjacent cell untouched
+        assert_eq!(context.buffer[(6, 1)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn test_draw_text_clipped() {
+        let mut context = context(10, 5);
+        let mut renderer = renderer(&mut context);
+
+        renderer.clip(Rect::from(Size::new(4, 5)));
+        renderer.text(Some(Point::new(0, 0)), None, "Hello");
+
+        // Only first 4 chars fit in clip
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::char('H'));
+        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::char('l'));
+        // 5th char ('o') is outside clip — cell stays empty
+        assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn test_render_document_with_padding() {
+        use crate::Space;
+
+        let mut context = context(20, 10);
+        let document = &mut context.document;
+
+        // Root with padding — children should render inside the content area
+        let root = document.node_mut(document.root);
+        root.set_padding((2, 2));
+        root.set_flex_direction(FlexDirection::Column);
+
+        let child = document.insert_with(
+            Node::Span(Cow::Borrowed("AB")),
+            |_| {},
+        );
+
+        document.compute_layout(Space::new(20u32, 10u32));
+
+        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        renderer.render(&document).unwrap();
+
+        // Text should appear at content area offset (padding=2 on each side)
+        let child_content = document.content_bounds(child);
+        let text_x = child_content.min.x;
+        let text_y = child_content.min.y;
+        assert_eq!(context.buffer[(text_x, text_y)].grapheme(), Grapheme::char('A'));
+        assert_eq!(context.buffer[(text_x + 1, text_y)].grapheme(), Grapheme::char('B'));
+        // Origin cell should be empty (it's in the padding)
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn test_render_nested_nodes() {
+        use crate::Space;
+
+        let mut context = context(30, 15);
+        let document = &mut context.document;
+
+        // Root with padding, column layout
+        let root = document.node_mut(document.root);
+        root.set_padding((1, 1));
+        root.set_flex_direction(FlexDirection::Column);
+
+        // Child div with its own padding
+        let child_div = document.insert_with(Node::Div(), |node| {
+            node.set_padding((1, 1));
+            node.set_flex_direction(FlexDirection::Column);
+        });
+
+        // Grandchild text inside the child div
+        let text_id = document.insert_at(
+            Node::Span("OK"),
+            At::Child(child_div),
+        );
+
+        document.compute_layout(Space::new(30u32, 15u32));
+
+        let text_content = document.content_bounds(text_id);
+
+        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        renderer.render(&document).unwrap();
+
+        let div_bounds = document.bounds(child_div);
+        let text_bounds = document.bounds(text_id);
+
+        // Absolute position = parent bounds + child bounds (taffy locations are parent-relative)
+        let tx = div_bounds.min.x + text_bounds.min.x;
+        let ty = div_bounds.min.y + text_bounds.min.y;
+        assert_eq!(context.buffer[(tx, ty)].grapheme(), Grapheme::char('O'));
+        assert_eq!(context.buffer[(tx + 1, ty)].grapheme(), Grapheme::char('K'));
+        // Padding area should be empty
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn test_render_stacked_children() {
+        use crate::Space;
+
+        let mut context = context(30, 15);
+        let document = &mut context.document;
+
+        let root = document.node_mut(document.root);
+        root.set_flex_direction(FlexDirection::Column);
+
+        // Two stacked children in column layout
+        let child_a = document.insert_with(
+            Node::Span(Cow::Borrowed("AA")),
+            |_| {},
+        );
+        let child_b = document.insert_with(
+            Node::Span(Cow::Borrowed("BB")),
+            |_| {},
+        );
+
+        document.compute_layout(Space::new(30u32, 15u32));
+
+        let a_bounds = document.content_bounds(child_a);
+        let b_bounds = document.content_bounds(child_b);
+
+        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        renderer.render(&document).unwrap();
+
+        // First child
+        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::char('A'));
+        // Second child should be below the first
+        assert!(b_bounds.min.y > a_bounds.min.y, "B should be below A: A.y={}, B.y={}", a_bounds.min.y, b_bounds.min.y);
+        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::char('B'));
+    }
+
+    #[test]
+    fn test_render_row_children() {
+        use crate::Space;
+
+        let mut context = context(30, 5);
+        let document = &mut context.document;
+
+        let root = document.node_mut(document.root);
+        root.set_flex_direction(FlexDirection::Row);
+
+        let child_a = document.insert_with(
+            Node::Span(Cow::Borrowed("L")),
+            |_| {},
+        );
+        let child_b = document.insert_with(
+            Node::Span(Cow::Borrowed("R")),
+            |_| {},
+        );
+
+        document.compute_layout(Space::new(30u32, 5u32));
+
+        let a_bounds = document.content_bounds(child_a);
+        let b_bounds = document.content_bounds(child_b);
+
+        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        renderer.render(&document).unwrap();
+
+        // Side by side in row layout
+        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::char('L'));
+        assert!(b_bounds.min.x > a_bounds.min.x, "R should be right of L");
+        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::char('R'));
     }
 }

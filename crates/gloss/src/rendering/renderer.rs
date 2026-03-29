@@ -35,7 +35,7 @@ impl<B: RendererBackend> Renderer<B> {
         // Apply this node's style and clip
         self.translate(bounds.min)?;
         self.clip(bounds.size().into())?;
-        self.set_style(style);
+        self.fill_style(style);
 
         // Paint
         if style.has_background() { self.fill(None, None, Some(' ')) }
@@ -43,16 +43,18 @@ impl<B: RendererBackend> Renderer<B> {
 
         match &node.kind {
             NodeKind::Span(text) => {
-                self.draw_text(text, Some(content_bounds.min - bounds.min), None);
+                self.text(Some(content_bounds.min - bounds.min), None, text);
             }
             NodeKind::Div => {
             }
         }
 
-        // Recurse — clip to *content* area so children don't paint over padding/borders
+        // Recurse — clip to *content* area so children don't paint over padding/borders.
+        // Don't translate — child bounds from taffy are relative to the parent's
+        // border box, so translating to the content area would double-count padding.
         self.save()?;
-        self.translate(content_bounds.min)?;
-        self.clip(content_bounds.size().into())?;
+        let content_offset = content_bounds.min - bounds.min;
+        self.clip(Rect::new(content_offset, content_offset + content_bounds.size().into()))?;
 
         for child in doc.children(id) {
             self.render_node(doc, child, style)?;
@@ -67,11 +69,12 @@ impl<B: RendererBackend> Renderer<B> {
 pub trait RendererBackend {
     type Error;
 
-    fn set_style(&mut self, style: Style);
-    fn set_border(&mut self, border: Border);
-    fn set_fill(&mut self, fill: char);
+    fn fill_style(&mut self, style: Style);
+    fn fill_char(&mut self, fill: char);
 
-    /// Clip to a [`Shape`].
+    fn stroke_type(&mut self, border: Border);
+
+    /// Clip to a [`Rect`].
     ///
     /// All subsequent drawing operations up to the next [`restore`]
     /// are clipped by the bounds.
@@ -79,26 +82,23 @@ pub trait RendererBackend {
     /// [`restore`]: RendererBackend::restore
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error>;
 
-    /// Stroke a [`Shape`], using the default [`Style`].
-    fn stroke(&mut self, bounds: Option<Rect>, style: Option<Style>);
+    /// Translate the origin.
+    fn translate(&mut self, offset: Point) -> Result<(), Self::Error>;
 
     /// Fill an area with a style.
-    fn fill(&mut self, bounds: Option<Rect>, style: Option<Style>, char: Option<char>);
+    fn fill(&mut self, bounds: impl Into<Option<Rect>>, fill_style: impl Into<Option<Style>>, fill_char: impl Into<Option<char>>);
+
+    /// Stroke a [`Shape`], using the default [`Style`].
+    fn stroke(&mut self, bounds: impl Into<Option<Rect>>, stroke_type: impl Into<Option<Border>>);
+
     /// Draw a text.
     ///
     /// The `pos` parameter specifies the upper-left corner of the text
-    fn draw_text(&mut self,text: &str,  position: Option<Point>,  style: Option<Style>);
+    fn text(&mut self, position: impl Into<Option<Point>>, fill_style: impl Into<Option<Style>>, str: impl AsRef<str>);
 
     fn clear(&mut self, bounds: Option<Rect>) {
         self.fill(bounds, None, None);
     }
-
-    /// Get the current clip bounds.
-    fn current_clip(&self) -> Rect;
-
-
-    /// Translate the origin.
-    fn translate(&mut self, offset: Point) -> Result<(), Self::Error>;
 
     /// Save the context state.
     ///

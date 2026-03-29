@@ -1,9 +1,7 @@
 use std::borrow::Cow;
 use std::io::{self, Write as _};
-use ansi::io::{Write as _};
 use bon::__::ide::builder_top_level::start_fn::doc;
 use ansi::{Color, EraseDisplay, EraseDisplayToEnd, Home, Style, SGR};
-use ansi::ModeSetting::Reset;
 use gloss::*;
 use sigil::{ Buffer, GraphemeArena, Rasterizer};
 use tree::At;
@@ -21,25 +19,33 @@ fn main() -> io::Result<()> {
         Node::Span(Cow::Borrowed("Hello World!")),
         |node| {
             node.set_border(Border::Solid);
-            node.set_background_color(Color::White);
+            node.set_color(Color::Red);
+            node.set_text_decoration(TextDecoration::Underline);
+            node.set_font_weight(FontWeight::Bold);
+            node.set_background(Color::White);
         },
     );
 
     let row = document.insert_with(Node::Div(), |node| {
-        node.set_flex_direction(FlexDirection::Row);
-        node.set_width(Dimension::Percent(1.0));
+        node.set_width(Dimension::MAX);
+        node.set_color(Color::White);
     });
 
-    let a = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.set_background_color(Color::Green);
+    let a = document.insert_at_with_children(Node::Div(), [Node::Span(Cow::Borrowed("A"))], At::Child(row), |node| {
+        node.set_background(Color::Green);
+
     });
 
-    let b = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.set_background_color(Color::Yellow);
+    let b = document.insert_at_with_children(Node::Div(), [Node::Span(Cow::Borrowed("B"))], At::Child(row), |node| {
+        node.set_background(Color::Yellow);
     });
 
-    let c = document.insert_at_with(Node::Div(), At::Child(row), |node| {
-        node.set_background_color(Color::Blue);
+    let c = document.insert_at_with_children(Node::Div(), [Node::Span(Cow::Borrowed("C"))], At::Child(row), |node| {
+        node.set_background(Color::Blue);
+    });
+
+    document.insert_at_with_children(Node::Span(Cow::Borrowed("D")), [Node::Span(Cow::Borrowed("D"))], At::Child(c), |node| {
+        node.set_background(Color::Red);
     });
 
     let mut arena = GraphemeArena::new();
@@ -48,13 +54,13 @@ fn main() -> io::Result<()> {
 
     document.compute_layout(Space::new(buffer.width, buffer.height));
 
-
     let mut renderer = BufferRenderer::new(&mut buffer, &mut arena);
 
     renderer.render(&document)?;
     rasterizer.raster(&buffer, &arena)?;
-    dbg!(rasterizer.as_str());
     rasterizer.write(&mut stdout)?;
 
+    dbg!(document.print_layout());
+    dbg!(&rasterizer.as_str());
     Ok(())
 }

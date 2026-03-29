@@ -1,3 +1,5 @@
+use taffy::prelude::TaffyZero;
+
 #[derive(Copy, Debug, Clone, PartialEq)]
 pub enum Available {
     /// The amount of space available is the specified number of pixels
@@ -37,6 +39,8 @@ pub enum Dimension {
 impl Dimension {
     pub const DEFAULT: Self = Self::Auto;
     pub const ZERO: Self = Self::Length(0);
+    pub const MAX: Self = Self::Percent(1.0);
+    
     pub const fn or(self, other: Self) -> Self {
         match (self, other) {
             (Self::Auto, x) => x,
@@ -67,7 +71,7 @@ impl const From<Option<Dimension>> for Dimension {
 impl Into<taffy::LengthPercentage> for Dimension {
     fn into(self) -> taffy::LengthPercentage {
         match self {
-            Dimension::Auto => taffy::LengthPercentage::length(0.0),
+            Dimension::Auto => taffy::LengthPercentage::ZERO,
             Dimension::Length(val) => taffy::LengthPercentage::length(val as f32),
             Dimension::Percent(val) => taffy::LengthPercentage::percent(val),
         }

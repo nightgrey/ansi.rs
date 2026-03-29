@@ -1,4 +1,4 @@
-use crate::LayoutContext;
+use crate::{Display, LayoutContext};
 use crate::measure_node;
 use crate::{Available, Dimension, Space, Style};
 use bitflags::bitflags;
@@ -22,19 +22,20 @@ pub struct Node<'a> {
     #[deref_mut]
     pub style: Style,
 }
+
 #[allow(non_snake_case)]
 impl<'a> Node<'a> {
     pub fn Span(text: Cow<'a, str>) -> Self {
         Self {
             kind: NodeKind::Span(text),
-            style: Style::default(),
+            style: Style::default().display(Display::Inline),
         }
     }
 
     pub fn Div() -> Self {
         Self {
             kind: NodeKind::Div,
-            style: Style::default(),
+            style: Style::default().display(Display::Flex),
         }
     }
 }
@@ -112,6 +113,21 @@ impl<'a> Document<'a> {
         with: impl FnOnce(&mut Node<'a>),
     ) -> NodeId {
         let id = self.insert_at(node, at);
+        with(&mut self.nodes[id]);
+        id
+    }
+
+    pub fn insert_at_with_children(
+        &mut self,
+        node: Node<'a>,
+        children: impl IntoIterator<Item = Node<'a>>,
+        at: At<NodeId>,
+        with: impl FnOnce(&mut Node<'a>),
+    ) -> NodeId {
+        let id = self.insert_at(node, at);
+        for child in children {
+            self.insert_at(child, At::Child(id));
+        }
         with(&mut self.nodes[id]);
         id
     }

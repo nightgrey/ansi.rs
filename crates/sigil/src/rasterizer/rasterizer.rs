@@ -25,7 +25,7 @@ impl Rasterizer {
     /// Create a new rasterizer with the given screen dimensions.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            output: vec![0; width * height * 4],
+            output: Vec::with_capacity(width * height * 4),
             shadow: Buffer::new(width, height),
             pen: Cursor::new(),
             capabilities: Capabilities::default(),
@@ -36,7 +36,7 @@ impl Rasterizer {
 
     pub fn for_buffer(buffer: &Buffer) -> Self {
         Self {
-            output: vec![0; buffer.width * buffer.height * 4],
+            output: Vec::with_capacity(buffer.width * buffer.height * 4),
             shadow: Buffer::new(buffer.width, buffer.height),
             pen: Cursor::new(),
             capabilities: Capabilities::default(),
@@ -105,10 +105,10 @@ impl Rasterizer {
                 &mut self.pen,
                 cursor_mode,
                 width,
-            );
+            )?;
         }
 
-        self.output.escape(Reset)?;
+        self.output.escape(SelectGraphicRendition::RESET)?;
         self.output.escape(TextCursorEnable::Set)?;
         if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
             self.output.escape(SynchronizedOutput::Reset)?;
@@ -156,7 +156,7 @@ impl Rasterizer {
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        escape!(self.output, Reset, AlternateScreen::Reset, Reset);
+        escape!(self.output, SelectGraphicRendition::RESET, AlternateScreen::Reset, SelectGraphicRendition::RESET);
         self.pen.reset();
         self.invalidated = true;
     }
@@ -172,7 +172,7 @@ impl Rasterizer {
     ///
     /// For testing and debugging.
     pub fn as_str(&self) -> &str {
-       unsafe { str::from_utf8_unchecked(&self.output) }
+        unsafe { str::from_utf8_unchecked(&self.output) }
     }
 
     /// Clear the output buffer without flushing.
@@ -208,7 +208,7 @@ impl Rasterizer {
                     self.output.push(b'\n');
                 }
 
-                let row = &buffer[y * width..(y + 1) * width];
+                let row = &buffer[Row(y)];
 
 
                 // Find last non-empty cell in this row.
@@ -221,7 +221,7 @@ impl Rasterizer {
                     Some(end) => {
                         for col in 0..=end {
                             let cell = &row[col];
-                            Self::render_cell(cell, &mut self.output, &mut self.pen, arena);
+                            Self::render_cell(cell, &mut self.output, &mut self.pen, arena)?;
                         }
                     }
                     None => {
@@ -236,7 +236,7 @@ impl Rasterizer {
             self.pen.row = height - 1;
             self.pen.col = match (0..width)
                 .rev()
-                .find(|&x| !next[height * width..(height) * width].is_empty())
+                .find(|&x| !next[x].is_empty())
             {
                 Some(end) => end + 1,
                 None => 0,
@@ -329,15 +329,15 @@ impl Rasterizer {
         cursor: &mut Cursor,
         cursor_mode: CursorMode,
         width: usize,
-    ) {
+    ) -> io::Result<()> {
         // Scan left→right for first differing cell.
         let first = match (0..width).find(|&x| next[x] != prev[x]) {
             Some(col) => col,
-            None => return, // Entire line is identical.
+            None => return Ok(()), // Entire line is identical.
         };
 
         // Scan right→left for last differing cell.
-        let last = (0..width).rev().find(|&x| next[x] != prev[x]).unwrap();
+        let last = (0..width).rev().find(|&x| next[x] != prev[x]).unwrap_or(width - 1);
 
         // Within [first, last], find the last non-empty new cell. If the tail
         // of the diff range is all-empty new cells replacing old content, we
@@ -355,14 +355,14 @@ impl Rasterizer {
 
                 // Entire diff range is now empty — just erase to end of line.
                 cursor.reset_style(output);
-                escape!(output, EraseLineToEnd).unwrap();
+                escape!(output, EraseLineToEnd)?;
             }
             Some(emit_end) => {
                 // Emit changed cells from first through emit_end.
                 let mut col = first;
                 while col <= emit_end {
                     let cell = &next[col];
-                    Self::render_cell(cell, output, cursor, arena);
+                    Self::render_cell(cell, output, cursor, arena)?;
                     let w = cell.width() as usize;
                     col += w;
                     cursor.col += w;
@@ -370,18 +370,19 @@ impl Rasterizer {
 
                 // Clear to end of line if trailing cells transitioned to empty.
                 if emit_end < last {
-                    dbg!(cursor.col);
                     cursor.reset_style(output);
-                    escape!(output, EraseLineToEnd).unwrap();
+                    escape!(output, EraseLineToEnd)?;
                 }
             }
         }
+        
+        Ok(())
     }
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
-    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &GraphemeArena) {
-        cursor.update_style(output, cell.style);
+    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &GraphemeArena) -> io::Result<()> {
+        cursor.transition(output, cell.style)?;
 
         if cell.is_blank() {
             output.push(b' ');
@@ -389,6 +390,7 @@ impl Rasterizer {
             output.extend_from_slice(cell.as_bytes(arena));
         }
 
+        Ok(())
     }
 }
 
@@ -813,8 +815,8 @@ mod tests {
                 rest.iter().position(|&b| b == b'H').map_or(false, |h_pos| {
                     rest[..h_pos].contains(&b';')
                         && rest[..h_pos]
-                            .iter()
-                            .all(|b| b.is_ascii_digit() || *b == b';')
+                        .iter()
+                        .all(|b| b.is_ascii_digit() || *b == b';')
                 })
             }
         });

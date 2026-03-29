@@ -6,7 +6,7 @@ use derive_more::{
 use etwa::Maybe;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
-use std::ops::{BitAnd, BitOr, Sub, SubAssign};
+use std::ops::{BitAnd, BitOr, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use utils::separate_by;
 
 #[derive(
@@ -18,11 +18,8 @@ use utils::separate_by;
     BitOrAssign,
     BitAnd,
     BitAndAssign,
-    BitXor,
-    BitXorAssign,
     Sub,
     SubAssign,
-    Not,
 )]
 pub struct Style {
     pub attributes: Attribute,
@@ -308,63 +305,33 @@ impl Style {
         self
     }
 
-    ///   The bitwise and ( `&` ) of the bits in two flags values.
-    #[inline]
-    #[must_use]
-    pub fn intersection(self, other: Self) -> Self {
-        Self {
-            attributes: self.attributes & other.attributes,
-            foreground: self.foreground & other.foreground,
-            background: self.background & other.background,
-        }
-    }
-
-    ///   The bitwise or ( `|` ) of the bits in two flags values.
-    #[inline]
-    #[must_use]
-    pub fn union(self, other: Self) -> Self {
-        self.attributes.sub(other.attributes);
-        Self {
-            attributes: self.attributes | other.attributes,
-            foreground: self.foreground | other.foreground,
-            background: self.background | other.background,
-        }
-    }
-
-    ///   The intersection of a source flags value with the complement of a target flags
-    ///   value ( `&!` ).
-    ///
-    ///   This method is not equivalent to  `self & !other`  when  `other`  has unknown bits set.
-    ///   `difference`  won't truncate  `other` , but the  `!`  operator will.
     #[inline]
     #[must_use]
     pub fn difference(self, other: Self) -> Self {
         Self {
             attributes: self.attributes.difference(other.attributes),
-            foreground: self.foreground & !other.foreground,
-            background: self.background & !other.background,
+            foreground: self.foreground.difference(other.foreground),
+            background: self.background.difference(other.background),
         }
     }
 
-    ///   The bitwise exclusive-or ( `^` ) of the bits in two flags values.
     #[inline]
     #[must_use]
-    pub fn symmetric_difference(self, other: Self) -> Self {
+    pub fn intersection(self, other: Self) -> Self {
         Self {
-            attributes: self.attributes.symmetric_difference(other.attributes),
-            foreground: self.foreground ^ other.foreground,
-            background: self.background ^ other.background,
+            attributes: self.attributes.intersection(other.attributes),
+            foreground: self.foreground.intersection(other.foreground),
+            background: self.background.intersection(other.background),
         }
     }
 
-    ///   The bitwise negation ( `!` ) of the bits in a flags value, truncating the result.
     #[inline]
     #[must_use]
-    pub fn complement(self) -> Self {
+    pub fn union(self, other: Self) -> Self {
         Self {
-            attributes: self.attributes.complement(),
-            foreground: !self.foreground,
-            background: !self.background,
+            attributes: self.attributes.union(other.attributes),
+            foreground: self.foreground.union(other.foreground),
+            background: self.background.union(other.background),
         }
     }
 
@@ -390,6 +357,34 @@ impl Style {
         self.foreground = Color::None;
     }
 }
+
+impl BitXor for Style {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        self.difference(rhs)
+    }
+}
+
+impl BitXorAssign for Style {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = *self ^ rhs;
+    }
+}
+
+impl Not for Style {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self {
+            attributes: !self.attributes,
+            foreground: self.foreground,
+            background: self.background,
+        }
+    }
+}
+
+
 
 impl Default for Style {
     fn default() -> Self {
@@ -450,9 +445,7 @@ impl Escape for Style {
         }
 
         // Attributes (bold, underline, etc.)
-        for attr in self.attributes.sgr() {
-            separate!(w.write(attr.as_bytes())?);
-        }
+        separate!(w.write(self.attributes.sgr().as_bytes())?);
 
         w.write_all(b"m")
     }
@@ -468,5 +461,18 @@ impl Maybe for Style {
 
     fn is_none(&self) -> bool {
         self == &Self::None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_style_difference() {
+        let s1 = Style::Bold.background(Color::White);
+        let s2 = Style::None.background(Color::None);
+        let diff = s1.difference(s2);
+        assert_eq!(diff, Style::None);
     }
 }

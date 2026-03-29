@@ -34,12 +34,33 @@ pub enum Color {
     None,
 }
 impl Color {
-    /// Returns color if exactly one of `self`, `other` is not [`Color::None`], otherwise returns [`Color::None`].
     #[inline]
-    pub const fn xor(self, rhs: Color) -> Color {
-        self ^ rhs
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        match (self, other) {
+            (Color::None, _) | (_, Color::None) => Color::None,
+            (a, b) if a == b => a,
+            _ => Color::None,
+        }
     }
 
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        match (self, other) {
+            (x, Color::None) => x,
+            (a, b) if a == b => Color::None,
+            (_, x) => x,
+        }
+    }
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        match (self, other) {
+            (x, Color::None) | (Color::None, x) => x,
+            (_, x) => x,
+        }
+    }
     // pub fn convert(self, target: ColorSpace) -> Color {
     //     match target {
     //         ColorSpace::Ansi => Basic::from(self).into(),
@@ -149,11 +170,7 @@ impl const BitAnd for Color {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Color::None, _) | (_, Color::None) => Color::None,
-            (a, b) if a == b => a,
-            _ => Color::None,
-        }
+        self.intersection(rhs)
     }
 }
 
@@ -167,10 +184,8 @@ impl const BitOr for Color {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Color::None, x) | (x, Color::None) => x,
-            (x, _) => x,
-        }
+        self.union(rhs)
+
     }
 }
 
@@ -180,42 +195,17 @@ impl const BitOrAssign for Color {
     }
 }
 
-impl const BitXor for Color {
-    type Output = Self;
-
-    /// Returns the color if exactly one is non-`None`, otherwise returns `None`.
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Color::None, x) | (x, Color::None) => x,
-            _ => Color::None,
-        }
-    }
-}
-impl const BitXorAssign for Color {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = *self ^ rhs;
-    }
-}
-
 impl const Sub for Color {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        self & !rhs
+        self.difference(rhs)
     }
 }
 
 impl const SubAssign for Color {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
-    }
-}
-
-impl const Not for Color {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        Color::None
     }
 }
 
@@ -230,8 +220,6 @@ mod tests {
             (Color::None, Color::None, Color::None),
             (Color::Black, Color::None, Color::None),
             (Color::Black, Color::Black, Color::Black),
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::None),
         ] {
             assert_eq!(lhs.bitand(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
         }
@@ -244,8 +232,6 @@ mod tests {
             (Color::None, Color::Black, Color::Black),
             (Color::Black, Color::None, Color::Black),
             (Color::Black, Color::Black, Color::Black),
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::Black),
         ] {
             assert_eq!(lhs.bitor(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
         }
@@ -257,22 +243,24 @@ mod tests {
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::Black),
             (Color::Black, Color::None, Color::Black),
-            (Color::Black, Color::Black, Color::None),
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::Black),
+            (Color::Black, Color::Black, Color::Black),
         ] {
-            assert_eq!(lhs.bitxor(rhs), expected, "{:?}.bitxor({:?})", lhs, rhs);
+            assert_eq!(lhs.intersection(rhs), expected, "{:?}.intersection({:?})", lhs, rhs);
         }
     }
 
     #[test]
-    fn test_not() {
-        for (value, expected) in [
-            (Color::None, Color::None),
-            (Color::None, Color::None),
-            (Color::Black, Color::None),
+    fn test_sub() {
+        for (lhs, rhs, expected) in [
+            (Color::None, Color::None, Color::None),
+            (Color::None, Color::Black, Color::None),
+            (Color::Black, Color::None, Color::Black),
+            (Color::Black, Color::Black, Color::None),
+            (Color::None, Color::None, Color::None),
+            (Color::None, Color::Black, Color::None),
         ] {
-            assert_eq!(value.not(), expected, "{:?}", value);
+            assert_eq!(lhs.sub(rhs), expected, "{:?}.sub({:?})", lhs, rhs);
         }
     }
+
 }

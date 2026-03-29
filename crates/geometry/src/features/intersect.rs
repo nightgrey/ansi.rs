@@ -66,8 +66,9 @@ impl Intersect<Rect> for Rect {
         r.min.x = x1;
         r.min.y = y1;
 
-        let mut w = x2 - x1;
-        let mut h = y2 - y1;
+
+        let mut w = x2.saturating_sub(x1);
+        let mut h = y2.saturating_sub(y1);
 
         if w < 0 {
             w = 0;

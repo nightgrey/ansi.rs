@@ -1,7 +1,9 @@
-use crate::Backend;
+use crate::{Backend, Node};
 use crate::{Document, NodeId, NodeKind, Style};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
+use geometry::{Bounded, Point, Rect};
+
 #[derive(Default, Deref, DerefMut, AsRef, AsMut)]
 pub struct Renderer<B: Backend>(pub B);
 
@@ -12,7 +14,8 @@ impl<B: Backend> Renderer<B> {
 
     pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
         self.resize(doc.size(doc.root))?;
-        self.render_node(doc, doc.root, crate::Style::DEFAULT)?;
+        
+        self.render_node(doc, doc.root, Style::DEFAULT)?;
         self.finish()
     }
 
@@ -27,26 +30,38 @@ impl<B: Backend> Renderer<B> {
         let content_bounds = doc.content_bounds(id);
         let style = node.style.inherit(inherited);
 
+        // Snapshot the current state
+        self.save()?;
 
-        if style.has_background_color() { self.fill_style(content_bounds.clone(), style) }
-        if style.has_border() { self.stroke(bounds, style) }
+        // Apply this node's style and clip
+        self.translate(bounds.min)?;
+        self.clip(bounds.size().into())?;
+        self.set_style(style);
 
-        // Leaf text.
+        // Paint
+        if style.has_background() { self.fill(None, None, Some(' ')) }
+        if style.has_border() { self.stroke(None, None) }
+
         match &node.kind {
             NodeKind::Span(text) => {
-                // MVP: left-aligned only in actual paint pass.
-                // Center/right can be added once line layout is shared with measurement.
-                self.draw_text(content_bounds.min, text, style);
+                self.draw_text(text, Some(content_bounds.min - bounds.min), None);
             }
-            _ => {}
+            NodeKind::Div => {
+            }
         }
+
+        // Recurse — clip to *content* area so children don't paint over padding/borders
+        self.save()?;
+        self.translate(content_bounds.min())?;
+        self.clip(content_bounds.size().into())?;
+
 
         for child in doc.children(id) {
             self.render_node(doc, child, style)?;
         }
 
-        self.finish()?;
+        self.restore()?;
 
-        Ok(())
+        self.restore()
     }
 }

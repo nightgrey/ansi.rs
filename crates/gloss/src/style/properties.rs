@@ -1,14 +1,14 @@
 // Inline styling
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum TextDecorationLine {
+pub enum TextDecoration {
     #[default]
     None,
     Underline,
     LineThrough,
 }
 
-impl From<bool> for TextDecorationLine {
+impl From<bool> for TextDecoration {
     fn from(value: bool) -> Self {
         if value { Self::Underline } else { Self::None }
     }

@@ -46,16 +46,30 @@ impl<'buf> BufferRenderer<'buf> {
         })
     }
 
-    /// Current clip
+    /// Current state
     pub fn state(&self) -> &ContextState {
         &self.state
+    }
+
+    pub fn set_style(&mut self, style: ansi::Style) -> &mut Self {
+        self.state.style = style;
+        self
+    }
+
+    pub fn set_border(&mut self, border: Border) -> &mut Self {
+        self.state.border = border;
+        self
+    }
+
+    pub fn set_fill(&mut self, fill: char) -> &mut Self {
+        self.state.fill = fill;
+        self
     }
 
     /// Intersect the current clip with `rect` (in local coords).
     /// Only narrows — you can never *expand* clip without restore.
     pub fn clip(&mut self, rect: Rect) -> &mut Self {
-        let abs = rect.translate(&self.state.origin);
-        self.state.clip = self.state.clip.intersect(&abs);
+        self.state.clip = self.state.clip.intersect(&self.local(rect));
         self
     }
 
@@ -86,29 +100,24 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    pub fn fill(&mut self, rect: Rect, style: ansi::Style, fill: char) -> &mut Self {
-        self.fill_impl(rect, style, fill)
+    pub fn fill(&mut self, rect: Option<Rect>, style: Option<ansi::Style>, fill: Option<char>) -> &mut Self {
+        self.fill_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), fill.unwrap_or(self.state.fill))
     }
 
-    pub fn fill_char(&mut self, rect: Rect, fill: char) -> &mut Self {
-        self.fill_impl(rect, self.state.style, fill)
+    pub fn stroke(&mut self, rect: Option<Rect>, style: Option<ansi::Style>, border: Option<Border>) -> &mut Self {
+        self.stroke_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), style.map(|s| s.into()).unwrap_or(self.state.style), border.map(|b| b.into()).unwrap_or(self.state.border))
     }
 
-    pub fn stroke(&mut self, rect: Rect, style: ansi::Style, border: Border) -> &mut Self {
-        self.stroke_impl(rect, style, border)
+    pub fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<ansi::Style>) -> usize {
+        self.draw_text_impl(text, position.map(|p| self.local(p)).unwrap_or(Point::ZERO), style.map(|s| s.into()).unwrap_or(self.state.style))
     }
 
-    pub fn draw_text(&mut self, text: &str, position: Point, style: ansi::Style) -> usize {
-        self.draw_text_impl(text, position, style)
-    }
-
-    /// Reset a region to default cells.
-    pub fn clear(&mut self, rect: Rect) -> &mut Self {
-        self.fill_impl(rect, ansi::Style::default(), ' ')
+    pub fn clear(&mut self, rect: Option<Rect>) -> &mut Self {
+        self.fill_impl(rect.map(|r| self.local(r)).unwrap_or(self.state.clip), self.state.style, self.state.fill)
     }
 
     /// Set a single cell at `pos` (local coords). Respects clip.
-    pub fn set_cell(&mut self, pos: Point, cell: Cell) -> &mut Self {
+    pub fn set(&mut self, pos: Point, cell: Cell) -> &mut Self {
         let abs = pos + self.state.origin;
         if self.state.clip.contains(&abs) {
             self.buffer[abs] = cell;
@@ -117,7 +126,7 @@ impl<'buf> BufferRenderer<'buf> {
     }
 
     /// Read a cell at `pos` (local coords). Returns None if outside clip.
-    pub fn get_cell(&self, pos: Point) -> Option<&Cell> {
+    pub fn get(&self, pos: Point) -> Option<&Cell> {
         let abs = pos + self.state.origin;
         self.buffer.get(abs)
     }
@@ -143,20 +152,8 @@ impl<'buf> BufferRenderer<'buf> {
         self
     }
 
-    fn clipped(&self, rect: Rect) -> Option<Rect> {
-        let clipped = rect
-            .translate(&self.state.origin)
-            .intersect(&self.state.clip);
-
-        if clipped.is_empty() {
-            None
-        } else {
-            Some(clipped)
-        }
-    }
-
     fn fill_impl(&mut self, rect: Rect, style: ansi::Style, ch: char) -> &mut Self {
-        if let Some(r) = self.clipped(rect) {
+        if let Some(r) = self.intersect(rect) {
             for pos in &r {
                 let index: usize = self.buffer.bounds().resolve(pos);
                 self.buffer[index].set_char(ch, self.arena).set_style(style);
@@ -167,110 +164,127 @@ impl<'buf> BufferRenderer<'buf> {
     }
 
     fn stroke_impl(&mut self, rect: Rect, style: ansi::Style, border: Border) -> &mut Self {
-        let  mut bounds = rect.clone().translate(&self.state.origin);
+        let mut rect = rect;
         let border = border.into_symbols();
 
-        bounds.max.x -= border.right.width();
-        bounds.max.y -= border.bottom.width();
+        rect.max.x -= border.right.width();
+        rect.max.y -= border.bottom.width();
 
-        if bounds.is_empty() {
+        if rect.is_empty() {
             return self;
         }
-        // We clip each cell individually so partial borders work.
-        let clip = self.state.clip;
 
-        let mut set = |point: Point, border: Symbol| {
-            if clip.contains(&point) {
-                self.buffer[point].set_char_and_width('x', border.width() as u8, self.arena);
+        // We clip each cell individually so partial borders work.
+        let mut set = |x: usize, y: usize, border: Symbol| {
+            if self.state.clip.contains(&(x, y)) {
+                self.buffer[(x, y)].set_char_and_width('x', border.width() as u8, self.arena);
             }
         };
 
         // corners
-        set(bounds.top_left(), border.top_left);
-        set(bounds.top_right(), border.top_right);
-        set(bounds.bottom_left(), border.bottom_left);
-        set(bounds.bottom_right(), border.bottom_right);
-
+        set(rect.left(), rect.top(), border.top_left);
+        set(rect.right(), rect.top(), border.top_right);
+        set(rect.left(), rect.bottom(), border.bottom_left);
+        set(rect.right(), rect.bottom(), border.bottom_right);
 
         // horizontal edges
-        for x in (bounds.left() + 1)..bounds.right() {
-            set(Point { x, y: bounds.top() }, border.top);
-            set(Point { x, y: bounds.bottom() }, border.bottom);
+        for x in (rect.left() + border.left.width())..rect.right() {
+            set(x, rect.top(), border.top);
+            set(x, rect.bottom(), border.bottom);
         }
 
         // vertical edges
-        for y in (bounds.top() + 1)..bounds.bottom() {
-            set(Point { x: bounds.left(), y }, border.left);
-            set(Point { x: bounds.right(), y }, border.right);
+        for y in (rect.top() + border.top.width())..rect.bottom() {
+            set(rect.left(), y, border.left);
+            set(rect.right(), y, border.right);
         }
 
         self
     }
 
     fn draw_text_impl(&mut self, text: &str, pos: Point, style: ansi::Style) -> usize {
-        let mut col = 0usize;
-        let abs_y = pos.y + self.state.origin.y;
-        let abs_x_start = pos.x + self.state.origin.x;
+        let pos = pos;
+
+        let y = pos.y;
+        let mut i = 0;
 
         for (grapheme, width) in text.graphemes(true)
             .map(|g| (g, g.width())) {
-            let abs_x = abs_x_start + col; // or your coord type
+            let x = pos.x + i; // or your coord type
 
             // Stop if we've gone past clip right edge
-            if abs_x + width > self.state.clip.right() {
+            if x + width > self.state.clip.right() {
                 break;
             }
 
-            let p = Point::new(abs_x, abs_y);
-            if self.state.clip.contains(&p) {
-                self.buffer[p].set_str_and_width(grapheme, width as u8, self.arena);
+            if self.state.clip.contains(&(x, y)) {
+                self.buffer[(x, y)].set_str_and_width(grapheme, width as u8, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
-                    let cont = Point::new(abs_x + i, abs_y);
+                    let cont = (x + i, y);
                     if self.state.clip.contains(&cont) {
                         self.buffer[cont].set_continuation(self.arena).set_style(style);
                     }
                 }
             }
 
-            col += width;
+            i += width;
         }
 
-        col
+        i
     }
+
+    fn intersect(&self, rect: Rect) -> Option<Rect> {
+        let result = self.state.clip
+            .intersect(&rect);
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    fn local<T: Translate<Point>>(&self, rect: T) -> T::Output {
+        rect.translate(&self.state.origin)
+    }
+
 }
 
 impl<'a> Backend for BufferRenderer<'a> {
     type Error = io::Error;
 
-    fn stroke(&mut self, bounds: Rect, style: Style) {
-        BufferRenderer::stroke(self, bounds, style.into(), style.get_border());
+    fn set_style(&mut self, style: Style) {
+        self.state.style = style.into();
     }
 
-    fn fill(&mut self, bounds: Rect, style: Style, char: char) {
-        BufferRenderer::fill(self, bounds, style.into(), char);
+    fn set_border(&mut self, border: Border) {
+        self.state.border = border;
     }
 
-    fn fill_char(&mut self, bounds: Rect, char: char) {
-        self.fill(bounds, self.state.style, char);
-    }
-
-    fn fill_style(&mut self, bounds: Rect, style: Style) {
-        if let Some(r) = self.clipped(bounds) {
-            for pos in &r {
-                let index: usize = self.buffer.bounds().resolve(pos);
-                self.buffer[index].set_char(self.state.fill, self.arena).set_style(style.into());
-            }
-        }
-    }
-
-    fn draw_text(&mut self, position: Point, text: &str, style: Style) {
-        BufferRenderer::draw_text(self, text, position, style.into());
+    fn set_fill(&mut self, fill: char) {
+        self.state.fill = fill;
     }
 
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error> {
         BufferRenderer::clip(self, bounds);
         Ok(())
+    }
+
+    fn stroke(&mut self, bounds: Option<Rect>, style: Option<Style>) {
+        BufferRenderer::stroke(self, bounds, style.map(|s| s.into()), style.map_or(Some(Border::Solid), |s| Some(s.get_border())));
+    }
+
+    fn fill(&mut self, bounds: Option<Rect>, style: Option<Style>, char: Option<char>) {
+        BufferRenderer::fill(self, bounds, style.map(|s| s.into()), char);
+    }
+
+    fn draw_text(&mut self, text: &str, position: Option<Point>, style: Option<Style>) {
+        BufferRenderer::draw_text(self, text, position, style.map(|s| s.into()));
+    }
+
+    fn current_clip(&self) -> Rect {
+        self.state.clip.translate(&self.state.origin)
     }
 
     fn translate(&mut self, offset: Point) -> Result<(), Self::Error> {

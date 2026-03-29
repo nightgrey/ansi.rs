@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use crate::{Bounded, Edges, Location, Point, Size, Step, Steps, Zero};
 
 /// An axis-aligned rectangle for screen-space coordinates.
@@ -89,5 +90,16 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         Steps::new(*self)
+    }
+}
+
+impl<T: Sub<T, Output = T>> Sub<Rect<T>> for Rect<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Rect<T>) -> Self {
+        Self {
+            min: self.min - rhs.min,
+            max: self.max - rhs.max,
+        }
     }
 }

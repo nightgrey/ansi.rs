@@ -155,16 +155,5 @@ mod tests {
                 assert_bit!(lhs, rhs, bitand);
             }
         }
-
-        #[test]
-        fn test_bitxor() {
-            for (lhs, rhs) in CASES {
-                dbg_bit!(lhs, rhs, bitxor);
-            }
-
-            for (lhs, rhs) in CASES {
-                assert_bit!(lhs, rhs, bitxor);
-            }
-        }
     }
 }

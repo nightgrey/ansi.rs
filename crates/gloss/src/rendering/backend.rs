@@ -1,30 +1,13 @@
-use crate::{Style};
+use crate::{Border, Style};
 use etwa::Maybe;
 use geometry::{Bounded, Point, Rect, Size};
 
 pub trait Backend {
     type Error;
 
-    /// Stroke a [`Shape`], using the default [`Style`].
-    fn stroke(&mut self, bounds: Rect, style: Style);
-
-    fn clear(&mut self, bounds: Rect) {
-        self.fill(bounds, Style::DEFAULT, ' ');
-    }
-
-    /// Fill an area with a style.
-    fn fill(&mut self, bounds: Rect, style: Style, char: char);
-
-    /// Fill an area with a single character.
-    fn fill_char(&mut self, bounds: Rect, char: char);
-
-    /// Fill an area with a single character and style.
-    fn fill_style(&mut self, bounds: Rect, style: Style);
-
-    /// Draw a text.
-    ///
-    /// The `pos` parameter specifies the upper-left corner of the text
-    fn draw_text(&mut self, position: Point, text: &str, style: Style);
+    fn set_style(&mut self, style: Style);
+    fn set_border(&mut self, border: Border);
+    fn set_fill(&mut self, fill: char);
 
     /// Clip to a [`Shape`].
     ///
@@ -33,6 +16,24 @@ pub trait Backend {
     ///
     /// [`restore`]: Backend::restore
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error>;
+
+    /// Stroke a [`Shape`], using the default [`Style`].
+    fn stroke(&mut self, bounds: Option<Rect>, style: Option<Style>);
+
+    /// Fill an area with a style.
+    fn fill(&mut self, bounds: Option<Rect>, style: Option<Style>, char: Option<char>);
+    /// Draw a text.
+    ///
+    /// The `pos` parameter specifies the upper-left corner of the text
+    fn draw_text(&mut self,text: &str,  position: Option<Point>,  style: Option<Style>);
+
+    fn clear(&mut self, bounds: Option<Rect>) {
+        self.fill(bounds, None, None);
+    }
+
+    /// Get the current clip bounds.
+    fn current_clip(&self) -> Rect;
+
 
     /// Translate the origin.
     fn translate(&mut self, offset: Point) -> Result<(), Self::Error>;
@@ -64,6 +65,13 @@ pub trait Backend {
         f: impl FnOnce(&mut Self) -> Result<(), Self::Error>,
     ) -> Result<(), Self::Error> {
         self.save()?;
+        f(self).and(self.restore())
+    }
+
+    fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self) -> Result<(), Self::Error>) -> Result<(), Self::Error> {
+        self.save()?;
+        self.translate(rect.min)?;
+        self.clip(Rect::from(rect.size()))?;
         f(self).and(self.restore())
     }
 

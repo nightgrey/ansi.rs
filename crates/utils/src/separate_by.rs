@@ -8,11 +8,11 @@ macro_rules! separate_by {
                 if needs_separator {
                     $f;
                 }
-
-                $action;
-
                 needs_separator = true;
-            };
+
+                $action
+
+            }
         }
-    };
+    }
 }

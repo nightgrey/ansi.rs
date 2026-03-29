@@ -1,6 +1,6 @@
 use crate::{Column, Row, Size};
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, AddAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
 pub type PointLike<T = usize> = (T, T);
@@ -141,6 +141,24 @@ impl<T: AddAssign> AddAssign for Point<T> {
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
         self.y += rhs.y;
+    }
+}
+
+impl<T: Sub<T, Output = T>> Sub for Point<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl<T: SubAssign> SubAssign for Point<T> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
     }
 }
 

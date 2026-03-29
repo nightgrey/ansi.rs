@@ -7,7 +7,7 @@ bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
     struct Property: u32 {
         const Color = 1 << 0;
-        const BackgroundColor = 1 << 1;
+        const Background = 1 << 1;
         const TextDecoration = 1 << 2;
         const FontWeight = 1 << 3;
         const FontStyle = 1 << 4;
@@ -57,7 +57,7 @@ pub struct Style {
     pub(crate) gap: Gap,
 
     pub(crate) color: Color,
-    pub(crate) background_color: Color,
+    pub(crate) background: Color,
 
     // Flex
     pub(crate) flex_direction: FlexDirection,
@@ -73,7 +73,7 @@ pub struct Style {
     pub(crate) justify_self: AlignSelf,
     pub(crate) justify_content: JustifyContent,
 
-    pub(crate) text_decoration: TextDecorationLine,
+    pub(crate) text_decoration: TextDecoration,
     pub(crate) font_weight: FontWeight,
     pub(crate) font_style: FontStyle,
 
@@ -105,7 +105,7 @@ impl Style {
         align_content: AlignContent::Start,
         justify_content: JustifyContent::Start,
         // Flexbox
-        text_decoration: TextDecorationLine::None,
+        text_decoration: TextDecoration::None,
         font_weight: FontWeight::Normal,
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::NoWrap,
@@ -113,7 +113,7 @@ impl Style {
         flex_shrink: 1.0,
         flex_basis: Dimension::Auto,
         color: Color::None,
-        background_color: Color::None,
+        background: Color::None,
         font_style: FontStyle::Normal,
     };
 
@@ -123,7 +123,7 @@ impl Style {
         for property in other.properties.iter() {
             bitflags_match!(property, {
                 Property::Color => style.color = other.color,
-                Property::BackgroundColor => style.background_color = other.background_color,
+                Property::Background => style.background = other.background,
                 Property::TextDecoration => style.text_decoration = other.text_decoration,
                 Property::FontWeight => style.font_weight = other.font_weight,
                 Property::FontStyle => style.font_style = other.font_style,
@@ -167,50 +167,51 @@ impl Style {
 }
 
 macro_rules! property {
-    (fn $property_ident:ident($arg_ident:ident: $arg_ty:ty) -> $property_ty:ident $f:block) => {
-        ::paste::paste! {
-            /// Sets the property and returns a new Style.
-            pub fn [<$property_ident>](mut self, $arg_ident: $arg_ty) -> Self {
-                self.properties.insert(Property::$property_ty);
-                self.$property_ident = $f;
-                self
-            }
-
-            /// Sets the property and returns a mutable reference to the Style.
-            pub fn [<set_ $property_ident>](&mut self, $arg_ident: $arg_ty) -> &mut Self {
-                self.properties.insert(Property::$property_ty);
-                self.$property_ident = $f;
-                self
-            }
-
-            /// Unsets the property and returns a mutable reference to the Style.
-            pub fn [<unset_ $property_ident>](&mut self) -> &mut Self {
-                self.properties.remove(Property::$property_ty);
-                self.$property_ident = Self::DEFAULT.$property_ident;
-                self
-            }
-
-            /// Returns the property.
-            pub fn [<get_ $property_ident>](&self) -> $arg_ty {
-                if self.[<has_ $property_ident>]() { self.$property_ident } else { Self::DEFAULT.$property_ident }
-            }
-
-            /// Checks if the property is set.
-            pub fn [<has_ $property_ident>](&self) -> bool {
-                self.properties.contains(Property::$property_ty)
-            }
-        }
-    };
-    (fn $property_ident:ident($arg_ident:ident: Into<$arg_ty:ty>) -> $property_ty:ident) => {
+    ($bitset_property:ident -> fn $struct_property:ident($arg_ident:ident: Into<$arg_ty:ty>) -> $arg_return:ty) => {
         property!(
-            fn $property_ident($arg_ident: impl Into<$arg_ty>) -> $property_ty {
+            $bitset_property -> fn $struct_property($arg_ident: impl Into<$arg_ty>) -> $arg_return {
                 $arg_ident.into()
             }
         );
     };
-    (fn $property_ident:ident($arg_ident:ident: $arg_ty:ty) -> $property_ty:ident) => {
+
+    ($bitset_property:ident -> fn $struct_property:ident($arg_ident:ident: $arg_ty:ty) -> $arg_return:ty $f:block) => {
+        ::paste::paste! {
+            /// Sets the property and returns a new Style.
+            pub fn [<$struct_property>](mut self, $arg_ident: $arg_ty) -> Self {
+                self.properties.insert(Property::$bitset_property);
+                self.$struct_property = $f;
+                self
+            }
+
+            /// Sets the property and returns a mutable reference to the Style.
+            pub fn [<set_ $struct_property>](&mut self, $arg_ident: $arg_ty) -> &mut Self {
+                self.properties.insert(Property::$bitset_property);
+                self.$struct_property = $f;
+                self
+            }
+
+            /// Unsets the property and returns a mutable reference to the Style.
+            pub fn [<unset_ $struct_property>](&mut self) -> &mut Self {
+                self.properties.remove(Property::$bitset_property);
+                self.$struct_property = Self::DEFAULT.$struct_property;
+                self
+            }
+
+            /// Returns the property.
+            pub fn [<get_ $struct_property>](&self) -> $arg_return {
+                if self.[<has_ $struct_property>]() { self.$struct_property } else { Self::DEFAULT.$struct_property }
+            }
+
+            /// Checks if the property is set.
+            pub fn [<has_ $struct_property>](&self) -> bool {
+                self.properties.contains(Property::$bitset_property)
+            }
+        }
+    };
+    ($property_ty:ident -> fn $fn_name:ident($arg_ident:ident: $arg_ty:ty) -> $arg_return:ty) => {
         property!(
-            fn $property_ident($arg_ident: $arg_ty) -> $property_ty {
+            $property_ty -> fn $fn_name($arg_ident: $arg_ty) -> $arg_return {
                 $arg_ident
             }
         );
@@ -219,33 +220,33 @@ macro_rules! property {
 
 impl Style {
 
-    property!(fn color(value: Into<Color>) -> Color);
-    property!(fn background_color(value: Into<Color>) -> BackgroundColor);
-    property!(fn text_decoration(value: TextDecorationLine) -> TextDecoration);
-    property!(fn font_weight(value: Into<FontWeight>) -> FontWeight);
-    property!(fn font_style(value: FontStyle) -> FontStyle);
-    property!(fn display(value: Display) -> Display);
-    property!(fn padding(value: Into<Edges>) -> Padding);
-    property!(fn margin(value: Into<Edges>) -> Margin);
-    property!(fn border(value: Border) -> Border);
-    property!(fn min_width(value: Into<Dimension>) -> MinWidth);
-    property!(fn min_height(value: Into<Dimension>) -> MinHeight);
-    property!(fn width(value: Into<Dimension>) -> Width);
-    property!(fn height(value: Into<Dimension>) -> Height);
-    property!(fn max_width(value: Into<Dimension>) -> MaxWidth);
-    property!(fn max_height(value: Into<Dimension>) -> MaxHeight);
-    property!(fn align_items(value: AlignItems) -> AlignItems);
-    property!(fn align_self(value: AlignSelf) -> AlignSelf);
-    property!(fn justify_items(value: JustifyItems) -> JustifyItems);
-    property!(fn justify_self(value: JustifySelf) -> JustifySelf);
-    property!(fn align_content(value: AlignContent) -> AlignContent);
-    property!(fn justify_content(value: JustifyContent) -> JustifyContent);
-    property!(fn flex_direction(value: FlexDirection) -> FlexDirection);
-    property!(fn flex_wrap(value: FlexWrap) -> FlexWrap);
-    property!(fn flex_basis(value: Into<Dimension>) -> FlexBasis);
-    property!(fn flex_grow(value: f32) -> FlexGrow);
-    property!(fn flex_shrink(value: f32) -> FlexShrink);
-    property!(fn gap(value: Gap) -> Gap);
+    property!(Color -> fn color(value: Into<Color>) -> Color);
+    property!(Background -> fn background(value: Into<Color>) -> Color);
+    property!(TextDecoration -> fn text_decoration(value: TextDecoration) -> TextDecoration);
+    property!(FontWeight -> fn font_weight(value: Into<FontWeight>) -> FontWeight);
+    property!(FontStyle -> fn font_style(value: FontStyle) -> FontStyle);
+    property!(Display -> fn display(value: Display) -> Display);
+    property!(Padding -> fn padding(value: Into<Edges>) -> Edges);
+    property!(Margin -> fn margin(value: Into<Edges>) -> Edges);
+    property!(Border -> fn border(value: Border) -> Border);
+    property!(MinWidth -> fn min_width(value: Into<Dimension>) -> Dimension);
+    property!(MinHeight -> fn min_height(value: Into<Dimension>) -> Dimension);
+    property!(Width -> fn width(value: Into<Dimension>) -> Dimension);
+    property!(Height -> fn height(value: Into<Dimension>) -> Dimension);
+    property!(MaxWidth -> fn max_width(value: Into<Dimension>) -> Dimension);
+    property!(MaxHeight -> fn max_height(value: Into<Dimension>) -> Dimension);
+    property!(AlignItems -> fn align_items(value: AlignItems) -> AlignItems);
+    property!(AlignSelf -> fn align_self(value: AlignSelf) -> AlignSelf);
+    property!(JustifyItems -> fn justify_items(value: JustifyItems) -> JustifyItems);
+    property!(JustifySelf -> fn justify_self(value: JustifySelf) -> JustifySelf);
+    property!(AlignContent -> fn align_content(value: AlignContent) -> AlignContent);
+    property!(JustifyContent -> fn justify_content(value: JustifyContent) -> JustifyContent);
+    property!(FlexDirection -> fn flex_direction(value: FlexDirection) -> FlexDirection);
+    property!(FlexWrap -> fn flex_wrap(value: FlexWrap) -> FlexWrap);
+    property!(FlexBasis -> fn flex_basis(value: Into<Dimension>) -> Dimension);
+    property!(FlexGrow -> fn flex_grow(value: f32) -> f32);
+    property!(FlexShrink -> fn flex_shrink(value: f32) -> f32);
+    property!(Gap -> fn gap(value: Gap) -> Gap);
 }
 impl Into<ansi::Style> for Style {
     fn into(self) -> ansi::Style {
@@ -257,9 +258,9 @@ impl Into<ansi::Style> for Style {
         };
 
         match self.text_decoration {
-            TextDecorationLine::None => (),
-            TextDecorationLine::Underline => attributes.insert(ansi::Attribute::Underline),
-            TextDecorationLine::LineThrough => attributes.insert(ansi::Attribute::Strikethrough),
+            TextDecoration::None => (),
+            TextDecoration::Underline => attributes.insert(ansi::Attribute::Underline),
+            TextDecoration::LineThrough => attributes.insert(ansi::Attribute::Strikethrough),
         };
 
         match self.font_style {
@@ -270,7 +271,7 @@ impl Into<ansi::Style> for Style {
         ansi::Style {
             attributes,
             foreground: self.color,
-            background: self.background_color,
+            background: self.background,
         }
     }
 }
@@ -283,14 +284,6 @@ impl Default for Style {
 
 impl taffy::CoreStyle for Style {
     type CustomIdent = CompactString;
-
-    #[inline(always)]
-    fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
-        match self.get_display() {
-            Display::None => taffy::BoxGenerationMode::None,
-            _ => taffy::BoxGenerationMode::Normal,
-        }
-    }
 
     #[inline(always)]
     fn is_block(&self) -> bool {
@@ -385,22 +378,22 @@ impl taffy::FlexboxContainerStyle for Style {
     }
     #[inline(always)]
     fn align_content(&self) -> Option<taffy::AlignContent> {
-        Some(self.get_align_content().into())
+        if self.has_align_content() { Some(self.get_align_content().into()) } else { None }
     }
     #[inline(always)]
     fn align_items(&self) -> Option<taffy::AlignItems> {
-        Some(self.get_align_items().into())
+        if self.has_align_items() { Some(self.get_align_items().into()) } else { None }
     }
     #[inline(always)]
     fn justify_content(&self) -> Option<taffy::JustifyContent> {
-        Some(self.get_justify_content().into())
+        if self.has_justify_content() { Some(self.get_justify_content().into()) } else { None }
     }
 }
 
 impl taffy::FlexboxItemStyle for Style {
     #[inline(always)]
     fn flex_basis(&self) -> taffy::Dimension {
-        self.get_flex_basis().into().into()
+        if self.has_flex_basis() { self.get_flex_basis().into() } else { taffy::Style::<Self::CustomIdent>::DEFAULT.flex_basis }
     }
     #[inline(always)]
     fn flex_grow(&self) -> f32 {
@@ -412,6 +405,6 @@ impl taffy::FlexboxItemStyle for Style {
     }
     #[inline(always)]
     fn align_self(&self) -> Option<taffy::AlignSelf> {
-        Some(self.get_align_self().into())
+        if self.has_align_self() { Some(self.get_align_self().into()) } else { None }
     }
 }

@@ -42,6 +42,35 @@ bitflags! {
     }
 }
 
+static SGR: &[(Attribute, &str)] = &[
+    (Attribute::Bold, "1"),
+    (Attribute::Faint, "2"),
+    (Attribute::Italic, "3"),
+    (Attribute::Underline, "4"),
+    (Attribute::Blink, "5"),
+    (Attribute::RapidBlink, "6"),
+    (Attribute::Reverse, "7"),
+    (Attribute::Conceal, "8"),
+    (Attribute::Strikethrough, "9"),
+    (Attribute::Frame, "51"),
+    (Attribute::Encircle, "52"),
+    (Attribute::Overline, "53"),
+];
+static SGR_UNSET: &'static [(Attribute, &'static str)] = &[
+    (Attribute::Bold, "22"),
+    (Attribute::Faint, "22"),
+    (Attribute::Italic, "23"),
+    (Attribute::Underline, "24"),
+    (Attribute::Blink, "25"),
+    (Attribute::Reverse, "27"),
+    (Attribute::Conceal, "28"),
+    (Attribute::Strikethrough, "29"),
+    (Attribute::Frame, "54"),
+    (Attribute::Encircle, "54"),
+    (Attribute::Overline, "55"),
+];
+static SEP: &str = ";";
+
 impl Attribute {
     #[allow(non_upper_case_globals)]
     pub const None: Self = Self::new(0);
@@ -63,27 +92,64 @@ impl Attribute {
         !self.is_none()
     }
 
+    /// Returns the semicolon-separated SGR parameters to set attributes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ansi::Attribute;
+    ///
+    /// let attrs = Attribute::Bold | Attribute::Italic;
+    /// assert_eq!(attrs.sgr(), "1;3");
+    /// ```
+    ///
+    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
+    pub fn sgr(self) -> Cow<'static, str> {
+        if self.is_none() {
+            return Cow::Borrowed("");
+        }
+        SGR.iter()
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
+            .intersperse(SEP)
+            .collect()
+    }
+
+    /// Returns the semicolon-separated SGR parameters to unset attributes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ansi::Attribute;
+    ///
+    /// let attrs = Attribute::Bold | Attribute::Italic;
+    ///
+    /// assert_eq!(attrs.sgr_unset(), "22;23");
+    /// ```
+    ///
+    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
+    pub fn sgr_unset(self) -> Cow<'static, str> {
+        if self.is_none() {
+            return Cow::Borrowed("");
+        }
+        SGR_UNSET.iter()
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
+            .intersperse(SEP)
+            .collect()
+    }
+
+
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn sgr(self) -> impl Iterator<Item = &'static str> {
-        static SGR: &[(Attribute, &str)] = &[
-            (Attribute::Bold, "1"),
-            (Attribute::Faint, "2"),
-            (Attribute::Italic, "3"),
-            (Attribute::Underline, "4"),
-            (Attribute::Blink, "5"),
-            (Attribute::RapidBlink, "6"),
-            (Attribute::Reverse, "7"),
-            (Attribute::Conceal, "8"),
-            (Attribute::Strikethrough, "9"),
-            (Attribute::Frame, "51"),
-            (Attribute::Encircle, "52"),
-            (Attribute::Overline, "53"),
-        ];
-
+    pub fn iter_sgr(self) -> impl Iterator<Item = (&'static str, Attribute)> {
         SGR.iter()
-            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
+    }
+
+    pub fn iter_sgr_unset(self) -> impl Iterator<Item = (&'static str, Attribute)> {
+
+        SGR_UNSET.iter()
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
     }
 
     /// Returns an iterator over the names of the attributes.
@@ -151,11 +217,11 @@ impl std::fmt::Debug for Attribute {
 
 impl Escape for Attribute {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        for (i, attr) in self.sgr().enumerate() {
+        for (i, (sgr, attr)) in self.iter_sgr().enumerate() {
             if i > 0 {
                 w.write(b";")?;
             }
-            w.write(attr.as_bytes())?;
+            w.write(sgr.as_bytes())?;
         }
         Ok(())
     }
@@ -176,7 +242,7 @@ mod tests {
         assert_eq!(attrs.bits(), 0);
         assert!(attrs.is_empty());
         assert!(!attrs.is_some());
-        assert_eq!(attrs.sgr().count(), 0);
+        assert_eq!(attrs.iter_sgr().count(), 0);
     }
 
     #[test]
@@ -271,27 +337,27 @@ mod tests {
         #[test]
         fn sgr_single() {
             let bold = Attribute::Bold;
-            let sgr: Vec<&str> = bold.sgr().collect();
-            assert_eq!(sgr, vec!["1"]);
+            let sgr: Vec<(&str, Attribute)> = bold.iter_sgr().collect();
+            assert_eq!(sgr, vec![("1", Attribute::Bold)]);
         }
 
         #[test]
         fn sgr_multiple() {
             let styled = Attribute::Bold | Attribute::Italic | Attribute::Underline;
-            let sgr: Vec<&str> = styled.sgr().collect();
-            assert!(sgr.contains(&"1")); // Bold
-            assert!(sgr.contains(&"3")); // Italic
-            assert!(sgr.contains(&"4")); // Underline
+            let sgr: Vec<(&str, Attribute)> = styled.iter_sgr().collect();
+            assert!(sgr.contains(&("1", Attribute::Bold))); // Bold
+            assert!(sgr.contains(&("3", Attribute::Italic))); // Italic
+            assert!(sgr.contains(&("4", Attribute::Underline))); // Underline
             assert_eq!(sgr.len(), 3);
         }
 
         #[test]
         fn sgr_frame_encircle_overline() {
             let attrs = Attribute::Frame | Attribute::Encircle | Attribute::Overline;
-            let sgr: Vec<&str> = attrs.sgr().collect();
-            assert!(sgr.contains(&"51"));
-            assert!(sgr.contains(&"52"));
-            assert!(sgr.contains(&"53"));
+            let sgr: Vec<(&str, Attribute)> = attrs.iter_sgr().collect();
+            assert!(sgr.contains(&("51", Attribute::Frame)));
+            assert!(sgr.contains(&("52", Attribute::Encircle)));
+            assert!(sgr.contains(&("53", Attribute::Overline)));
         }
     }
 

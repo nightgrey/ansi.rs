@@ -1,8 +1,9 @@
+use std::io;
 use super::capabilities::Capabilities;
 use ansi::io::Write;
 use ansi::{Escape, Style, escape, sequences::*};
 use std::ops::Sub;
-
+use etwa::Maybe;
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
 pub(crate) struct Cursor {
@@ -162,25 +163,21 @@ impl Cursor {
 
     /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn update_style(&mut self, out: &mut Vec<u8>, style: Style) {
-        if self.style == style {
-            return;
+    pub fn transition(&mut self, out: &mut Vec<u8>, to: Style) -> io::Result<()> {
+        if self.style == to {
+            return Ok(());
         }
 
-        let diff = self.style.symmetric_difference(style);
-
-        if !diff.is_none() {
-            out.escape(SelectGraphicRendition(diff)).unwrap();
-
-        }
-        self.style = style;
+        out.escape(SGR::transition(self.style, to))?;
+        self.style = to;
+        Ok(())
 
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
     pub fn reset_style(&mut self, w: &mut impl Write) {
         if !self.style.is_none() {
-            w.escape(Reset).unwrap();
+            w.escape(SGR::reset()).unwrap();
             self.style = Style::None;
         }
     }
@@ -241,7 +238,7 @@ mod tests {
         let mut cursor = Cursor::new();
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor.update_style(&mut buf, Style::default().bold());
+        cursor.transition(&mut buf, Style::default().bold()).unwrap();
         assert!(buf.is_empty());
     }
 

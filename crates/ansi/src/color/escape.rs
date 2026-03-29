@@ -92,7 +92,6 @@ impl Escape for Foreground {
             BrightMagenta => w.write_all(b"95"),
             BrightCyan => w.write_all(b"96"),
             BrightWhite => w.write_all(b"97"),
-
             Index(i) => {
                 write!(w, "38;5;{}", i)
             }

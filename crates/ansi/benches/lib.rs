@@ -3,7 +3,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 fn lib(c: &mut Criterion) {
     c.bench_function("sgr", |b| {
-        b.iter(|| Attribute::MAX.sgr().collect::<Vec<_>>())
+        b.iter(|| Attribute::MAX.iter_sgr().collect::<Vec<_>>())
     });
 }
 

@@ -7,8 +7,11 @@ mod document;
 mod style;
 mod rendering;
 pub mod layouting;
+pub mod nodes;
+
 
 pub use document::*;
 pub use style::*;
 pub use rendering::*;
 pub use layouting::*;
+pub use nodes::*;

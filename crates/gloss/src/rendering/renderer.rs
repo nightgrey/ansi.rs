@@ -25,7 +25,7 @@ impl<B: Backend> Renderer<B> {
         id: NodeId,
         inherited: Style,
     ) -> Result<(), B::Error> {
-        let mut node = doc.node(id);
+        let  node = doc.node(id);
         let bounds = doc.bounds(id);
         let content_bounds = doc.content_bounds(id);
         let style = node.style.inherit(inherited);
@@ -52,9 +52,8 @@ impl<B: Backend> Renderer<B> {
 
         // Recurse — clip to *content* area so children don't paint over padding/borders
         self.save()?;
-        self.translate(content_bounds.min())?;
+        self.translate(content_bounds.min)?;
         self.clip(content_bounds.size().into())?;
-
 
         for child in doc.children(id) {
             self.render_node(doc, child, style)?;

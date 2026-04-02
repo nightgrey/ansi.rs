@@ -1,5 +1,5 @@
 use super::{Blocks, LineSymbols, Symbol};
-use etwa::Maybe;
+use maybe::Maybe;
 use geometry::Edges;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

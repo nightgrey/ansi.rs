@@ -3,7 +3,7 @@ use super::capabilities::Capabilities;
 use ansi::io::Write;
 use ansi::{Escape, Style, escape, sequences::*};
 use std::ops::Sub;
-use etwa::Maybe;
+use maybe::Maybe;
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
 pub(crate) struct Cursor {

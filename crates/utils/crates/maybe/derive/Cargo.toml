@@ -1,5 +1,5 @@
 [package]
-name = "etwa-derive"
+name = "maybe-derive"
 version = "0.1.0"
 edition = "2021"
 

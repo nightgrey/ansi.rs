@@ -28,7 +28,7 @@ impl<'a> Document<'a> {
         self.insert_at(node, At::Child(self.root))
     }
 
-    pub fn insert_with_children(&mut self, node: Node<'a>, children: Vec<Node<'a>>) -> NodeId {
+    pub fn insert_with_children(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>) -> NodeId {
         let id = self.insert(node);
         for child in children {
             self.insert_at(child, At::Child(id));
@@ -42,7 +42,7 @@ impl<'a> Document<'a> {
         id
     }
     
-    pub fn insert_with_children_at(&mut self, node: Node<'a>, children: Vec<Node<'a>>, at: At<NodeId>) -> NodeId {
+    pub fn insert_with_children_at(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>, at: At<NodeId>) -> NodeId {
         let id = self.insert_at(node, at);
         for child in children {
             self.insert_at(child, At::Child(id));
@@ -63,6 +63,15 @@ impl<'a> Document<'a> {
         with: impl FnOnce(&mut Node<'a>),
     ) -> NodeId {
         let id = self.insert_at(node, at);
+        with(&mut self.nodes[id]);
+        id
+    }
+
+    pub fn insert_with_children_at_with(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>, at: At<NodeId>, with: impl FnOnce(&mut Node<'a>)) -> NodeId {
+        let id = self.insert_at(node, at);
+        for child in children {
+            self.insert_at(child, At::Child(id));
+        }
         with(&mut self.nodes[id]);
         id
     }
@@ -127,7 +136,7 @@ impl<'a> Document<'a> {
         let mut context = LayoutContext::new(
             &mut self.nodes,
             &mut self.layouts,
-            |known, available, id, node, style| measure_node(known, available, node),
+            |known, available, id, style| measure_node(known, available, style),
         );
 
         context.compute_layout(
@@ -142,7 +151,7 @@ impl<'a> Document<'a> {
         LayoutContext::new(
             &mut self.nodes,
             &mut self.layouts,
-            |known, available, id, node, style| measure_node(known, available, node),
+            |known, available, id, style| measure_node(known, available, style),
         ).print_tree(self.root)
     }
 

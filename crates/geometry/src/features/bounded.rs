@@ -1,8 +1,8 @@
-use crate::{Edges, Location, Point, Rect, Size};
+use crate::{Edges, Point, Rect, Size};
 /// Provides the bounds of a geometry.
 pub trait Bounded {
-    type Point: Location;
-    type Bounds: Copy;
+    type Coordinate;
+    type Bounds;
 
     #[inline]
     fn min_x(&self) -> usize;
@@ -17,10 +17,10 @@ pub trait Bounded {
     fn max_y(&self) -> usize;
 
     #[inline]
-    fn min(&self) -> Self::Point;
+    fn min(&self) -> Self::Coordinate;
 
     #[inline]
-    fn max(&self) -> Self::Point;
+    fn max(&self) -> Self::Coordinate;
 
     #[inline]
     fn x(&self) -> usize {
@@ -65,7 +65,7 @@ pub trait Bounded {
 }
 
 impl Bounded for Rect {
-    type Point = Point;
+    type Coordinate = Point;
     type Bounds = Rect;
 
     fn min_x(&self) -> usize {
@@ -84,11 +84,11 @@ impl Bounded for Rect {
         self.max.y
     }
 
-    fn min(&self) -> Self::Point {
+    fn min(&self) -> Self::Coordinate {
         self.min
     }
 
-    fn max(&self) -> Self::Point {
+    fn max(&self) -> Self::Coordinate {
         self.max
     }
 
@@ -129,7 +129,7 @@ impl Bounded for Rect {
 //     }
 // }
 impl Bounded for Size {
-    type Point = Point;
+    type Coordinate = Point;
     type Bounds = Rect;
 
     fn min_x(&self) -> usize {
@@ -148,11 +148,11 @@ impl Bounded for Size {
         self.height
     }
 
-    fn min(&self) -> Self::Point {
+    fn min(&self) -> Self::Coordinate {
         Point { x: 0, y: 0 }
     }
 
-    fn max(&self) -> Self::Point {
+    fn max(&self) -> Self::Coordinate {
         Point {
             x: self.width,
             y: self.height,
@@ -173,7 +173,7 @@ impl Bounded for Size {
 }
 
 impl Bounded for Edges {
-    type Point = Point;
+    type Coordinate = Point;
     type Bounds = Rect;
 
     fn min_x(&self) -> usize {
@@ -192,11 +192,11 @@ impl Bounded for Edges {
         self.vertical()
     }
 
-    fn min(&self) -> Self::Point {
+    fn min(&self) -> Self::Coordinate {
         Point::ZERO
     }
 
-    fn max(&self) -> Self::Point {
+    fn max(&self) -> Self::Coordinate {
         Point::new(self.horizontal(), self.vertical())
     }
 

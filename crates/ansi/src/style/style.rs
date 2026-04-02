@@ -3,7 +3,7 @@ use bitflags::Flags;
 use derive_more::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
 };
-use etwa::Maybe;
+use maybe::Maybe;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
 use std::ops::{BitAnd, BitOr, BitXor, BitXorAssign, Not, Sub, SubAssign};

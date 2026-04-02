@@ -51,7 +51,6 @@ mod error;
 mod id;
 #[macro_export]
 pub mod iter;
-pub mod layout;
 pub mod node;
 mod tree;
 
@@ -59,6 +58,5 @@ pub use at::*;
 pub use error::*;
 pub use id::*;
 pub use iter::*;
-pub use layout::*;
 pub use node::*;
 pub use tree::*;

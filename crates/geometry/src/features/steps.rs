@@ -1,7 +1,5 @@
-use crate::{Bounded, ContextualResolve, Point, Rect, Resolve};
+use crate::{Bounded, ContextualResolve, Point, Rect};
 use std::iter::FusedIterator;
-use std::marker::Destruct;
-use std::ops::Deref;
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -62,7 +60,7 @@ impl Step<Point> for Rect {
             return (0, None);
         }
         let current: usize = self.resolve(start);
-        let remaining: usize = end.resolve(self);
+        let remaining: usize = self.resolve(end);
 
         let dist = remaining - current;
 
@@ -117,13 +115,13 @@ impl Step<Point> for Rect {
 ///
 /// Created by [`Area::iter`].
 #[derive(Copy, Debug, Clone)]
-pub struct Steps<Ctx: Bounded<Point = T> + Step<T>, T> {
+pub struct Steps<Ctx: Bounded<Coordinate= T> + Step<T>, T> {
     pub(crate) context: Ctx,
     pub(crate) front: T,
     pub(crate) back: T,
 }
 
-impl<Ctx: Bounded<Point = T> + Step<T>, T> Steps<Ctx, T> {
+impl<Ctx: Bounded<Coordinate= T> + Step<T>, T> Steps<Ctx, T> {
     pub fn new(context: Ctx) -> Self {
         let front = if context.is_empty() {
             context.max()
@@ -288,31 +286,31 @@ impl DoubleEndedIterator for Steps<Rect, Point> {
     }
 }
 
-impl<Ctx: Bounded<Point = T> + Step<T>, T> ExactSizeIterator for Steps<Ctx, T> where Self: Iterator {}
-impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where Self: Iterator {}
+impl<Ctx: Bounded<Coordinate= T> + Step<T>, T> ExactSizeIterator for Steps<Ctx, T> where Self: Iterator {}
+impl<Ctx: Bounded<Coordinate= T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where Self: Iterator {}
 
 // ─── Tests ─────────────────────────────────────────────────────────────
 
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
-// 
+//
 //     #[cfg(test)]
 //     mod off_by_one {
 //         use super::*;
-// 
+//
 //         // #[test]
 //         // @TODO: Fix this test
 //         fn from_0() {
 //             for x in 0..2 {
 //                 for y in 0..2 {
 //                     let bounds = Area::new(Position::new(0, 0), Position::new(x, y));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.iter().collect::<Vec<_>>().len();
 //                     let count = bounds.iter().count();
 //                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(
 //                         area, len,
 //                         "Area len mismatch: {area} != {len}. bounds={bounds:?}"
@@ -328,18 +326,18 @@ impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where
 //                 }
 //             }
 //         }
-// 
+//
 //         #[test]
 //         fn from_1() {
 //             for x in 1..2 {
 //                 for y in 1..3 {
 //                     let bounds = Area::new(Position::new(1, 1), Position::new(x, y));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.iter().collect::<Vec<_>>().len().saturating_sub(1);
 //                     let count = bounds.iter().count();
 //                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
 //                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
 //                     assert_eq!(
@@ -349,18 +347,18 @@ impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where
 //                 }
 //             }
 //         }
-// 
+//
 //         #[test]
 //         fn to_plus_one() {
 //             for x in 0..3 {
 //                 for y in 0..3 {
 //                     let bounds = Area::new(Position::new(x, y), Position::new(x + 1, y + 1));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.iter().collect::<Vec<_>>().len();
 //                     let count = bounds.iter().count();
 //                     let size_hint = bounds.iter().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
 //                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
 //                     assert_eq!(
@@ -371,14 +369,14 @@ impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where
 //             }
 //         }
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_basic() {
 //         let bounds = Area::new(Position::new(0, 0), Position::new(2, 3));
 //         let positions: Vec<_> = bounds.iter().collect();
-// 
+//
 //         assert_eq!(positions.len(), 6); // 2 rows * 3 cols
-// 
+//
 //         // Check row-major order
 //         assert_eq!(positions[0], Position::new(0, 0));
 //         assert_eq!(positions[1], Position::new(0, 1));
@@ -387,53 +385,53 @@ impl<Ctx: Bounded<Point = T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where
 //         assert_eq!(positions[4], Position::new(1, 1));
 //         assert_eq!(positions[5], Position::new(1, 2));
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_empty_width() {
 //         let bounds = Area::new(Position::new(0, 5), Position::new(0, 5));
 //         assert_eq!(bounds.iter().count(), 0);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_empty_height() {
 //         let bounds = Area::new(Position::new(5, 0), Position::new(5, 1));
 //         assert_eq!(bounds.iter().count(), 0);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_single_cell() {
 //         let bounds = Area::new(Position::new(5, 10), Position::new(6, 11));
 //         let positions: Vec<_> = bounds.iter().collect();
-// 
+//
 //         assert_eq!(positions.len(), 1);
 //         assert_eq!(positions[0], Position::new(5, 10));
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_size_hint() {
 //         let bounds = Area::new(Position::new(0, 0), Position::new(3, 4));
 //         let iter = bounds.iter();
 //         let (min, max) = iter.size_hint();
-// 
+//
 //         assert_eq!(min, 12);
 //         assert_eq!(max, Some(12));
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_iter_exact_size() {
 //         let bounds = Area::new(Position::new(0, 0), Position::new(5, 10));
 //         let iter = bounds.iter();
-// 
+//
 //         assert_eq!(iter.count(), 50);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_into_iter() {
 //         let bounds = Area::new(Position::new(0, 0), Position::new(2, 2));
 //         let count = bounds.iter().count();
 //         assert_eq!(count, 4);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_into_iter_ref() {
 //         let bounds = Area::new(Position::new(0, 0), Position::new(3, 3));

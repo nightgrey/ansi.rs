@@ -6,7 +6,7 @@ use crate::{Display, Node, NodeKind};
 pub fn measure_node(
     known: taffy::Size<Option<f32>>,
     available: taffy::Size<taffy::AvailableSpace>,
-    node: &mut Node<'_>,
+    node: &Node<'_>,
 ) -> taffy::Size<f32> {
     match &node.kind {
         NodeKind::Span(text) => {

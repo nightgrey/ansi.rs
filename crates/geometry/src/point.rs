@@ -1,4 +1,4 @@
-use crate::{Column, One, Row, Size, Zero};
+use crate::{Column, One, Row, SaturatingAdd, SaturatingSub, Size, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -170,6 +170,25 @@ impl<T: SubAssign> SubAssign for Point<T> {
         self.y -= rhs.y;
     }
 }
+
+impl<T: SaturatingSub<T, Output = T>> SaturatingSub for Point<T> {
+    fn saturating_sub(self, rhs: Self) -> Self {
+        Self {
+            x: self.x.saturating_sub(rhs.x),
+            y: self.y.saturating_sub(rhs.y),
+        }
+    }
+}
+
+impl<T: SaturatingAdd<T, Output = T>> SaturatingAdd for Point<T> {
+    fn saturating_add(self, rhs: Self) -> Self {
+        Self {
+            x: self.x.saturating_add(rhs.x),
+            y: self.y.saturating_add(rhs.y),
+        }
+    }
+}
+
 
 impl<T: Ord> PartialOrd for Point<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

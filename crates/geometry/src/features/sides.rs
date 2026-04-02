@@ -1,19 +1,19 @@
-use crate::{Bounded, Edges, Location, Point, Rect, Size};
+use crate::{Bounded, Edges, Point, Rect, Size};
 use std::ops::Range;
 
 pub trait Outer: Bounded {
     #[inline]
     /// Returns the x-coordinate of the left edge.
-    fn top_left(&self) -> Self::Point;
+    fn top_left(&self) -> Self::Coordinate;
     #[inline]
     /// Returns the y-coordinate of the top edge.
-    fn top_right(&self) -> Self::Point;
+    fn top_right(&self) -> Self::Coordinate;
     #[inline]
     /// Returns the y-coordinate of the bottom edge.
-    fn bottom_right(&self) -> Self::Point;
+    fn bottom_right(&self) -> Self::Coordinate;
     #[inline]
     /// Returns the x-coordinate of the right edge.
-    fn bottom_left(&self) -> Self::Point;
+    fn bottom_left(&self) -> Self::Coordinate;
 }
 
 pub trait Sides: Bounded {
@@ -48,21 +48,21 @@ impl<T: Bounded> Sides for T {
         self.max_x()
     }
 }
-impl<T: Bounded> Outer for T {
-    fn top_right(&self) -> Self::Point {
-        Self::Point::new(self.max_x(), self.min_y())
-    }
-
-    fn top_left(&self) -> Self::Point {
+impl<T: Bounded<Coordinate = Point>> Outer for T {
+    fn top_left(&self) -> Self::Coordinate {
         self.min()
     }
 
-    fn bottom_right(&self) -> Self::Point {
+    fn top_right(&self) -> Self::Coordinate {
+        Self::Coordinate::new(self.max_x(), self.min_y())
+    }
+
+    fn bottom_right(&self) -> Self::Coordinate {
         self.max()
     }
 
-    fn bottom_left(&self) -> Self::Point {
-        Self::Point::new(self.min_x(), self.max_y())
+    fn bottom_left(&self) -> Self::Coordinate {
+        Self::Coordinate::new(self.min_x(), self.max_y())
     }
 }
 

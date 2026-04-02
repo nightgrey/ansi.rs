@@ -1,13 +1,11 @@
 #![feature(bound_copied)]
+#![feature(const_range)]
+#![feature(slice_range)]
 extern crate core;
 
-mod packing;
 #[macro_export]
 #[macro_use]
 mod separate_by;
-mod range;
-mod segmented_string;
-
-pub use packing::*;
-pub use range::*;
+mod resolve;
 pub use separate_by::*;
+pub use resolve::*;

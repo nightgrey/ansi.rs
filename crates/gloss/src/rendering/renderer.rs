@@ -1,70 +1,7 @@
 use crate::{Border, Document, NodeId, NodeKind, Style};
-use etwa::Maybe;
+use maybe::Maybe;
 use geometry::{Bounded, Point, Rect, Size};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
-
-#[derive(Default, Deref, DerefMut, AsRef, AsMut)]
-pub struct Renderer<B: RendererBackend>(pub B);
-
-impl<B: RendererBackend> Renderer<B> {
-    pub fn new(backend: B) -> Self {
-        Self(backend)
-    }
-
-    pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
-        self.resize(doc.size(doc.root))?;
-
-        self.render_node(doc, doc.root, Style::DEFAULT)?;
-        self.finish()
-    }
-
-    fn render_node(
-        &mut self,
-        doc: &Document<'_>,
-        id: NodeId,
-        inherited: Style,
-    ) -> Result<(), B::Error> {
-        let  node = doc.node(id);
-        let bounds = doc.bounds(id);
-        let content_bounds = doc.content_bounds(id);
-        let style = node.style.inherit(inherited);
-
-        // Snapshot the current state
-        self.save()?;
-
-        // Apply this node's style and clip
-        self.translate(bounds.min)?;
-        self.clip(bounds.size().into())?;
-        self.fill_style(style);
-
-        // Paint
-        if style.has_background() { self.fill(None, None, Some(' ')) }
-        if style.has_border() { self.stroke(None, None) }
-
-        match &node.kind {
-            NodeKind::Span(text) => {
-                self.text(Some(content_bounds.min - bounds.min), None, text);
-            }
-            NodeKind::Div => {
-            }
-        }
-
-        // Recurse — clip to *content* area so children don't paint over padding/borders.
-        // Don't translate — child bounds from taffy are relative to the parent's
-        // border box, so translating to the content area would double-count padding.
-        self.save()?;
-        let content_offset = content_bounds.min - bounds.min;
-        self.clip(Rect::new(content_offset, content_offset + content_bounds.size().into()))?;
-
-        for child in doc.children(id) {
-            self.render_node(doc, child, style)?;
-        }
-
-        self.restore()?;
-
-        self.restore()
-    }
-}
 
 pub trait RendererBackend {
     type Error;
@@ -142,4 +79,69 @@ pub trait RendererBackend {
 
     /// Finish any pending operations.
     fn finish(&mut self) -> Result<(), Self::Error>;
+}
+
+#[derive(Default, Deref, DerefMut, AsRef, AsMut)]
+pub struct Renderer<B: RendererBackend>(pub B);
+
+impl<B: RendererBackend> Renderer<B> {
+    pub fn new(backend: B) -> Self {
+        Self(backend)
+    }
+
+    pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
+        self.resize(doc.size(doc.root))?;
+
+        self.render_node(doc, doc.root, Style::DEFAULT)?;
+        self.finish()
+    }
+
+    fn render_node(
+        &mut self,
+        doc: &Document<'_>,
+        id: NodeId,
+        inherited: Style,
+    ) -> Result<(), B::Error> {
+        let  node = doc.node(id);
+        let bounds = doc.bounds(id);
+        let content_bounds = doc.content_bounds(id);
+        let style = node.style.inherit(inherited);
+
+        // Snapshot the current state
+        self.save()?;
+
+        // Apply this node's style and clip
+        self.translate(bounds.min)?;
+        self.clip(bounds.size().into())?;
+        self.fill_style(style);
+
+        // Normalize content bounds to be relative to the node's border box.
+        let content_bounds = content_bounds - bounds.min;
+
+        // Paint
+        if style.has_background() { self.fill(content_bounds, None, None) }
+        if style.has_border() { self.stroke(None, node.get_border()) }
+
+        match &node.kind {
+            NodeKind::Span(text) => {
+                self.text(Some(content_bounds.min), None, text);
+            }
+            NodeKind::Div => {
+            }
+        }
+
+        // Recurse — clip to *content* area so children don't paint over padding/borders.
+        // Don't translate — child bounds from taffy are relative to the parent's
+        // border box, so translating to the content area would double-count padding.
+        self.save()?;
+        self.clip(content_bounds)?;
+
+        for child in doc.children(id) {
+            self.render_node(doc, child, style)?;
+        }
+
+        self.restore()?;
+
+        self.restore()
+    }
 }

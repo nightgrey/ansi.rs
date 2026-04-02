@@ -5,7 +5,7 @@ members = [
     "crates/sigil", "crates/terminal", "crates/utils",
     "crates/utils/crates/tree",
     "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
-    "crates/utils/crates/etwa/core", "crates/utils/crates/etwa/derive", "crates/gloss",
+    "crates/utils/crates/maybe/core", "crates/utils/crates/maybe/derive", "crates/gloss",
 ]
 
 [workspace.dependencies]
@@ -32,8 +32,8 @@ gloss = { path = "crates/gloss" }
 
 tagged = { path = "crates/utils/crates/tagged/core" }
 tagged-derive = { path = "crates/utils/crates/tagged/derive" }
-etwa = { path = "crates/utils/crates/etwa/core" }
-etwa-derive = { path = "crates/utils/crates/etwa/derive" }
+maybe = { path = "crates/utils/crates/maybe/core" }
+maybe-derive = { path = "crates/utils/crates/maybe/derive" }
 
 [profile.bench]
 debug = true

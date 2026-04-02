@@ -560,6 +560,8 @@ mod tests {
         assert_eq!(context.buffer[(tx + 1, ty)].grapheme(), Grapheme::char('K'));
         // Padding area should be empty
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+
+
     }
 
     #[test]

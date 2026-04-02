@@ -1,6 +1,6 @@
 use crate::{ColorSpace, Escape};
 use bilge::prelude::*;
-use etwa::Maybe;
+use maybe::Maybe;
 use std::fmt::Debug;
 use std::io::Write;
 use std::marker::Destruct;

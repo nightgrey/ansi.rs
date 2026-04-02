@@ -1,4 +1,4 @@
-pub use etwa_derive::Maybe;
+pub use maybe_derive::Maybe;
 
 /// A trait for types with a distinguished "none" and "some" state,
 /// providing [`Option`]-like combinators without wrapping.

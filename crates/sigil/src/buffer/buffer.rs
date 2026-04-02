@@ -2,13 +2,14 @@ use crate::{Cell, GraphemeArena, BufferIndex};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Ranges, Rect, Resolve};
+use geometry::{Bounded, Intersect, Point, Ranges, Rect};
 use std::cmp;
 use std::fmt::Debug;
 use std::iter::StepBy;
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 use std::slice::SliceIndex;
+use utils::Resolve;
 
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
@@ -627,7 +628,7 @@ impl<I: BufferIndex<Buffer, [Cell]>> IndexMut<I> for Buffer {
 }
 
 impl Bounded for Buffer {
-    type Point = Point;
+    type Coordinate = Point;
     type Bounds = Rect;
 
     fn min_x(&self) -> usize {
@@ -646,11 +647,11 @@ impl Bounded for Buffer {
         self.height
     }
 
-    fn min(&self) -> Self::Point {
+    fn min(&self) -> Self::Coordinate {
         Point::ZERO
     }
 
-    fn max(&self) -> Self::Point {
+    fn max(&self) -> Self::Coordinate {
         Point::new(self.max_x(), self.max_y())
     }
 

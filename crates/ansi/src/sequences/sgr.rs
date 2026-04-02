@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use bitflags::Flags;
 use crate::{Color, Escape, Style};
 use derive_more::{Deref, DerefMut};
-use etwa::Maybe;
+use maybe::Maybe;
 use utils::separate_by;
 
 /// [SGR] - Select Graphic Rendition

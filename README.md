@@ -1,3 +1,3 @@
-# sigil.rs
+# ansi.rs
 
-A work in progress terminal UI framework.
+Experimental, work in progress TUI and ANSI libraries.

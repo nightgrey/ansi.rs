@@ -26,11 +26,11 @@ pub mod io {
 pub mod fmt {
     use super::*;
 
-    pub trait Write {
+    pub trait Fmt {
         fn escape(&mut self, escape: impl Escape) -> std::fmt::Result;
     }
 
-    impl<W: std::fmt::Write> Write for W {
+    impl<W: std::fmt::Write> Fmt for W {
         #[inline]
         fn escape(&mut self, escape: impl Escape) -> std::fmt::Result {
             use std::io::Cursor;
@@ -92,7 +92,7 @@ pub mod fmt {
 /// This macro accepts a 'writer' and a list of values to be escaped. Values will be
 /// escaped and the result will be passed to the writer. The writer may be any value
 /// with a `write_fmt` method; generally this comes from an
-/// implementation of either the [`fmt::Write`] or the [`io::Write`] trait. The macro
+/// implementation of either the [`fmt::Fmt`] or the [`io::Write`] trait. The macro
 /// returns whatever the `write_fmt` method returns; commonly a [`fmt::Result`], or an
 /// [`io::Result`].
 ///
@@ -138,6 +138,8 @@ macro_rules! escape {
     };
     ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
         use $crate::Escape as _;
+        use $crate::io::Write as _;
+        use $crate::fmt::Fmt as _;
         let mut result: std::io::Result<()> = $dst.escape($first);
         $(
                 if result.is_ok() {

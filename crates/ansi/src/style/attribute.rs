@@ -161,7 +161,7 @@ impl Attribute {
     ///
     /// let attrs = Attribute::Bold | Attribute::Italic;
     ///
-    /// assert_eq!(attrs.names().map(|(name, _)| name).collect(), vec!["Bold", "Italic"]);
+    /// assert_eq!(attrs.names().map(|(name, _)| name).collect::<Vec<_>>(), vec!["Bold", "Italic"]);
     /// ```
     #[inline]
     pub fn names(self) -> AttributeNames {

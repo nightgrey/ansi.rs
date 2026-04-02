@@ -172,13 +172,13 @@ where
     }
 
     #[inline(always)]
-    fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        self.layout_mut(node_id).unrounded_layout = *layout;
+    fn resolve_calc_value(&self, _val: *const (), _basis: f32) -> f32 {
+        0.0
     }
 
     #[inline(always)]
-    fn resolve_calc_value(&self, _val: *const (), _basis: f32) -> f32 {
-        0.0
+    fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
+        self.layout_mut(node_id).unrounded_layout = *layout;
     }
 
     fn compute_child_layout(
@@ -200,7 +200,7 @@ where
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
             match (style.get_display(), has_children) {
                 (Display::None, _) => taffy::compute_hidden_layout(ctx, node_id),
-                (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs),
+                // (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs),
                 (Display::Flex, true) => taffy::compute_flexbox_layout(ctx, node_id, inputs),
                 (_, false) | (Display::Inline, _) => taffy::compute_leaf_layout(
                     inputs,
@@ -232,31 +232,18 @@ where
     fn cache_get(
         &self,
         node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
+        input: &taffy::LayoutInput,
     ) -> Option<taffy::LayoutOutput> {
-        self.layout(node_id).cache.get(
-            known_dimensions,
-            available_space,
-            run_mode,
-        )
+        self.layout(node_id).cache.get(input)
     }
 
     fn cache_store(
         &mut self,
         node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
+        input: &taffy::LayoutInput,
         layout_output: taffy::LayoutOutput,
     ) {
-        self.layout_mut(node_id).cache.store(
-            known_dimensions,
-            available_space,
-            run_mode,
-            layout_output,
-        );
+        self.layout_mut(node_id).cache.store(input, layout_output);
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
@@ -369,25 +356,21 @@ where
     ) -> taffy::Size<f32>,
 {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-        use taffy::{LayoutPartialTree, TraversePartialTree};
-        let layout = self.get_core_container_style(node_id);
-        let num_children = self.child_count(node_id);
+        let style = self.style(node_id);
 
+        match (style.get_display(), &self.node(node_id).kind) {
+            (Display::Inline, NodeKind::Span(_)) => "Node::Span",
+            (Display::Flex, NodeKind::Span(_)) => "Node::Span [Flex]",
+            (Display::None, NodeKind::Span(_)) => "Node::Span [None]",
 
-        match (num_children, layout.get_display()) {
-            (_, Display::None) => "None",
-            (0, _) =>
-                match &self.node(node_id).kind {
-                    NodeKind::Div => "Node::Div",
-                    NodeKind::Span(_) => "Node::Span"
-                },
-            (_, Display::Block) => "Block",
-            (_, Display::Flex) => match layout.get_flex_direction() {
-                FlexDirection::Row | FlexDirection::RowReverse => "Flex Row",
-                FlexDirection::Column | FlexDirection::ColumnReverse => "Flex Col",
+            (Display::Flex, NodeKind::Div) => match style.get_flex_direction() {
+                FlexDirection::Column => "Node::Div [Flex::Column]",
+                FlexDirection::Row => "Node::Div [Flex::Row]",
+                FlexDirection::RowReverse => "Node::Div [Flex::RowReverse]",
+                FlexDirection::ColumnReverse => "Node::Div [Flex::ColumnReverse]",
             },
-            // (_, Display::Grid) => "GRID",
-            (_, _) => "Unknown",
+            (Display::Inline, NodeKind::Div) => "Node::Div [Inline]",
+            (Display::None, NodeKind::Div) => "Node::Div [None]",
         }
     }
 

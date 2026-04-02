@@ -7,15 +7,10 @@ edition = "2024"
 bitflags = { workspace = true }
 utils = { workspace = true }
 geometry = { workspace = true }
-bitcraft = { workspace = true }
-derive_more.workspace = true
-criterion = "0.8.2"
-packed_struct = "0.10.1"
-zerocopy = "0.8.39"
+derive_more = { workspace = true }
 bilge = "0.3.0"
-bytemuck.workspace = true
 maybe.workspace = true
 
-[[bench]]
-name = "lib"
-harness = false
+[dev-dependencies]
+criterion = "0.8.2"
+

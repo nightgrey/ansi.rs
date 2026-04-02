@@ -5,7 +5,5 @@ edition = "2024"
 
 [dependencies]
 derive_more = { workspace = true }
-
-bitcraft = { workspace = true }
 synonym = "0.1.6"
 utils = { workspace = true }

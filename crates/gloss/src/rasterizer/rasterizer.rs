@@ -2,14 +2,13 @@ use std::io::Write as _;
 use ansi::escape;
 use ansi::io::Write;
 use ansi::sequences::*;
-use rustix::path::Arg;
 use std::io;
 use geometry::{Bounded, Row};
 use utils::Resolve;
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
 use crate::Cell;
-use crate::buffer::{Buffer, Arena};
+use crate::{Buffer, Arena};
 
 #[derive(Debug, Clone)]
 pub struct Rasterizer {
@@ -448,7 +447,7 @@ struct InlineState {
 
 #[cfg(test)]
 mod tests {
-    use crate::buffer::Arena;
+    use crate::Arena;
     use ansi::{Color, Style};
 
     use super::*;

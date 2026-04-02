@@ -2,135 +2,153 @@ use std::num::{FpCategory, ParseIntError};
 use std::ops::Neg;
 use crate::num::Number;
 
-pub trait Float: Number  + Neg<Output = Self>
+pub trait Float: Number + Neg<Output = Self>
 {
-    const E: Self;
-    const FRAC_1_PI: Self;
-    const FRAC_1_SQRT_2: Self;
-    const FRAC_2_PI: Self;
-    const FRAC_2_SQRT_PI: Self;
-    const FRAC_PI_2: Self;
-    const FRAC_PI_3: Self;
-    const FRAC_PI_4: Self;
-    const FRAC_PI_6: Self;
-    const FRAC_PI_8: Self;
-    const LN_10: Self;
-    const LN_2: Self;
-    const LOG10_E: Self;
-    const LOG2_E: Self;
+    /// Archimedes' constant (π)
     const PI: Self;
-    const SQRT_2: Self;
+
+    /// The full circle constant (τ)
+    ///
+    /// Equal to 2π.
     const TAU: Self;
-    const LOG10_2: Self;
+
+    /// The golden ratio (φ)
+    const GOLDEN_RATIO: Self;
+
+    /// The Euler-Mascheroni constant (γ)
+    const EULER_GAMMA: Self;
+
+    /// π/2
+    const FRAC_PI_2: Self;
+
+    /// π/3
+    const FRAC_PI_3: Self;
+
+    /// π/4
+    const FRAC_PI_4: Self;
+
+    /// π/6
+    const FRAC_PI_6: Self;
+
+    /// π/8
+    const FRAC_PI_8: Self;
+
+    /// 1/π
+    const FRAC_1_PI: Self;
+
+    /// 1/sqrt(π)
+    const FRAC_1_SQRT_PI: Self;
+
+    /// 1/sqrt(2π)
+    const FRAC_1_SQRT_2PI: Self;
+
+    /// 2/π
+    const FRAC_2_PI: Self;
+
+    /// 2/sqrt(π)
+    const FRAC_2_SQRT_PI: Self;
+
+    /// sqrt(2)
+    const SQRT_2: Self;
+
+    /// 1/sqrt(2)
+    const FRAC_1_SQRT_2: Self;
+
+    /// sqrt(3)
+    const SQRT_3: Self;
+
+    /// 1/sqrt(3)
+    const FRAC_1_SQRT_3: Self;
+
+    /// sqrt(5)
+    const SQRT_5: Self;
+
+    /// 1/sqrt(5)
+    const FRAC_1_SQRT_5: Self;
+
+    /// Euler's number (e)
+    const E: Self;
+
+    /// log<sub>2</sub>(e)
+    const LOG2_E: Self;
+
+    /// log<sub>2</sub>(10)
     const LOG2_10: Self;
 
-    /// Returns the `NaN` value.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    ///
-    /// let nan: f32 = Float::nan();
-    ///
-    /// assert!(nan.is_nan());
-    /// ```
-    fn nan() -> Self;
-    /// Returns the infinite value.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f32;
-    ///
-    /// let infinity: f32 = Float::infinity();
-    ///
-    /// assert!(infinity.is_infinite());
-    /// assert!(!infinity.is_finite());
-    /// assert!(infinity > f32::MAX);
-    /// ```
-    fn infinity() -> Self;
-    /// Returns the negative infinite value.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f32;
-    ///
-    /// let neg_infinity: f32 = Float::neg_infinity();
-    ///
-    /// assert!(neg_infinity.is_infinite());
-    /// assert!(!neg_infinity.is_finite());
-    /// assert!(neg_infinity < f32::MIN);
-    /// ```
-    fn neg_infinity() -> Self;
-    /// Returns `-0.0`.
-    ///
-    /// ```
-    /// use num_traits::{Zero, Float};
-    ///
-    /// let inf: f32 = Float::infinity();
-    /// let zero: f32 = Zero::zero();
-    /// let neg_zero: f32 = Float::neg_zero();
-    ///
-    /// assert_eq!(zero, neg_zero);
-    /// assert_eq!(7.0f32/inf, zero);
-    /// assert_eq!(zero * 10.0, zero);
-    /// ```
-    fn neg_zero() -> Self;
+    /// log<sub>10</sub>(e)
+    const LOG10_E: Self;
 
-    /// Returns the smallest finite value that this type can represent.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f64;
-    ///
-    /// let x: f64 = Float::min_value();
-    ///
-    /// assert_eq!(x, f64::MIN);
-    /// ```
-    fn min_value() -> Self;
+    /// log<sub>10</sub>(2)
+    const LOG10_2: Self;
 
-    /// Returns the smallest positive, normalized value that this type can represent.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f64;
-    ///
-    /// let x: f64 = Float::min_positive_value();
-    ///
-    /// assert_eq!(x, f64::MIN_POSITIVE);
-    /// ```
-    fn min_positive_value() -> Self;
+    /// ln(2)
+    const LN_2: Self;
 
-    /// Returns epsilon, a small positive value.
-    ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f64;
-    ///
-    /// let x: f64 = Float::epsilon();
-    ///
-    /// assert_eq!(x, f64::EPSILON);
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// The default implementation will panic if `f32::EPSILON` cannot
-    /// be cast to `Self`.
-    fn epsilon() -> Self;
+    /// ln(10)
+    const LN_10: Self;
 
-    /// Returns the largest finite value that this type can represent.
+    /// [Machine epsilon] value for `f32`.
     ///
-    /// ```
-    /// use num_traits::Float;
-    /// use std::f64;
+    /// This is the difference between `1.0` and the next larger representable number.
     ///
-    /// let x: f64 = Float::max_value();
-    /// assert_eq!(x, f64::MAX);
-    /// ```
-    fn max_value() -> Self;
+    /// Equal to 2<sup>1&nbsp;&minus;&nbsp;[`MANTISSA_DIGITS`]</sup>.
+    ///
+    /// [Machine epsilon]: https://en.wikipedia.org/wiki/Machine_epsilon
+    /// [`MANTISSA_DIGITS`]: f32::MANTISSA_DIGITS
+    #[feature(assoc_int_consts)]
+    const EPSILON: Self;
+
+    /// Smallest finite `f32` value.
+    ///
+    /// Equal to &minus;[`MAX`].
+    ///
+    /// [`MAX`]: f32::MAX
+    #[feature(assoc_int_consts)]
+    const MIN: Self;
+    /// Smallest positive normal `f32` value.
+    ///
+    /// Equal to 2<sup>[`MIN_EXP`]&nbsp;&minus;&nbsp;1</sup>.
+    ///
+    /// [`MIN_EXP`]: f32::MIN_EXP
+    #[feature(assoc_int_consts)]
+    const MIN_POSITIVE: Self;
+    /// Largest finite `f32` value.
+    ///
+    /// Equal to
+    /// (1&nbsp;&minus;&nbsp;2<sup>&minus;[`MANTISSA_DIGITS`]</sup>)&nbsp;2<sup>[`MAX_EXP`]</sup>.
+    ///
+    /// [`MANTISSA_DIGITS`]: f32::MANTISSA_DIGITS
+    /// [`MAX_EXP`]: f32::MAX_EXP
+    #[feature(assoc_int_consts)]
+    const MAX: Self;
+
+    /// Not a Number (NaN).
+    ///
+    /// Note that IEEE 754 doesn't define just a single NaN value; a plethora of bit patterns are
+    /// considered to be NaN. Furthermore, the standard makes a difference between a "signaling" and
+    /// a "quiet" NaN, and allows inspecting its "payload" (the unspecified bits in the bit pattern)
+    /// and its sign. See the [specification of NaN bit patterns](f32#nan-bit-patterns) for more
+    /// info.
+    ///
+    /// This constant is guaranteed to be a quiet NaN (on targets that follow the Rust assumptions
+    /// that the quiet/signaling bit being set to 1 indicates a quiet NaN). Beyond that, nothing is
+    /// guaranteed about the specific bit pattern chosen here: both payload and sign are arbitrary.
+    /// The concrete bit pattern may change across Rust versions and target platforms.
+    #[feature(assoc_int_consts)]
+    const NAN: Self;
+
+    /// Infinity (∞).
+    #[feature(assoc_int_consts)]
+    const INFINITY: Self;
+
+    /// Negative infinity (−∞).
+    #[feature(assoc_int_consts)]
+    const NEG_INFINITY: Self;
 
     /// Returns `true` if this value is `NaN` and false otherwise.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let nan = f64::NAN;
@@ -145,7 +163,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// false otherwise.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f32;
     ///
     /// let f = 7.0f32;
@@ -164,7 +182,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns `true` if this number is neither infinite nor `NaN`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f32;
     ///
     /// let f = 7.0f32;
@@ -184,7 +202,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// [subnormal][subnormal], or `NaN`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f32;
     ///
     /// let min = f32::MIN_POSITIVE; // 1.17549435e-38f32
@@ -207,7 +225,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns `true` if the number is [subnormal].
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let min = f64::MIN_POSITIVE; // 2.2250738585072014e-308_f64
@@ -233,7 +251,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// predicate instead.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::num::FpCategory;
     /// use std::f32;
     ///
@@ -248,7 +266,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the largest integer less than or equal to a number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 3.99;
     /// let g = 3.0;
@@ -261,7 +279,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the smallest integer greater than or equal to a number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 3.01;
     /// let g = 4.0;
@@ -275,7 +293,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// `0.0`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 3.3;
     /// let g = -3.3;
@@ -288,7 +306,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Return the integer part of a number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 3.3;
     /// let g = -3.7;
@@ -301,7 +319,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the fractional part of a number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 3.5;
     /// let y = -3.5;
@@ -317,7 +335,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// number is `Float::nan()`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = 3.5;
@@ -340,7 +358,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// - `Float::nan()` if the number is `Float::nan()`
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let f = 3.5;
@@ -356,7 +374,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// `Float::infinity()`, and `Float::nan()`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let nan: f64 = f64::NAN;
@@ -376,7 +394,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// `Float::neg_infinity()`, and `-Float::nan()`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let nan: f64 = f64::NAN;
@@ -399,7 +417,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// the target architecture has a dedicated `fma` CPU instruction.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let m = 10.0;
     /// let x = 4.0;
@@ -414,7 +432,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Take the reciprocal (inverse) of a number, `1/x`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.recip() - (1.0/x)).abs();
@@ -428,7 +446,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Using this function is generally faster than using `powf`
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.powi(2) - x*x).abs();
@@ -440,7 +458,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Raise a number to a floating point power.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.powf(2.0) - x*x).abs();
@@ -454,7 +472,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns NaN if `self` is a negative number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let positive = 4.0;
     /// let negative = -4.0;
@@ -469,7 +487,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns `e^(self)`, (the exponential function).
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let one = 1.0;
     /// // e^1
@@ -485,7 +503,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns `2^(self)`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 2.0;
     ///
@@ -499,7 +517,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the natural logarithm of the number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let one = 1.0;
     /// // e^1
@@ -515,7 +533,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the logarithm of the number with respect to an arbitrary base.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let ten = 10.0;
     /// let two = 2.0;
@@ -534,7 +552,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the base 2 logarithm of the number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let two = 2.0;
     ///
@@ -548,7 +566,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Returns the base 10 logarithm of the number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let ten = 10.0;
     ///
@@ -593,7 +611,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// * Else: `self - other`
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 3.0;
     /// let y = -3.0;
@@ -609,7 +627,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Take the cubic root of a number.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 8.0;
     ///
@@ -624,7 +642,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// legs of length `x` and `y`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 2.0;
     /// let y = 3.0;
@@ -639,7 +657,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Computes the sine of a number (in radians).
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/2.0;
@@ -653,7 +671,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Computes the cosine of a number (in radians).
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = 2.0*f64::consts::PI;
@@ -667,7 +685,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Computes the tangent of a number (in radians).
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/4.0;
@@ -682,7 +700,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// [-1, 1].
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let f = f64::consts::PI / 2.0;
@@ -699,7 +717,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// [-1, 1].
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let f = f64::consts::PI / 4.0;
@@ -715,7 +733,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// range [-pi/2, pi/2];
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 1.0;
     ///
@@ -734,7 +752,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// * `y < 0`: `arctan(y/x) - pi` -> `(-pi, -pi/2)`
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let pi = f64::consts::PI;
@@ -759,7 +777,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// `(sin(x), cos(x))`.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/4.0;
@@ -777,7 +795,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// number is close to zero.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 7.0;
     ///
@@ -792,7 +810,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// the operations were performed separately.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::E - 1.0;
@@ -807,7 +825,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Hyperbolic sine function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -825,7 +843,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Hyperbolic cosine function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -843,7 +861,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Hyperbolic tangent function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -861,7 +879,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Inverse hyperbolic sine function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 1.0;
     /// let f = x.sinh().asinh();
@@ -875,7 +893,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Inverse hyperbolic cosine function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let x = 1.0;
     /// let f = x.cosh().acosh();
@@ -889,7 +907,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// Inverse hyperbolic tangent function.
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -911,7 +929,7 @@ pub trait Float: Number  + Neg<Output = Self>
     /// # Examples
     ///
     /// ```
-    /// use num_traits::Float;
+    /// use geometry::Float;
     ///
     /// let f = 3.5_f32;
     ///
@@ -927,58 +945,79 @@ pub trait Float: Number  + Neg<Output = Self>
 macro_rules! impl_float {
     ($T:ident) => {
         impl Float for $T {
-            const E: Self = std::$T::consts::E;
-            const FRAC_1_PI: Self = std::$T::consts::FRAC_1_PI;
-            const FRAC_1_SQRT_2: Self = std::$T::consts::FRAC_1_SQRT_2;
-            const FRAC_2_PI: Self = std::$T::consts::FRAC_2_PI;
-            const FRAC_2_SQRT_PI: Self = std::$T::consts::FRAC_2_SQRT_PI;
-            const FRAC_PI_2: Self = std::$T::consts::FRAC_PI_2;
-            const FRAC_PI_3: Self = std::$T::consts::FRAC_PI_3;
-            const FRAC_PI_4: Self = std::$T::consts::FRAC_PI_4;
-            const FRAC_PI_6: Self = std::$T::consts::FRAC_PI_6;
-            const FRAC_PI_8: Self = std::$T::consts::FRAC_PI_8;
-            const LN_10: Self = std::$T::consts::LN_10;
-            const LN_2: Self = std::$T::consts::LN_2;
-            const LOG10_E: Self = std::$T::consts::LOG10_E;
-            const LOG2_E: Self = std::$T::consts::LOG2_E;
             const PI: Self = std::$T::consts::PI;
-            const SQRT_2: Self = std::$T::consts::SQRT_2;
+
             const TAU: Self = std::$T::consts::TAU;
-            const LOG10_2: Self = std::$T::consts::LOG10_2;
+
+            const GOLDEN_RATIO: Self = std::$T::consts::GOLDEN_RATIO;
+
+            const EULER_GAMMA: Self = std::$T::consts::EULER_GAMMA;
+
+            const FRAC_PI_2: Self = std::$T::consts::FRAC_PI_2;
+
+            const FRAC_PI_3: Self = std::$T::consts::FRAC_PI_3;
+
+            const FRAC_PI_4: Self = std::$T::consts::FRAC_PI_4;
+
+            const FRAC_PI_6: Self = std::$T::consts::FRAC_PI_6;
+
+            const FRAC_PI_8: Self = std::$T::consts::FRAC_PI_8;
+
+            const FRAC_1_PI: Self = std::$T::consts::FRAC_1_PI;
+
+            const FRAC_1_SQRT_PI: Self = std::$T::consts::FRAC_1_SQRT_PI;
+
+            const FRAC_1_SQRT_2PI: Self = std::$T::consts::FRAC_1_SQRT_2PI;
+
+            const FRAC_2_PI: Self = std::$T::consts::FRAC_2_PI;
+
+            const FRAC_2_SQRT_PI: Self = std::$T::consts::FRAC_2_SQRT_PI;
+
+            const SQRT_2: Self = std::$T::consts::SQRT_2;
+
+            const FRAC_1_SQRT_2: Self = std::$T::consts::FRAC_1_SQRT_2;
+
+            const SQRT_3: Self = std::$T::consts::SQRT_3;
+
+            const FRAC_1_SQRT_3: Self = std::$T::consts::FRAC_1_SQRT_3;
+
+            const SQRT_5: Self = std::$T::consts::SQRT_5;
+
+            const FRAC_1_SQRT_5: Self = std::$T::consts::FRAC_1_SQRT_5;
+
+            const E: Self = std::$T::consts::E;
+
+            const LOG2_E: Self = std::$T::consts::LOG2_E;
+
             const LOG2_10: Self = std::$T::consts::LOG2_10;
 
-            #[inline]
-            fn nan() -> Self {
-                $T::NAN
-            }
-            #[inline]
-            fn infinity() -> Self {
-                $T::INFINITY
-            }
-            #[inline]
-            fn neg_infinity() -> Self {
-                $T::NEG_INFINITY
-            }
-            #[inline]
-            fn neg_zero() -> Self {
-                (-0.0)
-            }
-            #[inline]
-            fn min_value() -> Self {
-                $T::MIN
-            }
-            #[inline]
-            fn min_positive_value() -> Self {
-                $T::MIN_POSITIVE
-            }
-            #[inline]
-            fn epsilon() -> Self {
-                $T::EPSILON
-            }
-            #[inline]
-            fn max_value() -> Self {
-                $T::MAX
-            }
+            const LOG10_E: Self = std::$T::consts::LOG10_E;
+
+            const LOG10_2: Self = std::$T::consts::LOG10_2;
+
+            const LN_2: Self = std::$T::consts::LN_2;
+
+            const LN_10: Self = std::$T::consts::LN_10;
+
+            #[feature(assoc_int_consts)]
+            const EPSILON: Self = std::$T::EPSILON;
+
+            #[feature(assoc_int_consts)]
+            const MIN: Self = std::$T::MIN;
+            #[feature(assoc_int_consts)]
+            const MIN_POSITIVE: Self = std::$T::MIN_POSITIVE;
+            #[feature(assoc_int_consts)]
+            const MAX: Self = std::$T::MAX;
+
+            #[feature(assoc_int_consts)]
+            const NAN: Self = std::$T::NAN;
+
+            #[feature(assoc_int_consts)]
+            const INFINITY: Self = std::$T::INFINITY;
+
+            #[feature(assoc_int_consts)]
+            const NEG_INFINITY: Self = std::$T::NEG_INFINITY;
+
             #[inline]
             #[allow(deprecated)]
             fn abs_sub(self, other: Self) -> Self {
@@ -1179,3 +1218,9 @@ macro_rules! impl_float {
 
 impl_float!(f32);
 impl_float!(f64);
+
+#[test]
+fn qwe() {
+
+}
+

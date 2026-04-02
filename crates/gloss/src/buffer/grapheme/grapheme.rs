@@ -1,10 +1,9 @@
 use super::{Arena, GraphemeError};
-use crate::{Offset};
 use bilge::prelude::*;
 use std::fmt;
 use std::ops::Deref;
-use rustix::path::Arg;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use crate::Offset;
 
 /// A compact grapheme-cluster handle stored in 4 bytes.
 ///
@@ -55,7 +54,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 /// - **Inline**: all 32 bits hold UTF-8 data (tag is the 4th byte).
 /// - **Extended**: tag = `0x01`, payload = 24-bit arena offset.
 #[bitsize(32)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, FromBits)]
+#[derive(Clone, Copy, Hash, FromBits)]
+#[derive_const(PartialEq, Eq)]
 pub struct Grapheme {
     /// Low 24 bits: arena offset (extended) or lower 3 bytes of inline UTF-8.
     payload: u24,
@@ -153,8 +153,8 @@ impl Grapheme {
 
     /// Returns `true` if this grapheme is empty (no character).
     #[inline]
-    pub const fn is_empty(self) -> bool {
-        self.value == 0
+    pub const fn is_empty(&self) -> bool {
+        self == &Grapheme::SPACE
     }
 
     /// Returns `true` if this grapheme is stored inline (≤4 UTF-8 bytes).
@@ -222,7 +222,7 @@ impl Grapheme {
         self.payload().as_usize()
     }
 
-    pub(crate) fn inline_len(self) -> usize {
+    pub fn inline_len(self) -> usize {
         memchr::memchr(0, &self.value.to_le_bytes()).unwrap_or(char::MAX_LEN_UTF8)
     }
 
@@ -231,11 +231,11 @@ impl Grapheme {
     /// Scans for the first zero byte. Since UTF-8 continuation bytes are always
     /// `0x80..=0xBF`, a zero byte can only appear as NUL (treated as empty)
     /// or as padding after the grapheme data.
-   pub(crate)  fn as_inline_bytes(&self) -> &[u8] {
+   pub fn as_inline_bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts((self as *const Self) as *const u8, self.inline_len()) }
     }
 
-    pub(crate)  fn as_inline_str(&self) -> &str {
+    pub fn as_inline_str(&self) -> &str {
         unsafe { std::str::from_utf8_unchecked(self.as_inline_bytes()) }
     }
 }
@@ -317,12 +317,10 @@ impl  Encode for char {
 
 #[cfg(test)]
 mod tests {
-    use zerocopy::IntoBytes;
     use super::*;
 
     #[test]
     fn test_inline_len() {
-
         let g = Grapheme::inline('A');
         dbg!(g.inline_len());
         dbg!(unsafe { g.value.to_le_bytes() });
@@ -339,7 +337,7 @@ mod tests {
 
     #[test]
     fn nul_is_empty() {
-        let g = Grapheme::inline('\0');
+        let g = Grapheme::inline(' ');
         assert!(g.is_empty());
         assert_eq!(g, Grapheme::SPACE);
     }
@@ -433,7 +431,7 @@ mod tests {
         let g2 = Grapheme::extended(family, &mut arena);
         assert_eq!(g2.as_str(&arena), family);
 
-        assert_eq!(Grapheme::SPACE.as_str(&arena), "");
+        assert_eq!(Grapheme::SPACE.as_str(&arena), " ");
     }
 
     #[test]

@@ -3,7 +3,6 @@ use std::io::{self, Write as _};
 use ansi::{Color};
 use geometry::Bounded;
 use gloss::*;
-use sigil::{Buffer, Arena, Rasterizer};
 use tree::At;
 
 fn main() -> io::Result<()> {

@@ -1,10 +1,11 @@
+//! Note: Unused
 use crate::{At, Error, Id, Node, iter::*};
-use crate::{NodeRef, NodeRefMut};
 use derive_more::{Index, IndexMut, IntoIterator};
 use smallvec::SmallVec;
 use std::fmt::Debug;
 use std::iter::FusedIterator;
 use std::ops::Deref;
+
 
 /// An arena-allocated tree with O(1) node access and linked-list child ordering.
 ///
@@ -106,17 +107,17 @@ impl<K: Id, V> Tree<K, V> {
                 Ok(())
             }
 
-            At::Before(id) => {
-                self.ensure_exists(id)?;
-                if id == id {
+            At::Before(before) => {
+                self.ensure_exists(before)?;
+                if id == before {
                     Ok(())
                 } else {
-                    let parent = self.inner[id].parent();
+                    let parent = self.inner[before].parent();
                     if parent.is_null() {
-                        Err(Error::NoParent(id))
+                        Err(Error::NoParent(before))
                     } else {
                         self.ensure_no_cycle(id, parent)?;
-                        self.link_before(id, id, parent);
+                        self.link_before(id, before, parent);
                         Ok(())
                     }
                 }

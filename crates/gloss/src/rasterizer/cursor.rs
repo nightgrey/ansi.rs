@@ -6,7 +6,7 @@ use std::ops::Sub;
 use maybe::Maybe;
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
-pub(crate) struct Cursor {
+pub struct Cursor {
     pub row: usize,
     pub col: usize,
     pub style: Style,

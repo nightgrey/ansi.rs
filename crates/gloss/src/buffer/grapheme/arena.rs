@@ -171,7 +171,7 @@ impl Arena {
     // ── Internal: resolve / release by raw offset ──────────────────────
 
     /// Resolve a raw arena offset to a `&str`.
-    pub(crate) fn resolve(&self, offset: impl Offset) -> &str {
+    pub fn resolve(&self, offset: impl Offset) -> &str {
         let offset = offset.offset();
         debug_assert!(
             offset + PREFIX_SIZE <= self.inner.len(),
@@ -201,7 +201,7 @@ impl Arena {
 
     /// Release storage at a raw arena offset by zeroing the entry and adding
     /// the region to the free list.
-    pub(crate) fn release(&mut self, offset: impl Offset) {
+    pub fn release(&mut self, offset: impl Offset) {
         let offset = offset.offset();
         debug_assert!(
             offset + PREFIX_SIZE <= self.inner.len(),
@@ -361,7 +361,7 @@ impl Offset for &mut Grapheme {
 
 use packed_struct::prelude::bits::ByteArray;
 // ── GraphemePoolError ───────────────────────────────────────────────────────
-use crate::buffer::Grapheme;
+use crate::Grapheme;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

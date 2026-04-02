@@ -1,8 +1,8 @@
-use crate::{Buffer, Cell};
 use geometry::{Point, PointLike, Row};
 use std::ops;
 use std::ops::Index;
 use std::slice::SliceIndex;
+use crate::{Buffer, Cell};
 
 pub trait BufferIndex<Context, Slice: ?Sized = Context>: Clone {
     type Output: ?Sized;

@@ -10,5 +10,9 @@
       "Bash(cargo build:*)",
       "Bash(cargo check:*)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
   }
 }

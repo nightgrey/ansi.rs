@@ -1,4 +1,3 @@
-use crate::{Cell, Arena, BufferIndex, Buf, BufMut};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
@@ -10,7 +9,7 @@ use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use utils::Resolve;
-
+use crate::{Cell, Arena, BufferIndex, Buf, BufMut};
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
     #[deref]

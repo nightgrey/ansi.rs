@@ -46,7 +46,6 @@ pub enum Display {
     None,
     Inline,
     #[default]
-    Block,
     Flex,
 }
 

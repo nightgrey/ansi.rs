@@ -1,11 +1,12 @@
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, ContextualResolve, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate};
-use sigil::{Buffer, Arena};
+use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate};
+use crate::{Buffer, Arena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{Border, RendererBackend, Renderer};
 use crate::symbols::Symbol;
 use ansi::Style;
+use utils::ContextResolve;
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -303,7 +304,7 @@ mod tests {
     use std::borrow::Cow;
     use std::ops::{Add, Sub};
     use ansi::Color;
-    use sigil::Grapheme;
+    use crate::Grapheme;
     use tree::At;
     use crate::{Document, FlexDirection, FontWeight, Node, TextDecoration};
     use super::*;

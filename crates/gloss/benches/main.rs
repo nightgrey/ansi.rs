@@ -1,27 +1,27 @@
 use ansi::{Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
 use derive_more::{Deref, DerefMut};
-use sigil::Arena;
-use sigil::buffer::{Buffer, Cell};
-use sigil::rasterizer::{Capabilities, Rasterizer as _Rasterizer};
+use gloss::{Arena, Buffer, Cell};
+use gloss::Capabilities;
+use gloss::Rasterizer;
 use std::hint::black_box;
 
 #[derive(Clone, Debug, Deref, DerefMut)]
-struct Rasterizer(
+struct Test(
     #[deref]
     #[deref_mut]
-    _Rasterizer,
+    Rasterizer,
     Arena,
 );
-impl Rasterizer {
+impl Test {
     /// Create a fullscreen rasterizer with the given dimensions.
     pub fn new(width: usize, height: usize) -> Self {
-        Self(_Rasterizer::new(width, height), Arena::new())
+        Self(Rasterizer::new(width, height), Arena::new())
     }
 
     /// Create an inline rasterizer (renders in the normal scrollback region).
     pub fn inline(width: usize, height: usize) -> Self {
-        Self(_Rasterizer::inline(width, height), Arena::new())
+        Self(Rasterizer::inline(width, height), Arena::new())
     }
 
     pub fn with_capabilities(mut self, caps: Capabilities) -> Self {
@@ -228,7 +228,7 @@ fn terminal_rerender(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     buf2[(H / 2, W / 2)] = Cell::inline('!', style);
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -254,7 +254,7 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
         buf2[(20, x)] = changed;
     }
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -276,7 +276,7 @@ fn terminal_frame_fill_40(c: &mut Criterion) {
     let buf_a = filled_buffer(W, H, 'A', style_a);
     let buf_b = filled_buffer(W, H, 'B', style_b);
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf_a);
     r.clear_output();
 
@@ -305,7 +305,7 @@ fn terminal_screen_transition(c: &mut Criterion) {
     let buf_a = filled_buffer(W, H, '#', style_a);
     let buf_b = filled_buffer(W, H, '.', style_b);
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf_a);
     r.clear_output();
 
@@ -331,7 +331,7 @@ fn terminal_full_ui(c: &mut Criterion) {
         buf2[(15, x)] = Cell::inline('!', update_style);
     }
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -359,7 +359,7 @@ fn terminal_strict_ui(c: &mut Criterion) {
         }
     }
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -379,7 +379,7 @@ fn terminal_virtual_list(c: &mut Criterion) {
     let buf1 = virtual_list_buffer(0);
     let buf2 = virtual_list_buffer(1); // Scroll by 1 item.
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -405,7 +405,7 @@ fn terminal_table(c: &mut Criterion) {
         buf2[(y, x)] = Cell::inline('!', upd);
     }
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -452,7 +452,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
         }
     }
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -478,7 +478,7 @@ fn first_render(c: &mut Criterion) {
 
     c.bench_function("first-render", |b| {
         b.iter(|| {
-            let mut r = Rasterizer::new(W, H);
+            let mut r = Test::new(W, H);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });
@@ -490,7 +490,7 @@ fn identical_frame(c: &mut Criterion) {
     let style = Style::default().foreground(Color::Index(2));
     let buffer = filled_buffer(W, H, 'A', style);
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buffer);
     r.clear_output();
 
@@ -528,7 +528,7 @@ fn scroll_up(c: &mut Criterion) {
         .collect();
     let buf2 = Buffer::from_chars(W, H, &chars2);
 
-    let mut r = Rasterizer::new(W, H).with_capabilities(caps);
+    let mut r = Test::new(W, H).with_capabilities(caps);
     r.render(&buf1);
     r.clear_output();
 
@@ -548,7 +548,7 @@ fn invalidate_rerender(c: &mut Criterion) {
     let style = Style::default().foreground(Color::Index(5));
     let buffer = filled_buffer(W, H, 'R', style);
 
-    let mut r = Rasterizer::new(W, H);
+    let mut r = Test::new(W, H);
     r.render(&buffer);
     r.clear_output();
 
@@ -569,7 +569,7 @@ fn inline_first_render(c: &mut Criterion) {
 
     c.bench_function("inline-first-render", |b| {
         b.iter(|| {
-            let mut r = Rasterizer::inline(W, 10);
+            let mut r = Test::inline(W, 10);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });
@@ -587,7 +587,7 @@ fn inline_rerender(c: &mut Criterion) {
         buf2[(5, x)] = changed;
     }
 
-    let mut r = Rasterizer::inline(W, 10);
+    let mut r = Test::inline(W, 10);
     r.render(&buf1);
     r.clear_output();
 
@@ -610,7 +610,7 @@ fn rep_long_run(c: &mut Criterion) {
 
     c.bench_function("rep-long-run", |b| {
         b.iter(|| {
-            let mut r = Rasterizer::new(200, 1).with_capabilities(caps);
+            let mut r = Test::new(200, 1).with_capabilities(caps);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });

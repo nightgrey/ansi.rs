@@ -287,7 +287,7 @@ impl taffy::CoreStyle for Style {
 
     #[inline(always)]
     fn is_block(&self) -> bool {
-        matches!(self.get_display(), Display::Block)
+        matches!(self.get_display(), Display::Flex)
     }
 
     fn box_sizing(&self) -> taffy::BoxSizing {

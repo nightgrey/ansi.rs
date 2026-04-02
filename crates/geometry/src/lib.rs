@@ -1,3 +1,4 @@
+#![feature(more_float_constants)]
 #![feature(const_clone)]
 #![feature(const_default)]
 #![feature(const_cmp)]

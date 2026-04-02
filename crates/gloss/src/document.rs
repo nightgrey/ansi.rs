@@ -1,4 +1,4 @@
-use crate::{Dirty, Display, LayoutContext, LayoutNode, Node, NodeId};
+use crate::{Dirty,  LayoutContext, LayoutNode, Node, NodeId};
 use crate::measure_node;
 use crate::{Available, Dimension, Space, Style};
 use geometry::{Point, Rect, Size};
@@ -10,6 +10,7 @@ pub struct Document<'a> {
     pub nodes: Tree<NodeId, Node<'a>>,
     pub layouts: Secondary<NodeId, LayoutNode>,
 }
+
 impl<'a> Document<'a> {
     pub fn new() -> Self {
         let mut nodes = Tree::default();
@@ -17,6 +18,7 @@ impl<'a> Document<'a> {
 
         let root_id = nodes.insert(Node::Div());
         layouts.insert(root_id, LayoutNode::default());
+
         Self {
             root: root_id,
             nodes,
@@ -115,24 +117,16 @@ impl<'a> Document<'a> {
     }
     
     pub fn compute_layout(&mut self, space: Space) {
-        match space.width {
-            Available::Definite(w) => {
-                self.nodes[self.root].set_width(Dimension::Length(w));
-            }
-            _ => {
-                self.nodes[self.root].set_width(Dimension::Auto);
-            }
-        }
-
-        match space.height {
-            Available::Definite(h) => {
-                self.nodes[self.root].set_height(Dimension::Length(h));
-            }
-            _ => {
-                self.nodes[self.root].set_height(Dimension::Auto);
-            }
-        }
-
+        self.nodes[self.root].style.width = match space.width {
+            Available::Definite(val) => Dimension::Length(val),
+            Available::Min => Dimension::Auto,
+            Available::Max => Dimension::MAX,
+        };
+        self.nodes[self.root].style.height = match space.height {
+            Available::Definite(val) => Dimension::Length(val),
+            Available::Min => Dimension::Auto,
+            Available::Max => Dimension::MAX,
+        };
         let mut context = LayoutContext::new(
             &mut self.nodes,
             &mut self.layouts,

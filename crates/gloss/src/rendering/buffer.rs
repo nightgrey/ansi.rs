@@ -1,7 +1,7 @@
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, ContextualResolve, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate};
-use sigil::{Buffer, Cell, GraphemeArena};
+use sigil::{Buffer, Arena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{Border, RendererBackend, Renderer};
 use crate::symbols::Symbol;
@@ -22,18 +22,18 @@ pub struct ContextState {
 /// Modeled after HTML Canvas — mutable "current state" with a save/restore
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
-pub struct BufferRenderer<'a> {
+pub struct BufferContext<'a> {
     buffer: &'a mut Buffer,
-    arena: &'a mut GraphemeArena,
+    arena: &'a mut Arena,
     state: ContextState,
     stacks: Vec<ContextState>,
 }
 
-impl<'buf> BufferRenderer<'buf> {
+impl<'buf> BufferContext<'buf> {
     /// Create a new context spanning the full buffer.
-    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut GraphemeArena) -> Renderer<Self> {
+    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut Arena) -> Self {
         let clip = buffer.bounds(); // full buffer rect
-        Renderer(Self {
+        Self {
             buffer,
             arena,
             state: ContextState {
@@ -44,7 +44,7 @@ impl<'buf> BufferRenderer<'buf> {
                 stroke_type: Border::None,
             },
             stacks: Vec::new(),
-        })
+        }
     }
 
     pub fn fill_style(&mut self, style: Style) -> &mut Self {
@@ -138,7 +138,7 @@ impl<'buf> BufferRenderer<'buf> {
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
             if self.state.rect.contains(&(x, y)) {
-                self.buffer[(x, y)].set_char_and_width(border.symbol(), border.width() as u8, self.arena);
+                self.buffer[(x, y)].set_measured_char(border.symbol(), border.width() as u8, self.arena);
             }
         };
 
@@ -180,7 +180,7 @@ impl<'buf> BufferRenderer<'buf> {
             }
 
             if self.state.rect.contains(&(x, y))  {
-                self.buffer[(x, y)].set_str_and_width(grapheme, width as u8, self.arena);
+                self.buffer[(x, y)].set_measured_str(grapheme, width as u8, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
                     let cont = (x + i, y);
@@ -235,7 +235,13 @@ impl<'buf> BufferRenderer<'buf> {
 
 }
 
-impl<'a> RendererBackend for BufferRenderer<'a> {
+impl<'a> Renderer<BufferContext<'a>> {
+    pub fn new(buffer: &'a mut Buffer, arena: &'a mut Arena) -> Self {
+        Self(BufferContext::new(buffer, arena))
+    }
+}
+
+impl<'a> RendererBackend for BufferContext<'a> {
     type Error = io::Error;
 
     fn fill_style(&mut self, style: crate::Style) {
@@ -304,7 +310,7 @@ mod tests {
 
     struct Context<'a> {
         buffer: Buffer,
-        arena: GraphemeArena,
+        arena: Arena,
         document: Document<'a>,
     }
 
@@ -343,7 +349,7 @@ mod tests {
     }
 
     fn context<'a>(width: usize, height: usize) -> Context<'a> {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
         let mut buffer = Buffer::new(width, height);
         let mut document = Document::new();
 
@@ -354,8 +360,8 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferRenderer<'a>> {
-        BufferRenderer::new(&mut context.buffer, &mut context.arena)
+    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferContext<'a>> {
+        BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer()
     }
 
     #[test]
@@ -365,7 +371,7 @@ mod tests {
 
         renderer.fill(None, Some(Style::default().foreground(Color::White)), Some('x'));
 
-        assert_eq!(context.buffer.iter().all(|c| c.style.foreground == Color::White && c.grapheme() == Grapheme::char('x')), true);
+        assert_eq!(context.buffer.iter().all(|c| c.style.foreground == Color::White && c.grapheme() == Grapheme::inline('x')), true);
     }
 
 
@@ -376,11 +382,11 @@ mod tests {
 
         renderer.stroke(None, Some(Border::Solid));
 
-        assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
-        assert_eq!(context.buffer.iter_col(0).all(|c| c.grapheme() != Grapheme::EMPTY), true);
-        assert_eq!(context.buffer.iter_col(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
-        assert_eq!(context.buffer.iter_row(9).all(|c| c.grapheme() != Grapheme::EMPTY), true);
-        context.buffer.iter_rect(&context.buffer.bounds().sub(Edges::all(1))).for_each(|c| assert_eq!(c.grapheme(), Grapheme::EMPTY));
+        assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::SPACE), true);
+        assert_eq!(context.buffer.iter_col(0).all(|c| c.grapheme() != Grapheme::SPACE), true);
+        assert_eq!(context.buffer.iter_col(9).all(|c| c.grapheme() != Grapheme::SPACE), true);
+        assert_eq!(context.buffer.iter_row(9).all(|c| c.grapheme() != Grapheme::SPACE), true);
+        context.buffer.iter_rect(&context.buffer.bounds().sub(Edges::all(1))).for_each(|c| assert_eq!(c.grapheme(), Grapheme::SPACE));
     }
 
     #[test]
@@ -396,8 +402,8 @@ mod tests {
         // After restore, origin is back to (0,0)
         renderer.text(Some(Point::ZERO), None, "B");
 
-        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::char('A'));
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::char('B'));
+        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('B'));
     }
 
     #[test]
@@ -413,16 +419,16 @@ mod tests {
         }
 
         // Inside the old clip — should be filled
-        assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::char('X'));
+        assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::inline('X'));
         // Outside the old clip — should be empty
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::SPACE);
 
         {
             // After restore, full clip is back — can write outside
             let mut renderer = renderer(&mut context);
             renderer.text(Some(Point::new(7, 7)), None, "Y");
         }
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::char('Y'));
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::inline('Y'));
     }
 
     #[test]
@@ -435,10 +441,10 @@ mod tests {
         });
 
         // Inside the within rect — filled
-        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::char('W'));
+        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::inline('W'));
         // Outside — empty
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::SPACE);
     }
 
     #[test]
@@ -456,7 +462,7 @@ mod tests {
         renderer.restore();
 
         // (3+2, 3+2) = (5, 5)
-        assert_eq!(context.buffer[(5, 5)].grapheme(), Grapheme::char('N'));
+        assert_eq!(context.buffer[(5, 5)].grapheme(), Grapheme::inline('N'));
     }
 
     #[test]
@@ -466,10 +472,10 @@ mod tests {
 
         renderer.text(Some(Point::new(4, 1)), None, "Hi");
 
-        assert_eq!(context.buffer[(4, 1)].grapheme(), Grapheme::char('H'));
-        assert_eq!(context.buffer[(5, 1)].grapheme(), Grapheme::char('i'));
+        assert_eq!(context.buffer[(4, 1)].grapheme(), Grapheme::inline('H'));
+        assert_eq!(context.buffer[(5, 1)].grapheme(), Grapheme::inline('i'));
         // Adjacent cell untouched
-        assert_eq!(context.buffer[(6, 1)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(6, 1)].grapheme(), Grapheme::SPACE);
     }
 
     #[test]
@@ -481,10 +487,10 @@ mod tests {
         renderer.text(Some(Point::new(0, 0)), None, "Hello");
 
         // Only first 4 chars fit in clip
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::char('H'));
-        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::char('l'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('H'));
+        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::inline('l'));
         // 5th char ('o') is outside clip — cell stays empty
-        assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::SPACE);
     }
 
     #[test]
@@ -506,17 +512,17 @@ mod tests {
 
         document.compute_layout(Space::new(20u32, 10u32));
 
-        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
         let text_x = child_content.min.x;
         let text_y = child_content.min.y;
-        assert_eq!(context.buffer[(text_x, text_y)].grapheme(), Grapheme::char('A'));
-        assert_eq!(context.buffer[(text_x + 1, text_y)].grapheme(), Grapheme::char('B'));
+        assert_eq!(context.buffer[(text_x, text_y)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(text_x + 1, text_y)].grapheme(), Grapheme::inline('B'));
         // Origin cell should be empty (it's in the padding)
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
     }
 
     #[test]
@@ -547,7 +553,7 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         let div_bounds = document.bounds(child_div);
@@ -556,10 +562,10 @@ mod tests {
         // Absolute position = parent bounds + child bounds (taffy locations are parent-relative)
         let tx = div_bounds.min.x + text_bounds.min.x;
         let ty = div_bounds.min.y + text_bounds.min.y;
-        assert_eq!(context.buffer[(tx, ty)].grapheme(), Grapheme::char('O'));
-        assert_eq!(context.buffer[(tx + 1, ty)].grapheme(), Grapheme::char('K'));
+        assert_eq!(context.buffer[(tx, ty)].grapheme(), Grapheme::inline('O'));
+        assert_eq!(context.buffer[(tx + 1, ty)].grapheme(), Grapheme::inline('K'));
         // Padding area should be empty
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
 
 
     }
@@ -589,14 +595,14 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // First child
-        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::char('A'));
+        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('A'));
         // Second child should be below the first
         assert!(b_bounds.min.y > a_bounds.min.y, "B should be below A: A.y={}, B.y={}", a_bounds.min.y, b_bounds.min.y);
-        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::char('B'));
+        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::inline('B'));
     }
 
     #[test]
@@ -623,12 +629,12 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferRenderer::new(&mut context.buffer, &mut context.arena);
+        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // Side by side in row layout
-        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::char('L'));
+        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('L'));
         assert!(b_bounds.min.x > a_bounds.min.x, "R should be right of L");
-        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::char('R'));
+        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::inline('R'));
     }
 }

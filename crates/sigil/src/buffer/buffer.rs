@@ -1,4 +1,4 @@
-use crate::{Cell, GraphemeArena, BufferIndex};
+use crate::{Cell, Arena, BufferIndex, Buf, BufMut};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
@@ -44,7 +44,7 @@ impl Buffer {
     pub fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
-            buffer[(row, col)] = Cell::from_char(ch, style);
+            buffer[(col, row)] = Cell::inline(ch, style);
         }
         buffer
     }
@@ -543,17 +543,17 @@ impl Buffer {
         self.inner[col..].iter_mut().step_by(self.width)
     }
 
-    pub fn iter_row(&self, row: usize) -> StepBy<Iter<Cell>> {
+    pub fn iter_row(&self, row: usize) -> Iter<Cell> {
         assert!(
             row < self.height,
             "out of bounds. Row must be less than {:?}, but is {:?}",
             self.height,
             row
         );
-        self[row * self.width..row * self.width + self.width].iter().step_by(1)
+        self[row * self.width..row * self.width + self.width].iter()
     }
 
-    pub fn iter_row_mut(&mut self, row: usize) -> StepBy<IterMut<Cell>> {
+    pub fn iter_row_mut(&mut self, row: usize) -> IterMut<Cell> {
         assert!(
             row < self.height,
             "out of bounds. Row must be less than {:?}, but is {:?}",
@@ -562,7 +562,7 @@ impl Buffer {
         );
         let width = self.width;
 
-        self[row * width..row * width + width].iter_mut().step_by(1)
+        self[row * width..row * width + width].iter_mut()
     }
 
     pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item = &Cell> {
@@ -583,7 +583,7 @@ impl Buffer {
             .map(move |(idx, i)| ((idx / cols, idx % cols), i))
     }
 
-    pub fn iter_rows(&self) -> impl Iterator<Item = StepBy<Iter<Cell>>> {
+    pub fn iter_rows(&self) -> impl Iterator<Item = Iter<Cell>> {
         (0..self.height).map(move |row| self.iter_row(row))
     }
 
@@ -599,11 +599,19 @@ impl Buffer {
         self.iter_mut()
     }
 
-    pub fn to_string(&self, arena: &GraphemeArena) -> String {
+    pub fn to_string(&self, arena: &Arena) -> String {
         self.iter_rows()
             .map(|row| row.map(|cell| cell.as_str(arena)).collect::<String>())
             .intersperse(String::from("\n"))
             .collect()
+    }
+
+    pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {
+        Buf::new(self, arena)
+    }
+
+    pub fn as_buf_mut<'a>(&'a mut self, arena: &'a mut Arena) -> BufMut<'a> {
+        BufMut::new(self, arena)
     }
 }
 
@@ -612,7 +620,6 @@ impl From<Rect> for Buffer {
         Self::new(value.width(), value.height())
     }
 }
-
 
 impl<I: BufferIndex<Buffer, [Cell]>> Index<I> for Buffer {
     type Output = I::Output;
@@ -703,7 +710,6 @@ impl Intersect<Rect> for Buffer {
         r
     }
 }
-
 impl Intersect<Buffer> for Rect {
     type Output = Rect;
 
@@ -787,7 +793,6 @@ impl Debug for Buffer {
         write!(f, "]")
     }
 }
-
 impl PartialEq for Buffer {
     fn eq(&self, other: &Self) -> bool {
         if self.height != other.height || self.width != other.width {
@@ -799,25 +804,5 @@ impl PartialEq for Buffer {
             }
         }
         true
-    }
-}
-
-#[derive(Debug, Deref, DerefMut, Index, IndexMut)]
-pub struct Buf<'a> {
-    #[deref]
-    #[deref_mut]
-    #[index]
-    #[index_mut]
-    inner: &'a mut Buffer,
-    arena: &'a mut GraphemeArena,
-}
-
-impl<'a> Buf<'a> {
-    pub fn new(buffer: &'a mut Buffer, arena: &'a mut GraphemeArena) -> Self {
-        Self { inner: buffer, arena }
-    }
-
-    pub fn arena(&mut self) -> &mut GraphemeArena {
-        self.arena
     }
 }

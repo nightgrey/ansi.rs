@@ -25,17 +25,6 @@ impl<T: Bounded> Intersect<Point> for T {
         }
     }
 }
-// impl<T: Bounded> Intersect<Position> for T {
-//     type Output = Position;
-// 
-//     fn intersect(&self, other: &Position) -> Self::Output {
-//         if self.contains(other) {
-//             *other
-//         } else {
-//             Position::ZERO
-//         }
-//     }
-// }
 
 impl Intersect<Size> for Rect {
     type Output = Self;

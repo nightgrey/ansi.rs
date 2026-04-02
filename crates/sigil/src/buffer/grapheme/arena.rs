@@ -29,7 +29,7 @@
 /// slot. This avoids HashMap overhead and keeps the common path (inline
 /// graphemes that never touch the arena) at zero cost.
 #[derive(Clone)]
-pub struct GraphemeArena {
+pub struct Arena {
     /// Contiguous byte storage. Each entry is a length-prefixed UTF-8 string.
     inner: Vec<u8>,
 
@@ -58,7 +58,7 @@ const MINIMUM_ALLOC: usize = 1024;
 /// Maximum string payload that fits in a u16 length prefix.
 const MAX_ENTRY_LEN: usize = u16::MAX as usize;
 
-impl GraphemeArena {
+impl Arena {
     pub const EMPTY: Self = Self {
         inner: Vec::new(),
         used: 0,
@@ -92,29 +92,46 @@ impl GraphemeArena {
     ///
     /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
     /// cluster exceeds 4 bytes.
-    pub fn insert(&mut self, s: &str) -> Result<Grapheme, GraphemeError> {
-        let str_len = s.len();
-        if str_len > MAX_ENTRY_LEN {
+    pub fn try_insert(&mut self, value: &str) -> Result<Grapheme, GraphemeError> {
+        let len = value.len();
+        if len > MAX_ENTRY_LEN {
             return Err(GraphemeError::TooLong {
-                len: str_len,
+                len,
                 max: MAX_ENTRY_LEN,
             });
         }
-
-        let needed = PREFIX_SIZE + str_len;
+        let needed = PREFIX_SIZE + len;
         let offset = self.allocate(needed)?;
 
-        let len_bytes = (str_len as u16).to_le_bytes();
+        let len_bytes = (len as u16).to_le_bytes();
 
         // Write length prefix + payload into the allocated region.
         // For the gap path, the region is already within `self.arena.len()`.
         // For the append path, we extended via `extend_from_slice` in `allocate`.
         self.inner[offset] = len_bytes[0];
         self.inner[offset + 1] = len_bytes[1];
-        self.inner[offset + PREFIX_SIZE..offset + needed].copy_from_slice(s.as_bytes());
+        self.inner[offset + PREFIX_SIZE..offset + needed].copy_from_slice(value.as_bytes());
 
         self.used += needed;
-        Ok(Grapheme::arena(offset))
+        Ok(Grapheme::from_offset(offset))
+    }
+
+    pub fn insert(&mut self, value: &str) -> Grapheme {
+        let len = value.len();
+        let needed = PREFIX_SIZE + len;
+        let offset = self.allocate(needed).unwrap();
+
+        let len_bytes = (len as u16).to_le_bytes();
+
+        // Write length prefix + payload into the allocated region.
+        // For the gap path, the region is already within `self.arena.len()`.
+        // For the append path, we extended via `extend_from_slice` in `allocate`.
+        self.inner[offset] = len_bytes[0];
+        self.inner[offset + 1] = len_bytes[1];
+        self.inner[offset + PREFIX_SIZE..offset + needed].copy_from_slice(value.as_bytes());
+
+        self.used += needed;
+        Grapheme::from_offset(offset)
     }
 
     /// Reset the arena entirely, invalidating **all** outstanding grapheme
@@ -227,18 +244,18 @@ impl GraphemeArena {
     ///    Leftover space is re-inserted into the free list if large enough.
     /// 2. **Append path**: extend the backing vec with doubling growth.
     /// 3. **Full**: arena has reached `MAX_POOL_SIZE` with no usable gaps.
-    fn allocate(&mut self, needed: usize) -> Result<usize, GraphemeError> {
+    fn allocate(&mut self, len: usize) -> Result<usize, GraphemeError> {
         // Path 1: try the free list (best-fit).
-        if let Some(offset) = self.alloc_from_free_list(needed) {
+        if let Some(offset) = self.alloc_from_free_list(len) {
             return Ok(offset);
         }
 
         // Path 2: append to the end.
-        if self.inner.len() + needed <= Self::MAX_CAPACITY {
+        if self.inner.len() + len <= Self::MAX_CAPACITY {
             let offset = self.inner.len();
-            self.ensure_capacity(offset + needed);
+            self.ensure_capacity(offset + len);
             // Extend with zeros; stash will overwrite immediately.
-            self.inner.resize(offset + needed, 0);
+            self.inner.resize(offset + len, 0);
             return Ok(offset);
         }
 
@@ -291,13 +308,13 @@ impl GraphemeArena {
     }
 }
 
-impl Default for GraphemeArena {
+impl Default for Arena {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl std::fmt::Debug for GraphemeArena {
+impl std::fmt::Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GraphemePool")
             .field("len", &self.inner.len())
@@ -313,19 +330,6 @@ pub const trait Offset {
     fn offset(self) -> usize;
 }
 
-impl Offset for i32 {
-    #[inline]
-    fn offset(self) -> usize {
-        self as usize
-    }
-}
-impl Offset for u32 {
-    #[inline]
-    fn offset(self) -> usize {
-        self as usize
-    }
-}
-
 impl Offset for usize {
     #[inline]
     fn offset(self) -> usize {
@@ -336,23 +340,24 @@ impl Offset for usize {
 impl Offset for Grapheme {
     #[inline]
     fn offset(self) -> usize {
-        Grapheme::offset(self)
+        Grapheme::offset(&self)
     }
 }
 
 impl Offset for &Grapheme {
     #[inline]
     fn offset(self) -> usize {
-        Grapheme::offset(*self)
+        Grapheme::offset(&self)
     }
 }
 
 impl Offset for &mut Grapheme {
     #[inline]
     fn offset(self) -> usize {
-        Grapheme::offset(*self)
+        Grapheme::offset(&self)
     }
 }
+
 
 use packed_struct::prelude::bits::ByteArray;
 // ── GraphemePoolError ───────────────────────────────────────────────────────
@@ -368,6 +373,14 @@ pub enum GraphemeError {
     /// The given string exceeds the maximum length encodable.
     #[error("length {len} exceeds maximum ({max} bytes)")]
     TooLong { len: usize, max: usize },
+
+    /// The given string requires an arena to encode.
+    #[error("length {len} exceeds maximum ({max} bytes)")]
+    ArenaRequired { len: usize, max: usize },
+
+    /// An unexpected error occurred.
+    #[error("unknown error")]
+    Unknown,
 }
 
 #[cfg(test)]
@@ -376,7 +389,7 @@ mod tests {
 
     #[test]
     fn new_arena_is_empty() {
-        let arena = GraphemeArena::new();
+        let arena = Arena::new();
         assert_eq!(arena.used(), 0);
         assert_eq!(arena.len(), 0);
         assert!(arena.is_empty());
@@ -384,17 +397,17 @@ mod tests {
 
     #[test]
     fn stash_and_resolve() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
         let s = "hello, 世界!";
 
-        let offset = arena.insert(s).unwrap();
+        let offset = arena.try_insert(s).unwrap();
         assert_eq!(arena.resolve(offset), s);
         assert_eq!(arena.used(), PREFIX_SIZE + s.len());
     }
 
     #[test]
     fn stash_multiple() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
         let entries = [
             "alpha",
             "bravo",
@@ -402,7 +415,7 @@ mod tests {
             "👨\u{200D}👩\u{200D}👧\u{200D}👦",
         ];
 
-        let offsets: Vec<_> = entries.iter().map(|s| arena.insert(s).unwrap()).collect();
+        let offsets: Vec<_> = entries.iter().map(|s| arena.try_insert(s).unwrap()).collect();
 
         for (offset, expected) in offsets.iter().zip(entries.iter()) {
             assert_eq!(arena.resolve(*offset), *expected);
@@ -411,12 +424,12 @@ mod tests {
 
     #[test]
     fn release_and_reuse_via_free_list() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         let s1 = "hello!"; // 6 bytes + 2 prefix = 8
         let s2 = "world!"; // 6 bytes + 2 prefix = 8
-        let offset1 = arena.insert(s1).unwrap();
-        let _offset2 = arena.insert(s2).unwrap();
+        let offset1 = arena.try_insert(s1).unwrap();
+        let _offset2 = arena.try_insert(s2).unwrap();
 
         let len_before = arena.len();
 
@@ -426,7 +439,7 @@ mod tests {
 
         // Stash something that fits in the freed slot.
         let s3 = "reuse!"; // same size — should land at offset1
-        let offset3 = arena.insert(s3).unwrap();
+        let offset3 = arena.try_insert(s3).unwrap();
         assert_eq!(offset3, offset1);
         assert_eq!(arena.resolve(offset3), s3);
 
@@ -436,12 +449,12 @@ mod tests {
 
     #[test]
     fn free_list_best_fit() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         // Create slots of varying sizes.
-        let small = arena.insert("ab").unwrap(); // 4 total
-        let _medium_offset = arena.insert("medium").unwrap(); // 8 total
-        let large = arena.insert("a]larger-entry").unwrap(); // 16 total
+        let small = arena.try_insert("ab").unwrap(); // 4 total
+        let _medium_offset = arena.try_insert("medium").unwrap(); // 8 total
+        let large = arena.try_insert("a]larger-entry").unwrap(); // 16 total
 
         // Release small and large, keeping medium alive.
         arena.release(small);
@@ -449,18 +462,18 @@ mod tests {
 
         // A 4-byte request should pick the small slot (best-fit).
         let s = "xy"; // 2 + 2 = 4 total
-        let offset = arena.insert(s).unwrap();
+        let offset = arena.try_insert(s).unwrap();
         assert_eq!(offset, small);
     }
 
     #[test]
     fn clear_resets_everything() {
-        let mut arena = GraphemeArena::new();
-        arena.insert("some text here").unwrap();
-        arena.insert("more text").unwrap();
+        let mut arena = Arena::new();
+        arena.try_insert("some text here").unwrap();
+        arena.try_insert("more text").unwrap();
 
         // Release one to populate the free list.
-        let off = arena.insert("temp").unwrap();
+        let off = arena.try_insert("temp").unwrap();
         arena.release(off);
 
         assert!(!arena.is_empty());
@@ -473,20 +486,20 @@ mod tests {
 
     #[test]
     fn with_capacity_preallocates() {
-        let arena = GraphemeArena::with_capacity(1024);
+        let arena = Arena::with_capacity(1024);
         assert!(arena.capacity() >= 1024);
         assert_eq!(arena.len(), 0);
     }
 
     #[test]
     fn release_is_exact() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         let s1 = "alpha-entry";
         let s2 = "bravo-entry";
 
-        let off1 = arena.insert(s1).unwrap();
-        let off2 = arena.insert(s2).unwrap();
+        let off1 = arena.try_insert(s1).unwrap();
+        let off2 = arena.try_insert(s2).unwrap();
 
         let total_used = arena.used();
         let s1_cost = PREFIX_SIZE + s1.len();
@@ -507,16 +520,16 @@ mod tests {
 
     #[test]
     fn free_list_splits_large_slots() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         // Stash a large entry, then release it.
         let big = "a]]relatively-large-entry-here!"; // 30 bytes + 2 = 32 total
-        let big_offset = arena.insert(big).unwrap();
+        let big_offset = arena.try_insert(big).unwrap();
         arena.release(big_offset);
 
         // Stash something much smaller — should reuse the slot and split.
         let small = "hi"; // 2 + 2 = 4 total
-        let small_offset = arena.insert(small).unwrap();
+        let small_offset = arena.try_insert(small).unwrap();
         assert_eq!(small_offset, big_offset);
 
         // The remainder (32 - 4 = 28 bytes) should be on the free list.
@@ -529,10 +542,10 @@ mod tests {
 
     #[test]
     fn doubling_growth_strategy() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         // First allocation should jump to at least MINIMUM_ALLOC.
-        arena.insert("hello").unwrap();
+        arena.try_insert("hello").unwrap();
         assert!(
             arena.capacity() >= MINIMUM_ALLOC,
             "expected capacity >= {MINIMUM_ALLOC}, got {}",
@@ -542,20 +555,20 @@ mod tests {
         // Subsequent allocations shouldn't cause capacity to grow linearly.
         let cap_after_first = arena.capacity();
         for i in 0..10 {
-            arena.insert(&format!("entry-{i:04}-some-padding")).unwrap();
+            arena.try_insert(&format!("entry-{i:04}-some-padding")).unwrap();
         }
         assert!(arena.capacity() <= cap_after_first * 4);
     }
 
     #[test]
     fn string_too_long_is_rejected() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         // A string just at the limit should succeed.
         // (We can't easily create a 65535-byte string in a test, so test the
         // error path with a mock check.)
         let long = "x".repeat(MAX_ENTRY_LEN + 1);
-        let result = arena.insert(&long);
+        let result = arena.try_insert(&long);
         assert!(matches!(
             result,
             Err(GraphemeError::TooLong { .. })
@@ -564,12 +577,12 @@ mod tests {
 
     #[test]
     fn gap_reclamation_under_pressure() {
-        let mut arena = GraphemeArena::new();
+        let mut arena = Arena::new();
 
         let mut offsets = Vec::new();
         for i in 0..100 {
             let s = format!("entry-{i:04}-padding-to-be-longer");
-            offsets.push(arena.insert(&s).unwrap());
+            offsets.push(arena.try_insert(&s).unwrap());
         }
 
         let len_when_full = arena.len();
@@ -587,7 +600,7 @@ mod tests {
         let arena_len_before = arena.len();
         for i in (0..100).step_by(2) {
             let s = format!("entry-{i:04}-padding-to-be-longer");
-            arena.insert(&s).unwrap();
+            arena.try_insert(&s).unwrap();
         }
         // Pool should not have grown — everything went into gaps.
         assert_eq!(arena.len(), arena_len_before);

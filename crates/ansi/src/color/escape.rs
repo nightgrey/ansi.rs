@@ -7,11 +7,11 @@ use derive_more::{AsRef, Deref, DerefMut, From, Into};
 #[repr(transparent)]
 pub struct Background(Color);
 
+
 impl Background {
-    pub fn color(&self) -> Color {
+    pub fn as_color(&self) -> Color {
         self.0
     }
-
     pub fn as_foreground(self) -> Foreground {
         Foreground(self.0)
     }
@@ -26,7 +26,7 @@ impl Background {
 pub struct Foreground(Color);
 
 impl Foreground {
-    pub fn color(&self) -> Color {
+    pub fn as_color(&self) -> Color {
         self.0
     }
     pub fn as_background(self) -> Background {
@@ -43,10 +43,9 @@ impl Foreground {
 pub struct Underline(Color);
 
 impl Underline {
-    pub fn color(&self) -> Color {
+    pub fn as_color(&self) -> Color {
         self.0
     }
-
     pub fn as_background(self) -> Background {
         Background(self.0)
     }
@@ -98,7 +97,6 @@ impl Escape for Foreground {
             Rgb(r, g, b) => {
                 write!(w, "38;2;{};{};{}", r, g, b)
             }
-            _ => panic!("FIX"),
         }
     }
 }
@@ -107,7 +105,7 @@ impl Escape for Background {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
-        match self.color() {
+        match self.0 {
             None => Ok(()),
             Black => w.write_all(b"40"),
             Red => w.write_all(b"41"),
@@ -131,7 +129,6 @@ impl Escape for Background {
             Rgb(r, g, b) => {
                 write!(w, "38;2;{};{};{}", r, g, b)
             }
-            _ => panic!("FIX"),
         }
     }
 }
@@ -164,7 +161,6 @@ impl Escape for Underline {
             Rgb(r, g, b) => {
                 write!(w, "58;2;{};{};{}", r, g, b)
             }
-            _ => panic!("FIX"),
         }
     }
 }

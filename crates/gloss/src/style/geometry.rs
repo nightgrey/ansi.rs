@@ -1,6 +1,5 @@
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, From};
 use super::Dimension;
-use geometry::{Axis, Size};
 use crate::Available;
 
 /// A set of edges with a specific value for each edge.
@@ -11,9 +10,19 @@ pub struct Edges(geometry::Edges<Dimension>);
 impl Edges {
     pub const AUTO: Self = Self::all(Dimension::Auto);
     pub const ZERO: Self = Self::all(Dimension::Length(0));
-}
 
-impl Edges {
+    pub const fn auto() -> Self {
+        Self::AUTO
+    }
+
+    pub const fn length(value: u32) -> Self {
+        Self::new(Dimension::Length(value), Dimension::Length(value), Dimension::Length(value), Dimension::Length(value))
+    }
+
+    pub const fn percent(value: f32) -> Self {
+        Self::new(Dimension::Percent(value), Dimension::Percent(value), Dimension::Percent(value), Dimension::Percent(value))
+    }
+
     pub const fn new(top: impl [const] Into<Dimension>, right: impl [const] Into<Dimension>, bottom: impl [const] Into<Dimension>, left: impl [const] Into<Dimension>) -> Self {
         Self(geometry::Edges::new(top.into(), right.into(), bottom.into(), left.into()))
     }
@@ -98,22 +107,34 @@ impl Into<taffy::Rect<taffy::Dimension>> for Edges {
     }
 }
 
-#[derive(Copy, Debug, Clone, PartialEq, Deref, DerefMut)]
+#[derive(Copy, Debug, Clone, PartialEq, Deref, DerefMut, From)]
 #[repr(transparent)]
-pub struct Space(Size<Available>);
+pub struct Space(geometry::Size<Available>);
 
 impl Space {
+    pub const ZERO: Self = Self(geometry::Size::new(Available::Definite(0), Available::Definite(0)));
+    pub const MIN: Self = Self(geometry::Size::new(Available::Min, Available::Min));
+    pub const MAX: Self = Self(geometry::Size::new(Available::Max, Available::Max));
+
     pub const fn new(width: impl [const] Into<Available>, height: impl [const] Into<Available>) -> Self {
-        Self(Size::new(width.into(), height.into()))
+        Self(geometry::Size::new(width.into(), height.into()))
     }
 
-    pub const fn both(value: impl [const] Into<Available> + Copy) -> Self {
+    pub const fn definite(value: impl [const] Into<Available> + Copy) -> Self {
         Self::new(value.into(), value.into())
+    }
+
+    pub const fn min() -> Self {
+        Self::new(Available::Min, Available::Min)
+    }
+
+    pub const fn max() -> Self {
+        Self::new(Available::Max, Available::Max)
     }
 }
 
-impl From<Size> for Space {
-    fn from(value: Size) -> Self {
+impl From<geometry::Size> for Space {
+    fn from(value: geometry::Size) -> Self {
         Self::new(Available::Definite(value.width as u32), Available::Definite(value.height as u32))
     }
 }
@@ -140,14 +161,35 @@ impl Into<taffy::Size<taffy::AvailableSpace>> for Space {
 #[repr(transparent)]
 pub struct Gap(geometry::Axis<Dimension>);
 impl Gap {
-    pub const ZERO: Self = Self(Axis::new(Dimension::Length(0), Dimension::Length(0)));
-    pub const AUTO: Self = Self(Axis::new(Dimension::Auto, Dimension::Auto));
+    pub const ZERO: Self = Self(geometry::Axis::new(Dimension::Length(0), Dimension::Length(0)));
+    pub const AUTO: Self = Self(geometry::Axis::new(Dimension::Auto, Dimension::Auto));
+
+    pub const fn auto() -> Self {
+        Self::AUTO
+    }
+
+    pub const fn length(value: u32) -> Self {
+        Self::new(Dimension::Length(value), Dimension::Length(value))
+    }
+
+    pub const fn percent(value: f32) -> Self {
+        Self::new(Dimension::Percent(value), Dimension::Percent(value))
+    }
 
     pub const fn new(horizontal: impl [const] Into<Dimension>, vertical: impl [const] Into<Dimension>) -> Self {
-        Self(Axis::new(horizontal.into(), vertical.into()))
+        Self(geometry::Axis::new(horizontal.into(), vertical.into()))
     }
 
-    pub const fn both(value: impl [const] Into<Dimension> + Copy) -> Self {
-        Self(Axis::both(value.into()))
+    pub const fn horizontal(value: impl [const] Into<Dimension> + Copy) -> Self {
+        Self::new(value.into(), Dimension::Auto)
     }
+
+    pub const fn vertical(value: impl [const] Into<Dimension> + Copy) -> Self {
+        Self::new(Dimension::Auto, value.into())
+    }
+    
+    pub const fn both(value: impl [const] Into<Dimension> + Copy) -> Self {
+        Self(geometry::Axis::both(value.into()))
+    }
+
 }

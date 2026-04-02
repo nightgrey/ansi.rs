@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/ansi", "crates/geometry", "crates/spatial",
+    "crates/ansi", "crates/geometry",
     "crates/sigil", "crates/terminal", "crates/utils",
     "crates/utils/crates/tree",
     "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
@@ -23,7 +23,6 @@ bitcraft = "0.9.2"
 # Workspace crates
 ansi = { path = "crates/ansi" }
 geometry = { path = "crates/geometry" }
-spatial = { path = "crates/spatial" }
 sigil = { path = "crates/sigil" }
 terminal = { path = "crates/terminal" }
 utils = { path = "crates/utils" }

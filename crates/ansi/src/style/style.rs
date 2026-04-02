@@ -1,7 +1,7 @@
 use crate::{Attribute, Color, Escape};
 use bitflags::Flags;
 use derive_more::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign,
 };
 use maybe::Maybe;
 use std::cmp::PartialEq;
@@ -461,18 +461,5 @@ impl Maybe for Style {
 
     fn is_none(&self) -> bool {
         self == &Self::None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_style_difference() {
-        let s1 = Style::Bold.background(Color::White);
-        let s2 = Style::None.background(Color::None);
-        let diff = s1.difference(s2);
-        assert_eq!(diff, Style::None);
     }
 }

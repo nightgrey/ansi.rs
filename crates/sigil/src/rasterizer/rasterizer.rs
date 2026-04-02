@@ -9,7 +9,7 @@ use utils::Resolve;
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
 use crate::Cell;
-use crate::buffer::{Buffer, GraphemeArena};
+use crate::buffer::{Buffer, Arena};
 
 #[derive(Debug, Clone)]
 pub struct Rasterizer {
@@ -68,7 +68,7 @@ impl Rasterizer {
     }
 
     /// Rasterize a buffer, diffing against the shadow frame.
-    pub fn raster(&mut self, buffer: &Buffer, arena: &GraphemeArena) -> io::Result<()> {
+    pub fn raster(&mut self, buffer: &Buffer, arena: &Arena) -> io::Result<()> {
         let (shadow, next) = (&mut self.shadow, buffer);
 
         if self.inline.is_some() {
@@ -181,7 +181,7 @@ impl Rasterizer {
     }
 
     /// Render an entire buffer to the writer, no diffing.
-    pub fn once(buffer: &Buffer, arena: &GraphemeArena, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn once(buffer: &Buffer, arena: &Arena, out: &mut impl io::Write) -> io::Result<()> {
         let mut pen = Cursor::new();
         let mut output = Vec::with_capacity(buffer.width * buffer.height * 4);
 
@@ -222,7 +222,7 @@ impl Rasterizer {
     }
 
     /// Render in inline mode (no alternate screen, relative cursor only).
-    fn raster_inline_impl(&mut self, buffer: &Buffer, arena: &GraphemeArena) -> io::Result<()> {
+    fn raster_inline_impl(&mut self, buffer: &Buffer, arena: &Arena) -> io::Result<()> {
         let (prev, next) = (&mut self.shadow, buffer);
         let width = next.width;
         let height = next.height;
@@ -362,7 +362,7 @@ impl Rasterizer {
     fn row(
         prev: &[Cell],
         next: &[Cell],
-        arena: &GraphemeArena,
+        arena: &Arena,
         y: usize,
         output: &mut Vec<u8>,
         cursor: &mut Cursor,
@@ -420,15 +420,10 @@ impl Rasterizer {
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
-    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &GraphemeArena) -> io::Result<()> {
+    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &Arena) -> io::Result<()> {
         cursor.transition(output, cell.style)?;
 
-        if cell.is_blank() {
-            output.push(b' ');
-        } else {
             output.extend_from_slice(cell.as_bytes(arena));
-        }
-
         Ok(())
     }
 }
@@ -453,7 +448,7 @@ struct InlineState {
 
 #[cfg(test)]
 mod tests {
-    use crate::buffer::GraphemeArena;
+    use crate::buffer::Arena;
     use ansi::{Color, Style};
 
     use super::*;
@@ -467,7 +462,7 @@ mod tests {
         let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Rasterizer::new(5, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(output.contains("\x1B["), "expected SGR sequence: {output}");
@@ -485,10 +480,10 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
         r.clear_output();
 
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -515,7 +510,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -524,7 +519,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'X', style), (0, 2, 'C', style)],
         );
 
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(output_str.contains('X'), "should emit 'X': {output_str}");
@@ -543,11 +538,11 @@ mod tests {
         let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
 
         let mut r = Rasterizer::new(2, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
         r.clear_output();
 
         r.invalidate();
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -563,12 +558,12 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         r.resize(5, 2);
         let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'B', style)]);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -597,11 +592,11 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(5, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -620,11 +615,11 @@ mod tests {
         );
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::new(3, 1);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -644,11 +639,11 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -664,7 +659,7 @@ mod tests {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(
@@ -681,7 +676,7 @@ mod tests {
     fn no_sync_without_cap() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(
@@ -703,7 +698,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
         let sgr_count = output_str.matches("\x1B[38;2;").count();
@@ -717,11 +712,11 @@ mod tests {
 
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -736,7 +731,7 @@ mod tests {
     fn render_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
 
@@ -788,7 +783,7 @@ mod tests {
     fn flush_writes_and_clears() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         assert!(
             !r.as_bytes().is_empty(),
@@ -845,7 +840,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::inline(5, 2);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
         let has_cup = output.windows(2).enumerate().any(|(i, w)| {
@@ -872,7 +867,7 @@ mod tests {
         let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
         let mut r = Rasterizer::inline(10, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
         // Count space characters — should NOT have 8 trailing spaces.
@@ -893,7 +888,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::inline(5, 3);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -902,7 +897,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'X', style), (2, 0, 'c', style)],
         );
 
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output = r.as_str();
         assert!(
@@ -917,7 +912,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Rasterizer::inline(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(
@@ -936,7 +931,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
         let mut r = Rasterizer::inline(3, 2);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(
@@ -964,7 +959,7 @@ mod tests {
         );
 
         let mut r = Rasterizer::inline(5, 2);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -977,7 +972,7 @@ mod tests {
                 (1, 1, 'd', style),
             ],
         );
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -1013,10 +1008,10 @@ mod tests {
         );
 
         let mut r = Rasterizer::inline(5, 2);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
         r.clear_output();
 
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -1035,7 +1030,7 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
         let mut r = Rasterizer::inline(3, 2);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -1043,7 +1038,7 @@ mod tests {
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output = r.as_bytes();
         assert!(output.contains(&b'\n'), "should emit newline for growth");
@@ -1064,11 +1059,11 @@ mod tests {
         );
 
         let mut r = Rasterizer::inline(3, 3);
-        r.raster(&buf1, &GraphemeArena::new());
+        r.raster(&buf1, &Arena::new());
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', style)]);
-        r.raster(&buf2, &GraphemeArena::new());
+        r.raster(&buf2, &Arena::new());
 
         let output_str = r.as_str();
         assert!(
@@ -1081,7 +1076,7 @@ mod tests {
     fn inline_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::inline(3, 1);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
         let hide = "\x1B[?25l";
@@ -1107,7 +1102,7 @@ mod tests {
         let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &GraphemeArena::new());
+        r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
         assert!(

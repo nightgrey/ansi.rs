@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 bitflags = { workspace = true }
 utils = { workspace = true }
-spatial = { workspace = true }
 geometry = { workspace = true }
 bitcraft = { workspace = true }
 derive_more.workspace = true

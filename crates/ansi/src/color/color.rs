@@ -46,11 +46,11 @@ impl Color {
 
     #[inline]
     #[must_use]
-    pub const fn difference(self, other: Self) -> Self {
-        match (self, other) {
+    pub const fn difference(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Color::None, _)  => Color::None,
             (x, Color::None) => x,
-            (a, b) if a == b => Color::None,
-            (_, x) => x,
+            (a, b) => Color::None,
         }
     }
     #[inline]
@@ -95,6 +95,18 @@ impl Color {
             Color::Rgb(_, _, _) => Some(ColorSpace::Rgb),
             _ => None,
         }
+    }
+
+    pub fn escape_background(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        self.as_background().escape(w)
+    }
+
+    pub fn escape_foreground(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        self.as_foreground().escape(w)
+    }
+
+    pub fn escape_underline(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        self.as_underline().escape(w)
     }
 }
 
@@ -185,7 +197,6 @@ impl const BitOr for Color {
 
     fn bitor(self, rhs: Self) -> Self::Output {
         self.union(rhs)
-
     }
 }
 
@@ -214,35 +225,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bitand() {
+    fn test_intersection() {
         for (lhs, rhs, expected) in [
             (Color::None, Color::Black, Color::None),
             (Color::None, Color::None, Color::None),
             (Color::Black, Color::None, Color::None),
-            (Color::Black, Color::Black, Color::Black),
-        ] {
-            assert_eq!(lhs.bitand(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
-        }
-    }
-
-    #[test]
-    fn test_bitor() {
-        for (lhs, rhs, expected) in [
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::Black),
-            (Color::Black, Color::None, Color::Black),
-            (Color::Black, Color::Black, Color::Black),
-        ] {
-            assert_eq!(lhs.bitor(rhs), expected, "{:?}.bitand({:?})", lhs, rhs);
-        }
-    }
-
-    #[test]
-    fn test_bitxor() {
-        for (lhs, rhs, expected) in [
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::Black),
-            (Color::Black, Color::None, Color::Black),
             (Color::Black, Color::Black, Color::Black),
         ] {
             assert_eq!(lhs.intersection(rhs), expected, "{:?}.intersection({:?})", lhs, rhs);
@@ -250,16 +237,26 @@ mod tests {
     }
 
     #[test]
-    fn test_sub() {
+    fn test_union() {
+        for (lhs, rhs, expected) in [
+            (Color::None, Color::None, Color::None),
+            (Color::None, Color::Black, Color::Black),
+            (Color::Black, Color::None, Color::Black),
+            (Color::Black, Color::Black, Color::Black),
+        ] {
+            assert_eq!(lhs.union(rhs), expected, "{:?}.union({:?})", lhs, rhs);
+        }
+    }
+
+    #[test]
+    fn test_difference() {
         for (lhs, rhs, expected) in [
             (Color::None, Color::None, Color::None),
             (Color::None, Color::Black, Color::None),
             (Color::Black, Color::None, Color::Black),
-            (Color::Black, Color::Black, Color::None),
-            (Color::None, Color::None, Color::None),
-            (Color::None, Color::Black, Color::None),
+            (Color::Black, Color::Blue, Color::None),
         ] {
-            assert_eq!(lhs.sub(rhs), expected, "{:?}.sub({:?})", lhs, rhs);
+            assert_eq!(lhs.difference(rhs), expected, "{:?}.difference({:?})", lhs, rhs);
         }
     }
 

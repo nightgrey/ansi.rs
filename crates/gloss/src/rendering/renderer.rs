@@ -79,19 +79,18 @@ pub trait RendererBackend {
 
     /// Finish any pending operations.
     fn finish(&mut self) -> Result<(), Self::Error>;
+
+    fn into_renderer(self) -> Renderer<Self> where Self: Sized {
+        Renderer(self)
+    }
 }
 
 #[derive(Default, Deref, DerefMut, AsRef, AsMut)]
 pub struct Renderer<B: RendererBackend>(pub B);
 
 impl<B: RendererBackend> Renderer<B> {
-    pub fn new(backend: B) -> Self {
-        Self(backend)
-    }
-
     pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
         self.resize(doc.size(doc.root))?;
-
         self.render_node(doc, doc.root, Style::DEFAULT)?;
         self.finish()
     }

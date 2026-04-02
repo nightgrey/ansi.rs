@@ -1,7 +1,7 @@
 use ansi::{Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
 use derive_more::{Deref, DerefMut};
-use sigil::GraphemeArena;
+use sigil::Arena;
 use sigil::buffer::{Buffer, Cell};
 use sigil::rasterizer::{Capabilities, Rasterizer as _Rasterizer};
 use std::hint::black_box;
@@ -11,17 +11,17 @@ struct Rasterizer(
     #[deref]
     #[deref_mut]
     _Rasterizer,
-    GraphemeArena,
+    Arena,
 );
 impl Rasterizer {
     /// Create a fullscreen rasterizer with the given dimensions.
     pub fn new(width: usize, height: usize) -> Self {
-        Self(_Rasterizer::new(width, height), GraphemeArena::new())
+        Self(_Rasterizer::new(width, height), Arena::new())
     }
 
     /// Create an inline rasterizer (renders in the normal scrollback region).
     pub fn inline(width: usize, height: usize) -> Self {
-        Self(_Rasterizer::inline(width, height), GraphemeArena::new())
+        Self(_Rasterizer::inline(width, height), Arena::new())
     }
 
     pub fn with_capabilities(mut self, caps: Capabilities) -> Self {
@@ -226,7 +226,7 @@ fn terminal_rerender(c: &mut Criterion) {
 
     // Change a single cell in the middle of the screen.
     let mut buf2 = buf1.clone();
-    buf2[(H / 2, W / 2)] = Cell::from_char('!', style);
+    buf2[(H / 2, W / 2)] = Cell::inline('!', style);
 
     let mut r = Rasterizer::new(W, H);
     r.render(&buf1);
@@ -249,7 +249,7 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
     let buf1 = filled_buffer(W, H, 'a', style);
 
     let mut buf2 = buf1.clone();
-    let changed = Cell::from_char('Z', style);
+    let changed = Cell::inline('Z', style);
     for x in 0..W {
         buf2[(20, x)] = changed;
     }
@@ -328,7 +328,7 @@ fn terminal_full_ui(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     let update_style = Style::default().foreground(Color::Rgb(255, 0, 0)).bold();
     for x in 0..W {
-        buf2[(15, x)] = Cell::from_char('!', update_style);
+        buf2[(15, x)] = Cell::inline('!', update_style);
     }
 
     let mut r = Rasterizer::new(W, H);
@@ -355,7 +355,7 @@ fn terminal_strict_ui(c: &mut Criterion) {
     let upd = Style::default().foreground(Color::Rgb(255, 255, 0)).bold();
     for y in [10, 20, 30] {
         for x in 0..W {
-            buf2[(y, x)] = Cell::from_char('*', upd);
+            buf2[(y, x)] = Cell::inline('*', upd);
         }
     }
 
@@ -402,7 +402,7 @@ fn terminal_table(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     let upd = Style::default().foreground(Color::Rgb(255, 50, 50)).bold();
     for &(y, x) in &[(5, 10), (12, 30), (20, 60), (30, 90), (38, 110)] {
-        buf2[(y, x)] = Cell::from_char('!', upd);
+        buf2[(y, x)] = Cell::inline('!', upd);
     }
 
     let mut r = Rasterizer::new(W, H);
@@ -445,7 +445,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
     for (i, &style) in channel_styles.iter().enumerate() {
         let y = 2 + i * 3;
         if y < H {
-            let cell = Cell::from_char('#', style);
+            let cell = Cell::inline('#', style);
             for x in 0..W {
                 buf2[(y, x)] = cell;
             }
@@ -582,7 +582,7 @@ fn inline_rerender(c: &mut Criterion) {
     let buf1 = filled_buffer(W, 10, 'I', style);
 
     let mut buf2 = buf1.clone();
-    let changed = Cell::from_char('J', style);
+    let changed = Cell::inline('J', style);
     for x in 0..W {
         buf2[(5, x)] = changed;
     }

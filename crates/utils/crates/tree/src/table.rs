@@ -272,7 +272,7 @@ impl<K: Id, V, Other: Id> Table<K, V, Other> {
     }
 
     /// Inserts a value via a closure that receives its key.
-    pub fn inster_directly_with_key<F: FnOnce(K) -> V>(&mut self, f: F) -> K {
+    pub fn insert_directly_with_key<F: FnOnce(K) -> V>(&mut self, f: F) -> K {
         let key = self.inner.insert_with_key(f);
         self.reverse.insert(key, smallvec![]);
         key
@@ -513,6 +513,10 @@ mod tests {
         let (_sm, e1, e2, e3) = elements();
 
         let layer_id = t.insert_directly(Layer { name: "shared" });
+        t.relate(e1, layer_id).unwrap();
+        t.relate(e2, layer_id).unwrap();
+        t.relate(e3, layer_id).unwrap();
+
         assert!(t.relates(e1, layer_id));
         assert!(t.relates(e2, layer_id));
         assert!(t.relates(e3, layer_id));

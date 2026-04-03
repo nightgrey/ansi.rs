@@ -1,5 +1,5 @@
-use crate::{Error, Id};
-use derive_more::{Deref, DerefMut, Index, IndexMut};
+use crate::{Id};
+use derive_more::{ Index, IndexMut};
 use std::fmt::Debug;
 
 /// A secondary map for associating auxiliary data with tree nodes.
@@ -11,7 +11,7 @@ use std::fmt::Debug;
 ///
 /// Keys are only valid if they also exist in the primary tree — it is the
 /// caller's responsibility to keep the two in sync.
-#[derive(Deref, DerefMut, Index, IndexMut)]
+#[derive(Index, IndexMut)]
 #[repr(transparent)]
 pub struct Secondary<K: Id, V> {
     inner: slotmap::SecondaryMap<K, V>,
@@ -54,9 +54,54 @@ impl<K: Id, V> Secondary<K, V> {
     pub fn remove(&mut self, id: K) -> Option<V> {
         self.inner.remove(id)
     }
+
+    /// Returns the number of entries in the map.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Returns `true` if the map contains no entries.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Removes all entries from the map.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    /// Iterates over all `(key, &value)` pairs.
+    pub fn iter(&self) -> Iter<'_, K, V> {
+        self.inner.iter()
+    }
+
+    /// Mutably iterates over all `(key, &mut value)` pairs.
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+        self.inner.iter_mut()
+    }
+
+    /// Iterates over all keys.
+    pub fn keys(&self) -> Keys<'_, K, V> {
+        self.inner.keys()
+    }
+
+    /// Iterates over all values.
+    pub fn values(&self) -> Values<'_, K, V> {
+        self.inner.values()
+    }
+
+    /// Mutably iterates over all values.
+    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
+        self.inner.values_mut()
+    }
+
+    /// Removes all entries, yielding them as `(key, value)` pairs.
+    pub fn drain(&mut self) -> Drain<'_, K, V> {
+        self.inner.drain()
+    }
 }
 
-impl<K: Id, V: Default> Default for Secondary<K, V> {
+impl<K: Id, V> Default for Secondary<K, V> {
     fn default() -> Self {
         Self::new()
     }
@@ -67,9 +112,21 @@ impl<K: Id, V: Debug> Debug for Secondary<K, V> {
     }
 }
 
-pub type Iter<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Iter<'a, K, V>;
-pub type IterMut<'a, K: Id + 'a, V: 'a> = slotmap::secondary::IterMut<'a, K, V>;
-pub type Drain<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Drain<'a, K, V>;
-pub type Keys<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Keys<'a, K, V>;
-pub type Values<'a, K: Id + 'a, V: 'a> = slotmap::secondary::Values<'a, K, V>;
-pub type ValuesMut<'a, K: Id + 'a, V: 'a> = slotmap::secondary::ValuesMut<'a, K, V>;
+
+impl<K: Id, V> Extend<(K, V)> for Secondary<K, V> {
+    fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
+        self.inner.extend(iter);
+    }
+}
+
+impl<'a, K: Id, V: 'a + Copy> Extend<(K, &'a V)> for Secondary<K, V> {
+    fn extend<I: IntoIterator<Item = (K, &'a V)>>(&mut self, iter: I) {
+        self.inner.extend(iter);
+    }
+}
+pub type Iter<'a, K, V> = slotmap::secondary::Iter<'a, K, V>;
+pub type IterMut<'a, K, V> = slotmap::secondary::IterMut<'a, K, V>;
+pub type Drain<'a, K, V> = slotmap::secondary::Drain<'a, K, V>;
+pub type Keys<'a, K, V> = slotmap::secondary::Keys<'a, K, V>;
+pub type Values<'a, K, V> = slotmap::secondary::Values<'a, K, V>;
+pub type ValuesMut<'a, K, V> = slotmap::secondary::ValuesMut<'a, K, V>;

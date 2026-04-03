@@ -635,12 +635,12 @@ criterion_group!(
 criterion_group!(
     sigil,
     first_render,
-    identical_frame,
-    scroll_up,
-    invalidate_rerender,
-    inline_first_render,
-    inline_rerender,
-    rep_long_run,
+    // identical_frame,
+    // scroll_up,
+    // invalidate_rerender,
+    // inline_first_render,
+    // inline_rerender,
+    // rep_long_run,
 );
 
 criterion_main!(terminal, sigil);

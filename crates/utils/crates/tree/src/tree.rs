@@ -1,4 +1,3 @@
-//! Note: Unused
 use crate::{At, Error, Id, Node, iter::*};
 use derive_more::{Index, IndexMut, IntoIterator};
 use smallvec::SmallVec;
@@ -78,6 +77,11 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.insert(Node::new(value))
     }
 
+    pub fn insertion(&mut self, value: V) -> Insertion<K, V> {
+        let key = self.insert(value);
+        Insertion::new(self, key)
+    }
+
     /// Inserts a node at the specified position.
     ///
     /// # Panics
@@ -85,7 +89,7 @@ impl<K: Id, V> Tree<K, V> {
     /// Panics if the position references a missing node or would create a cycle.
     /// Use [`try_insert_at`](Self::try_insert_at) for a fallible version.
     pub fn insert_at(&mut self, value: V, at: At<K>) -> K {
-        self.try_insert_at(value, at).unwrap()
+       self.try_insert_at(value, at).unwrap()
     }
 
     /// Inserts a node at the specified position, returning an error on failure.
@@ -146,30 +150,24 @@ impl<K: Id, V> Tree<K, V> {
         Ok(id)
     }
 
-    /// Inserts a node at `at` and reparents the given `children` under it.
+
+    /// Inserts a node at the specified position.
     ///
     /// # Panics
     ///
-    /// Panics on missing nodes or cycles. See
-    /// [`try_insert_at_with_children`](Self::try_insert_at_with_children).
-    pub fn insert_at_with_children(&mut self, value: V, children: &[K], at: At<K>) -> K {
-        self.try_insert_at_with_children(value, children, at)
-            .unwrap()
+    /// Panics if the position references a missing node or would create a cycle.
+    /// Use [`try_insert_at`](Self::try_insert_at) for a fallible version.
+    pub fn insertion_at(&mut self, value: V, at: At<K>) -> Insertion<K, V> {
+        let id = self.insert_at(value, at);
+        Insertion::new(self, id)
     }
 
-    /// Fallible version of [`insert_at_with_children`](Self::insert_at_with_children).
-    pub fn try_insert_at_with_children(
-        &mut self,
-        value: V,
-        children: &[K],
-        at: At<K>,
-    ) -> Result<K, Error<K>> {
+    /// Inserts a node at the specified position, returning an error on failure.
+    pub fn try_inserted_at(&mut self, value: V, at: At<K>) -> Result<Insertion<K, V>, Error<K>> {
         let id = self.try_insert_at(value, at)?;
-        for &child in children {
-            self.try_move_to(child, At::Child(id))?;
-        }
-        Ok(id)
+        Ok(Insertion::new(self, id))
     }
+
 
     // --- Mutation ----------------------------------------------------------
 
@@ -257,7 +255,7 @@ impl<K: Id, V> Tree<K, V> {
             return Ok(());
         }
 
-        let prev = self.inner[id].previous_sibling();
+        let prev = self.inner[id].prev_sibling();
         let next = self.inner[id].next_sibling();
 
         if prev.is_null() {
@@ -269,12 +267,12 @@ impl<K: Id, V> Tree<K, V> {
         if next.is_null() {
             self.inner[parent].last_child = prev;
         } else {
-            self.inner[next].previous_sibling = prev;
+            self.inner[next].prev_sibling = prev;
         }
 
         let n = &mut self.inner[id];
         n.parent = K::null();
-        n.previous_sibling = K::null();
+        n.prev_sibling = K::null();
         n.next_sibling = K::null();
 
         Ok(())
@@ -347,7 +345,7 @@ impl<K: Id, V> Tree<K, V> {
 
     /// Returns the previous sibling, or `None` if this is the first child.
     pub fn prev_sibling(&self, id: K) -> Option<K> {
-        self.inner.get(id)?.previous_sibling().maybe()
+        self.inner.get(id)?.prev_sibling().maybe()
     }
 
     /// Returns `true` if the node has no children.
@@ -391,13 +389,13 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.keys()
     }
 
-    /// Iterates over all nodes (values) in insertion order.
-    pub fn nodes(&self) -> Nodes<'_, K, Node<K, V>> {
+    /// Iterates over all node values in insertion order.
+    pub fn values(&self) -> Nodes<'_, K, Node<K, V>> {
         self.inner.values()
     }
 
-    /// Mutably iterates over all nodes.
-    pub fn nodes_mut(&mut self) -> NodesMut<'_, K, Node<K, V>> {
+    /// Mutably iterates over all node values.
+    pub fn values_mut(&mut self) -> NodesMut<'_, K, Node<K, V>> {
         self.inner.values_mut()
     }
 
@@ -454,7 +452,7 @@ impl<K: Id, V> Tree<K, V> {
     // --- internals ---------------------------------------------------------
 
     fn ensure_exists(&self, k: K) -> Result<(), Error<K>> {
-        self.contains(k).ok_or_else(|| Error::Missing(k))
+        if self.contains(k) { Ok(()) } else { Err(Error::Missing(k)) }
     }
 
     fn ensure_no_cycle(&self, node: K, target_parent: K) -> Result<(), Error<K>> {
@@ -491,7 +489,7 @@ impl<K: Id, V> Tree<K, V> {
 
         let n = &mut self.inner[child];
         n.parent = parent;
-        n.previous_sibling = old_tail;
+        n.prev_sibling = old_tail;
         n.next_sibling = K::null();
     }
 
@@ -501,19 +499,19 @@ impl<K: Id, V> Tree<K, V> {
         if old_head.is_null() {
             self.inner[parent].last_child = child;
         } else {
-            self.inner[old_head].previous_sibling = child;
+            self.inner[old_head].prev_sibling = child;
         }
 
         self.inner[parent].first_child = child;
 
         let n = &mut self.inner[child];
         n.parent = parent;
-        n.previous_sibling = K::null();
+        n.prev_sibling = K::null();
         n.next_sibling = old_head;
     }
 
     fn link_before(&mut self, node: K, before: K, parent: K) {
-        let prev = self.inner[before].previous_sibling;
+        let prev = self.inner[before].prev_sibling;
 
         if prev.is_null() {
             self.inner[parent].first_child = node;
@@ -521,11 +519,11 @@ impl<K: Id, V> Tree<K, V> {
             self.inner[prev].next_sibling = node;
         }
 
-        self.inner[before].previous_sibling = node;
+        self.inner[before].prev_sibling = node;
 
         let n = &mut self.inner[node];
         n.parent = parent;
-        n.previous_sibling = prev;
+        n.prev_sibling = prev;
         n.next_sibling = before;
     }
 
@@ -535,14 +533,14 @@ impl<K: Id, V> Tree<K, V> {
         if next.is_null() {
             self.inner[parent].last_child = node;
         } else {
-            self.inner[next].previous_sibling = node;
+            self.inner[next].prev_sibling = node;
         }
 
         self.inner[after].next_sibling = node;
 
         let n = &mut self.inner[node];
         n.parent = parent;
-        n.previous_sibling = after;
+        n.prev_sibling = after;
         n.next_sibling = next;
     }
 }
@@ -556,6 +554,59 @@ impl<K: Id, V> Default for Tree<K, V> {
 impl<K: Id, V: Debug> Debug for Tree<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+
+/// A handle returned by [`Tree::insert`] / [`Tree::insert_at`] for
+/// chaining `.with()` and `.with_children()` calls.
+#[derive(Debug)]
+pub struct Insertion<'a, K: Id, V> {
+    tree: &'a mut Tree<K, V>,
+    pub id: K,
+}
+
+impl<'a, K: Id, V> Insertion<'a, K, V> {
+    pub fn new(tree: &'a mut Tree<K, V>, id: K) -> Self {
+        Self { tree, id }
+    }
+
+    /// Returns the id of the inserted node.
+    pub fn id(&self) -> K {
+        self.id
+    }
+
+    /// Mutates the inserted node via a callback.
+    pub fn with(self, f: impl FnOnce(&mut Node<K, V>)) -> Self {
+        f(&mut self.tree[self.id]);
+        self
+    }
+
+    /// Inserts children under the inserted node.
+    pub fn and(self, children: impl IntoIterator<Item = V>) -> Self {
+        for child in children {
+            self.tree.insert_at(child, At::Child(self.id));
+        }
+        self
+    }
+
+    /// Moves existing nodes under the inserted node.
+    pub fn and_from(self, children: impl IntoIterator<Item = K>) -> Self {
+        for child in children {
+            self.tree.move_to(child, At::Child(self.id));
+        }
+        self
+    }
+}
+impl<'a, K: Id, V> AsRef<Node<K, V>> for Insertion<'a, K, V> {
+    fn as_ref(&self) -> &Node<K, V> {
+        &self.tree[self.id]
+    }
+}
+
+impl<'a, K: Id, V> AsMut<Node<K, V>> for Insertion<'a, K, V> {
+    fn as_mut(&mut self) -> &mut Node<K, V> {
+        &mut self.tree[self.id]
     }
 }
 
@@ -752,10 +803,11 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        let inserted = tree.insert_at_with_children("root", &[a, b, c], At::Child(root));
-        let kids: Vec<_> = tree.children(inserted).collect();
+        let insertion = tree.insertion_at("root", At::Child(root)).and_from([a, b, c]);
+        let id = insertion.id;
+        let kids: Vec<_> = tree.children(id).collect();
         assert_eq!(kids, vec![a, b, c]);
-        assert_eq!(tree.parent(b), Some(inserted));
+        assert_eq!(tree.parent(b), Some(id));
     }
 
     #[test]

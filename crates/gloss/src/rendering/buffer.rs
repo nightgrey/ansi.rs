@@ -127,7 +127,7 @@ impl<'buf> BufferContext<'buf> {
     pub fn stroke(&mut self, rect: impl Into<Option<Rect>>, stroke_type: impl Into<Option<Border>>) -> &mut Self {
         let mut rect = self.resolve_rect(rect);
         let stroke_type = self.resolve_stroke_type(stroke_type);
-        let border = stroke_type.into_symbols();
+        let border = stroke_type.into_border();
 
         rect.max.x -= border.right.width();
         rect.max.y -= border.bottom.width();
@@ -508,7 +508,7 @@ mod tests {
 
         let child = document.insert_with(
             Node::Span(Cow::Borrowed("AB")),
-            |_| {},
+            |node| { node.set_color(Color::Blue); },
         );
 
         document.compute_layout(Space::new(20u32, 10u32));
@@ -545,9 +545,10 @@ mod tests {
         });
 
         // Grandchild text inside the child div
-        let text_id = document.insert_at(
+        let text_id = document.insert_at_with(
             Node::Span("OK"),
             At::Child(child_div),
+            |node| { node.set_color(Color::Blue); },
         );
 
         document.compute_layout(Space::new(30u32, 15u32));
@@ -584,11 +585,11 @@ mod tests {
         // Two stacked children in column layout
         let child_a = document.insert_with(
             Node::Span(Cow::Borrowed("AA")),
-            |_| {},
+            |node| { node.set_color(Color::Blue); },
         );
         let child_b = document.insert_with(
             Node::Span(Cow::Borrowed("BB")),
-            |_| {},
+            |node| { node.set_color(Color::Green); },
         );
 
         document.compute_layout(Space::new(30u32, 15u32));
@@ -618,11 +619,11 @@ mod tests {
 
         let child_a = document.insert_with(
             Node::Span(Cow::Borrowed("L")),
-            |_| {},
+            |node| { node.set_color(Color::Blue); },
         );
         let child_b = document.insert_with(
             Node::Span(Cow::Borrowed("R")),
-            |_| {},
+            |node| { node.set_color(Color::Green); },
         );
 
         document.compute_layout(Space::new(30u32, 5u32));

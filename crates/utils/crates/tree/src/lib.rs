@@ -1,4 +1,4 @@
-//! A generic, slotmap-backed tree data structure with CSS layout support.
+//! A generic, slotmap-backed tree data structure.
 //!
 //! This crate provides [`Tree`], an arena-allocated tree where every node is
 //! addressed by a typed [`Id`] key. Nodes are stored in a flat [`slotmap`] and
@@ -10,17 +10,10 @@
 //! | Type | Purpose |
 //! |------|---------|
 //! | [`Tree`] | The core tree container — insert, remove, move, and query nodes. |
-//! | [`RootTree`] | A tree that always has a root node (cannot be removed). |
 //! | [`Secondary`] | An auxiliary map for associating side data with tree nodes. |
 //! | [`Node`] | A node with embedded structural links; dereferences to its inner value. |
 //! | [`At`] | Describes *where* to insert or move a node (child, sibling, detached). |
 //! | [`Id`] | Trait that extends [`slotmap::Key`] with `Option`-like combinators. |
-//!
-//! # Layout
-//!
-//! The optional [`layout_tree`] module integrates with [`taffy`] to provide
-//! CSS-compatible layout computation (Flexbox, Grid, Block) on top of the same
-//! tree structure. See [`layout_tree::prelude`] for a convenience re-export.
 //!
 //! # Quick start
 //!
@@ -43,20 +36,21 @@
 //! }
 //! ```
 
-#![feature(bool_to_result)]
-#![feature(array_try_map)]
-
+#[macro_export]
+mod id;
 mod at;
 mod error;
-mod id;
-#[macro_export]
 pub mod iter;
-pub mod node;
+mod node;
 mod tree;
+mod secondary;
+mod traits;
 
 pub use at::*;
 pub use error::*;
 pub use id::*;
 pub use iter::*;
 pub use node::*;
+pub use secondary::*;
 pub use tree::*;
+pub use traits::*;

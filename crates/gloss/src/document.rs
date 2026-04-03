@@ -1,4 +1,4 @@
-use crate::{Dirty,  LayoutContext, LayoutNode, Node, NodeId};
+use crate::{Dirty, LayoutContext, LayoutNode, Node, NodeId};
 use crate::measure_node;
 use crate::{Available, Dimension, Space, Style};
 use geometry::{Point, Rect, Size};
@@ -25,59 +25,32 @@ impl<'a> Document<'a> {
             layouts,
         }
     }
-
+    
+    /// Inserts a node as the last child of the root.
     pub fn insert(&mut self, node: Node<'a>) -> NodeId {
         self.insert_at(node, At::Child(self.root))
     }
 
-    pub fn insert_with_children(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>) -> NodeId {
+    /// Inserts a node as the last child of the root.
+    pub fn insert_with(&mut self, node: Node<'a>, f: impl FnOnce(&mut Node<'a>)) -> NodeId {
         let id = self.insert(node);
-        for child in children {
-            self.insert_at(child, At::Child(id));
-        }
+        f(&mut self.nodes[id]);
         id
     }
-
-    pub fn insert_at(&mut self, node: Node<'a>, at: At<NodeId>) -> NodeId {
+    
+    /// Inserts a node at the given position.
+    pub fn insert_at(&mut self, node: Node<'a>, at: At<NodeId>) -> NodeId{
         let id = self.nodes.insert_at(node, at);
         self.layouts.insert(id, LayoutNode::default());
         id
     }
     
-    pub fn insert_with_children_at(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>, at: At<NodeId>) -> NodeId {
+    pub fn insert_at_with(&mut self, node: Node<'a>, at: At<NodeId>, f: impl FnOnce(&mut Node<'a>)) -> NodeId {
         let id = self.insert_at(node, at);
-        for child in children {
-            self.insert_at(child, At::Child(id));
-        }
-        id
-    }
-
-    pub fn insert_with(&mut self, node: Node<'a>, with: impl FnOnce(&mut Node<'a>)) -> NodeId {
-        let id = self.insert(node);
-        with(&mut self.nodes[id]);
+        f(&mut self.nodes[id]);
         id
     }
     
-    pub fn insert_at_with(
-        &mut self,
-        node: Node<'a>,
-        at: At<NodeId>,
-        with: impl FnOnce(&mut Node<'a>),
-    ) -> NodeId {
-        let id = self.insert_at(node, at);
-        with(&mut self.nodes[id]);
-        id
-    }
-
-    pub fn insert_with_children_at_with(&mut self, node: Node<'a>, children: impl IntoIterator<Item = Node<'a>>, at: At<NodeId>, with: impl FnOnce(&mut Node<'a>)) -> NodeId {
-        let id = self.insert_at(node, at);
-        for child in children {
-            self.insert_at(child, At::Child(id));
-        }
-        with(&mut self.nodes[id]);
-        id
-    }
-
     pub fn move_to(&mut self, id: NodeId, at: At<NodeId>) {
         self.nodes.move_to(id, at);
         self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
@@ -101,7 +74,6 @@ impl<'a> Document<'a> {
     }
 
     pub fn children(&self, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        // Adapt this to your tree API.
         self.nodes.children(id)
     }
 
@@ -115,18 +87,18 @@ impl<'a> Document<'a> {
         self.nodes[id].style = style;
         self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
-    
+
     pub fn compute_layout(&mut self, space: Space) {
-        self.nodes[self.root].style.width = match space.width {
+        self.nodes[self.root].set_width(match space.width {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
-        };
-        self.nodes[self.root].style.height = match space.height {
+        });
+        self.nodes[self.root].set_height(match space.height {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
-        };
+        });
         let mut context = LayoutContext::new(
             &mut self.nodes,
             &mut self.layouts,
@@ -150,13 +122,13 @@ impl<'a> Document<'a> {
     }
 
     fn clear_layout(&mut self, id: NodeId) {
-        if let Some(layout) = self.layouts.get_mut(id) {
-            layout.dirty.remove(Dirty::Layout | Dirty::Measure);
-        }
-
-        let children: Vec<_> = self.children(id).collect();
-        for child in children {
-            self.clear_layout(child);
+        let ids: Vec<NodeId> = std::iter::once(id)
+            .chain(self.nodes.descendants(id))
+            .collect();
+        for id in ids {
+            if let Some(layout) = self.layouts.get_mut(id) {
+                layout.dirty.remove(Dirty::Layout | Dirty::Measure);
+            }
         }
     }
 
@@ -191,5 +163,42 @@ impl<'a> Document<'a> {
 impl<'a> Default for Document<'a> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// A handle returned by [`Document::insert`] / [`Document::insert_at`] for
+/// chaining `.with()` and `.with_children()` calls.
+pub struct Insertion<'d, 'a> {
+    doc: &'d mut Document<'a>,
+    id: NodeId,
+}
+
+impl<'d, 'a> Insertion<'d, 'a> {
+    pub fn new(doc: &'d mut Document<'a>, id: NodeId) -> Self {
+        Self { doc, id }
+    }
+    /// Returns the id of the inserted node.
+    pub fn id(&self) -> NodeId {
+        self.id
+    }
+
+    /// Mutates the inserted node via a callback.
+    pub fn with(self, f: impl FnOnce(&mut Node<'a>)) -> Self {
+        f(&mut self.doc.nodes[self.id]);
+        self
+    }
+
+    /// Inserts children under the inserted node.
+    pub fn with_children(self, children: impl IntoIterator<Item = Node<'a>>) -> Self {
+        for child in children {
+            self.doc.insert_at(child, At::Child(self.id));
+        }
+        self
+    }
+}
+
+impl From<Insertion<'_, '_>> for NodeId {
+    fn from(insertion: Insertion<'_, '_>) -> Self {
+        insertion.id
     }
 }

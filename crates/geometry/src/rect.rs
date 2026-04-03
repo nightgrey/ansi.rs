@@ -32,6 +32,7 @@ impl<T> Rect<T> {
         Self { min, max }
     }
 
+
     pub fn iter(self) -> Steps<Self, T>
     where
         Self: Bounded<Coordinate= T> + Step<T>,
@@ -39,6 +40,7 @@ impl<T> Rect<T> {
         Steps::new(self)
     }
 }
+
 
 impl<T: Zero> const Rect<T> {
     /// An empty rectangle at the origin.
@@ -49,12 +51,20 @@ impl<T: Zero> const Rect<T> {
 }
 
 impl const Rect {
-     pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
-         Self {
-             min: Point::new(x, y),
-             max: Point::new(x + width, y + height),
-         }
-     }
+    pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self {
+         min: Point::new(x, y),
+         max: Point::new(x + width, y + height),
+        }
+    }
+
+    pub fn set_height(&mut self, height: usize) {
+        self.max.y = self.min.y + height;
+    }
+    
+    pub fn set_width(&mut self, width: usize) {
+        self.max.x = self.min.x + width;
+    }
 }
 
 impl<T: Zero> From<Size<T>> for Rect<Point<T>> {

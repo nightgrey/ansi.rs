@@ -45,40 +45,40 @@ impl Property {
 pub struct Style {
     properties: Property,
 
-    pub(crate) min_width: Dimension,
-    pub(crate) min_height: Dimension,
-    pub(crate) width: Dimension,
-    pub(crate) height: Dimension,
-    pub(crate) max_width: Dimension,
-    pub(crate) max_height: Dimension,
+     min_width: Dimension,
+     min_height: Dimension,
+     width: Dimension,
+     height: Dimension,
+     max_width: Dimension,
+     max_height: Dimension,
 
-    pub(crate) padding: Edges,
-    pub(crate) margin: Edges,
-    pub(crate) gap: Gap,
+     padding: Edges,
+     margin: Edges,
+     gap: Gap,
 
-    pub(crate) color: Color,
-    pub(crate) background: Color,
+     color: Color,
+     background: Color,
 
     // Flex
-    pub(crate) flex_direction: FlexDirection,
-    pub(crate) flex_wrap: FlexWrap,
-    pub(crate) flex_basis: Dimension,
-    pub(crate) flex_grow: f32,
-    pub(crate) flex_shrink: f32,
+     flex_direction: FlexDirection,
+     flex_wrap: FlexWrap,
+     flex_basis: Dimension,
+     flex_grow: f32,
+     flex_shrink: f32,
 
-    pub(crate) align_items: AlignItems,
-    pub(crate) align_self: AlignSelf,
-    pub(crate) align_content: AlignContent,
-    pub(crate) justify_items: JustifyItems,
-    pub(crate) justify_self: AlignSelf,
-    pub(crate) justify_content: JustifyContent,
+     align_items: AlignItems,
+     align_self: AlignSelf,
+     align_content: AlignContent,
+     justify_items: JustifyItems,
+     justify_self: AlignSelf,
+     justify_content: JustifyContent,
 
-    pub(crate) text_decoration: TextDecoration,
-    pub(crate) font_weight: FontWeight,
-    pub(crate) font_style: FontStyle,
+     text_decoration: TextDecoration,
+     font_weight: FontWeight,
+     font_style: FontStyle,
 
-    pub(crate) display: Display,
-    pub(crate) border: Border,
+     display: Display,
+     border: Border,
 
 }
 
@@ -117,8 +117,8 @@ impl Style {
         font_style: FontStyle::Normal,
     };
 
-    /// Applies the properties of `other` from `self`.
-    pub fn inherit(self, other: Self) -> Self {
+    /// Applies the explicitly-set properties of `other` onto `self`.
+    pub fn apply(self, other: Self) -> Self {
         let mut style = self;
         for property in other.properties.iter() {
             bitflags_match!(property, {
@@ -156,9 +156,9 @@ impl Style {
         style
     }
 
-    /// Applies the properties of `self` onto `other`.
-    pub fn propagate(self, other: Self) -> Self {
-        other.inherit(self)
+    /// Applies the explicitly-set properties of `self` onto `other`.
+    pub fn apply_to(self, other: Self) -> Self {
+        other.apply(self)
     }
 
     pub fn is_default(&self) -> bool {
@@ -204,6 +204,10 @@ macro_rules! property {
             }
 
             /// Checks if the property is set.
+            pub fn [<maybe_ $struct_property>](&self) -> Option<$arg_return> {
+                if self.properties.contains(Property::$bitset_property) { Some(self.$struct_property) } else { None }
+            }
+            /// Checks if the property is set.
             pub fn [<has_ $struct_property>](&self) -> bool {
                 self.properties.contains(Property::$bitset_property)
             }
@@ -248,30 +252,30 @@ impl Style {
     property!(FlexShrink -> fn flex_shrink(value: f32) -> f32);
     property!(Gap -> fn gap(value: Gap) -> Gap);
 }
-impl Into<ansi::Style> for Style {
-    fn into(self) -> ansi::Style {
+impl From<Style> for ansi::Style {
+    fn from(style: Style) -> Self {
         let mut attributes = ansi::Attribute::empty();
 
-        match self.font_weight {
+        match style.font_weight {
             FontWeight::Normal => (),
             FontWeight::Bold => attributes.insert(ansi::Attribute::Bold),
         };
 
-        match self.text_decoration {
+        match style.text_decoration {
             TextDecoration::None => (),
             TextDecoration::Underline => attributes.insert(ansi::Attribute::Underline),
             TextDecoration::LineThrough => attributes.insert(ansi::Attribute::Strikethrough),
         };
 
-        match self.font_style {
+        match style.font_style {
             FontStyle::Normal => (),
             FontStyle::Italic => attributes.insert(ansi::Attribute::Italic),
         };
 
         ansi::Style {
             attributes,
-            foreground: self.color,
-            background: self.background,
+            foreground: style.color,
+            background: style.background,
         }
     }
 }

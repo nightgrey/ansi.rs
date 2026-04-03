@@ -16,9 +16,4 @@ pub enum Error<K> {
     /// descendant of the node being moved).
     #[error("Cycle detected: node {node} would be its own ancestor")]
     Cycle { node: K, target: K },
-
-    /// The operation is not permitted (e.g. removing the root of a
-    /// [`RootTree`](crate::RootTree)).
-    #[error("Operation forbidden")]
-    OperationForbidden,
 }

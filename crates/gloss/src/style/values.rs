@@ -68,9 +68,9 @@ impl const From<Option<Dimension>> for Dimension {
     }
 }
 
-impl Into<taffy::LengthPercentage> for Dimension {
-    fn into(self) -> taffy::LengthPercentage {
-        match self {
+impl From<Dimension> for taffy::LengthPercentage {
+    fn from(dim: Dimension) -> Self {
+        match dim {
             Dimension::Auto => taffy::LengthPercentage::ZERO,
             Dimension::Length(val) => taffy::LengthPercentage::length(val as f32),
             Dimension::Percent(val) => taffy::LengthPercentage::percent(val),
@@ -78,9 +78,9 @@ impl Into<taffy::LengthPercentage> for Dimension {
     }
 }
 
-impl Into<taffy::LengthPercentageAuto> for Dimension {
-    fn into(self) -> taffy::LengthPercentageAuto {
-        match self {
+impl From<Dimension> for taffy::LengthPercentageAuto {
+    fn from(dim: Dimension) -> Self {
+        match dim {
             Dimension::Auto => taffy::LengthPercentageAuto::auto(),
             Dimension::Length(val) => taffy::LengthPercentageAuto::length(val as f32),
             Dimension::Percent(val) => taffy::LengthPercentageAuto::percent(val),
@@ -88,9 +88,9 @@ impl Into<taffy::LengthPercentageAuto> for Dimension {
     }
 }
 
-impl Into<taffy::Dimension> for Dimension {
-    fn into(self) -> taffy::Dimension {
-        match self {
+impl From<Dimension> for taffy::Dimension {
+    fn from(dim: Dimension) -> Self {
+        match dim {
             Dimension::Auto => taffy::Dimension::auto(),
             Dimension::Length(val) => taffy::Dimension::length(val as f32),
             Dimension::Percent(val) => taffy::Dimension::percent(val),

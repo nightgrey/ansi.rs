@@ -119,7 +119,7 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for Predecessors<'a, K, V> {
         }
 
         self.0.node = self.0.tree[key]
-            .previous_sibling()
+            .prev_sibling()
             .or_else(|| self.0.tree[key].parent());
 
         Some(key)
@@ -165,7 +165,7 @@ impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for Children<'a, K, V> {
                 Some(result)
             }
             (None, Some(tail)) | (Some(_), Some(tail)) => {
-                self.0.tail = self.0.tree[tail].previous_sibling();
+                self.0.tail = self.0.tree[tail].prev_sibling();
                 Some(tail)
             }
             (Some(_), None) | (None, None) => None,
@@ -198,7 +198,7 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for PrecedingSiblings<'a, K, V> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next_head(|tree, node| tree[node].previous_sibling())
+        self.0.next_head(|tree, node| tree[node].prev_sibling())
     }
 }
 
@@ -239,7 +239,7 @@ impl<'a, K: 'a + Id, V: 'a> Iterator for FollowingSiblings<'a, K, V> {
 
 impl<'a, K: 'a + Id, V: 'a> DoubleEndedIterator for FollowingSiblings<'a, K, V> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.next_tail(|tree, node| tree[node].previous_sibling())
+        self.0.next_tail(|tree, node| tree[node].prev_sibling())
     }
 }
 
@@ -340,7 +340,7 @@ impl<K: Id, V> Iterator for ReverseTraverse<'_, K, V> {
             },
             NodeEdge::Start(id) => {
                 let node = &self.tree[id];
-                node.previous_sibling().map_or_else(
+                node.prev_sibling().map_or_else(
                     || node.parent().map(NodeEdge::Start),
                     |id| Some(NodeEdge::End(id)),
                 )

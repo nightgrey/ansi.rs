@@ -7,7 +7,7 @@ use tree::At;
 
 fn main() -> io::Result<()> {
     let mut arena = Arena::new();
-    let mut buffer = Buffer::new(44, 44);
+    let mut buffer = Buffer::new(44, 11);
     let mut rasterizer = Rasterizer::inline(buffer.width, buffer.height);
     let mut document = Document::new();
     let mut stdout = io::stdout();
@@ -16,8 +16,8 @@ fn main() -> io::Result<()> {
     root.set_display(Display::Flex);
     root.set_flex_direction(FlexDirection::Column);
 
-    let title = document.insert_with(
-        Node::Span(Cow::Borrowed("Hello World!")),
+    let hello = document.insert_with(
+        Node::Span("Hello World!"),
         |node| {
             node.set_border(Border::Solid);
             node.set_color(Color::Red);
@@ -31,24 +31,24 @@ fn main() -> io::Result<()> {
         node.set_color(Color::Red);
         node.set_border(Border::Bold);
     });
-    let a = document.insert_with_children_at_with(Node::Div(), [Node::Span(Cow::Borrowed("A"))], At::Child(row), |node| {
+
+    let a = document.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.set_background(Color::Green);
         node.set_color(Color::None);
-
-
     });
 
-    let b = document.insert_with_children_at_with(Node::Div(), [Node::Span(Cow::Borrowed("B"))], At::Child(row), |node| {
+    let b = document.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.set_background(Color::Yellow);
+        node.set_color(Color::None);
     });
 
-    let c = document.insert_with_children_at_with(Node::Div(), [Node::Span(Cow::Borrowed("C"))], At::Child(row), |node| {
+    let c = document.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.set_background(Color::Blue);
+        node.set_color(Color::None);
     });
-
 
     document.compute_layout(Space::from(buffer.size()));
-    let mut renderer = Renderer::new(&mut buffer, &mut arena);
+        let mut renderer = Renderer::new(&mut buffer, &mut arena);
 
         renderer.render(&document)?;
 

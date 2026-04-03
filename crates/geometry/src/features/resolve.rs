@@ -10,6 +10,7 @@ impl Resolve<Point, Rect> for Point {
 
 impl Resolve<usize, Rect> for Point {
     fn resolve(self, ctx: Rect) -> usize {
+
         (self.y - ctx.min.y) * ctx.width() + (self.x - ctx.min.x)
     }
 }
@@ -85,13 +86,18 @@ impl Resolve<Column, Rect> for Column {
 // Linear
 impl Resolve<Point, Rect> for usize {
     fn resolve(self, ctx: Rect) -> Point {
-        Point::new(
-            ctx.min.x + self % ctx.width(),
-            ctx.min.y + self / ctx.width(),
-        )
+        let w = ctx.width();
+
+        Point::new(self % w + ctx.min.x, self / w + ctx.min.y)
     }
 }
+impl Resolve<PointLike, Rect> for usize {
+    fn resolve(self, ctx: Rect) -> PointLike {
+        let w = ctx.width();
 
+        (self % w + ctx.min.x, self / w + ctx.min.y)
+    }
+}
 
 impl Resolve<usize, Rect> for usize {
     fn resolve(self, ctx: Rect) -> usize {

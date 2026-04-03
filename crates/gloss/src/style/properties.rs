@@ -98,9 +98,9 @@ pub type JustifySelf = JustifyItems;
 pub type JustifyContent = ContentAlignment;
 pub type JustifyItems = ItemAlignment;
 
-impl Into<taffy::AlignItems> for ItemAlignment {
-    fn into(self) -> taffy::AlignItems {
-        match self {
+impl From<ItemAlignment> for taffy::AlignItems {
+    fn from(val: ItemAlignment) -> Self {
+        match val {
             ItemAlignment::Start => taffy::AlignItems::Start,
             ItemAlignment::End => taffy::AlignItems::End,
             ItemAlignment::Center => taffy::AlignItems::Center,
@@ -110,9 +110,9 @@ impl Into<taffy::AlignItems> for ItemAlignment {
     }
 }
 
-impl Into<taffy::AlignContent> for ContentAlignment {
-    fn into(self) -> taffy::AlignContent {
-        match self {
+impl From<ContentAlignment> for taffy::AlignContent {
+    fn from(val: ContentAlignment) -> Self {
+        match val {
             ContentAlignment::Start => taffy::AlignContent::Start,
             ContentAlignment::End => taffy::AlignContent::End,
             ContentAlignment::Center => taffy::AlignContent::Center,

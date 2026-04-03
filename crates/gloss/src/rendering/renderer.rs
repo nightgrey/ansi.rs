@@ -104,7 +104,7 @@ impl<B: RendererBackend> Renderer<B> {
         let  node = doc.node(id);
         let bounds = doc.bounds(id);
         let content_bounds = doc.content_bounds(id);
-        let style = node.style.inherit(inherited);
+        let style = node.style.apply(inherited);
 
         // Snapshot the current state
         self.save()?;

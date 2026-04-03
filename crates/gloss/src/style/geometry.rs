@@ -74,35 +74,35 @@ impl<T: Into<Dimension>> From<(T, T, T, T)> for Edges {
     }
 }
 
-impl Into<taffy::Rect<taffy::LengthPercentageAuto>> for Edges {
-    fn into(self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+impl From<Edges> for taffy::Rect<taffy::LengthPercentageAuto> {
+    fn from(edges: Edges) -> Self {
         taffy::Rect {
-            left: self.left.into(),
-            right: self.right.into(),
-            top: self.top.into(),
-            bottom: self.bottom.into(),
+            left: edges.left.into(),
+            right: edges.right.into(),
+            top: edges.top.into(),
+            bottom: edges.bottom.into(),
         }
     }
 }
 
-impl Into<taffy::Rect<taffy::LengthPercentage>> for Edges {
-    fn into(self) -> taffy::Rect<taffy::LengthPercentage> {
+impl From<Edges> for taffy::Rect<taffy::LengthPercentage> {
+    fn from(edges: Edges) -> Self {
         taffy::Rect {
-            left: self.left.into(),
-            right: self.right.into(),
-            top: self.top.into(),
-            bottom: self.bottom.into(),
+            left: edges.left.into(),
+            right: edges.right.into(),
+            top: edges.top.into(),
+            bottom: edges.bottom.into(),
         }
     }
 }
 
-impl Into<taffy::Rect<taffy::Dimension>> for Edges {
-    fn into(self) -> taffy::Rect<taffy::Dimension> {
+impl From<Edges> for taffy::Rect<taffy::Dimension> {
+    fn from(edges: Edges) -> Self {
         taffy::Rect {
-            left: self.left.into(),
-            right: self.right.into(),
-            top: self.top.into(),
-            bottom: self.bottom.into(),
+            left: edges.left.into(),
+            right: edges.right.into(),
+            top: edges.top.into(),
+            bottom: edges.bottom.into(),
         }
     }
 }
@@ -139,15 +139,15 @@ impl From<geometry::Size> for Space {
     }
 }
 
-impl Into<taffy::Size<taffy::AvailableSpace>> for Space {
-    fn into(self) -> taffy::Size<taffy::AvailableSpace> {
+impl From<Space> for taffy::Size<taffy::AvailableSpace> {
+    fn from(space: Space) -> Self {
         taffy::Size {
-            width: match self.width {
+            width: match space.width {
                 Available::Definite(w) => taffy::AvailableSpace::Definite(w as f32),
                 Available::Min => taffy::AvailableSpace::MinContent,
                 Available::Max => taffy::AvailableSpace::MaxContent,
             },
-            height: match self.height {
+            height: match space.height {
                 Available::Definite(h) => taffy::AvailableSpace::Definite(h as f32),
                 Available::Min => taffy::AvailableSpace::MinContent,
                 Available::Max => taffy::AvailableSpace::MaxContent,

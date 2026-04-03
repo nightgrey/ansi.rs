@@ -1,76 +1,76 @@
 use crate::symbols::Symbol;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Blocks {
-    pub one_eighth: Symbol<char>,
-    pub two_eighth: Symbol<char>,
-    pub three_eighth: Symbol<char>,
-    pub four_eighth: Symbol<char>,
-    pub five_eighth: Symbol<char>,
-    pub six_eighth: Symbol<char>,
-    pub seven_eighth: Symbol<char>,
-    pub eight_eighth: Symbol<char>,
+pub struct Block {
+    pub one_eighth: Symbol,
+    pub two_eighth: Symbol,
+    pub three_eighth: Symbol,
+    pub four_eighth: Symbol,
+    pub five_eighth: Symbol,
+    pub six_eighth: Symbol,
+    pub seven_eighth: Symbol,
+    pub eight_eighth: Symbol,
 }
 
-impl Blocks {
-    pub const TOP: Blocks = Blocks {
-        one_eighth: Symbol { inner: '▔', width: 1 },
-        two_eighth: Symbol { inner: ' ', width: 1 },
-        three_eighth: Symbol { inner: ' ', width: 1 },
-        four_eighth: Symbol { inner: '▀', width: 1 },
-        five_eighth: Symbol { inner: ' ', width: 1 },
-        six_eighth: Symbol { inner: ' ', width: 1 },
-        seven_eighth: Symbol { inner: ' ', width: 1 },
-        eight_eighth: Symbol { inner: ' ', width: 1 },
+impl Block {
+    pub const TOP: Block = Block {
+        one_eighth: Symbol::new('▔'),
+        two_eighth: Symbol::new(' '),
+        three_eighth: Symbol::new(' '),
+        four_eighth: Symbol::new('▀'),
+        five_eighth: Symbol::new(' '),
+        six_eighth: Symbol::new(' '),
+        seven_eighth: Symbol::new(' '),
+        eight_eighth: Symbol::new(' '),
     };
-    pub const RIGHT: Blocks = Blocks {
-        one_eighth: Symbol { inner: '▕', width: 1 },
-        two_eighth: Symbol { inner: '🮇', width: 1 },
-        three_eighth: Symbol { inner: '🮈', width: 1 },
-        four_eighth: Symbol { inner: '▐', width: 1 },
-        five_eighth: Symbol { inner: '🮉', width: 1 },
-        six_eighth: Symbol { inner: '🮊', width: 1 },
-        seven_eighth: Symbol { inner: '🮋', width: 1 },
-        eight_eighth: Symbol { inner: '█', width: 1 },
+    pub const RIGHT: Block = Block {
+        one_eighth: Symbol::new('▕'),
+        two_eighth: Symbol::new('🮇'),
+        three_eighth: Symbol::new('🮈'),
+        four_eighth: Symbol::new('▐'),
+        five_eighth: Symbol::new('🮉'),
+        six_eighth: Symbol::new('🮊'),
+        seven_eighth: Symbol::new('🮋'),
+        eight_eighth: Symbol::new('█'),
     };
-    pub const BOTTOM: Blocks = Blocks {
-        one_eighth: Symbol { inner: '▁', width: 1 },
-        two_eighth: Symbol { inner: '▂', width: 1 },
-        three_eighth: Symbol { inner: '▃', width: 1 },
-        four_eighth: Symbol { inner: '▄', width: 1 },
-        five_eighth: Symbol { inner: '▅', width: 1 },
-        six_eighth: Symbol { inner: '▆', width: 1 },
-        seven_eighth: Symbol { inner: '▇', width: 1 },
-        eight_eighth: Symbol { inner: '█', width: 1 },
+    pub const BOTTOM: Block = Block {
+        one_eighth: Symbol::new('▁'),
+        two_eighth: Symbol::new('▂'),
+        three_eighth: Symbol::new('▃'),
+        four_eighth: Symbol::new('▄'),
+        five_eighth: Symbol::new('▅'),
+        six_eighth: Symbol::new('▆'),
+        seven_eighth: Symbol::new('▇'),
+        eight_eighth: Symbol::new('█'),
     };
-    pub const LEFT: Blocks = Blocks {
-        one_eighth: Symbol { inner: '▏', width: 1 },
-        two_eighth: Symbol { inner: '▎', width: 1 },
-        three_eighth: Symbol { inner: '▍', width: 1 },
-        four_eighth: Symbol { inner: '▌', width: 1 },
-        five_eighth: Symbol { inner: '▋', width: 1 },
-        six_eighth: Symbol { inner: '▊', width: 1 },
-        seven_eighth: Symbol { inner: '▉', width: 1 },
-        eight_eighth: Symbol { inner: '█', width: 1 },
-    };
-
-    pub const CORNERS: Corners = Corners {
-        top_left: Symbol { inner: '▘', width: 1 },
-        top_right: Symbol { inner: '▝', width: 1 },
-        bottom_left: Symbol { inner: '▖', width: 1 },
-        bottom_right: Symbol { inner: '▗', width: 1 },
+    pub const LEFT: Block = Block {
+        one_eighth: Symbol::new('▏'),
+        two_eighth: Symbol::new('▎'),
+        three_eighth: Symbol::new('▍'),
+        four_eighth: Symbol::new('▌'),
+        five_eighth: Symbol::new('▋'),
+        six_eighth: Symbol::new('▊'),
+        seven_eighth: Symbol::new('▉'),
+        eight_eighth: Symbol::new('█'),
     };
 
-    pub const BOLD_CORNERS: Corners = Corners {
-        top_left: Symbol { inner: '▛', width: 1 },
-        top_right: Symbol { inner: '▜', width: 1 },
-        bottom_left: Symbol { inner: '▙', width: 1 },
-        bottom_right: Symbol { inner: '▟', width: 1 },
+    pub const CORNER: Corner = Corner {
+        top_left: Symbol::new('▘'),
+        top_right: Symbol::new('▝'),
+        bottom_left: Symbol::new('▖'),
+        bottom_right: Symbol::new('▗'),
+    };
+
+    pub const BOLD_CORNER: Corner = Corner {
+        top_left: Symbol::new('▛'),
+        top_right: Symbol::new('▜'),
+        bottom_left: Symbol::new('▙'),
+        bottom_right: Symbol::new('▟'),
     };
 
     pub const DIAGONAL: Diagonal = Diagonal {
-        left: Symbol { inner: '▚', width: 1 },
-        right: Symbol { inner: '▞', width: 1 },
+        left: Symbol::new('▚'),
+        right: Symbol::new('▞'),
     };
 
     pub const fn top(&self) -> Self {
@@ -89,12 +89,12 @@ impl Blocks {
         Self::LEFT
     }
 
-    pub const fn corners(&self) -> Corners {
-        Self::CORNERS
+    pub const fn corners(&self) -> Corner {
+        Self::CORNER
     }
 
-    pub const fn bold_corners(&self) -> Corners {
-        Self::BOLD_CORNERS
+    pub const fn bold_corners(&self) -> Corner {
+        Self::BOLD_CORNER
     }
 
     pub const fn diagonal(&self) -> Diagonal {
@@ -123,15 +123,15 @@ impl Blocks {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Corners {
-    pub top_left: Symbol<char>,
-    pub top_right: Symbol<char>,
-    pub bottom_left: Symbol<char>,
-    pub bottom_right: Symbol<char>,
+pub struct Corner {
+    pub top_left: Symbol,
+    pub top_right: Symbol,
+    pub bottom_left: Symbol,
+    pub bottom_right: Symbol,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Diagonal {
-    pub left: Symbol<char>,
-    pub right: Symbol<char>,
+    pub left: Symbol,
+    pub right: Symbol,
 }

@@ -1,61 +1,62 @@
 use derive_more::Deref;
 use std::ops::Deref;
+use crate::symbols::Symbol;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deref)]
-pub struct Circle(&'static str);
+pub struct Circle(Symbol);
 
 impl Circle {
-    pub const FILLED: Circle = Circle("●");
-    pub const OUTLINED: Circle = Circle("○");
-    pub const DOTTED: Circle = Circle("◌");
-    pub const DOUBLE: Circle = Circle("◎");
+    pub const FILLED: Circle = Circle(Symbol::new('●'));
+    pub const OUTLINED: Circle = Circle(Symbol::new('○'));
+    pub const DOTTED: Circle = Circle(Symbol::new('◌'));
+    pub const DOUBLE: Circle = Circle(Symbol::new('◎'));
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deref)]
-pub struct Diamond(&'static str);
+pub struct Diamond(Symbol);
 
 impl Diamond {
-    pub const FILLED: Diamond = Diamond("◆");
-    pub const OUTLINED: Diamond = Diamond("◇");
-    pub const SMALL: Diamond = Diamond("⋄");
+    pub const FILLED: Diamond = Diamond(Symbol::new('◆'));
+    pub const OUTLINED: Diamond = Diamond(Symbol::new('◇'));
+    pub const SMALL: Diamond = Diamond(Symbol::new('⋄'));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Square {
-    pub filled: &'static str,
-    pub outline: &'static str,
+    pub filled: Symbol,
+    pub outline: Symbol,
 }
 
 impl Square {
     pub const DEFAULT: Self = Self {
-        filled: "■",
-        outline: "□",
+        filled: Symbol::new('■'),
+        outline: Symbol::new('□'),
     };
     pub const SMALL: Self = Self {
-        filled: "▪",
-        outline: "▫",
+        filled: Symbol::new('▪'),
+        outline: Symbol::new('▫'),
     };
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Triangle {
-    pub top: &'static str,
-    pub left: &'static str,
-    pub right: &'static str,
-    pub bottom: &'static str,
+    pub top: Symbol,
+    pub left: Symbol,
+    pub right: Symbol,
+    pub bottom: Symbol,
 }
 
 impl Triangle {
     pub const FILLED: Self = Self {
-        top: "▲",
-        left: "◀",
-        right: "▶",
-        bottom: "▼",
+        top: Symbol::new('▲'),
+        left: Symbol::new('◀'),
+        right: Symbol::new('▶'),
+        bottom: Symbol::new('▼'),
     };
     pub const OUTLINED: Self = Self {
-        top: "△",
-        left: "◁",
-        right: "▷",
-        bottom: "▽",
+        top: Symbol::new('△'),
+        left: Symbol::new('◁'),
+        right: Symbol::new('▷'),
+        bottom: Symbol::new('▽'),
     };
 }

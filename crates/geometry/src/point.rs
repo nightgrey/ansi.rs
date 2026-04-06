@@ -101,13 +101,6 @@ impl Point {
     }
 }
 
-impl<T: Zero> const Zero for Point<T> {
-    const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
-}
-
-impl<T: One> const One for Point<T> {
-    const ONE: Self = Point { x: T::ONE, y: T::ONE };
-}
 
 impl<T> From<Size<T>> for Point<T> {
     fn from(value: Size<T>) -> Self {
@@ -190,6 +183,29 @@ impl<T: SaturatingAdd<T, Output = T>> SaturatingAdd for Point<T> {
 }
 
 
+impl<T: Add<Output = T> + Copy> Add<T> for Point<T> {
+    type Output = Self;
+
+    fn add(self, rhs: T) -> Self::Output {
+        Self {
+            x: self.x + rhs,
+            y: self.y + rhs,
+        }
+    }
+}
+
+impl<T: Sub<Output = T> + Copy> Sub<T> for Point<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: T) -> Self::Output {
+        Self {
+            x: self.x - rhs,
+            y: self.y - rhs,
+        }
+    }
+}
+
+
 impl<T: Ord> PartialOrd for Point<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -198,8 +214,8 @@ impl<T: Ord> PartialOrd for Point<T> {
 
 impl<T: Ord> Ord for Point<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.x.cmp(&other.x) {
-            std::cmp::Ordering::Equal => self.y.cmp(&other.y),
+        match self.y.cmp(&other.y) {
+            std::cmp::Ordering::Equal => self.x.cmp(&other.x),
             ord => ord,
         }
     }
@@ -271,14 +287,14 @@ mod tests {
 
     #[test]
     fn test_rect_new() {
-        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
+        let r = Rect::bounds(Point::new(10, 5), Point::new(30, 25));
         assert_eq!(r.min, Point::new(10, 5));
         assert_eq!(r.max, Point::new(30, 25));
     }
 
     #[test]
     fn test_rect_width_height() {
-        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
+        let r = Rect::bounds(Point::new(10, 5), Point::new(30, 25));
         assert_eq!(r.width(), 20);
         assert_eq!(r.height(), 20);
     }
@@ -286,14 +302,14 @@ mod tests {
     #[test]
     fn test_rect_inverted_returns_zero() {
         // Inverted rectangle should return 0 width/height
-        let r = Rect::new(Point::new(30, 25), Point::new(10, 5));
+        let r = Rect::bounds(Point::new(30, 25), Point::new(10, 5));
         assert_eq!(r.width(), 0);
         assert_eq!(r.height(), 0);
     }
 
     #[test]
     fn test_rect_contains_point() {
-        let r = Rect::new(Point::new(10, 10), Point::new(20, 20));
+        let r = Rect::bounds(Point::new(10, 10), Point::new(20, 20));
 
         // Inside
         assert!(r.contains(&Point::new(15, 15)));
@@ -311,16 +327,16 @@ mod tests {
 
     #[test]
     fn test_rect_area() {
-        let r = Rect::new(Point::new(0, 0), Point::new(10, 5));
+        let r = Rect::bounds(Point::new(0, 0), Point::new(10, 5));
         assert_eq!(r.len(), 50);
 
-        let empty = Rect::new(Point::new(5, 5), Point::new(5, 5));
+        let empty = Rect::bounds(Point::new(5, 5), Point::new(5, 5));
         assert_eq!(empty.len(), 0);
     }
 
     #[test]
     fn test_rect_size() {
-        let r = Rect::new(Point::new(10, 5), Point::new(30, 25));
+        let r = Rect::bounds(Point::new(10, 5), Point::new(30, 25));
         let size = r.size();
         assert_eq!(size.width, 20);
         assert_eq!(size.height, 20);
@@ -328,15 +344,15 @@ mod tests {
 
     #[test]
     fn test_rect_zero() {
-        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).width(), 0);
-        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).height(), 0);
-        assert_eq!(Rect::new(Point::ZERO, Point::ZERO).len(), 0);
+        assert_eq!(Rect::bounds(Point::ZERO, Point::ZERO).width(), 0);
+        assert_eq!(Rect::bounds(Point::ZERO, Point::ZERO).height(), 0);
+        assert_eq!(Rect::bounds(Point::ZERO, Point::ZERO).len(), 0);
     }
 
     #[test]
     fn test_rect_saturating_operations() {
         // Test that operations use saturating arithmetic
-        let r = Rect::new(Point::new(10, 10), Point::new(5, 5)); // Inverted
+        let r = Rect::bounds(Point::new(10, 10), Point::new(5, 5)); // Inverted
         assert_eq!(r.width(), 0); // saturating_sub prevents underflow
         assert_eq!(r.height(), 0);
         assert_eq!(r.len(), 0); // saturating_mul

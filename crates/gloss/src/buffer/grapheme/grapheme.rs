@@ -269,7 +269,6 @@ impl fmt::Debug for Grapheme {
 pub const trait Encode {
     fn try_inline(self) -> Result<Grapheme, GraphemeError>;
     fn try_extended(self, arena: &mut Arena) -> Result<Grapheme, GraphemeError>;
-    fn width(self) -> usize;
 }
 
 impl Encode for &str {
@@ -298,9 +297,6 @@ impl Encode for &str {
         }
     }
 
-    fn width(self) -> usize {
-        UnicodeWidthStr::width(self)
-    }
 }
 
 impl  Encode for char {
@@ -309,9 +305,6 @@ impl  Encode for char {
     }
     fn try_extended(self, arena: &mut Arena) -> Result<Grapheme, GraphemeError> {
         Ok(Grapheme::inline_const(self))
-    }
-    fn width(self) -> usize {
-        UnicodeWidthChar::width(self).unwrap_or(0)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{Edges, Point, Rect, Size};
 
-pub trait Func<T, U> {
+pub trait Map<T, U> {
     type Output;
 
     fn map<F>(self, f: F) -> Self::Output
@@ -8,7 +8,7 @@ pub trait Func<T, U> {
         F: Fn(T) -> U;
 }
 
-impl<T, U> Func<T, U> for Rect<T> {
+impl<T, U> Map<T, U> for Rect<T> {
     type Output = Rect<U>;
 
     fn map<F>(self, f: F) -> Self::Output
@@ -22,7 +22,7 @@ impl<T, U> Func<T, U> for Rect<T> {
     }
 }
 
-impl<T, U> Func<T, U> for Size<T> {
+impl<T, U> Map<T, U> for Size<T> {
     type Output = Size<U>;
 
     fn map<F>(self, f: F) -> Self::Output
@@ -36,7 +36,7 @@ impl<T, U> Func<T, U> for Size<T> {
     }
 }
 
-impl<T, U> Func<T, U> for Point<T> {
+impl<T, U> Map<T, U> for Point<T> {
     type Output = Point<U>;
 
     fn map<F>(self, f: F) -> Self::Output
@@ -50,7 +50,7 @@ impl<T, U> Func<T, U> for Point<T> {
     }
 }
 
-impl<T, U> Func<T, U> for Edges<T> {
+impl<T, U> Map<T, U> for Edges<T> {
     type Output = Edges<U>;
 
     fn map<F>(self, f: F) -> Self::Output

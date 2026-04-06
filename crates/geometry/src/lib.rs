@@ -8,6 +8,8 @@
 #![feature(range_into_bounds)]
 #![feature(const_destruct)]
 #![feature(const_option_ops)]
+#![feature(new_range_api)]
+
 mod axis;
 mod edges;
 pub mod features;
@@ -17,6 +19,7 @@ mod rect;
 mod size;
 mod index;
 pub mod num;
+pub mod geometry;
 
 pub use axis::*;
 pub use edges::*;
@@ -26,3 +29,4 @@ pub use rect::*;
 pub use size::*;
 pub use index::*;
 pub use num::*;
+pub use geometry::*;

@@ -1,168 +1,181 @@
-use utils::Resolve;
+use std::ops::{Range, RangeInclusive, RangeTo, RangeToInclusive, RangeFull, RangeFrom};
 use crate::{Point, Rect, Row, Column, Bounded, PointLike};
 
-// Point
-impl Resolve<Point, Rect> for Point {
-    fn resolve(self, ctx: Rect) -> Point {
-        self
+/// Resolve a context-dependent value.
+pub trait Resolve<T, U> {
+    /// Resolve value within context of [`Self`].
+    fn resolve(&self, value: T) -> U;
+}
+
+// Point -> *
+impl<B: Bounded> Resolve<Point, usize> for B {
+    fn resolve(&self, value: Point) -> usize {
+        (value.y - self.min_y()) * self.width() + (value.x - self.min_x())
     }
 }
 
-impl Resolve<usize, Rect> for Point {
-    fn resolve(self, ctx: Rect) -> usize {
-
-        (self.y - ctx.min.y) * ctx.width() + (self.x - ctx.min.x)
+impl<B: Bounded> Resolve<Point, Row> for B {
+    fn resolve(&self, value: Point) -> Row {
+        Row(value.y - self.min_y())
     }
 }
 
-impl Resolve<usize, Rect> for PointLike {
-    fn resolve(self, ctx: Rect) -> usize {
-        (self.1 - ctx.min.y) * ctx.width() + (self.0 - ctx.min.x)
+
+impl<B: Bounded> Resolve<Point, Column> for B {
+    fn resolve(&self, value: Point) -> Column {
+        Column(value.x - self.min_x())
     }
 }
 
-impl Resolve<Row, Rect> for Point {
-    fn resolve(self, ctx: Rect) -> Row {
-        Row(self.y - ctx.min.y)
+// PointLike -> *
+impl<B: Bounded> Resolve<PointLike, usize> for B {
+    fn resolve(&self, value: PointLike) -> usize {
+        (value.1 - self.min_y()) * self.width() + (value.0 - self.min_x())
     }
 }
 
-impl Resolve<Column, Rect> for Point {
-    fn resolve(self, ctx: Rect) -> Column {
-        Column(self.x - ctx.min.x)
+impl<B: Bounded> Resolve<PointLike, Row> for B {
+    fn resolve(&self, value: PointLike) -> Row {
+        Row(value.1 - self.min_y())
     }
 }
 
-// Row
-impl Resolve<Point, Rect> for Row {
-    fn resolve(self, ctx: Rect) -> Point {
-        Point::new(ctx.min.x, self.value())
+
+impl<B: Bounded> Resolve<PointLike, Column> for B {
+    fn resolve(&self, value: PointLike) -> Column {
+        Column(value.0 - self.min_x())
     }
 }
 
-impl Resolve<usize, Rect> for Row {
-    fn resolve(self, ctx: Rect) -> usize {
-        (self.value() - ctx.min.y) * ctx.width()
+// Row -> *
+impl<B: Bounded> Resolve<Row, Point> for B {
+    fn resolve(&self, value: Row) -> Point {
+        Point::new(self.min_x(), value.value())
     }
 }
 
-impl Resolve<Row, Rect> for Row {
-    fn resolve(self, ctx: Rect) -> Row {
-        Row(self.0 - ctx.min.y)
+impl<B: Bounded> Resolve<Row, usize> for B {
+    fn resolve(&self, value: Row) -> usize {
+        (value.value() - self.min_y()) * self.width()
     }
 }
-
-impl Resolve<Column, Rect> for Row {
-    fn resolve(self, ctx: Rect) -> Column {
+impl<B: Bounded> Resolve<Row, Column> for B {
+    fn resolve(&self, value: Row) -> Column {
         Column(0)
     }
 }
 
-// Column
-impl Resolve<Point, Rect> for Column {
-    fn resolve(self, ctx: Rect) -> Point {
-        Point::new(self.value(), 0)
+// Column -> *
+impl<B: Bounded> Resolve<Column, Point> for B {
+    fn resolve(&self, value: Column) -> Point {
+        Point::new(value.value(), 0)
     }
 }
 
-impl Resolve<usize, Rect> for Column {
-    fn resolve(self, ctx: Rect) -> usize {
-        self.value() - ctx.min.x
+impl<B: Bounded> Resolve<Column, usize> for B {
+    fn resolve(&self, value: Column) -> usize {
+        value.value() - self.min_x()
     }
 }
 
-impl Resolve<Row, Rect> for Column {
-    fn resolve(self, ctx: Rect) -> Row {
+impl<B: Bounded> Resolve<Column, Row> for B {
+    fn resolve(&self, value: Column) -> Row {
         Row(0)
     }
 }
 
-impl Resolve<Column, Rect> for Column {
-    fn resolve(self, ctx: Rect) -> Column {
-        self
+// Index -> *
+impl<B: Bounded> Resolve<usize, Point> for B {
+    fn resolve(&self, value: usize) -> Point {
+        let w = self.width();
+
+        Point::new(value % w + self.min_x(), value / w + self.min_y())
+    }
+}
+impl<B: Bounded> Resolve<usize, PointLike> for B {
+    fn resolve(&self, value: usize) -> PointLike {
+        let w = self.width();
+
+        (value % w + self.min_x(), value / w + self.min_y())
     }
 }
 
-// Linear
-impl Resolve<Point, Rect> for usize {
-    fn resolve(self, ctx: Rect) -> Point {
-        let w = ctx.width();
-
-        Point::new(self % w + ctx.min.x, self / w + ctx.min.y)
-    }
-}
-impl Resolve<PointLike, Rect> for usize {
-    fn resolve(self, ctx: Rect) -> PointLike {
-        let w = ctx.width();
-
-        (self % w + ctx.min.x, self / w + ctx.min.y)
+impl<B: Bounded> Resolve<usize, Row> for B {
+    fn resolve(&self, value: usize) -> Row {
+        Row(value / self.width())
     }
 }
 
-impl Resolve<usize, Rect> for usize {
-    fn resolve(self, ctx: Rect) -> usize {
-        self
+impl<B: Bounded> Resolve<usize, Column> for B {
+    fn resolve(&self, value: usize) -> Column {
+        Column(value % self.width())
     }
 }
 
-impl Resolve<Row, Rect> for usize {
-    fn resolve(self, ctx: Rect) -> Row {
-        Row(self / ctx.width())
+// Range
+impl<R: Resolve<T, usize>, T> Resolve<Range<T>, Range<usize>> for R {
+    fn resolve(&self, value: Range<T>) -> Range<usize> {
+        self.resolve(value.start)..self.resolve(value.end)
+    }
+}
+impl<R: Resolve<T, usize>, T: Clone> Resolve<RangeInclusive<T>, RangeInclusive<usize>> for R {
+    fn resolve(&self, value: RangeInclusive<T>) -> RangeInclusive<usize> {
+        self.resolve(value.start().clone())..=self.resolve(value.end().clone())
     }
 }
 
-
-// --- Referenced: Rect ---
-
-// Point
-impl Resolve<Point, &Rect> for Point {
-    fn resolve(self, ctx: &Rect) -> Point {
-        self
+impl<R: Resolve<T, usize>, T> Resolve<RangeTo<T>, RangeTo<usize>> for R {
+    fn resolve(&self, value: RangeTo<T>) -> RangeTo<usize> {
+        ..self.resolve(value.end)
     }
 }
 
-impl Resolve<usize, &Rect> for Point {
-    fn resolve(self, ctx: &Rect) -> usize {
-        (self.y - ctx.min.y) * ctx.width() + (self.x - ctx.min.x)
+impl<R: Resolve<T, usize>, T> Resolve<RangeToInclusive<T>, RangeToInclusive<usize>> for R {
+    fn resolve(&self, value: RangeToInclusive<T>) -> RangeToInclusive<usize> {
+        ..=self.resolve(value.end)
     }
 }
 
-impl Resolve<Row, &Rect> for Point {
-    fn resolve(self, ctx: &Rect) -> Row {
-        Row(self.y - ctx.min.y)
+impl<R: Resolve<T, usize>, T> Resolve<RangeFrom<T>, RangeFrom<usize>> for R {
+    fn resolve(&self, value: RangeFrom<T>) -> RangeFrom<usize> {
+        self.resolve(value.start)..
     }
 }
 
-impl Resolve<Column, &Rect> for Point {
-    fn resolve(self, ctx: &Rect) -> Column {
-        Column(self.x - ctx.min.x)
+impl<B: Bounded> Resolve<RangeFull, RangeFull> for B {
+    fn resolve(&self, _: RangeFull) -> RangeFull {
+        ..
     }
 }
 
-// Linear
-impl Resolve<Point, &Rect> for usize {
-    fn resolve(self, ctx: &Rect) -> Point {
-        Point::new(
-            ctx.min.x + self % ctx.width(),
-            ctx.min.y + self / ctx.width(),
-        )
+// T -> T
+impl<B: Bounded> Resolve<Point, Point> for B {
+    fn resolve(&self, value: Point) -> Point {
+        value
     }
 }
 
-impl Resolve<usize, &Rect> for usize {
-    fn resolve(self, ctx: &Rect) -> usize {
-        self
+impl<B: Bounded> Resolve<PointLike, PointLike> for B {
+    fn resolve(&self, value: PointLike) -> PointLike {
+        value
     }
 }
 
-impl Resolve<Row, &Rect> for usize {
-    fn resolve(self, ctx: &Rect) -> Row {
-        Row(self / ctx.width())
+impl<B: Bounded> Resolve<Row, Row> for B {
+    fn resolve(&self, value: Row) -> Row {
+        value
     }
 }
 
-impl Resolve<Column, &Rect> for usize {
-    fn resolve(self, ctx: &Rect) -> Column {
-        Column(self % ctx.width())
+impl<B: Bounded> Resolve<Column, Column> for B {
+    fn resolve(&self, value: Column) -> Column {
+        value
     }
 }
+
+impl<B: Bounded> Resolve<usize, usize> for B {
+    fn resolve(&self, value: usize) -> usize {
+        value
+    }
+}
+

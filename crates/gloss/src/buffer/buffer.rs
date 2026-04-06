@@ -1,14 +1,15 @@
 use ansi::Style;
 use core::slice::IterMut;
-use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Ranges, Rect};
-use std::cmp;
+use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
+use geometry::{Bounded, Intersect, Point, Position, Rect, Sides, Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 use std::slice::SliceIndex;
-use utils::Resolve;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+use geometry::Resolve;
 use crate::{Cell, Arena, BufferIndex, Buf, BufMut};
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
@@ -17,7 +18,7 @@ pub struct Buffer {
     #[as_ref(forward)]
     #[as_mut(forward)]
     #[into_iterator(owned, ref, ref_mut)]
-    inner: Vec<Cell>,
+    pub(crate) inner: Vec<Cell>,
     pub width: usize,
     pub height: usize,
 }
@@ -48,6 +49,22 @@ impl Buffer {
         buffer
     }
 
+
+
+    /// Create a buffer from a slice of fixed elements.
+    #[must_use]
+    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Arena) -> Self
+    {
+        let lines = lines.into_iter().collect::<Vec<_>>();
+        let height = lines.len();
+        let width = lines.iter().map(|line| line.width()).max().unwrap_or_default();
+        let mut buffer = Self::new(width, height);
+        for (y, line) in lines.iter().enumerate() {
+            buffer.set_line((0, y), line, arena);
+        }
+        buffer
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
@@ -58,20 +75,20 @@ impl Buffer {
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
-    pub fn get<I: BufferIndex<Buffer, [Cell]>>(
+    pub fn get<I: BufferIndex>(
         &self,
         index: I,
     ) -> Option<&<I::Index as SliceIndex<[Cell]>>::Output> {
-        index.index_of(self).get(self.as_ref())
+        index.get(self)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
-    pub fn get_mut<I: BufferIndex<Buffer, [Cell]>>(
+    pub fn get_mut<I: BufferIndex>(
         &mut self,
         index: I,
     ) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output> {
-        index.index_of(self).get_mut(self.as_mut())
+        index.get_mut(self)
     }
 
     /// Returns a pointer to the output at this location, without
@@ -81,11 +98,11 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked<I: BufferIndex<Buffer, [Cell]>>(
+    pub unsafe fn get_unchecked<I: BufferIndex>(
         &self,
         index: I,
     ) -> *const <I::Index as SliceIndex<[Cell]>>::Output {
-        SliceIndex::get_unchecked(index.index_of(self), self.as_ref())
+        index.get_unchecked(self)
     }
 
     /// Returns a mutable pointer to the output at this location, without
@@ -95,203 +112,61 @@ impl Buffer {
     /// is *[undefined behavior]* even if the resulting pointer is not used.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn get_unchecked_mut<I: BufferIndex<Buffer, [Cell]>>(
+    pub unsafe fn get_unchecked_mut<I: BufferIndex>(
         &mut self,
         index: I,
     ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
-        SliceIndex::get_unchecked_mut(index.index_of(self), self.as_mut())
+        index.get_unchecked_mut(self)
     }
 
-    pub fn index_of<T: Resolve<usize, Rect>>(&self, value: T) -> usize {
-        value.resolve(self.bounds().into())
-    }
+    /// Print the given string until the end of the given index.
+    /// Skips zero-width graphemes and control characters.
+    pub fn set_string(&mut self, index: impl BufferIndex<Output = [Cell]>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
+        let width = self.width;
 
-    // Row  operations
-    pub fn push_row(&mut self, row: impl IntoIterator<Item = Cell>) {
-        let row = row.into_iter();
-        let (input_len, _) = row.size_hint();
-        assert_ne!(input_len, 0);
-        assert!(
-            !(self.height > 0 && input_len != self.width),
-            "pushed row does not match. Length must be {:?}, but was {:?}.",
-            self.width,
-            input_len
-        );
-        self.inner.extend(row);
-        self.height += 1;
-        if self.width == 0 {
-            self.width = self.inner.len();
-        }
-    }
+        if let Some(slice) = self.get_mut(index) {
+            let mut remaining_width = width.saturating_sub(slice.len());
+            let mut i = 0;
 
-    pub fn pop_row(&mut self) -> Option<Vec<Cell>> {
-        if self.height == 0 {
-            return None;
-        }
-        let row = self.inner.split_off(self.inner.len() - self.width);
-        self.height -= 1;
-        if self.height == 0 {
-            self.width = 0;
-        }
-        Some(row)
-    }
+            for (symbol, width) in UnicodeSegmentation::graphemes(string.as_ref(), true)
+                .filter(|symbol| !symbol.contains(char::is_control))
+                .map(|(symbol)| (symbol, symbol.width()))
+                .filter(|(_symbol, width)| *width > 0)
+                .map_while(|(symbol, width)| {
+                    remaining_width = remaining_width.checked_sub(width)?;
+                    Some((symbol, width))
+                }) {
+                slice[i].set_measured_str(symbol, width, arena);
 
-    pub fn remove_row(&mut self, row_index: usize) -> Option<Vec<Cell>> {
-        if self.width == 0 || self.height == 0 || row_index >= self.height {
-            return None;
-        }
-        let row = self
-            .inner
-            .drain((row_index * self.width)..((row_index + 1) * self.width))
-            .collect();
-        self.height -= 1;
-        if self.height == 0 {
-            self.width = 0;
-        }
-        Some(row)
-    }
-
-    pub fn insert_row(&mut self, index: usize, row: impl IntoIterator<Item = Cell>) {
-        let row = row.into_iter();
-        let (input_len, _) = row.size_hint();
-        assert!(
-            !(self.width > 0 && input_len != self.width),
-            "Inserted row must be of length {}, but was {}.",
-            self.width,
-            input_len
-        );
-        assert!(
-            index <= self.height,
-            "Out of range. Index was {}, but must be less or equal to {}.",
-            index,
-            self.height
-        );
-        let data_idx = index * input_len;
-        self.inner.splice(data_idx..data_idx, row);
-        self.width = input_len;
-        self.height += 1;
-    }
-
-    pub fn flip_rows(&mut self) {
-        for row in 0..self.height / 2 {
-            for col in 0..self.width {
-                let cell1 = self.index_of((row, col));
-                let cell2 = self.index_of((self.height - row - 1, col));
-                self.inner.swap(cell1, cell2);
+                let next_symbol = i + width;
+                i += 1;
+                // Reset following cells if multi-width (they would be hidden by the grapheme),
+                while i < next_symbol {
+                    slice[i].clear();
+                    i += 1;
+                }
             }
+            Some(i)
+        }
+        else {
+            None
         }
     }
 
-    // Column operations
-
-    pub fn push_col(&mut self, col: impl IntoIterator<Item = Cell>) {
-        let col = col.into_iter();
-        let (input_len, _) = col.size_hint();
-        assert_ne!(input_len, 0);
-        assert!(
-            !(self.width > 0 && input_len != self.height),
-            "pushed column does not match. Length must be {:?}, but was {:?}.",
-            self.height,
-            input_len
-        );
-        self.inner.extend(col);
-        for i in (1..self.height).rev() {
-            let row_idx = i * self.width;
-            self.inner[row_idx..row_idx + self.width + i].rotate_right(i);
-        }
-        self.width += 1;
-        if self.height == 0 {
-            self.height = self.inner.len();
-        }
+    /// Print the given string until the end of the line.
+    /// Skips zero-width graphemes and control characters.
+    pub fn set_line(&mut self, point: impl Into<Point>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
+        let point = point.into();
+        self.set_string(point..Point { x: self.width, y: point.y }, string, arena)
     }
 
-    pub fn pop_col(&mut self) -> Option<Vec<Cell>> {
-        if self.width == 0 {
-            return None;
-        }
-        for i in 1..self.height {
-            let row_idx = i * (self.width - 1);
-            self.inner[row_idx..row_idx + self.width + i - 1].rotate_left(i);
-        }
-        let col = self.inner.split_off(self.inner.len() - self.height);
-        self.width -= 1;
-        if self.width == 0 {
-            self.height = 0;
-        }
-        Some(col)
+    pub fn index_of<T>(&self, value: T) -> usize where Self: Resolve<T, usize> {
+        self.resolve(value)
     }
 
-    pub fn insert_col(&mut self, index: usize, col: impl IntoIterator<Item = Cell>) {
-        let col = col.into_iter();
-        let (input_len, _) = col.size_hint();
-        assert!(
-            !(self.height > 0 && input_len != self.height),
-            "Inserted col must be of length {}, but was {}.",
-            self.height,
-            input_len
-        );
-        assert!(
-            index <= self.width,
-            "Out of range. Index was {}, but must be less or equal to {}.",
-            index,
-            self.width
-        );
-        for (row_iter, col_val) in col.enumerate() {
-            let data_idx = row_iter * self.width + index + row_iter;
-            self.inner.insert(data_idx, col_val);
-        }
-        self.height = input_len;
-        self.width += 1;
+    pub fn resolve<T, V>(&self, value: V) -> T where Self: Resolve<V, T> {
+        self.resolve(value)
     }
-
-    pub fn remove_col(&mut self, col_index: usize) -> Option<Vec<Cell>> {
-        if self.width == 0 || self.height == 0 || col_index >= self.width {
-            return None;
-        }
-        let col = {
-            for i in 0..self.height {
-                let row_idx = col_index + i * (self.width - 1);
-                let end = cmp::min(row_idx + self.width + i, self.inner.len());
-                self.inner[row_idx..end].rotate_left(i + 1);
-            }
-            self.inner.split_off(self.inner.len() - self.height)
-        };
-        self.width -= 1;
-        if self.width == 0 {
-            self.height = 0;
-        }
-        Some(col)
-    }
-
-    pub fn flip_cols(&mut self) {
-        for row in 0..self.height {
-            let idx = row * self.width;
-            self.inner[idx..idx + self.width].reverse();
-        }
-    }
-
-    pub fn map_or<I, F>(&mut self, index: I, default: Cell, mut f: F)
-    where
-        I: BufferIndex<Buffer, [Cell], Output = Cell>,
-        F: FnMut(&mut Cell),
-    {
-        match self.get_mut(index.clone()) {
-            Some(cell) => f(cell),
-            None => self[index] = default,
-        }
-    }
-
-    pub fn map<I, F>(&mut self, index: I, mut f: F)
-    where
-        I: BufferIndex<Buffer, [Cell], Output = Cell>,
-        F: FnMut(&mut Cell),
-    {
-        match self.get_mut(index) {
-            Some(cell) => f(cell),
-            None => {}
-        }
-    }
-
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
@@ -455,22 +330,73 @@ impl Buffer {
         self[clear_start..clear_end].fill(fill_cell);
     }
 
-    pub fn copy_from_area(&mut self, area: &Rect) -> Self {
-        let mut next = Self::from(self.clip(area));
-
-        for position in area {
-            next[(position.y - area.min.y, position.x - area.min.x)] = self[position];
+    // Row operations
+    pub fn push_row(&mut self, row: impl IntoIterator<Item = Cell>) {
+        let row = row.into_iter();
+        let (input_len, _) = row.size_hint();
+        assert_ne!(input_len, 0);
+        assert!(
+            !(self.height > 0 && input_len != self.width),
+            "pushed row does not match. Length must be {:?}, but was {:?}.",
+            self.width,
+            input_len
+        );
+        self.inner.extend(row);
+        self.height += 1;
+        if self.width == 0 {
+            self.width = self.inner.len();
         }
+    }
 
-        next
+    pub fn pop_row(&mut self) -> Option<Vec<Cell>> {
+        if self.height == 0 {
+            return None;
+        }
+        let row = self.inner.split_off(self.inner.len() - self.width);
+        self.height -= 1;
+        if self.height == 0 {
+            self.width = 0;
+        }
+        Some(row)
+    }
+
+    pub fn remove_row(&mut self, row_index: usize) -> Option<Vec<Cell>> {
+        if self.width == 0 || self.height == 0 || row_index >= self.height {
+            return None;
+        }
+        let row = self
+            .inner
+            .drain((row_index * self.width)..((row_index + 1) * self.width))
+            .collect();
+        self.height -= 1;
+        if self.height == 0 {
+            self.width = 0;
+        }
+        Some(row)
+    }
+
+    pub fn insert_row(&mut self, index: usize, row: impl IntoIterator<Item = Cell>) {
+        let row = row.into_iter();
+        let (input_len, _) = row.size_hint();
+        assert!(
+            !(self.width > 0 && input_len != self.width),
+            "Inserted row must be of length {}, but was {}.",
+            self.width,
+            input_len
+        );
+        assert!(
+            index <= self.height,
+            "Out of range. Index was {}, but must be less or equal to {}.",
+            index,
+            self.height
+        );
+        let data_idx = index * input_len;
+        self.inner.splice(data_idx..data_idx, row);
+        self.width = input_len;
+        self.height += 1;
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.resize_with(width, height, Cell::default());
-    }
-
-
-    pub fn resize_with(&mut self, width: usize, height: usize, value: Cell) {
         let (cur_w, cur_h) = (self.width, self.height);
         if cur_w == width && cur_h == height {
             return;
@@ -481,16 +407,16 @@ impl Buffer {
 
             if width > cur_w {
                 // Growing: extend first, then shift rows back-to-front
-                self.inner.resize(width * cur_h, value);
+                self.inner.resize(width * cur_h, Cell::EMPTY);
                 for y in (1..cur_h).rev() {
                     let src = y * cur_w;
                     let dst = y * width;
                     self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self.inner[dst + copy_w..dst + width].fill(value);
+                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::EMPTY);
                 }
                 // Row 0: just fill the tail
-                &mut self.inner[copy_w..width].fill(value);
+                &mut self.inner[copy_w..width].fill(Cell::EMPTY);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
                 for y in 1..cur_h {
@@ -505,16 +431,11 @@ impl Buffer {
         }
 
         if height > cur_h {
-            self.inner.resize(width * height, value);
+            self.inner.resize(width * height, Cell::EMPTY);
         } else if height < cur_h {
             self.inner.truncate(width * height);
         }
         self.height = height;
-    }
-
-    pub fn resize_inner(&mut self, width: usize, height: usize) {
-        self.inner.reserve(width * height - self.len());
-        self.inner.fill(Cell::default());
     }
 
     pub fn clear(&mut self) {
@@ -620,14 +541,14 @@ impl From<Rect> for Buffer {
     }
 }
 
-impl<I: BufferIndex<Buffer, [Cell]>> Index<I> for Buffer {
+impl<I: BufferIndex> Index<I> for Buffer {
     type Output = I::Output;
     fn index(&self, index: I) -> &Self::Output {
         index.index_of(self).index(self)
     }
 }
 
-impl<I: BufferIndex<Buffer, [Cell]>> IndexMut<I> for Buffer {
+impl<I: BufferIndex> IndexMut<I> for Buffer {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         index.index_of(self).index_mut(self)
     }
@@ -662,96 +583,10 @@ impl Bounded for Buffer {
     }
 
     fn bounds(&self) -> Self::Bounds {
-        Rect::new(self.min(), self.max())
+        Rect::bounds(self.min(), self.max())
     }
 }
 
-impl Intersect<Rect> for Buffer {
-    type Output = Rect;
-
-    fn intersect(&self, other: &Rect) -> Self::Output {
-        if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Rect::<Point>::ZERO;
-        }
-
-        let mut r = Rect::<Point>::ZERO;
-
-        let x1 = 0.max(other.min.x);
-        let y1 = 0.max(other.min.y);
-        let x2 = self.width().min(other.max.x);
-        let y2 = self.height().min(other.max.y);
-
-        r.min.x = x1;
-        r.min.y = y1;
-
-        let mut w = x2 - x1;
-        let mut h = y2 - y1;
-
-        if w < 0 {
-            w = 0;
-        }
-
-        if h < 0 {
-            h = 0;
-        }
-
-        if w > usize::MAX {
-            w = usize::MAX;
-        }
-
-        if h > usize::MAX {
-            h = usize::MAX;
-        }
-
-        r.max.x = r.min.x + w;
-        r.max.y = r.min.y + h;
-
-        r
-    }
-}
-impl Intersect<Buffer> for Rect {
-    type Output = Rect;
-
-    fn intersect(&self, other: &Buffer) -> Self::Output {
-        if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Rect::ZERO;
-        }
-
-        let mut r = Rect::<Point>::ZERO;
-
-        let x1 = self.min_x().max(other.min_x());
-        let y1 = self.min_y().max(other.min_y());
-        let x2 = self.max_x().min(other.max_x());
-        let y2 = self.max_y().min(other.max_y());
-
-        r.min.x = x1;
-        r.min.y = y1;
-
-        let mut w = x2 - x1;
-        let mut h = y2 - y1;
-
-        if w < 0 {
-            w = 0;
-        }
-
-        if h < 0 {
-            h = 0;
-        }
-
-        if w > usize::MAX {
-            w = usize::MAX;
-        }
-
-        if h > usize::MAX {
-            h = usize::MAX;
-        }
-
-        r.max.x = r.min.x + w;
-        r.max.y = r.min.y + h;
-
-        r
-    }
-}
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;

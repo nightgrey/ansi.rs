@@ -24,11 +24,11 @@ impl<T> Rect<T> {
     ///
     /// ```rust
     /// # use geometry::{Rect, Point};
-    /// let rect1 = Rect::new(Point::new(0, 0), Point::new(10, 10));
-    /// let rect2 = Rect::new(Point::new(0, 0), Point::new(10, 10));
+    /// let rect1 = Rect::bounds(Point::new(0, 0), Point::new(10, 10));
+    /// let rect2 = Rect::bounds(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
     /// ```
-    pub const fn new(min: T, max: T) -> Self {
+    pub const fn bounds(min: T, max: T) -> Self {
         Self { min, max }
     }
 
@@ -41,17 +41,8 @@ impl<T> Rect<T> {
     }
 }
 
-
-impl<T: Zero> const Rect<T> {
-    /// An empty rectangle at the origin.
-    pub const ZERO: Self = Self {
-        min: T::ZERO,
-        max: T::ZERO,
-    };
-}
-
 impl const Rect {
-    pub fn bounds(x: usize, y: usize, width: usize, height: usize) -> Self {
+    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
         Self {
          min: Point::new(x, y),
          max: Point::new(x + width, y + height),
@@ -69,7 +60,7 @@ impl const Rect {
 
 impl<T: Zero> From<Size<T>> for Rect<Point<T>> {
     fn from(value: Size<T>) -> Self {
-        Self::new(Point::ZERO, Point::new(value.width, value.height))
+        Self::bounds(Point::ZERO, Point::new(value.width, value.height))
     }
 }
 

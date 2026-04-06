@@ -1,12 +1,11 @@
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate};
+use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate, Resolve};
 use crate::{Buffer, Arena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{Border, RendererBackend, Renderer};
 use crate::symbols::Symbol;
 use ansi::Style;
-use utils::ContextResolve;
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -139,7 +138,7 @@ impl<'buf> BufferContext<'buf> {
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
             if self.state.rect.contains(&(x, y)) {
-                self.buffer[(x, y)].set_measured_char(border.symbol(), border.width() as u8, self.arena);
+                self.buffer[(x, y)].set_measured_char(border.symbol(), border.width(), self.arena);
             }
         };
 
@@ -181,7 +180,7 @@ impl<'buf> BufferContext<'buf> {
             }
 
             if self.state.rect.contains(&(x, y))  {
-                self.buffer[(x, y)].set_measured_str(grapheme, width as u8, self.arena);
+                self.buffer[(x, y)].set_measured_str(grapheme, width, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
                     let cont = (x + i, y);
@@ -437,7 +436,7 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.within(Rect::new(Point::new(2, 2), Point::new(6, 6)), |r| {
+        renderer.within(Rect::bounds(Point::new(2, 2), Point::new(6, 6)), |r| {
             r.fill(None, None, Some('W'));
         });
 

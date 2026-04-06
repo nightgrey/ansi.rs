@@ -1,6 +1,5 @@
 use crate::{One, Zero};
 use std::ops::Add;
-use crate::Number;
 
 /// Edge insets for padding or margins.
 ///

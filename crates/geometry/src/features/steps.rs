@@ -1,6 +1,6 @@
-use crate::{Bounded, Point, Rect};
+use crate::{Bounded, Point, Rect, Row};
 use std::iter::FusedIterator;
-use utils::ContextResolve;
+use crate::{Resolve};
 
 /// Provides the spatial context needed to step through positions in row-major
 /// order within a bounded 2D region.
@@ -112,6 +112,7 @@ impl Step<Point> for Rect {
         Some(self.resolve(target))
     }
 }
+
 /// Owned, double-ended iterator over every `Position` in a `Bounds`.
 ///
 /// Created by [`Area::iter`].

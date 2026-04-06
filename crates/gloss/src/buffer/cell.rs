@@ -55,10 +55,10 @@ impl Cell {
     };
 
     /// Create a new cell.
-    pub fn new(grapheme: Grapheme, width: u8, style: Style) -> Self {
+    pub fn new(grapheme: Grapheme, width: usize, style: Style) -> Self {
         Self {
             grapheme,
-            width,
+            width: width as u8,
             style,
         }
     }
@@ -128,10 +128,14 @@ impl Cell {
     }
 
     pub fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
-        self.set_measured_char(char, char.width().unwrap_or(0) as u8, arena)
+        self.set_measured_char(char, char.width().unwrap_or(0) , arena)
     }
 
-    pub fn set_measured_char(&mut self, char: char, width: u8, arena: &mut Arena) -> &mut Self {
+    pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
+        self.set_measured_str(str, str.width(), arena)
+    }
+
+    pub fn set_measured_char(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.release(self.grapheme);
         }
@@ -141,20 +145,16 @@ impl Cell {
         }
 
         self.grapheme = Grapheme::inline(char);
-        self.width = width;
+        self.width = width as u8;
 
         self
     }
-    pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
-        self.set_measured_str(str, str.width() as u8, arena)
-    }
-
-    pub fn set_measured_str(&mut self, str: &str, width: u8, arena: &mut Arena) -> &mut Self {
+    pub fn set_measured_str(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.release(self.grapheme);
         }
         self.grapheme = Grapheme::extended(str, arena);
-        self.width = width;
+        self.width = width as u8;
         self
     }
 
@@ -183,12 +183,12 @@ impl Cell {
         self
     }
 
-    pub fn replace_grapheme(&mut self, grapheme: Grapheme, width: u8, arena: &mut Arena) -> &mut Self {
+    pub fn replace_grapheme(&mut self, grapheme: Grapheme, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.release(self.grapheme);
         }
         self.grapheme = grapheme;
-        self.width = width;
+        self.width = width as u8;
         self
     }
 

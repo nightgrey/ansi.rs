@@ -4,7 +4,6 @@ use ansi::io::Write;
 use ansi::sequences::*;
 use std::io;
 use geometry::{Bounded, Row};
-use utils::Resolve;
 use super::capabilities::Capabilities;
 use super::cursor::Cursor;
 use crate::Cell;

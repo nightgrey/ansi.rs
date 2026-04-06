@@ -43,13 +43,6 @@ impl<T> Size<T> {
     }
 }
 
-impl<T: Zero> Size<T> {
-    /// A size of zero (0×0).
-    pub const ZERO: Self = Self {
-        width: T::ZERO,
-        height: T::ZERO,
-    };
-}
 
 impl<U, T: Add<U, Output = T>> Add<Size<U>> for Size<T> {
     type Output = Size<T>;

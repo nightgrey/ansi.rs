@@ -1,4 +1,4 @@
-use crate::{Bounded, Contains, Point,  Rect, Sides, Size};
+use crate::{Bounded, Bounds, Contains, Point, Rect, Sides, Size, Zero};
 
 pub trait Intersect<Rhs = Self> {
     type Output;
@@ -25,36 +25,18 @@ impl<T: Bounded> Intersect<Point> for T {
         }
     }
 }
+impl<T: Bounded, U: Bounded> Intersect<T> for U {
+    type Output = Rect;
 
-impl Intersect<Size> for Rect {
-    type Output = Self;
-
-    fn intersect(&self, other: &Size) -> Self::Output {
-        self.intersect(&Rect::new(
-            Point::ZERO,
-            Point::new(other.width, other.height),
-        ))
-    }
-}
-
-impl Intersect<Rect> for Rect {
-    type Output = Self;
-
-    fn intersect(&self, other: &Rect<Point>) -> Self::Output {
+    fn intersect(&self, other: &T) -> Self::Output {
         if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Rect::new(Point::ZERO, Point::ZERO);
+            return Self::Output::ZERO;
         }
 
-        let mut r = Rect::new(Point::ZERO, Point::ZERO);
-
-        let x1 = self.min.x.max(other.min.x);
-        let y1 = self.min.y.max(other.min.y);
-        let x2 = self.max.x.min(other.max.x);
-        let y2 = self.max.y.min(other.max.y);
-
-        r.min.x = x1;
-        r.min.y = y1;
-
+        let x1 = self.min_x().max(other.min_x());
+        let y1 = self.min_y().max(other.min_y());
+        let x2 = self.max_x().min(other.max_x());
+        let y2 = self.max_y().min(other.max_y());
 
         let mut w = x2.saturating_sub(x1);
         let mut h = y2.saturating_sub(y1);
@@ -75,9 +57,9 @@ impl Intersect<Rect> for Rect {
             h = usize::MAX;
         }
 
-        r.max.x = r.min.x + w;
-        r.max.y = r.min.y + h;
-
-        r
+        Rect {
+            min: Point { x: x1, y: y1 },
+            max: Point { x: x1 + w, y: y1 + h },
+        }
     }
 }

@@ -4,14 +4,35 @@ use std::ops::Index;
 use std::slice::SliceIndex;
 use crate::{Buffer, Cell};
 
-pub trait BufferIndex<Context, Slice: ?Sized = Context>: Clone {
+pub trait BufferIndex: Clone {
     type Output: ?Sized;
-    type Index: SliceIndex<Slice, Output = Self::Output>;
+    type Index: SliceIndex<[Cell], Output = Self::Output>;
 
-    fn index_of(self, context: &Context) -> Self::Index;
+    #[inline]
+    fn index_of(self, context: &Buffer) -> Self::Index;
+
+    #[inline]
+    fn get(self, context: &Buffer) -> Option<&Self::Output> {
+        self.index_of(context).get(context.as_ref())
+    }
+
+    #[inline]
+    fn get_mut(self, context: &mut Buffer) -> Option<&mut Self::Output> {
+        self.index_of(context).get_mut(context.as_mut())
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(self, context: &Buffer) -> *const Self::Output {
+        SliceIndex::get_unchecked(self.index_of(context), context.as_ref())
+    }
+
+    #[inline]
+    unsafe fn get_unchecked_mut(self, context: &mut Buffer) -> *mut Self::Output {
+        SliceIndex::get_unchecked_mut(self.index_of(context), context.as_mut())
+    }
 }
 
-impl BufferIndex<Buffer, [Cell]> for Point {
+impl BufferIndex for Point {
     type Output = Cell;
     type Index = usize;
 
@@ -21,8 +42,17 @@ impl BufferIndex<Buffer, [Cell]> for Point {
     }
 }
 
+impl BufferIndex for PointLike {
+    type Output = Cell;
+    type Index = usize;
 
-impl BufferIndex<Buffer, [Cell]> for Row {
+    #[inline]
+    fn index_of(self, area: &Buffer) -> usize {
+        self.1 * area.width + self.0
+    }
+}
+
+impl BufferIndex for Row {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
@@ -32,7 +62,8 @@ impl BufferIndex<Buffer, [Cell]> for Row {
         start..start + area.width
     }
 }
-impl BufferIndex<Buffer, [Cell]> for ops::Range<Row> {
+
+impl BufferIndex for ops::Range<Row> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
@@ -42,7 +73,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::Range<Row> {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeTo<Row> {
+impl BufferIndex for ops::RangeTo<Row> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
 
@@ -53,7 +84,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::RangeTo<Row> {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeFrom<Row> {
+impl BufferIndex for ops::RangeFrom<Row> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
 
@@ -64,7 +95,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::RangeFrom<Row> {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeInclusive<Row> {
+impl BufferIndex for ops::RangeInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
 
@@ -74,7 +105,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::RangeInclusive<Row> {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeToInclusive<Row> {
+impl BufferIndex for ops::RangeToInclusive<Row> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
 
@@ -84,7 +115,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::RangeToInclusive<Row> {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeFull {
+impl BufferIndex for ops::RangeFull {
     type Output = [Cell];
     type Index = ops::RangeFull;
 
@@ -95,7 +126,7 @@ impl BufferIndex<Buffer, [Cell]> for ops::RangeFull {
 }
 
 // Convenience for `Index` and `Position`
-impl BufferIndex<Buffer, [Cell]> for usize {
+impl BufferIndex for usize {
     type Output = Cell;
     type Index = usize;
 
@@ -105,61 +136,61 @@ impl BufferIndex<Buffer, [Cell]> for usize {
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::Range<usize> {
+impl<I: BufferIndex<Index = usize>> BufferIndex for ops::Range<I> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> Self::Index {
-        self
+    fn index_of(self, grid: &Buffer) -> ops::Range<usize> {
+        let start = self.start.index_of(grid);
+        let end = self.end.index_of(grid);
+        start..end
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeTo<usize> {
+impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeTo<I> {
     type Output = [Cell];
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> Self::Index {
-        self
+    fn index_of(self, grid: &Buffer) -> ops::RangeTo<usize> {
+        let end = self.end.index_of(grid);
+        ..end
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeFrom<usize> {
+
+impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeFrom<I> {
     type Output = [Cell];
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> Self::Index {
-        self
+    fn index_of(self, grid: &Buffer) -> ops::RangeFrom<usize> {
+        let start = self.start.index_of(grid);
+        start..
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeInclusive<usize> {
+impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<I> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> Self::Index {
-        self
+    fn index_of(self, grid: &Buffer) -> ops::RangeInclusive<usize> {
+        let start = self.start().clone().index_of(grid);
+        let end = self.end().clone().index_of(grid);
+        start..=end
     }
 }
 
-impl BufferIndex<Buffer, [Cell]> for ops::RangeToInclusive<usize> {
+impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeToInclusive<I> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> Self::Index {
-        self
+    fn index_of(self, grid: &Buffer) -> ops::RangeToInclusive<usize> {
+        let end = self.end.index_of(grid);
+        ..=end
     }
 }
-impl BufferIndex<Buffer, [Cell]> for PointLike {
-    type Output = Cell;
-    type Index = usize;
 
-    #[inline]
-    fn index_of(self, area: &Buffer) -> usize {
-        self.1 * area.width + self.0
-    }
-}

@@ -1,6 +1,6 @@
-use super::{Zero, One, Ops, AssignOps};
+use super::{Ops, AssignOps};
 use std::str::FromStr;
-
+use crate::{Zero, One};
 pub trait Number: Sized + Copy + PartialEq + PartialOrd + Zero + One + Ops + AssignOps + FromStr {}
 
 

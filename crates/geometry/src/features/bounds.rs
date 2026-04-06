@@ -1,8 +1,11 @@
 use crate::{Edges, Point, Rect, Size};
+use crate::Coordinated;
+
+
 /// Provides the bounds of a geometry.
 pub trait Bounded {
-    type Coordinate;
-    type Bounds;
+    type Coordinate: Coordinated;
+    type Bounds: Bounded;
 
     #[inline]
     fn min_x(&self) -> usize;
@@ -168,7 +171,7 @@ impl Bounded for Size {
     }
 
     fn bounds(&self) -> Self::Bounds {
-        Rect::new(self.min(), self.max())
+        Rect::bounds(self.min(), self.max())
     }
 }
 
@@ -201,6 +204,6 @@ impl Bounded for Edges {
     }
 
     fn bounds(&self) -> Self::Bounds {
-        Rect::new(self.min(), self.max())
+        Rect::bounds(self.min(), self.max())
     }
 }

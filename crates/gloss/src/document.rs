@@ -156,7 +156,7 @@ impl<'a> Document<'a> {
     pub fn content_bounds(&self, id: NodeId) -> Rect {
         let layout = &self.layouts[id].final_layout;
 
-        Rect::bounds(layout.content_box_x() as usize, layout.content_box_y() as usize, layout.content_box_width() as usize, layout.content_box_height() as usize)
+        Rect::new(layout.content_box_x() as usize, layout.content_box_y() as usize, layout.content_box_width() as usize, layout.content_box_height() as usize)
     }
 }
 

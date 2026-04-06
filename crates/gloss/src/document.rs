@@ -89,16 +89,16 @@ impl<'a> Document<'a> {
     }
 
     pub fn compute_layout(&mut self, space: Space) {
-        self.nodes[self.root].set_width(match space.width {
+        self.nodes[self.root].size.width = match space.width {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
-        });
-        self.nodes[self.root].set_height(match space.height {
+        };
+        self.nodes[self.root].size.height = match space.height {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
-        });
+        };
         let mut context = LayoutContext::new(
             &mut self.nodes,
             &mut self.layouts,

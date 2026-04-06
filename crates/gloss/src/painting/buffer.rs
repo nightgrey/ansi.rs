@@ -3,7 +3,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate, Resolve};
 use crate::{Buffer, Arena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{Border, Backend, Renderer};
+use crate::{Border, Backend, Painter};
 use crate::symbols::Symbol;
 use ansi::Style;
 
@@ -164,6 +164,7 @@ impl<'buf> BufferBackend<'buf> {
     }
 
     pub fn text(&mut self, position: impl Into<Option<Point>>, fill_style: impl Into<Option<Style>>, str: impl AsRef<str>) -> usize {
+
         let position = self.resolve_position(position);
         let style = self.resolve_fill_style(fill_style);
 
@@ -235,7 +236,7 @@ impl<'buf> BufferBackend<'buf> {
 
 }
 
-impl<'a> Renderer<BufferBackend<'a>> {
+impl<'a> Painter<BufferBackend<'a>> {
     pub fn new(buffer: &'a mut Buffer, arena: &'a mut Arena) -> Self {
         Self(BufferBackend::new(buffer, arena))
     }
@@ -301,7 +302,7 @@ impl<'a> Backend for BufferBackend<'a> {
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
-    use std::ops::{Add, Sub};
+    use std::ops::{Sub};
     use ansi::Color;
     use crate::Grapheme;
     use tree::At;
@@ -318,31 +319,31 @@ mod tests {
         let document = &mut context.document;
         let root = document.node_mut(document.root);
 
-        root.set_border(Border::Solid);
-        root.set_margin((2, 2));
-        root.set_padding((1, 1));
+        root.border = Border::Solid;
+        root.margin = (2, 2).into();
+        root.padding = (1, 1).into();
 
         let heading = document.insert_with(
             Node::Span(Cow::Borrowed("Title")),
             |node| {
-                node.set_color(Color::Red);
-                node.set_text_decoration(TextDecoration::Underline);
-                node.set_font_weight(FontWeight::Bold);
+                node.color = Some(Color::Red);
+                node.text_decoration = Some(TextDecoration::Underline);
+                node.font_weight = Some(FontWeight::Bold);
             },
         );
 
         let footer = document.insert_with(Node::Div(), |node| {
-            node.set_background(Color::BrightBlack);
-            node.set_flex_direction(FlexDirection::Row);
+            node.background = Some(Color::BrightBlack);
+            node.flex_direction = FlexDirection::Row;
         });
 
         let footer_left = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
-            node.set_padding((1, 1));
+            node.padding = (1, 1).into();
         });
         let footer_left_content = document.insert_at(Node::Span("Gloss Rendering"), At::Child(footer_left));
 
         let footer_right = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
-            node.set_padding((1, 1));
+            node.padding = (1, 1).into();
         });
         let footer_right_content = document.insert_at(Node::Span("Test Consortium"), At::Child(footer_right));
 
@@ -360,7 +361,7 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferBackend<'a>> {
+    fn renderer<'a>(context: &'a mut Context) -> Painter<BufferBackend<'a>> {
         BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer()
     }
 
@@ -502,12 +503,12 @@ mod tests {
 
         // Root with padding — children should render inside the content area
         let root = document.node_mut(document.root);
-        root.set_padding((2, 2));
-        root.set_flex_direction(FlexDirection::Column);
+        root.padding = (2, 2).into();
+        root.flex_direction = FlexDirection::Column;
 
         let child = document.insert_with(
             Node::Span(Cow::Borrowed("AB")),
-            |node| { node.set_color(Color::Blue); },
+            |node| { node.color = Some(Color::Blue); },
         );
 
         document.compute_layout(Space::new(20u32, 10u32));
@@ -534,20 +535,20 @@ mod tests {
 
         // Root with padding, column layout
         let root = document.node_mut(document.root);
-        root.set_padding((1, 1));
-        root.set_flex_direction(FlexDirection::Column);
+        root.padding = (1, 1).into();
+        root.flex_direction = FlexDirection::Column;
 
         // Child div with its own padding
         let child_div = document.insert_with(Node::Div(), |node| {
-            node.set_padding((1, 1));
-            node.set_flex_direction(FlexDirection::Column);
+            node.padding = (1, 1).into();
+            node.flex_direction = FlexDirection::Column;
         });
 
         // Grandchild text inside the child div
         let text_id = document.insert_at_with(
             Node::Span("OK"),
             At::Child(child_div),
-            |node| { node.set_color(Color::Blue); },
+            |node| { node.color = Some(Color::Blue); },
         );
 
         document.compute_layout(Space::new(30u32, 15u32));
@@ -579,16 +580,16 @@ mod tests {
         let document = &mut context.document;
 
         let root = document.node_mut(document.root);
-        root.set_flex_direction(FlexDirection::Column);
+        root.flex_direction = FlexDirection::Column;
 
         // Two stacked children in column layout
         let child_a = document.insert_with(
             Node::Span(Cow::Borrowed("AA")),
-            |node| { node.set_color(Color::Blue); },
+            |node| { node.color = Some(Color::Blue); },
         );
         let child_b = document.insert_with(
             Node::Span(Cow::Borrowed("BB")),
-            |node| { node.set_color(Color::Green); },
+            |node| { node.color = Some(Color::Green); },
         );
 
         document.compute_layout(Space::new(30u32, 15u32));
@@ -614,15 +615,15 @@ mod tests {
         let document = &mut context.document;
 
         let root = document.node_mut(document.root);
-        root.set_flex_direction(FlexDirection::Row);
+        root.flex_direction = FlexDirection::Row;
 
         let child_a = document.insert_with(
             Node::Span(Cow::Borrowed("L")),
-            |node| { node.set_color(Color::Blue); },
+            |node| { node.color = Some(Color::Blue); },
         );
         let child_b = document.insert_with(
             Node::Span(Cow::Borrowed("R")),
-            |node| { node.set_color(Color::Green); },
+            |node| { node.color = Some(Color::Green); },
         );
 
         document.compute_layout(Space::new(30u32, 5u32));

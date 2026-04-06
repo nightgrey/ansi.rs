@@ -1,4 +1,4 @@
-use geometry::{Point, PointLike, Row};
+use geometry::{Point, PointLike, Resolve, Row};
 use std::ops;
 use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;

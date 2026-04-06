@@ -80,15 +80,15 @@ pub trait Backend {
     /// Finish any pending operations.
     fn finish(&mut self) -> Result<(), Self::Error>;
 
-    fn into_renderer(self) -> Renderer<Self> where Self: Sized {
-        Renderer(self)
+    fn into_renderer(self) -> Painter<Self> where Self: Sized {
+        Painter(self)
     }
 }
 
 #[derive(Default, Deref, DerefMut, AsRef, AsMut)]
-pub struct Renderer<B: Backend>(pub B);
+pub struct Painter<B: Backend>(pub B);
 
-impl<B: Backend> Renderer<B> {
+impl<B: Backend> Painter<B> {
     pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
         self.resize(doc.size(doc.root))?;
         self.render_node(doc, doc.root, Style::DEFAULT)?;
@@ -99,13 +99,12 @@ impl<B: Backend> Renderer<B> {
         &mut self,
         doc: &Document<'_>,
         id: NodeId,
-        inherited: Style,
+        parent_style: Style,
     ) -> Result<(), B::Error> {
-        let  node = doc.node(id);
+        let node = doc.node(id);
         let bounds = doc.bounds(id);
         let content_bounds = doc.content_bounds(id);
-        let style = node.style.apply(inherited);
-
+        let style = node.style.inherit(parent_style);
         // Snapshot the current state
         self.save()?;
 
@@ -113,17 +112,16 @@ impl<B: Backend> Renderer<B> {
         self.translate(bounds.min)?;
         self.clip(bounds.size().into())?;
         self.fill_style(style);
-
         // Normalize content bounds to be relative to the node's border box.
         let content_bounds = content_bounds - bounds.min;
 
         // Paint
-        if style.has_background() { self.fill(content_bounds, None, None) }
-        if style.has_border() { self.stroke(None, node.get_border()) }
+        if style.background.is_some() { self.fill(content_bounds, None, None) }
+        if style.border.is_some() { self.stroke(None, node.border) }
 
         match &node.kind {
             NodeKind::Span(text) => {
-                self.text(Some(content_bounds.min), None, text);
+                self.text(Some(content_bounds.min), style, text);
             }
             NodeKind::Div => {
             }

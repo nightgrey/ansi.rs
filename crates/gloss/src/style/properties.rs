@@ -1,6 +1,8 @@
 // Inline styling
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+use maybe::Maybe;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Maybe)]
 pub enum TextDecoration {
     #[default]
     None,
@@ -46,6 +48,7 @@ pub enum Display {
     None,
     Inline,
     #[default]
+    Block,
     Flex,
 }
 

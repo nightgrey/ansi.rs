@@ -25,14 +25,20 @@ impl<'a> Node<'a> {
     pub fn Span(text: impl Into<Cow<'a, str>>) -> Self {
         Self {
             kind: NodeKind::Span(text.into()),
-            style: Style::default().display(Display::Inline),
+            style: Style {
+                display: Display::Inline,
+                ..Default::default()
+            },
         }
     }
 
     pub fn Div() -> Self {
         Self {
             kind: NodeKind::Div,
-            style: Style::default().display(Display::Flex),
+            style: Style {
+                display: Display::Flex,
+                ..Default::default()
+            },
         }
     }
 }

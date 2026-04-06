@@ -2,7 +2,7 @@ use crate::{Display, FlexDirection, LayoutNode, Node, NodeId, NodeKind, Space, S
 use tree::{Id, Secondary, Tree};
 use compact_str::CompactString;
 use slotmap::Key;
-use taffy::TraversePartialTree;
+use taffy::{BlockContext, LayoutInput, LayoutOutput, TraversePartialTree};
 
 
 trait GetTaffyStyle<'a, S: taffy::CoreStyle> {
@@ -198,9 +198,9 @@ where
             let style = &node.style;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
-            match (style.get_display(), has_children) {
+            match (style.display, has_children) {
                 (Display::None, _) => taffy::compute_hidden_layout(ctx, node_id),
-                // (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs),
+                (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs, None),
                 (Display::Flex, true) => taffy::compute_flexbox_layout(ctx, node_id, inputs),
                 (_, false) | (Display::Inline, _) => taffy::compute_leaf_layout(
                     inputs,
@@ -326,6 +326,15 @@ where
     fn get_block_child_style(&self, child_node_id: taffy::NodeId) -> Self::BlockItemStyle<'_> {
         self.style(child_node_id)
     }
+
+    fn compute_block_child_layout(
+        &mut self,
+        node_id: taffy::NodeId,
+        inputs: LayoutInput,
+        block_ctx: Option<&mut BlockContext<'_>>,
+    ) -> LayoutOutput {
+        taffy::compute_block_layout(self, node_id, inputs, block_ctx)
+    }
 }
 
 impl<'d, 'n, MeasureFunction> taffy::RoundTree for LayoutContext<'d, 'n, MeasureFunction>
@@ -358,18 +367,20 @@ where
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
         let style = self.style(node_id);
 
-        match (style.get_display(), &self.node(node_id).kind) {
+        match (style.display, &self.node(node_id).kind) {
             (Display::Inline, NodeKind::Span(_)) => "Node::Span",
+            (Display::Block, NodeKind::Span(_)) => "Node::Span [Block]",
             (Display::Flex, NodeKind::Span(_)) => "Node::Span [Flex]",
             (Display::None, NodeKind::Span(_)) => "Node::Span [None]",
 
-            (Display::Flex, NodeKind::Div) => match style.get_flex_direction() {
+            (Display::Inline, NodeKind::Div) => "Node::Div [Inline]",
+            (Display::Block, NodeKind::Div) => "Node::Div [Block]",
+            (Display::Flex, NodeKind::Div) => match style.flex_direction {
                 FlexDirection::Column => "Node::Div [Flex::Column]",
                 FlexDirection::Row => "Node::Div [Flex::Row]",
                 FlexDirection::RowReverse => "Node::Div [Flex::RowReverse]",
                 FlexDirection::ColumnReverse => "Node::Div [Flex::ColumnReverse]",
             },
-            (Display::Inline, NodeKind::Div) => "Node::Div [Inline]",
             (Display::None, NodeKind::Div) => "Node::Div [None]",
         }
     }

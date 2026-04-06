@@ -164,9 +164,10 @@ impl Buffer {
         self.resolve(value)
     }
 
-    pub fn resolve<T, V>(&self, value: V) -> T where Self: Resolve<V, T> {
+    pub fn point_of<T>(&self, value: T) -> Point where Self: Resolve<T, Point> {
         self.resolve(value)
     }
+    
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {

@@ -193,3 +193,63 @@ impl Gap {
     }
 
 }
+
+impl From<Gap> for taffy::Size<taffy::LengthPercentage> {
+    fn from(value: Gap) -> Self {
+        taffy::Size {
+            width: value.horizontal.into(),
+            height: value.vertical.into(),
+        }
+    }
+}
+#[derive(Copy, Debug, Clone, PartialEq, Default, Deref, DerefMut)]
+#[repr(transparent)]
+pub struct Size(geometry::Size<Dimension>);
+
+impl Size {
+    pub const ZERO: Self = Self(geometry::Size::new(Dimension::Length(0), Dimension::Length(0)));
+    pub const AUTO: Self = Self(geometry::Size::new(Dimension::Auto, Dimension::Auto));
+
+    pub const fn auto() -> Self {
+        Self::AUTO
+    }
+
+    pub const fn length(value: u32) -> Self {
+        Self::new(Dimension::Length(value), Dimension::Length(value))
+    }
+
+    pub const fn percent(value: f32) -> Self {
+        Self::new(Dimension::Percent(value), Dimension::Percent(value))
+    }
+
+    pub const fn new(width: impl [const] Into<Dimension>, height: impl [const] Into<Dimension>) -> Self {
+        Self(geometry::Size::new(width.into(), height.into()))
+    }
+}
+
+impl From<Size> for taffy::Size<taffy::Dimension> {
+    fn from(value: Size) -> Self {
+        taffy::Size {
+            width: value.width.into(),
+            height: value.height.into(),
+        }
+    }
+}
+
+impl From<Size> for taffy::Size<taffy::LengthPercentage> {
+    fn from(value: Size) -> Self {
+        taffy::Size {
+            width: value.width.into(),
+            height: value.height.into(),
+        }
+    }
+}
+
+impl From<Size> for taffy::Size<taffy::LengthPercentageAuto> {
+    fn from(value: Size) -> Self {
+        taffy::Size {
+            width: value.width.into(),
+            height: value.height.into(),
+        }
+    }
+}

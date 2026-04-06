@@ -1,5 +1,5 @@
 use std::ops::{Range, RangeInclusive, RangeTo, RangeToInclusive, RangeFull, RangeFrom};
-use crate::{Point, Rect, Row, Column, Bounded, PointLike};
+use crate::{Point, Rect, Row, Column, Bounded, PointLike, Map};
 
 /// Resolve a context-dependent value.
 pub trait Resolve<T, U> {
@@ -27,6 +27,41 @@ impl<B: Bounded> Resolve<Point, Column> for B {
     }
 }
 
+
+impl<B: Bounded> Resolve<Range<Point>, Range<usize>> for B {
+    fn resolve(&self, value: Range<Point>) -> Range<usize> {
+        self.resolve(value.start)..self.resolve(value.end)
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeInclusive<Point>, RangeInclusive<usize>> for B {
+    fn resolve(&self, value: RangeInclusive<Point>) -> RangeInclusive<usize> {
+        self.resolve(*value.start())..=self.resolve(*value.end())
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeTo<Point>, RangeTo<usize>> for B {
+    fn resolve(&self, value: RangeTo<Point>) -> RangeTo<usize> {
+        ..self.resolve(value.end)
+    }
+}
+
+impl<B: Bounded> Resolve<RangeToInclusive<Point>, RangeToInclusive<usize>> for B {
+    fn resolve(&self, value: RangeToInclusive<Point>) -> RangeToInclusive<usize> {
+
+        ..=self.resolve(value.end)
+    }
+}
+
+impl<B: Bounded> Resolve<RangeFrom<Point>, RangeFrom<usize>> for B {
+    fn resolve(&self, value: RangeFrom<Point>) -> RangeFrom<usize> {
+        self.resolve(value.start)..
+    }
+}
+
+
 // PointLike -> *
 impl<B: Bounded> Resolve<PointLike, usize> for B {
     fn resolve(&self, value: PointLike) -> usize {
@@ -47,6 +82,41 @@ impl<B: Bounded> Resolve<PointLike, Column> for B {
     }
 }
 
+
+impl<B: Bounded> Resolve<Range<PointLike>, Range<usize>> for B {
+    fn resolve(&self, value: Range<PointLike>) -> Range<usize> {
+        self.resolve(value.start)..self.resolve(value.end)
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeInclusive<PointLike>, RangeInclusive<usize>> for B {
+    fn resolve(&self, value: RangeInclusive<PointLike>) -> RangeInclusive<usize> {
+        self.resolve(*value.start())..=self.resolve(*value.end())
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeTo<PointLike>, RangeTo<usize>> for B {
+    fn resolve(&self, value: RangeTo<PointLike>) -> RangeTo<usize> {
+        ..self.resolve(value.end)
+    }
+}
+
+impl<B: Bounded> Resolve<RangeToInclusive<PointLike>, RangeToInclusive<usize>> for B {
+    fn resolve(&self, value: RangeToInclusive<PointLike>) -> RangeToInclusive<usize> {
+
+        ..=self.resolve(value.end)
+    }
+}
+
+impl<B: Bounded> Resolve<RangeFrom<PointLike>, RangeFrom<usize>> for B {
+    fn resolve(&self, value: RangeFrom<PointLike>) -> RangeFrom<usize> {
+        self.resolve(value.start)..
+    }
+}
+
+
 // Row -> *
 impl<B: Bounded> Resolve<Row, Point> for B {
     fn resolve(&self, value: Row) -> Point {
@@ -64,6 +134,60 @@ impl<B: Bounded> Resolve<Row, Column> for B {
         Column(0)
     }
 }
+
+
+impl<B: Bounded> Resolve<Row, Range<usize>> for B {
+    fn resolve(&self, value: Row) -> Range<usize> {
+        let y = *value;
+        let width = self.width() as usize;
+
+        y * width..y * width + width
+    }
+}
+
+
+impl<B: Bounded> Resolve<Range<Row>, Range<usize>> for B {
+    fn resolve(&self, value: Range<Row>) -> Range<usize> {
+        let width = self.width() as usize;
+
+        *value.start * width..*value.end * width + width
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeInclusive<Row>, RangeInclusive<usize>> for B {
+    fn resolve(&self, value: RangeInclusive<Row>) -> RangeInclusive<usize> {
+        let width = self.width() as usize;
+
+        **value.start() * width..=**value.end() * width + width
+    }
+}
+
+
+impl<B: Bounded> Resolve<RangeTo<Row>, RangeTo<usize>> for B {
+    fn resolve(&self, value: RangeTo<Row>) -> RangeTo<usize> {
+        let width = self.width() as usize;
+
+        ..*value.end * width + width
+    }
+}
+
+impl<B: Bounded> Resolve<RangeToInclusive<Row>, RangeToInclusive<usize>> for B {
+    fn resolve(&self, value: RangeToInclusive<Row>) -> RangeToInclusive<usize> {
+        let width = self.width() as usize;
+
+        ..=*value.end * width + width
+    }
+}
+
+impl<B: Bounded> Resolve<RangeFrom<Row>, RangeFrom<usize>> for B {
+    fn resolve(&self, value: RangeFrom<Row>) -> RangeFrom<usize> {
+        let width = self.width() as usize;
+
+        *value.start * width..
+    }
+}
+
 
 // Column -> *
 impl<B: Bounded> Resolve<Column, Point> for B {
@@ -109,36 +233,6 @@ impl<B: Bounded> Resolve<usize, Row> for B {
 impl<B: Bounded> Resolve<usize, Column> for B {
     fn resolve(&self, value: usize) -> Column {
         Column(value % self.width())
-    }
-}
-
-// Range
-impl<R: Resolve<T, usize>, T> Resolve<Range<T>, Range<usize>> for R {
-    fn resolve(&self, value: Range<T>) -> Range<usize> {
-        self.resolve(value.start)..self.resolve(value.end)
-    }
-}
-impl<R: Resolve<T, usize>, T: Clone> Resolve<RangeInclusive<T>, RangeInclusive<usize>> for R {
-    fn resolve(&self, value: RangeInclusive<T>) -> RangeInclusive<usize> {
-        self.resolve(value.start().clone())..=self.resolve(value.end().clone())
-    }
-}
-
-impl<R: Resolve<T, usize>, T> Resolve<RangeTo<T>, RangeTo<usize>> for R {
-    fn resolve(&self, value: RangeTo<T>) -> RangeTo<usize> {
-        ..self.resolve(value.end)
-    }
-}
-
-impl<R: Resolve<T, usize>, T> Resolve<RangeToInclusive<T>, RangeToInclusive<usize>> for R {
-    fn resolve(&self, value: RangeToInclusive<T>) -> RangeToInclusive<usize> {
-        ..=self.resolve(value.end)
-    }
-}
-
-impl<R: Resolve<T, usize>, T> Resolve<RangeFrom<T>, RangeFrom<usize>> for R {
-    fn resolve(&self, value: RangeFrom<T>) -> RangeFrom<usize> {
-        self.resolve(value.start)..
     }
 }
 

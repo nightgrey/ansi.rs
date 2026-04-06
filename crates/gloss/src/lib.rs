@@ -7,6 +7,8 @@
 #![feature(iter_intersperse)]
 
 #![feature(const_index)]
+#![feature(const_result_trait_fn)]
+#![feature(const_try)]
 extern crate core;
 
 mod document;

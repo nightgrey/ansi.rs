@@ -1,5 +1,5 @@
 use super::{Grapheme, Arena};
-use crate::Offset;
+use crate::AsOffset;
 use ansi::Style;
 use std::fmt::Debug;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -137,7 +137,7 @@ impl Cell {
 
     pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
 
         if char == ' ' {
@@ -151,7 +151,7 @@ impl Cell {
     }
     pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
         self.grapheme = Grapheme::extended(str, arena);
         self.width = width as u8;
@@ -161,7 +161,7 @@ impl Cell {
     /// Set this cell to a width-1 space with the given style.
     pub fn set_space(&mut self, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
         self.grapheme = Grapheme::SPACE;
         self.width = 1;
@@ -171,7 +171,7 @@ impl Cell {
     /// Set this cell as a width-0 continuation cell with the given style.
     pub fn set_continuation(&mut self, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
         self.grapheme = Grapheme::SPACE;
         self.width = 0;
@@ -185,7 +185,7 @@ impl Cell {
 
     pub fn replace_grapheme(&mut self, grapheme: Grapheme, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
         self.grapheme = grapheme;
         self.width = width as u8;
@@ -198,7 +198,7 @@ impl Cell {
     /// may be arena-stored. No-op for inline and empty graphemes.
     pub fn release_grapheme(&mut self, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
-            arena.release(self.grapheme);
+            arena.remove(self.grapheme);
         }
         self.grapheme = Grapheme::SPACE;
         self.width = 0;

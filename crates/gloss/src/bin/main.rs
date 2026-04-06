@@ -37,15 +37,20 @@ fn main() -> io::Result<()> {
         node.set_color(Color::None);
     });
 
+    let a_content = document.insert_at(Node::Span("A"), At::Child(a));
+
     let b = document.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.set_background(Color::Yellow);
         node.set_color(Color::None);
     });
 
+    let b_content = document.insert_at(Node::Span("B"), At::Child(b));
     let c = document.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.set_background(Color::Blue);
         node.set_color(Color::None);
     });
+
+    let c_content = document.insert_at(Node::Span("C"), At::Child(c));
 
     document.compute_layout(Space::from(buffer.size()));
         let mut renderer = Renderer::new(&mut buffer, &mut arena);

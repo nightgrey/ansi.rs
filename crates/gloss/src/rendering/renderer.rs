@@ -3,7 +3,7 @@ use maybe::Maybe;
 use geometry::{Bounded, Point, Rect, Size};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 
-pub trait RendererBackend {
+pub trait Backend {
     type Error;
 
     fn fill_style(&mut self, style: Style);
@@ -16,7 +16,7 @@ pub trait RendererBackend {
     /// All subsequent drawing operations up to the next [`restore`]
     /// are clipped by the bounds.
     ///
-    /// [`restore`]: RendererBackend::restore
+    /// [`restore`]: Backend::restore
     fn clip(&mut self, bounds: Rect) -> Result<(), Self::Error>;
 
     /// Translate the origin.
@@ -41,7 +41,7 @@ pub trait RendererBackend {
     ///
     /// Push a new context state onto the stack. See [`pop`] for details.
     ///
-    /// [`pop`]: RendererBackend::restore
+    /// [`pop`]: Backend::restore
     fn save(&mut self) -> Result<(), Self::Error>;
 
     /// Restore the context state.
@@ -49,7 +49,7 @@ pub trait RendererBackend {
     /// Pop a context state that was pushed by [`save`]. See
     /// that method for more details.
     ///
-    /// [`save`]: RendererBackend::save
+    /// [`save`]: Backend::save
     fn restore(&mut self) -> Result<(), Self::Error>;
 
     /// Do graphics operations with the context state saved and then restored.
@@ -57,8 +57,8 @@ pub trait RendererBackend {
     /// Equivalent to [`save`], calling `f`, then
     /// [`restore`]. See those methods for more details.
     ///
-    /// [`restore`]: RendererBackend::restore
-    /// [`save`]: RendererBackend::save
+    /// [`restore`]: Backend::restore
+    /// [`save`]: Backend::save
     fn with(
         &mut self,
         f: impl FnOnce(&mut Self) -> Result<(), Self::Error>,
@@ -86,9 +86,9 @@ pub trait RendererBackend {
 }
 
 #[derive(Default, Deref, DerefMut, AsRef, AsMut)]
-pub struct Renderer<B: RendererBackend>(pub B);
+pub struct Renderer<B: Backend>(pub B);
 
-impl<B: RendererBackend> Renderer<B> {
+impl<B: Backend> Renderer<B> {
     pub fn render(&mut self, doc: &Document<'_>) -> Result<(), B::Error> {
         self.resize(doc.size(doc.root))?;
         self.render_node(doc, doc.root, Style::DEFAULT)?;

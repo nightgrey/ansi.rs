@@ -3,13 +3,13 @@ use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate, Resolve};
 use crate::{Buffer, Arena};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{Border, RendererBackend, Renderer};
+use crate::{Border, Backend, Renderer};
 use crate::symbols::Symbol;
 use ansi::Style;
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ContextState {
+pub struct Context {
     rect: Rect,
     origin: Point,
     fill_style: Style,
@@ -25,8 +25,8 @@ pub struct ContextState {
 pub struct BufferBackend<'a> {
     buffer: &'a mut Buffer,
     arena: &'a mut Arena,
-    state: ContextState,
-    stacks: Vec<ContextState>,
+    context: Context,
+    stacks: Vec<Context>,
 }
 
 impl<'buf> BufferBackend<'buf> {
@@ -36,7 +36,7 @@ impl<'buf> BufferBackend<'buf> {
         Self {
             buffer,
             arena,
-            state: ContextState {
+            context: Context {
                 rect: clip,
                 origin: Point::ZERO,
                 fill_style: Style::None,
@@ -48,37 +48,37 @@ impl<'buf> BufferBackend<'buf> {
     }
 
     pub fn fill_style(&mut self, style: Style) -> &mut Self {
-        self.state.fill_style = style;
+        self.context.fill_style = style;
         self
     }
 
     pub fn fill_char(&mut self, char: char) -> &mut Self {
-        self.state.fill_char = char;
+        self.context.fill_char = char;
         self
     }
 
     pub fn stroke_type(&mut self, border: Border) -> &mut Self {
-        self.state.stroke_type = border;
+        self.context.stroke_type = border;
         self
     }
 
     pub fn local<T: Translate<Point>>(&self, rect: T) -> T::Output {
-        rect.translate(&self.state.origin)
+        rect.translate(&self.context.origin)
     }
 
     pub fn clip(&mut self, rect: Rect) -> &mut Self {
-        self.state.rect = self.state.rect.intersect(&self.local(rect));
+        self.context.rect = self.context.rect.intersect(&self.local(rect));
         self
     }
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
     pub fn translate(&mut self, offset: Point) -> &mut Self {
-        self.state.origin = self.state.origin + offset;
+        self.context.origin = self.context.origin + offset;
         self
     }
 
     fn intersect(&self, rect: Rect) -> Option<Rect> {
-        let result = self.state.rect
+        let result = self.context.rect
             .intersect(&rect);
 
         if result.is_empty() {
@@ -89,7 +89,7 @@ impl<'buf> BufferBackend<'buf> {
     }
 
     fn resolve_rect(&self, rect: impl Into<Option<Rect>>) -> Rect {
-        rect.into().map(|r| self.local(r)).unwrap_or(self.state.rect)
+        rect.into().map(|r| self.local(r)).unwrap_or(self.context.rect)
     }
 
     fn resolve_position(&self, pos: impl Into<Option<Point>>) -> Point {
@@ -97,15 +97,15 @@ impl<'buf> BufferBackend<'buf> {
     }
 
     fn resolve_fill_style(&self, style: impl Into<Option<Style>>) -> Style {
-        style.into().unwrap_or(self.state.fill_style)
+        style.into().unwrap_or(self.context.fill_style)
     }
 
     fn resolve_stroke_type(&self, border: impl Into<Option<Border>>) -> Border {
-        border.into().unwrap_or(self.state.stroke_type)
+        border.into().unwrap_or(self.context.stroke_type)
     }
 
     fn resolve_fill_char(&self, char: impl Into<Option<char>>) -> char {
-        char.into().unwrap_or(self.state.fill_char)
+        char.into().unwrap_or(self.context.fill_char)
     }
 
     pub fn fill(&mut self, bounds: impl Into<Option<Rect>>, fill_style: impl Into<Option<Style>>, fill_char: impl Into<Option<char>>) -> &mut Self {
@@ -137,7 +137,7 @@ impl<'buf> BufferBackend<'buf> {
 
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
-            if self.state.rect.contains(&(x, y)) {
+            if self.context.rect.contains(&(x, y)) {
                 self.buffer[(x, y)].set_char_measured(border.symbol(), border.width(), self.arena);
             }
         };
@@ -175,16 +175,16 @@ impl<'buf> BufferBackend<'buf> {
             let x = position.x + i; // or your coord type
 
             // Stop if we've gone past clip right edge
-            if x + width > self.state.rect.right() {
+            if x + width > self.context.rect.right() {
                 break;
             }
 
-            if self.state.rect.contains(&(x, y))  {
+            if self.context.rect.contains(&(x, y))  {
                 self.buffer[(x, y)].set_str_measured(grapheme, width, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
                     let cont = (x + i, y);
-                    if self.state.rect.contains(&cont) {
+                    if self.context.rect.contains(&cont) {
                         self.buffer[cont].set_continuation(self.arena).set_style(style);
                     }
                 }
@@ -197,23 +197,23 @@ impl<'buf> BufferBackend<'buf> {
     }
 
     pub fn clear(&mut self, bounds: impl Into<Option<Rect>>) -> &mut Self {
-        self.fill(bounds, self.state.fill_style, self.state.fill_char)
+        self.fill(bounds, self.context.fill_style, self.context.fill_char)
     }
 
     pub fn save(&mut self) -> &mut Self {
-        self.stacks.push(self.state.clone());
+        self.stacks.push(self.context.clone());
         self
     }
 
     pub fn restore(&mut self) -> &mut Self {
         if let Some(prev) = self.stacks.pop() {
-            self.state = prev;
+            self.context = prev;
         }
         self
     }
 
     pub fn reset(&mut self) -> &mut Self {
-        self.state = ContextState::default();
+        self.context = Context::default();
         self
     }
 
@@ -241,7 +241,7 @@ impl<'a> Renderer<BufferBackend<'a>> {
     }
 }
 
-impl<'a> RendererBackend for BufferBackend<'a> {
+impl<'a> Backend for BufferBackend<'a> {
     type Error = io::Error;
 
     fn fill_style(&mut self, style: crate::Style) {

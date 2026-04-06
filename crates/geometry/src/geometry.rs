@@ -15,40 +15,17 @@ impl Geometry for Column {}
 impl Geometry for PointLike {}
 
 pub trait Bounds: Geometry + Bounded {
-    fn new(x: usize, y: usize, width: usize, height: usize) -> Self;
 }
 
 impl Bounds for Rect {
-    fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Rect {
-            min: Point { x, y },
-            max: Point {
-                x: x + width,
-                y: y + height,
-            },
-        }
-    }
+
 }
 impl Bounds for Size {
-    fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Size {
-            width,
-            height,
-        }
-    }
+
 }
 impl Bounds for Edges {
-    fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Edges {
-            top: y,
-            right: width,
-            bottom: height,
-            left: x,
-        }
-    }
+
 }
-
-
 
 
 pub trait Coordinate: Geometry + Coordinated {}

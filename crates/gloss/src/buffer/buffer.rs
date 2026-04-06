@@ -1,7 +1,7 @@
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Position, Rect, Sides, Zero};
+use geometry::{Bounded, Intersect, Point, Rect, Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;
 use std::ops::{Index, IndexMut};
@@ -538,19 +538,6 @@ impl Buffer {
 impl From<Rect> for Buffer {
     fn from(value: Rect) -> Self {
         Self::new(value.width(), value.height())
-    }
-}
-
-impl<I: BufferIndex> Index<I> for Buffer {
-    type Output = I::Output;
-    fn index(&self, index: I) -> &Self::Output {
-        index.index_of(self).index(self)
-    }
-}
-
-impl<I: BufferIndex> IndexMut<I> for Buffer {
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        index.index_of(self).index_mut(self)
     }
 }
 

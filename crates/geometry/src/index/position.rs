@@ -1,4 +1,4 @@
-use crate::{Column, Point, Row, Size};
+use crate::{Column, Point, Rect, Row, Size};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub};
 
@@ -233,3 +233,10 @@ impl<T: Display> Display for Position<T> {
         write!(f, "[{}, {}]", self.row, self.col)
     }
 }
+
+/// An axis-aligned rectangle for buffer-space coordinates.
+///
+/// Areas are represented as half-open ranges: `[min, max)`.
+/// The `min` position is inclusive, the `max` position is exclusive.
+pub type Area = Rect<Position>;
+

@@ -136,7 +136,7 @@ impl Buffer {
                     remaining_width = remaining_width.checked_sub(width)?;
                     Some((symbol, width))
                 }) {
-                slice[i].set_measured_str(symbol, width, arena);
+                slice[i].set_str_measured(symbol, width, arena);
 
                 let next_symbol = i + width;
                 i += 1;

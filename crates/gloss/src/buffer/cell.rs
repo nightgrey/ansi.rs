@@ -128,14 +128,14 @@ impl Cell {
     }
 
     pub fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
-        self.set_measured_char(char, char.width().unwrap_or(0) , arena)
+        self.set_char_measured(char, char.width().unwrap_or(0), arena)
     }
 
     pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
-        self.set_measured_str(str, str.width(), arena)
+        self.set_str_measured(str, str.width(), arena)
     }
 
-    pub fn set_measured_char(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
+    pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.release(self.grapheme);
         }
@@ -149,7 +149,7 @@ impl Cell {
 
         self
     }
-    pub fn set_measured_str(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
+    pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.release(self.grapheme);
         }

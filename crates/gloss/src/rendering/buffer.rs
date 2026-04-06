@@ -22,14 +22,14 @@ pub struct ContextState {
 /// Modeled after HTML Canvas — mutable "current state" with a save/restore
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
-pub struct BufferContext<'a> {
+pub struct BufferBackend<'a> {
     buffer: &'a mut Buffer,
     arena: &'a mut Arena,
     state: ContextState,
     stacks: Vec<ContextState>,
 }
 
-impl<'buf> BufferContext<'buf> {
+impl<'buf> BufferBackend<'buf> {
     /// Create a new context spanning the full buffer.
     pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut Arena) -> Self {
         let clip = buffer.bounds(); // full buffer rect
@@ -138,7 +138,7 @@ impl<'buf> BufferContext<'buf> {
         // We clip each cell individually so partial borders work.
         let mut set = |x: usize, y: usize, border: Symbol| {
             if self.state.rect.contains(&(x, y)) {
-                self.buffer[(x, y)].set_measured_char(border.symbol(), border.width(), self.arena);
+                self.buffer[(x, y)].set_char_measured(border.symbol(), border.width(), self.arena);
             }
         };
 
@@ -180,7 +180,7 @@ impl<'buf> BufferContext<'buf> {
             }
 
             if self.state.rect.contains(&(x, y))  {
-                self.buffer[(x, y)].set_measured_str(grapheme, width, self.arena);
+                self.buffer[(x, y)].set_str_measured(grapheme, width, self.arena);
                 // For wide chars, mark continuation cell(s)
                 for i in 1..width {
                     let cont = (x + i, y);
@@ -235,13 +235,13 @@ impl<'buf> BufferContext<'buf> {
 
 }
 
-impl<'a> Renderer<BufferContext<'a>> {
+impl<'a> Renderer<BufferBackend<'a>> {
     pub fn new(buffer: &'a mut Buffer, arena: &'a mut Arena) -> Self {
-        Self(BufferContext::new(buffer, arena))
+        Self(BufferBackend::new(buffer, arena))
     }
 }
 
-impl<'a> RendererBackend for BufferContext<'a> {
+impl<'a> RendererBackend for BufferBackend<'a> {
     type Error = io::Error;
 
     fn fill_style(&mut self, style: crate::Style) {
@@ -360,8 +360,8 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferContext<'a>> {
-        BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer()
+    fn renderer<'a>(context: &'a mut Context) -> Renderer<BufferBackend<'a>> {
+        BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer()
     }
 
     #[test]
@@ -512,7 +512,7 @@ mod tests {
 
         document.compute_layout(Space::new(20u32, 10u32));
 
-        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
+        let mut renderer = BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // Text should appear at content area offset (padding=2 on each side)
@@ -554,7 +554,7 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
+        let mut renderer = BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         let div_bounds = document.bounds(child_div);
@@ -596,7 +596,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
+        let mut renderer = BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // First child
@@ -630,7 +630,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferContext::new(&mut context.buffer, &mut context.arena).into_renderer();
+        let mut renderer = BufferBackend::new(&mut context.buffer, &mut context.arena).into_renderer();
         renderer.render(&document).unwrap();
 
         // Side by side in row layout

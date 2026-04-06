@@ -71,7 +71,18 @@ impl Grapheme {
 
     /// The sentinel tag value marking an extended (arena-stored) grapheme.
     pub const EXTENDED_TAG: u8 = 0x01;
-
+    // 
+    // pub fn new(value: impl Encode, arena: Option<&mut Arena>) -> Self {
+    //     Self::try_new(value, arena).unwrap()
+    // }
+    // 
+    // pub fn try_new(value: impl Encode, arena: Option<&mut Arena>) -> Result<Self, GraphemeError> {
+    //     match arena {
+    //         None => value.try_inline(),
+    //         Some(arena) => value.try_extended(arena),
+    //     }
+    // }
+    
     /// Create a grapheme from a string slice.
     ///
     /// If the string fits in 4 UTF-8 bytes, it is stored inline (no arena
@@ -299,7 +310,7 @@ impl Encode for &str {
 
 }
 
-impl  Encode for char {
+impl Encode for char {
     fn try_inline(self) -> Result<Grapheme, GraphemeError> {
         Ok(Grapheme::inline_const(self))
     }

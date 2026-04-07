@@ -183,7 +183,7 @@ impl Cell {
         self
     }
 
-    pub fn replace_grapheme(&mut self, grapheme: Grapheme, width: usize, arena: &mut Arena) -> &mut Self {
+    pub fn replace(&mut self, grapheme: Grapheme, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -196,19 +196,17 @@ impl Cell {
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
     /// may be arena-stored. No-op for inline and empty graphemes.
-    pub fn release_grapheme(&mut self, arena: &mut Arena) -> &mut Self {
+    pub fn release(&mut self, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
-        self.grapheme = Grapheme::SPACE;
-        self.width = 0;
         self
     }
 
     /// Reset this cell to empty (no grapheme, default style).
     ///
     /// Does **not** release arena storage — call
-    /// [`release`](Self::release_grapheme) first if needed.
+    /// [`release`](Self::release) first if needed.
     pub fn clear(&mut self) {
         *self = Self::EMPTY;
     }

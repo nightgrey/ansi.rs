@@ -52,7 +52,7 @@ pub enum Display {
     Flex,
 }
 
-pub type Border = crate::symbols::BorderStyle;
+pub type BorderStyle = crate::symbols::BorderStyle;
 
 pub type FlexWrap = taffy::FlexWrap;
 pub type FlexDirection = taffy::FlexDirection;

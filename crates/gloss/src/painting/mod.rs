@@ -1,5 +1,5 @@
-mod buffer;
-mod renderer;
+mod buffer_drawing_context;
+mod painter;
 
-pub use buffer::*;
-pub use renderer::*;
+pub use buffer_drawing_context::*;
+pub use painter::*;

@@ -21,7 +21,7 @@ pub struct Style {
     pub justify_items: Option<JustifyItems>,
     pub justify_self: Option<AlignSelf>,
     pub justify_content: Option<JustifyContent>,
-    pub border: Border,
+    pub border: BorderStyle,
     pub color: Option<Color>,
     pub background: Option<Color>,
     pub text_decoration: Option<TextDecoration>,
@@ -36,7 +36,7 @@ impl Style {
         display: Display::Flex,
         margin: Edges::ZERO,
         padding: Edges::ZERO,
-        border: Border::None,
+        border: BorderStyle::None,
         color: None,
         background: None,
         text_decoration: None,
@@ -88,7 +88,7 @@ impl Style {
             }
             (None, None) => (),
         };
-        
+
         match (from.text_decoration, self.text_decoration) {
             (Some(_), Some(x)) => {
                 result.text_decoration = Some(x);
@@ -101,7 +101,7 @@ impl Style {
             }
             (None, None) => (),
         };
-        
+
         match (from.font_style, self.font_style) {
             (Some(_), Some(x)) => {
                 result.font_style = Some(x);
@@ -180,7 +180,29 @@ macro_rules! property {
     };
 }
 
+impl From<ansi::Style> for Style {
+    fn from(style: ansi::Style) -> Self {
+        let mut result = Self::DEFAULT;
 
+        if style.attributes.contains(ansi::Attribute::Bold) {
+            result.font_weight = Some(FontWeight::Bold);
+        }
+        if style.attributes.contains(ansi::Attribute::Italic) {
+            result.font_style = Some(FontStyle::Italic);
+        }
+        if style.attributes.contains(ansi::Attribute::Underline) {
+            result.text_decoration = Some(TextDecoration::Underline);
+        }
+        if style.attributes.contains(ansi::Attribute::Strikethrough) {
+            result.text_decoration = Some(TextDecoration::LineThrough);
+        }
+
+        result.color = Some(style.foreground);
+        result.background = Some(style.background);
+
+        result
+    }
+}
 impl From<Style> for ansi::Style {
     fn from(style: Style) -> Self {
         if style.is_default() { return ansi::Style::default() }

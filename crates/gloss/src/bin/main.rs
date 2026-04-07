@@ -1,8 +1,7 @@
 use std::io::{self, Write as _};
 use ansi::{Color};
-use geometry::Bounded;
+use geometry::{Bounded, Point, Rect};
 use gloss::*;
-use tree::At;
 
 fn main() -> io::Result<()> {
     let mut arena = Arena::new();
@@ -19,7 +18,7 @@ fn main() -> io::Result<()> {
         Node::Span("Hello World!"),
         |node| {
             node.margin.top = Dimension::Length(1);
-            node.border = Border::Bold;
+            node.border = BorderStyle::Bold;
             node.text_decoration = Some(TextDecoration::Underline);
             node.font_weight = Some(FontWeight::Bold);
             node.background = Some(Color::None);
@@ -54,7 +53,10 @@ fn main() -> io::Result<()> {
     document.compute_layout(Space::from(buffer.size()));
         let mut renderer = Painter::new(&mut buffer, &mut arena);
 
-        renderer.render(&document)?;
+    renderer.glyph = 'o';
+    renderer.outline(Rect::new(0, 0, 10, 5));
+
+        // renderer.render(&document)?;
 
         rasterizer.raster(&buffer, &arena)?;
         rasterizer.flush(&mut stdout)?;

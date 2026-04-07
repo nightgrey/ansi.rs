@@ -548,7 +548,9 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn resize(&mut self, size: Size) -> &mut Self {
-        self.resize(size)
+        self.buffer.resize(size.width, size.height);
+        self.context.clip = self.buffer.bounds();
+        self
     }
 
     fn finish(&mut self) -> &mut Self {
@@ -673,6 +675,7 @@ mod tests {
 
         {
             let mut renderer = renderer(&mut context);
+            renderer.glyph = 'X';
             renderer.save();
             renderer.clip(Rect::from(Size::new(5, 5)));
             renderer.rect(Rect::from(Size::new(15, 5)));
@@ -697,6 +700,7 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
+        renderer.glyph = 'W';
         renderer.within(Rect::bounds(Point::new(2, 2), Point::new(6, 6)), |r| {
             r.rect(Rect::new(0, 0, 5, 5));
         });

@@ -53,9 +53,17 @@ fn main() -> io::Result<()> {
     document.compute_layout(Space::from(buffer.size()));
         let mut renderer = Painter::new(&mut buffer, &mut arena);
 
-    renderer.glyph = 'o';
-    renderer.outline(Rect::new(0, 0, 10, 5));
+    renderer.with(|renderer| {
+        renderer.foreground(Color::Blue);
+        renderer.glyph = '-';
+        renderer.rect(Rect::new(0, 0, 10, 5));
+    });
 
+    renderer.with(|renderer| {
+        renderer.foreground(Color::Red);
+        renderer.glyph = 'x';
+        renderer.outline(Rect::new(0, 0, 10, 5));
+    });
         // renderer.render(&document)?;
 
         rasterizer.raster(&buffer, &arena)?;

@@ -1,6 +1,6 @@
 use std::io;
 use std::ops::Sub;
-use bon::{bon, builder, Builder};
+use bon::{Builder};
 use derive_more::{Deref, DerefMut};
 use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate, Resolve};
@@ -8,7 +8,7 @@ use crate::{Buffer, Arena, Cell, PainterOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{BorderStyle, DrawingContext, Painter};
 use crate::symbols::Symbol;
-use ansi::Style;
+use ansi::{Attribute, Color, Style};
 
 // ── Options Structs ────────────────────────────────────────────────────────
 //
@@ -87,6 +87,21 @@ impl<'buf> BufferDrawingContext<'buf> {
     /// Set the fill style for subsequent draw operations.
     pub fn style(&mut self, style: Style) -> &mut Self {
         self.context.style = style;
+        self
+    }
+
+    pub fn foreground(&mut self, color: Color) -> &mut Self {
+        self.context.style.foreground = color;
+        self
+    }
+
+    pub fn background(&mut self, color: Color) -> &mut Self {
+        self.context.style.background = color;
+        self
+    }
+
+    pub fn attributes(&mut self, attributes: Attribute) -> &mut Self {
+        self.context.style.attributes = attributes;
         self
     }
 

@@ -5,7 +5,7 @@ use ansi::sequences::*;
 use std::io;
 use geometry::{Bounded, Row};
 use terminal::Capabilities;
-use super::cursor::Cursor;
+use super::cursor::Pen;
 use crate::Cell;
 use crate::{Buffer, Arena};
 
@@ -13,7 +13,7 @@ use crate::{Buffer, Arena};
 pub struct Rasterizer {
     output: Vec<u8>,
     shadow: Buffer,
-    pen: Cursor,
+    pen: Pen,
     capabilities: Capabilities,
     invalidated: bool,
     inline: Option<InlineState>,
@@ -25,7 +25,7 @@ impl Rasterizer {
         Self {
             output: Vec::with_capacity(width * height * 4),
             shadow: Buffer::new(width, height),
-            pen: Cursor::new(),
+            pen: Pen::new(),
             capabilities: Capabilities::from_env(),
             invalidated: true,
             inline: None,
@@ -47,7 +47,7 @@ impl Rasterizer {
         Self {
             output: Vec::with_capacity(buffer.width * buffer.height * 4),
             shadow: Buffer::new(buffer.width, buffer.height),
-            pen: Cursor::new(),
+            pen: Pen::new(),
             capabilities: Capabilities::default(),
             invalidated: true,
             inline: None,
@@ -180,7 +180,7 @@ impl Rasterizer {
 
     /// Render an entire buffer to the writer, no diffing.
     pub fn once(buffer: &Buffer, arena: &Arena, out: &mut impl io::Write) -> io::Result<()> {
-        let mut pen = Cursor::new();
+        let mut pen = Pen::new();
         let mut output = Vec::with_capacity(buffer.width * buffer.height * 4);
 
         output.escape(TextCursorEnable::Reset)?;
@@ -363,7 +363,7 @@ impl Rasterizer {
         arena: &Arena,
         y: usize,
         output: &mut Vec<u8>,
-        cursor: &mut Cursor,
+        cursor: &mut Pen,
         cursor_mode: CursorMode,
         width: usize,
     ) -> io::Result<()> {
@@ -383,7 +383,7 @@ impl Rasterizer {
 
         // Move cursor to start of changed region.
         match cursor_mode {
-            CursorMode::Absolute(caps) => cursor.move_to(y, first, output, caps),
+            CursorMode::Absolute(caps) => cursor.move_to(y, first, output),
             CursorMode::Relative => cursor.move_to_relative(y, first, output),
         }
 
@@ -418,7 +418,7 @@ impl Rasterizer {
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
-    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Cursor, arena: &Arena) -> io::Result<()> {
+    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
         cursor.transition(output, cell.style)?;
 
             output.extend_from_slice(cell.as_bytes(arena));

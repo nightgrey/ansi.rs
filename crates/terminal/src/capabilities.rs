@@ -200,7 +200,7 @@ pub struct Capabilities {
     pub sync_output: bool,
     /// OSC 8 hyperlinks support.
     #[builder(default)]
-    pub osc8_hyperlinks: bool,
+    pub hyperlinks: bool,
     /// Scroll region support (DECSTBM).
     #[builder(default)]
     pub scroll_region: bool,
@@ -239,7 +239,7 @@ pub struct Capabilities {
     // Optional features
     /// OSC 52 clipboard support (best-effort, security restricted in some terminals).
     #[builder(default)]
-    pub osc52_clipboard: bool,
+    pub clipboard: bool,
 }
 
 // ============================================================================
@@ -303,7 +303,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: true,
-            osc8_hyperlinks: true,
+            hyperlinks: true,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -313,7 +313,7 @@ impl Capabilities {
             focus_events: true,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: true,
+            clipboard: true,
         }
     }
 
@@ -331,7 +331,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -341,7 +341,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -358,7 +358,7 @@ impl Capabilities {
             unicode_emoji: false,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -368,7 +368,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -385,7 +385,7 @@ impl Capabilities {
             unicode_emoji: false,
             double_width: false,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -395,7 +395,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: false,
             mouse_sgr: false,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -412,7 +412,7 @@ impl Capabilities {
             unicode_emoji: false,
             double_width: false,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: false,
             in_tmux: false,
             in_screen: false,
@@ -422,7 +422,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: false,
             mouse_sgr: false,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -440,7 +440,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: true,
@@ -450,7 +450,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -468,7 +468,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: true,
             in_screen: false,
@@ -478,7 +478,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -495,7 +495,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -505,7 +505,7 @@ impl Capabilities {
             focus_events: true,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -522,7 +522,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: false,
-            osc8_hyperlinks: true,
+            hyperlinks: true,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -532,7 +532,7 @@ impl Capabilities {
             focus_events: true,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: true,
+            clipboard: true,
         }
     }
 
@@ -549,7 +549,7 @@ impl Capabilities {
             unicode_emoji: true,
             double_width: true,
             sync_output: true,
-            osc8_hyperlinks: true,
+            hyperlinks: true,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -559,7 +559,7 @@ impl Capabilities {
             focus_events: true,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: true,
+            clipboard: true,
         }
     }
 
@@ -576,7 +576,7 @@ impl Capabilities {
             unicode_emoji: false,
             double_width: false,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: true,
             in_tmux: false,
             in_screen: false,
@@ -586,7 +586,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: true,
             mouse_sgr: true,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -669,7 +669,7 @@ impl Capabilities {
         }));
 
         // OSC 8 hyperlinks detection
-        let osc8_hyperlinks = !inputs.no_color && !is_dumb && is_modern_terminal;
+        let hyperlinks = !inputs.no_color && !is_dumb && is_modern_terminal;
 
         // Scroll region support (broadly available except dumb)
         let scroll_region = !is_dumb;
@@ -706,7 +706,7 @@ impl Capabilities {
             unicode_emoji,
             double_width,
             sync_output,
-            osc8_hyperlinks,
+            hyperlinks: hyperlinks,
             scroll_region,
             in_tmux,
             in_screen,
@@ -716,7 +716,7 @@ impl Capabilities {
             focus_events,
             bracketed_paste,
             mouse_sgr,
-            osc52_clipboard,
+            clipboard: osc52_clipboard,
         }
     }
 
@@ -734,7 +734,7 @@ impl Capabilities {
             unicode_emoji: false,
             double_width: false,
             sync_output: false,
-            osc8_hyperlinks: false,
+            hyperlinks: false,
             scroll_region: false,
             in_tmux: false,
             in_screen: false,
@@ -744,7 +744,7 @@ impl Capabilities {
             focus_events: false,
             bracketed_paste: false,
             mouse_sgr: false,
-            osc52_clipboard: false,
+            clipboard: false,
         }
     }
 
@@ -818,7 +818,7 @@ impl Capabilities {
         if self.in_any_mux() {
             return false;
         }
-        self.osc8_hyperlinks
+        self.hyperlinks
     }
 
     /// Whether OSC 52 clipboard access should be used.
@@ -831,7 +831,7 @@ impl Capabilities {
         if self.in_any_mux() {
             return false;
         }
-        self.osc52_clipboard
+        self.clipboard
     }
 
     /// Whether the passthrough wrapping is needed for this environment.
@@ -1000,7 +1000,7 @@ mod tests {
         assert!(!caps.true_color);
         assert!(!caps.colors_256);
         assert!(!caps.sync_output);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         assert!(!caps.scroll_region);
         assert!(!caps.in_tmux);
         assert!(!caps.in_screen);
@@ -1009,7 +1009,7 @@ mod tests {
         assert!(!caps.focus_events);
         assert!(!caps.bracketed_paste);
         assert!(!caps.mouse_sgr);
-        assert!(!caps.osc52_clipboard);
+        assert!(!caps.clipboard);
     }
 
     #[test]
@@ -1092,7 +1092,7 @@ mod tests {
         assert!(caps.true_color, "WT_SESSION implies true color by default");
         assert!(caps.colors_256, "truecolor implies 256-color");
         assert!(
-            caps.osc8_hyperlinks,
+            caps.hyperlinks,
             "WT_SESSION implies OSC 8 hyperlink support by default"
         );
         assert!(
@@ -1110,7 +1110,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color, "WT_SESSION implies true color");
         assert!(caps.colors_256, "WT_SESSION implies 256-color");
-        assert!(caps.osc8_hyperlinks, "WT_SESSION implies OSC 8 support");
+        assert!(caps.hyperlinks, "WT_SESSION implies OSC 8 support");
     }
 
     #[test]
@@ -1134,7 +1134,7 @@ mod tests {
         assert!(!caps.true_color, "NO_COLOR must disable true color");
         assert!(!caps.colors_256, "NO_COLOR must disable 256-color");
         assert!(
-            !caps.osc8_hyperlinks,
+            !caps.hyperlinks,
             "NO_COLOR must disable OSC 8 hyperlinks"
         );
     }
@@ -1200,7 +1200,7 @@ mod tests {
     #[test]
     fn use_hyperlinks_disabled_in_mux() {
         let mut caps = Capabilities::basic();
-        caps.osc8_hyperlinks = true;
+        caps.hyperlinks = true;
         assert!(caps.use_hyperlinks());
 
         caps.in_tmux = true;
@@ -1214,7 +1214,7 @@ mod tests {
     #[test]
     fn use_clipboard_disabled_in_mux() {
         let mut caps = Capabilities::basic();
-        caps.osc52_clipboard = true;
+        caps.clipboard = true;
         assert!(caps.use_clipboard());
 
         caps.in_screen = true;
@@ -1279,7 +1279,7 @@ mod tests {
         assert!(!caps.true_color);
         assert!(!caps.colors_256);
         assert!(!caps.sync_output);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         assert!(!caps.scroll_region);
         assert!(!caps.focus_events);
         assert!(!caps.bracketed_paste);
@@ -1294,7 +1294,7 @@ mod tests {
         assert!(!caps.colors_256);
         assert!(!caps.bracketed_paste);
         assert!(!caps.mouse_sgr);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
     }
 
     #[test]
@@ -1366,11 +1366,11 @@ mod tests {
             !caps.sync_output,
             "WezTerm sync output is hard-disabled as a safety fallback"
         );
-        assert!(caps.osc8_hyperlinks, "WezTerm supports hyperlinks");
+        assert!(caps.hyperlinks, "WezTerm supports hyperlinks");
         assert!(caps.kitty_keyboard, "WezTerm supports kitty keyboard");
         assert!(caps.focus_events);
         assert!(
-            !caps.osc52_clipboard,
+            !caps.clipboard,
             "conservative mux policy should disable raw OSC52 detection"
         );
         assert!(!caps.use_scroll_region());
@@ -1550,7 +1550,7 @@ mod tests {
         let env = make_env("xterm-256color", "iTerm.app", "truecolor");
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color, "iTerm2 implies truecolor");
-        assert!(caps.osc8_hyperlinks, "iTerm2 supports OSC 8 hyperlinks");
+        assert!(caps.hyperlinks, "iTerm2 supports OSC 8 hyperlinks");
     }
 
     #[test]
@@ -1559,7 +1559,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
         assert!(caps.sync_output);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.kitty_keyboard);
         assert!(caps.focus_events);
     }
@@ -1570,7 +1570,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
         assert!(caps.sync_output);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.kitty_keyboard);
         assert!(caps.focus_events);
     }
@@ -1580,7 +1580,7 @@ mod tests {
         let env = make_env("xterm-256color", "iTerm.app", "truecolor");
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.kitty_keyboard);
         assert!(caps.focus_events);
     }
@@ -1590,7 +1590,7 @@ mod tests {
         let env = make_env("xterm-256color", "vscode", "truecolor");
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.focus_events);
     }
 
@@ -1604,7 +1604,7 @@ mod tests {
         assert!(caps.in_tmux);
         assert!(caps.in_any_mux());
         assert!(caps.colors_256);
-        assert!(!caps.osc52_clipboard, "clipboard disabled in tmux");
+        assert!(!caps.clipboard, "clipboard disabled in tmux");
     }
 
     #[test]
@@ -1628,7 +1628,7 @@ mod tests {
             !caps.needs_passthrough_wrap(),
             "Zellij handles passthrough natively"
         );
-        assert!(!caps.osc52_clipboard, "clipboard disabled in mux");
+        assert!(!caps.clipboard, "clipboard disabled in mux");
     }
 
     #[test]
@@ -1654,7 +1654,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(!caps.true_color);
         assert!(!caps.colors_256);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         // But non-color features still work
         assert!(!caps.sync_output);
         assert!(caps.bracketed_paste);
@@ -1671,7 +1671,7 @@ mod tests {
             !caps.true_color,
             "unknown terminal should not assume truecolor"
         );
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         // But basic features still work
         assert!(caps.bracketed_paste);
         assert!(caps.mouse_sgr);
@@ -1699,7 +1699,7 @@ mod tests {
         let env = make_env("xterm-256color", "Rio", "truecolor");
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.kitty_keyboard);
         assert!(caps.focus_events);
     }
@@ -1710,7 +1710,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
         assert!(caps.sync_output);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.focus_events);
     }
 
@@ -1726,7 +1726,7 @@ mod tests {
         let env = make_env("xterm-256color", "Hyper", "truecolor");
         let caps = Capabilities::from_inputs(&env);
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.focus_events);
     }
 
@@ -1769,7 +1769,7 @@ mod tests {
         // Modern terminal detection still works via TERM_PROGRAM
         assert!(caps.true_color, "WezTerm is modern, implies truecolor");
         assert!(!caps.sync_output);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
     }
 
     #[test]
@@ -1779,7 +1779,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         // TERM contains "alacritty" which matches lowercase of MODERN_TERMINALS
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
     }
 
     // ====== Kitty detection edge cases ======
@@ -1808,7 +1808,7 @@ mod tests {
     fn use_clipboard_enabled_when_no_mux_and_modern() {
         let env = make_env("xterm-256color", "Alacritty", "truecolor");
         let caps = Capabilities::from_inputs(&env);
-        assert!(caps.osc52_clipboard);
+        assert!(caps.clipboard);
         assert!(caps.use_clipboard());
     }
 
@@ -1818,7 +1818,7 @@ mod tests {
         env.in_tmux = true;
         let caps = Capabilities::from_inputs(&env);
         // osc52_clipboard is already false due to mux detection in detect_from_inputs
-        assert!(!caps.osc52_clipboard);
+        assert!(!caps.clipboard);
         assert!(!caps.use_clipboard());
     }
 
@@ -1838,7 +1838,7 @@ mod tests {
         // Visual features disabled
         assert!(!caps.true_color);
         assert!(!caps.colors_256);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         // Non-visual features preserved
         assert!(!caps.sync_output);
         assert!(caps.kitty_keyboard);
@@ -1907,13 +1907,13 @@ mod tests {
         assert!(caps.true_color);
         assert!(caps.colors_256);
         assert!(caps.sync_output);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.scroll_region);
         assert!(caps.kitty_keyboard);
         assert!(caps.focus_events);
         assert!(caps.bracketed_paste);
         assert!(caps.mouse_sgr);
-        assert!(caps.osc52_clipboard);
+        assert!(caps.clipboard);
         assert!(!caps.in_any_mux());
     }
 
@@ -1924,7 +1924,7 @@ mod tests {
         assert!(!caps.true_color);
         assert!(caps.colors_256);
         assert!(!caps.sync_output);
-        assert!(!caps.osc8_hyperlinks);
+        assert!(!caps.hyperlinks);
         assert!(caps.scroll_region);
         assert!(caps.bracketed_paste);
         assert!(caps.mouse_sgr);
@@ -2007,7 +2007,7 @@ mod tests {
         assert!(caps.true_color);
         assert!(caps.sync_output);
         assert!(caps.kitty_keyboard);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
     }
 
     #[test]
@@ -2015,7 +2015,7 @@ mod tests {
         let caps = Capabilities::windows_console();
         assert_eq!(caps.profile(), Profile::WindowsConsole);
         assert!(caps.true_color);
-        assert!(caps.osc8_hyperlinks);
+        assert!(caps.hyperlinks);
         assert!(caps.focus_events);
     }
 
@@ -2109,7 +2109,7 @@ mod tests {
                 .in_wezterm_mux(true)
                 .sync_output(true)
                 .scroll_region(true)
-                .osc8_hyperlinks(true)
+                .hyperlinks(true)
                 .build();
             assert!(!caps.use_sync_output(), "wezterm mux: sync_output disabled");
             assert!(
@@ -2299,14 +2299,14 @@ mod proptests {
             in_screen in any::<bool>(),
             in_zellij in any::<bool>(),
             in_wezterm_mux in any::<bool>(),
-            osc8_hyperlinks in any::<bool>(),
+            hyperlinks in any::<bool>(),
         ) {
             let caps = Capabilities::builder()
                 .in_tmux(in_tmux)
                 .in_screen(in_screen)
                 .in_zellij(in_zellij)
                 .in_wezterm_mux(in_wezterm_mux)
-                .osc8_hyperlinks(osc8_hyperlinks)
+                .hyperlinks(hyperlinks)
                 .build();
 
             if caps.in_any_mux() {
@@ -2348,13 +2348,13 @@ mod proptests {
                 .in_wezterm_mux(in_wezterm_mux)
                 .sync_output(false)
                 .scroll_region(false)
-                .osc8_hyperlinks(false)
-                .osc52_clipboard(false)
+                .hyperlinks(false)
+                .clipboard(false)
                 .build();
 
             prop_assert!(!caps.use_sync_output(), "sync_output=false implies use_sync_output()=false");
             prop_assert!(!caps.use_scroll_region(), "scroll_region=false implies use_scroll_region()=false");
-            prop_assert!(!caps.use_hyperlinks(), "osc8_hyperlinks=false implies use_hyperlinks()=false");
+            prop_assert!(!caps.use_hyperlinks(), "hyperlinks=false implies use_hyperlinks()=false");
             prop_assert!(!caps.use_clipboard(), "osc52_clipboard=false implies use_clipboard()=false");
         }
 
@@ -2380,7 +2380,7 @@ mod proptests {
             if no_color {
                 prop_assert!(!caps.true_color, "NO_COLOR disables true_color");
                 prop_assert!(!caps.colors_256, "NO_COLOR disables colors_256");
-                prop_assert!(!caps.osc8_hyperlinks, "NO_COLOR disables hyperlinks");
+                prop_assert!(!caps.hyperlinks, "NO_COLOR disables hyperlinks");
             }
 
             // Non-visual features preserved regardless of NO_COLOR

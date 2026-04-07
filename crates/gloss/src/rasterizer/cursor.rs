@@ -1,9 +1,10 @@
 use std::io;
-use super::capabilities::Capabilities;
 use ansi::io::Write;
 use ansi::{Escape, Style, escape, sequences::*};
 use std::ops::Sub;
 use maybe::Maybe;
+use terminal::Capabilities;
+
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Debug)]
 pub struct Cursor {
@@ -55,8 +56,8 @@ impl Cursor {
         // CR is 1 byte, then vertical move, then CUF to target_col
         let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
-        // Strategy 3: VPA + CHA (requires capabilities)
-        let cost_vpa_cha = if caps.contains(Capabilities::VPA | Capabilities::CHA) {
+        // Strategy 3: VPA + CHA
+        let cost_vpa_cha = {
             let v = if dr != 0 {
                 VerticalPositionAbsolute(row).cost()
             } else {
@@ -68,8 +69,6 @@ impl Cursor {
                 0
             };
             v + h
-        } else {
-            usize::MAX
         };
 
         // Pick the cheapest strategy.
@@ -197,7 +196,7 @@ mod tests {
     fn move_to_same_position_is_noop() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.move_to(0, 0, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(0, 0, &mut buf, Capabilities::default());
         assert!(buf.is_empty());
     }
 
@@ -206,7 +205,7 @@ mod tests {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
         // Moving right by 1 should use CUF (3 bytes) not CUP (6+ bytes)
-        cursor.move_to(0, 1, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(0, 1, &mut buf, Capabilities::default());
         assert_eq!(buf, b"\x1B[C");
     }
 
@@ -217,7 +216,7 @@ mod tests {
         cursor.col = 10;
         let mut buf = Vec::new();
         // Same row, col 0 — CR (1 byte) is cheapest
-        cursor.move_to(5, 0, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(5, 0, &mut buf, Capabilities::default());
         assert_eq!(buf, b"\r");
     }
 
@@ -225,7 +224,7 @@ mod tests {
     fn move_to_uses_cup_for_distant_positions() {
         let mut cursor = Cursor::new();
         let mut buf = Vec::new();
-        cursor.move_to(50, 80, &mut buf, Capabilities::DEFAULT);
+        cursor.move_to(50, 80, &mut buf, Capabilities::default());
         let output = String::from_utf8_lossy(&buf);
         // Should use some form of absolute positioning
         assert!(output.contains('\x1B'));

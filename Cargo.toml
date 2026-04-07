@@ -4,7 +4,7 @@ members = [
     "crates/ansi", "crates/geometry","crates/utils",
     "crates/utils/crates/tree",
     "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
-    "crates/utils/crates/maybe/core", "crates/utils/crates/maybe/derive", "crates/gloss",
+    "crates/utils/crates/maybe/core", "crates/utils/crates/maybe/derive", "crates/gloss", "crates/terminal",
 ]
 
 [workspace.dependencies]
@@ -14,6 +14,7 @@ geometry = { path = "crates/geometry" }
 utils = { path = "crates/utils" }
 tree = { path = "crates/utils/crates/tree" }
 gloss = { path = "crates/gloss" }
+terminal = { path = "crates/terminal" }
 
 tagged = { path = "crates/utils/crates/tagged/core" }
 tagged-derive = { path = "crates/utils/crates/tagged/derive" }

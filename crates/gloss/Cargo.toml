@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 utils = { workspace = true }
 ansi = { workspace = true }
+terminal = { workspace = true }
+
 geometry = { workspace = true }
 tree = { workspace = true }
 maybe = { workspace = true }
@@ -27,6 +29,8 @@ typed-builder = "0.23.2"
 bon = "3.9.1"
 memchr = "2.8.0"
 packed_struct = "0.10.1"
+fast-strip-ansi = "0.13.1"
+vt-push-parser = "0.13.1"
 
 [dev-dependencies]
 criterion = "0.8.2"

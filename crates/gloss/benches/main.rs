@@ -2,9 +2,9 @@ use ansi::{Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
 use derive_more::{Deref, DerefMut};
 use gloss::{Arena, Buffer, Cell};
-use gloss::Capabilities;
 use gloss::Rasterizer;
 use std::hint::black_box;
+use terminal::Capabilities;
 
 #[derive(Clone, Debug, Deref, DerefMut)]
 struct Test(
@@ -505,7 +505,10 @@ fn identical_frame(c: &mut Criterion) {
 
 /// Scroll-up optimization using DECSTBM + SU.
 fn scroll_up(c: &mut Criterion) {
-    let caps = Capabilities::DEFAULT | Capabilities::SCROLL_REGION | Capabilities::SCROLL;
+    let caps = Capabilities::builder()
+        .scroll_region(true)
+        .sync_output(true)
+        .build();
     let style = Style::None;
 
     let chars1: Vec<_> = (0..H)
@@ -604,7 +607,7 @@ fn inline_rerender(c: &mut Criterion) {
 
 /// REP optimization for long runs of identical characters.
 fn rep_long_run(c: &mut Criterion) {
-    let caps = Capabilities::DEFAULT | Capabilities::REP;
+    let caps = Capabilities::default();
     let style = Style::None;
     let buffer = filled_buffer(200, 1, 'X', style);
 

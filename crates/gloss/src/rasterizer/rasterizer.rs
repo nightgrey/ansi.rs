@@ -4,7 +4,7 @@ use ansi::io::Write;
 use ansi::sequences::*;
 use std::io;
 use geometry::{Bounded, Row};
-use super::capabilities::Capabilities;
+use terminal::Capabilities;
 use super::cursor::Cursor;
 use crate::Cell;
 use crate::{Buffer, Arena};
@@ -26,7 +26,7 @@ impl Rasterizer {
             output: Vec::with_capacity(width * height * 4),
             shadow: Buffer::new(width, height),
             pen: Cursor::new(),
-            capabilities: Capabilities::default(),
+            capabilities: Capabilities::from_env(),
             invalidated: true,
             inline: None,
         }
@@ -76,7 +76,7 @@ impl Rasterizer {
         let width = next.width;
         let height = next.height;
 
-        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+        if self.capabilities.use_sync_output() {
             self.output.escape(SynchronizedOutput::Set)?;
         }
 
@@ -108,7 +108,7 @@ impl Rasterizer {
 
         self.output.escape(SelectGraphicRendition::RESET)?;
         self.output.escape(TextCursorEnable::Set)?;
-        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+        if self.capabilities.use_sync_output() {
             self.output.escape(SynchronizedOutput::Reset)?;
         }
 
@@ -227,7 +227,7 @@ impl Rasterizer {
 
         let inline = self.inline.as_mut().expect("inline state required");
 
-        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+        if self.capabilities.use_sync_output() {
             self.output.escape(SynchronizedOutput::Set)?;
         }
 
@@ -339,7 +339,7 @@ impl Rasterizer {
         self.pen.reset_style(&mut self.output);
         self.output.escape(TextCursorEnable::Set)?;
 
-        if self.capabilities.contains(Capabilities::SYNC_OUTPUT) {
+        if self.capabilities.sync_output {
             self.output.escape(SynchronizedOutput::Reset)?;
         }
 
@@ -654,7 +654,7 @@ mod tests {
 
     #[test]
     fn sync_output_wraps_render() {
-        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());
@@ -808,17 +808,17 @@ mod tests {
 
     #[test]
     fn with_capabilities_chainable() {
-        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let caps = Capabilities::builder().sync_output(true).build();
         let r = Rasterizer::new(3, 1).with_capabilities(caps);
-        assert!(r.capabilities.contains(Capabilities::SYNC_OUTPUT));
+        assert!(r.capabilities.sync_output);
     }
 
     #[test]
     fn inline_with_capabilities_chainable() {
-        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let caps = Capabilities::builder().sync_output(true).build();
         let r = Rasterizer::inline(3, 1).with_capabilities(caps);
         assert!(r.is_inline());
-        assert!(r.capabilities.contains(Capabilities::SYNC_OUTPUT));
+        assert!(r.capabilities.sync_output);
     }
 
     // ── Inline Mode ────────────────────────────────────────────────────
@@ -1097,7 +1097,7 @@ mod tests {
 
     #[test]
     fn inline_sync_output() {
-        let caps = Capabilities::DEFAULT | Capabilities::SYNC_OUTPUT;
+        let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());

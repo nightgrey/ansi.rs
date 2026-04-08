@@ -3,8 +3,8 @@ use std::ops::Sub;
 use bon::{Builder};
 use derive_more::{Deref, DerefMut};
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, Intersect, Outer, Point, Ranges, Rect, Edges, Sides, Size, Translate, Resolve};
-use crate::{Buffer, Arena, Cell, PainterOptions};
+use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd};
+use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{BorderStyle, DrawingContext, Painter};
 use crate::symbols::Symbol;
@@ -15,23 +15,21 @@ use ansi::{Attribute, Color, Style};
 // Lightweight per-call override containers. `None` fields inherit from
 // the current context state. All methods are `const` to enable static
 // construction without runtime overhead.
-
-/// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
-pub struct DrawingOptions {
+pub struct BufferDrawingOptions {
     pub style: Option<Style>,
     pub glyph: Option<char>,
     pub border: Option<BorderStyle>,
 }
 
-impl DrawingOptions {
-    fn new() -> DrawingOptions {
+impl BufferDrawingOptions {
+    fn new() -> BufferDrawingOptions {
        Self::default()
     }
 }
 
-impl From<PainterOptions> for DrawingOptions {
-    fn from(value: PainterOptions) -> Self {
+impl From<DrawingOptions> for BufferDrawingOptions {
+    fn from(value: DrawingOptions) -> Self {
         Self {
             style: value.style.map(Into::into),
             glyph: value.glyph,
@@ -187,34 +185,34 @@ impl<'buf> BufferDrawingContext<'buf> {
 
     /// Fill a rectangle using current fill state.
     pub fn rect(&mut self, rect: Rect) -> &mut Self {
-        self.rect_with(rect, DrawingOptions::default())
+        self.rect_with(rect, BufferDrawingOptions::default())
     }
 
     /// Draw an outline (edges without corners) using current fill state.
     pub fn outline(&mut self, rect: Rect) -> &mut Self {
-        self.outline_with(rect, DrawingOptions::default())
+        self.outline_with(rect, BufferDrawingOptions::default())
     }
 
     /// Draw a border with corners using current stroke state.
     pub fn border(&mut self, rect: Rect) -> &mut Self {
-        self.border_with(rect, DrawingOptions::default())
+        self.border_with(rect, BufferDrawingOptions::default())
     }
 
     /// Draw text at `pos` using current fill state.
     ///
     /// Returns the number of cells written (accounts for wide characters).
     pub fn text(&mut self, pos: Point, content: impl AsRef<str>) -> usize {
-        self.text_with(pos, content, DrawingOptions::default())
+        self.text_with(pos, content, BufferDrawingOptions::default())
     }
 
     /// Draw a horizontal line from `origin` using current fill state.
     pub fn horizontal_line(&mut self, origin: Point, length: usize) -> &mut Self {
-        self.horizontal_line_with(origin, length, DrawingOptions::default())
+        self.horizontal_line_with(origin, length, BufferDrawingOptions::default())
     }
 
     /// Draw a vertical line from `origin` using current fill state.
     pub fn vertical_line(&mut self, origin: Point, length: usize) -> &mut Self {
-        self.vertical_line_with(origin, length, DrawingOptions::default())
+        self.vertical_line_with(origin, length, BufferDrawingOptions::default())
     }
 
     /// Fill the current clip region using current fill state.
@@ -227,7 +225,7 @@ impl<'buf> BufferDrawingContext<'buf> {
     // ── Draw Operations with Overrides ────────────────────────────────
 
     /// Fill a rectangle with per-call style/glyph overrides.
-    pub fn rect_with(&mut self, rect: Rect, options: DrawingOptions) -> &mut Self {
+    pub fn rect_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
         let local_rect = self.to_local(rect);
         let style = options.style.unwrap_or(self.context.style);
         let glyph = options.glyph.unwrap_or(self.context.glyph);
@@ -243,7 +241,7 @@ impl<'buf> BufferDrawingContext<'buf> {
     }
 
     /// Draw an outline with per-call style/glyph overrides.
-    pub fn outline_with(&mut self, rect: Rect, options: DrawingOptions) -> &mut Self {
+    pub fn outline_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
         let local_rect = self.to_local(rect);
 
         // Top edge
@@ -283,7 +281,7 @@ impl<'buf> BufferDrawingContext<'buf> {
     }
 
     /// Draw a border with corners, with per-call stroke overrides.
-    pub fn border_with(&mut self, rect: Rect, options: DrawingOptions) -> &mut Self {
+    pub fn border_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
         let mut local_rect = self.to_local(rect);
         let border_style = options.border.unwrap_or(self.context.border_style);
         let border = border_style.into_border();
@@ -336,7 +334,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         &mut self,
         pos: Point,
         content: impl AsRef<str>,
-        options: DrawingOptions,
+        options: BufferDrawingOptions,
     ) -> usize {
         let local_pos = self.to_local(pos);
         let style = options.style.unwrap_or(self.context.style);
@@ -381,7 +379,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         &mut self,
         origin: Point,
         length: usize,
-        options: DrawingOptions,
+        options: BufferDrawingOptions,
     ) -> &mut Self {
         let local_origin = self.to_local(origin);
         let style = options.style.unwrap_or(self.context.style);
@@ -408,7 +406,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         &mut self,
         origin: Point,
         length: usize,
-        opts: DrawingOptions,
+        opts: BufferDrawingOptions,
     ) -> &mut Self {
         let local_origin = self.to_local(origin);
         let style = opts.style.unwrap_or(self.context.style);
@@ -457,7 +455,7 @@ impl<'a> Painter<BufferDrawingContext<'a>> {
 
 impl<'a> DrawingContext for BufferDrawingContext<'a> {
     type Error = io::Error;
-
+    type Options = BufferDrawingOptions;
     fn current_clip(&self) -> Rect {
         self.context.clip
     }
@@ -498,7 +496,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.rect(rect)
     }
 
-    fn rect_with(&mut self, rect: Rect, options: PainterOptions) -> &mut Self {
+    fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         self.rect_with(rect, options.into())
     }
 
@@ -506,7 +504,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.outline(rect)
     }
 
-    fn outline_with(&mut self, rect: Rect, options: PainterOptions) -> &mut Self {
+    fn outline_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         self.outline_with(rect, options.into())
     }
 
@@ -514,32 +512,32 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.border(rect)
     }
 
-    fn border_with(&mut self, rect: Rect, options: PainterOptions) -> &mut Self {
-        self.border_with(rect, options.into())
+    fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
+        self.border_with(rect, options)
     }
 
     fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize {
         self.text(position, str)
     }
 
-    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: PainterOptions) -> usize {
-        self.text_with(position, str, options.into())
+    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
+        self.text_with(position, str, options)
     }
 
     fn horizontal_line(&mut self, position: Point, length: usize) -> &mut Self {
         self.horizontal_line(position, length)
     }
 
-    fn horizontal_line_with(&mut self, position: Point, length: usize, options: PainterOptions) -> &mut Self {
-        self.horizontal_line_with(position, length, options.into())
+    fn horizontal_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self {
+        self.horizontal_line_with(position, length, options)
     }
 
     fn vertical_line(&mut self, position: Point, length: usize) -> &mut Self {
         self.vertical_line(position, length)
     }
 
-    fn vertical_line_with(&mut self, position: Point, length: usize, options: PainterOptions) -> &mut Self {
-        self.vertical_line_with(position, length, options.into())
+    fn vertical_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self {
+        self.vertical_line_with(position, length, options)
     }
 
     fn clear(&mut self, rect: Rect) -> &mut Self {
@@ -636,7 +634,7 @@ mod tests {
     }
 
     fn renderer<'a>(context: &'a mut Context) -> Painter<BufferDrawingContext<'a>> {
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).into_renderer()
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter()
     }
 
     #[test]
@@ -792,8 +790,8 @@ mod tests {
 
         document.compute_layout(Space::new(20u32, 10u32));
 
-        let mut renderer = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).into_renderer();
-        renderer.render(&document);
+        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
+        painter.paint(&document);
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
@@ -834,8 +832,8 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        let mut renderer = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).into_renderer();
-        renderer.render(&document);
+        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
+        painter.paint(&document);
 
         let div_bounds = document.bounds(child_div);
         let text_bounds = document.bounds(text_id);
@@ -876,8 +874,8 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).into_renderer();
-        renderer.render(&document);
+        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
+        painter.paint(&document);
 
         // First child
         assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('A'));
@@ -910,8 +908,8 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut renderer = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).into_renderer();
-        renderer.render(&document);
+        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
+        painter.paint(&document);
 
         // Side by side in row layout
         assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('L'));

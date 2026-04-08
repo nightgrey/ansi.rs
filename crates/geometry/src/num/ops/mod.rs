@@ -1,6 +1,12 @@
-use std::ops::*;
-// Ops
+mod checked;
+mod wrapping;
+mod saturating;
 
+pub use checked::*;
+pub use wrapping::*;
+pub use saturating::*;
+
+use std::ops::*;
 pub trait Ops<Rhs = Self, Output = Self>:
 Add<Rhs, Output=Output>
 + Sub<Rhs, Output=Output>

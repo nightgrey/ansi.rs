@@ -1,4 +1,4 @@
-use crate::{Edges, Point, Rect, Size};
+use crate::{Edges, Number, Point, Rect, Size};
 use crate::Coordinated;
 
 
@@ -67,24 +67,24 @@ pub trait Bounded {
     }
 }
 
-impl Bounded for Rect {
-    type Coordinate = Point;
-    type Bounds = Rect;
+impl<C: Coordinated> Bounded for Rect<C> {
+    type Coordinate = C;
+    type Bounds = Self;
 
     fn min_x(&self) -> usize {
-        self.min.x
+        self.min.x()
     }
 
     fn min_y(&self) -> usize {
-        self.min.y
+        self.min.y()
     }
 
     fn max_x(&self) -> usize {
-        self.max.x
+        self.max.x()
     }
 
     fn max_y(&self) -> usize {
-        self.max.y
+        self.max.y()
     }
 
     fn min(&self) -> Self::Coordinate {
@@ -99,38 +99,7 @@ impl Bounded for Rect {
         *self
     }
 }
-// impl Bounded for Area {
-//     type Point = Position;
-//     type Bounds = Area;
-// 
-//     fn min_x(&self) -> usize {
-//         self.min.col
-//     }
-// 
-//     fn min_y(&self) -> usize {
-//         self.min.row
-//     }
-// 
-//     fn max_x(&self) -> usize {
-//         self.max.col
-//     }
-// 
-//     fn max_y(&self) -> usize {
-//         self.max.row
-//     }
-// 
-//     fn min(&self) -> Self::Point {
-//         self.min
-//     }
-// 
-//     fn max(&self) -> Self::Point {
-//         self.max
-//     }
-// 
-//     fn bounds(&self) -> Self::Bounds {
-//         *self
-//     }
-// }
+
 impl Bounded for Size {
     type Coordinate = Point;
     type Bounds = Rect;

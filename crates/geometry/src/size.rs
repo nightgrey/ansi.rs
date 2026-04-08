@@ -1,5 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
-use crate::Zero;
+use crate::{Number, Zero};
 
 /// A 2D size representing width and height.
 ///
@@ -44,10 +44,10 @@ impl<T> Size<T> {
 }
 
 
-impl<U, T: Add<U, Output = T>> Add<Size<U>> for Size<T> {
+impl<T: Add<T, Output = T>> Add<Size<T>> for Size<T> {
     type Output = Size<T>;
 
-    fn add(self, rhs: Size<U>) -> Self::Output {
+    fn add(self, rhs: Size<T>) -> Self::Output {
         Size {
             width: self.width + rhs.width,
             height: self.height + rhs.height,
@@ -55,17 +55,17 @@ impl<U, T: Add<U, Output = T>> Add<Size<U>> for Size<T> {
     }
 }
 
-impl<U, T: AddAssign<U>> AddAssign<Size<U>> for Size<T> {
-    fn add_assign(&mut self, rhs: Size<U>) {
+impl<T: AddAssign<T>> AddAssign<Size<T>> for Size<T> {
+    fn add_assign(&mut self, rhs: Size<T>) {
         self.width += rhs.width;
         self.height += rhs.height;
     }
 }
 
-impl<U: Copy, T: Sub<U, Output = T>> Sub<U> for Size<T> {
+impl<T: Sub<T, Output = T> + Copy> Sub<T> for Size<T> {
     type Output = Size<T>;
 
-    fn sub(self, rhs: U) -> Self::Output {
+    fn sub(self, rhs: T) -> Self::Output {
         Size {
             width: self.width - rhs,
             height: self.height - rhs,
@@ -73,10 +73,10 @@ impl<U: Copy, T: Sub<U, Output = T>> Sub<U> for Size<T> {
     }
 }
 
-impl<U: Copy, T: Div<U, Output = T>> Div<U> for Size<T> {
+impl<T: Div<T, Output = T> + Copy> Div<T> for Size<T> {
     type Output = Size<T>;
 
-    fn div(self, rhs: U) -> Self::Output {
+    fn div(self, rhs: T) -> Self::Output {
         Size {
             width: self.width / rhs,
             height: self.height / rhs,
@@ -84,8 +84,8 @@ impl<U: Copy, T: Div<U, Output = T>> Div<U> for Size<T> {
     }
 }
 
-impl<U: Copy, T: DivAssign<U>> DivAssign<U> for Size<T> {
-    fn div_assign(&mut self, rhs: U) {
+impl<T: DivAssign<T> + Copy> DivAssign<T> for Size<T> {
+    fn div_assign(&mut self, rhs: T) {
         self.width /= rhs;
         self.height /= rhs;
     }

@@ -10,7 +10,7 @@
 #![feature(const_option_ops)]
 #![feature(new_range_api)]
 
-mod axis;
+mod sides;
 mod edges;
 pub mod features;
 mod point;
@@ -21,7 +21,7 @@ mod index;
 pub mod num;
 pub mod geometry;
 
-pub use axis::*;
+pub use sides::*;
 pub use edges::*;
 pub use features::*;
 pub use point::*;

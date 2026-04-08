@@ -1,4 +1,4 @@
-use crate::{Column, One, Row, SaturatingAdd, SaturatingSub, Size, Zero};
+use crate::{Column, Number, One, Row, SaturatingAdd, SaturatingSub, Size, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -34,13 +34,7 @@ pub struct Point<T = usize> {
     pub y: T,
 }
 
-impl<T: One> Point<T> {
-    pub const ONE: Self = Point { x: T::ONE, y: T::ONE };
-}
 
-impl<T: Zero> Point<T> {
-    pub const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
-}
 impl<T> Point<T> {
     /// Create a new point at the given coordinates.
     ///
@@ -65,68 +59,14 @@ impl<T> Point<T> {
     }
 }
 
-impl Point {
-    /// Add two points with overflow checking.
-    ///
-    /// Returns `None` if overflow would occur.
-    pub fn checked_add(self, rhs: Self) -> Option<Self> {
-        Some(Self {
-            x: self.x.checked_add(rhs.x)?,
-            y: self.y.checked_add(rhs.y)?,
-        })
-    }
 
-    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
-        Some(Self {
-            x: self.x.checked_sub(rhs.x)?,
-            y: self.y.checked_sub(rhs.y)?,
-        })
-    }
-
-    pub fn saturating_sub(self, rhs: Self) -> Self {
-        Self {
-            x: self.x.saturating_sub(rhs.x),
-            y: self.y.saturating_sub(rhs.y),
-        }
-    }
-
-    /// Add two points with saturating arithmetic.
-    ///
-    /// If overflow would occur, saturates at `usize::MAX`.
-    pub fn saturating_add(self, rhs: Self) -> Self {
-        Self {
-            x: self.x.saturating_add(rhs.x),
-            y: self.y.saturating_add(rhs.y),
-        }
-    }
+impl<T: One> Point<T> {
+    pub const ONE: Self = Point { x: T::ONE, y: T::ONE };
 }
 
-
-impl<T> From<Size<T>> for Point<T> {
-    fn from(value: Size<T>) -> Self {
-        Self::new(value.width, value.height)
-    }
+impl<T: Zero> Point<T> {
+    pub const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
 }
-
-impl<T> From<PointLike<T>> for Point<T> {
-    fn from(value: PointLike<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-
-impl From<Row> for Point {
-    fn from(value: Row) -> Self {
-        Self::new(0, value.0)
-    }
-}
-
-impl From<Column> for Point {
-    fn from(value: Column) -> Self {
-        Self::new(value.0, 0)
-    }
-}
-
 impl<T: Add<Output = T>> Add for Point<T> {
     type Output = Self;
 
@@ -204,6 +144,8 @@ impl<T: Sub<Output = T> + Copy> Sub<T> for Point<T> {
         }
     }
 }
+
+
 
 
 impl<T: Ord> PartialOrd for Point<T> {

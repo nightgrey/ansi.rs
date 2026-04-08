@@ -1,4 +1,4 @@
-use crate::{Bounded, Bounds, Contains, Point, Rect, Sides, Size, Zero};
+use crate::{Bounded, Bounds, Contains, Point, Rect,  Size, Zero};
 
 pub trait Intersect<Rhs = Self> {
     type Output;

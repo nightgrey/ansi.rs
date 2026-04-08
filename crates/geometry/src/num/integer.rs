@@ -2,8 +2,7 @@ use std::num::ParseIntError;
 use std::ops::Not;
 use crate::num::Number;
 use std::ops::*;
-use super::saturating::*;
-use super::checked::*;
+use super::ops::*;
 
 pub trait Unsigned: Integer {}
 pub trait Signed: Integer {}

@@ -38,14 +38,6 @@ impl Edges {
     pub const fn vertical(value: impl [const] Into<Dimension> + Copy) -> Self {
         Self::new(value.into(), value.into(), value.into(), value.into())
     }
-
-    pub  fn or(mut self, other: Self) -> Self {
-        self.top = self.top.or(other.top);
-        self.right = self.right.or(other.right);
-        self.bottom = self.bottom.or(other.bottom);
-        self.left = self.left.or(other.left);
-        self
-    }
 }
 
 
@@ -159,10 +151,10 @@ impl From<Space> for taffy::Size<taffy::AvailableSpace> {
 
 #[derive(Copy, Debug, Clone, PartialEq, Default, Deref, DerefMut)]
 #[repr(transparent)]
-pub struct Gap(geometry::Axis<Dimension>);
+pub struct Gap(geometry::Sides<Dimension>);
 impl Gap {
-    pub const ZERO: Self = Self(geometry::Axis::new(Dimension::Length(0), Dimension::Length(0)));
-    pub const AUTO: Self = Self(geometry::Axis::new(Dimension::Auto, Dimension::Auto));
+    pub const ZERO: Self = Self(geometry::Sides::new(Dimension::Length(0), Dimension::Length(0)));
+    pub const AUTO: Self = Self(geometry::Sides::new(Dimension::Auto, Dimension::Auto));
 
     pub const fn auto() -> Self {
         Self::AUTO
@@ -177,7 +169,7 @@ impl Gap {
     }
 
     pub const fn new(horizontal: impl [const] Into<Dimension>, vertical: impl [const] Into<Dimension>) -> Self {
-        Self(geometry::Axis::new(horizontal.into(), vertical.into()))
+        Self(geometry::Sides::new(horizontal.into(), vertical.into()))
     }
 
     pub const fn horizontal(value: impl [const] Into<Dimension> + Copy) -> Self {
@@ -189,7 +181,7 @@ impl Gap {
     }
     
     pub const fn both(value: impl [const] Into<Dimension> + Copy) -> Self {
-        Self(geometry::Axis::both(value.into()))
+        Self(geometry::Sides::both(value.into()))
     }
 
 }

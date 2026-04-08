@@ -1,11 +1,11 @@
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Axis<T = usize> {
+pub struct Sides<T = usize> {
     pub horizontal: T,
     pub vertical: T,
 }
 
-impl<T> Axis<T> {
+impl<T> Sides<T> {
     /// Create a new axis.
     pub const fn new(horizontal: T, vertical: T) -> Self {
         Self {

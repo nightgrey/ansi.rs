@@ -1,4 +1,4 @@
-use crate::{Axis, Column, Edges, Point, PointLike, Rect, Row, Size};
+use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
 
 pub const trait Zero {
     const ZERO: Self;
@@ -51,7 +51,7 @@ impl<T: One> One for Edges<T> { const ONE: Self = Edges { top: T::ONE, right: T:
 impl<T: Min> Min for Edges<T> { const MIN: Self = Edges { top: T::MIN, right: T::MIN, bottom: T::MIN, left: T::MIN }; }
 impl<T: Max> Max for Edges<T> { const MAX: Self = Edges { top: T::MAX, right: T::MAX, bottom: T::MAX, left: T::MAX }; }
 
-impl<T: Zero> Zero for Axis<T> { const ZERO: Self = Axis { horizontal: T::ZERO, vertical: T::ZERO }; }
-impl<T: One> One for Axis<T> { const ONE: Self = Axis { horizontal: T::ONE, vertical: T::ONE }; }
-impl<T: Min> Min for Axis<T> { const MIN: Self = Axis { horizontal: T::MIN, vertical: T::MIN }; }
-impl<T: Max> Max for Axis<T> { const MAX: Self = Axis { horizontal: T::MAX, vertical: T::MAX }; }
+impl<T: Zero> Zero for Sides<T> { const ZERO: Self = Sides { horizontal: T::ZERO, vertical: T::ZERO }; }
+impl<T: One> One for Sides<T> { const ONE: Self = Sides { horizontal: T::ONE, vertical: T::ONE }; }
+impl<T: Min> Min for Sides<T> { const MIN: Self = Sides { horizontal: T::MIN, vertical: T::MIN }; }
+impl<T: Max> Max for Sides<T> { const MAX: Self = Sides { horizontal: T::MAX, vertical: T::MAX }; }

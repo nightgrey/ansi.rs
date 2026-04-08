@@ -16,7 +16,7 @@
 ///   operation.
 ///
 /// ## Storage format
-///heme_arena.rs
+///
 /// Each entry is stored as a 2-byte little-endian length prefix followed by the
 /// raw UTF-8 bytes. This avoids the fragility of NUL-terminated scanning (where
 /// adjacent released entries could merge) and enables O(1) release.
@@ -60,9 +60,9 @@ const MAX_ENTRY_LEN: usize = u16::MAX as usize;
 
 impl Arena {
     pub const EMPTY: Self = Self {
-        inner: Vec::new(),
+        inner: vec![],
         count: 0,
-        free: Vec::new(),
+        free: vec![],
     };
     /// Maximum arena size: 16 MiB. This is the addressable range of the
     /// 24-bit offset stored in an extended [`Grapheme`](crate::Grapheme).

@@ -60,62 +60,24 @@ impl Style {
         font_style: None,
     };
 
-    pub fn inherit(self, from: Self) -> Self {
-        let mut result = self;
+    pub fn inherit(self, parent: Self) -> Self {
+        let mut next = self;
 
-        match (from.color, self.color) {
-            (Some(_), Some(x)) => {
-                result.color = Some(x);
-            },
-            (Some(x), None) => {
-                result.color = Some(x);
+        fn inherit<T>(parent: Option<T>, current: Option<T>) -> Option<T> {
+            match (parent, current) {
+                (Some(_), Some(x)) => Some(x),
+                (Some(x), None) => Some(x),
+                (None, Some(x)) => Some(x),
+                (None, None) => None,
             }
-            (None, Some(x)) => {
-                result.color = Some(x);
-            }
-            (None, None) => (),
-        };
+        }
 
-        match (from.background, self.background) {
-            (Some(_), Some(x)) => {
-                result.background = Some(x);
-            },
-            (Some(x), None) => {
-                result.background = Some(x);
-            }
-            (None, Some(x)) => {
-                result.background = Some(x);
-            }
-            (None, None) => (),
-        };
+        next.color = inherit(parent.color, self.color);
+        next.background = inherit(parent.background, self.background);
+        next.text_decoration = inherit(parent.text_decoration, self.text_decoration);
+        next.font_style = inherit(parent.font_style, self.font_style);
 
-        match (from.text_decoration, self.text_decoration) {
-            (Some(_), Some(x)) => {
-                result.text_decoration = Some(x);
-            }
-            (Some(x), None) => {
-                result.text_decoration = Some(x);
-            }
-            (None, Some(x)) => {
-                result.text_decoration = Some(x);
-            }
-            (None, None) => (),
-        };
-
-        match (from.font_style, self.font_style) {
-            (Some(_), Some(x)) => {
-                result.font_style = Some(x);
-            },
-            (Some(x), None) => {
-                result.font_style = Some(x);
-            },
-            (None, Some(x)) => {
-                result.font_style = Some(x);
-            },
-            (None, None) => (),
-        };
-
-        result
+        next
     }
 
 
@@ -203,6 +165,7 @@ impl From<ansi::Style> for Style {
         result
     }
 }
+
 impl From<Style> for ansi::Style {
     fn from(style: Style) -> Self {
         if style.is_default() { return ansi::Style::default() }

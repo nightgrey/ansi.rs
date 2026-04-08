@@ -1,5 +1,5 @@
 use std::ops::{Add, Sub};
-use crate::{Bounded, Edges, Point, SaturatingAdd, SaturatingSub, Size, Step, Steps, Zero};
+use crate::{Bounded, Coordinated, Edges, Point, SaturatingAdd, SaturatingSub, Size, Step, Steps, Zero};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///
@@ -13,6 +13,23 @@ pub struct Rect<T = Point> {
 
     /// Maximum (bottom-right) point (exclusive).
     pub max: T,
+}
+
+impl const Rect {
+    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
+        Self {
+         min: Point::new(x, y),
+         max: Point::new(x + width, y + height),
+        }
+    }
+
+    pub fn set_height(&mut self, height: usize) {
+        self.max.y = self.min.y + height;
+    }
+    
+    pub fn set_width(&mut self, width: usize) {
+        self.max.x = self.min.x + width;
+    }
 }
 
 impl<T> Rect<T> {
@@ -38,23 +55,6 @@ impl<T> Rect<T> {
         Self: Bounded<Coordinate= T> + Step<T>,
     {
         Steps::new(self)
-    }
-}
-
-impl const Rect {
-    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Self {
-         min: Point::new(x, y),
-         max: Point::new(x + width, y + height),
-        }
-    }
-
-    pub fn set_height(&mut self, height: usize) {
-        self.max.y = self.min.y + height;
-    }
-    
-    pub fn set_width(&mut self, width: usize) {
-        self.max.x = self.min.x + width;
     }
 }
 

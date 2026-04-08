@@ -12,20 +12,20 @@ pub trait BufferIndex: Clone {
     ///
     /// This method does not perform any bounds checking.
     #[inline]
-    fn index_of(self, context: &Buffer) -> Self::Index;
+    fn slice_index(self, context: &Buffer) -> Self::Index;
 
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
     #[inline]
     fn get(self, context: &Buffer) -> Option<&Self::Output> {
-        SliceIndex::get(self.index_of(context), context)
+        SliceIndex::get(self.slice_index(context), context)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
     #[inline]
     fn get_mut(self, context: &mut Buffer) -> Option<&mut Self::Output> {
-        SliceIndex::get_mut(self.index_of(context), context)
+        SliceIndex::get_mut(self.slice_index(context), context)
     }
 
     /// Returns a pointer to the output at this location, without
@@ -37,7 +37,7 @@ pub trait BufferIndex: Clone {
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
     unsafe fn get_unchecked(self, context: &Buffer) -> *const Self::Output {
-        SliceIndex::get_unchecked(self.index_of(context), context.as_ref())
+        SliceIndex::get_unchecked(self.slice_index(context), context.as_ref())
     }
     /// Returns a mutable pointer to the output at this location, without
     /// performing any bounds checking.
@@ -48,7 +48,7 @@ pub trait BufferIndex: Clone {
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
     unsafe fn get_unchecked_mut(self, context: &mut Buffer) -> *mut Self::Output {
-        SliceIndex::get_unchecked_mut(self.index_of(context), context.as_mut())
+        SliceIndex::get_unchecked_mut(self.slice_index(context), context.as_mut())
     }
 
     /// Returns a shared reference to the output at this location, panicking
@@ -56,7 +56,7 @@ pub trait BufferIndex: Clone {
     #[track_caller]
     #[inline]
     fn index(self, context: &Buffer) -> &Self::Output {
-        SliceIndex::index(self.index_of(context), context)
+        SliceIndex::index(self.slice_index(context), context)
     }
 
     /// Returns a mutable reference to the output at this location, panicking
@@ -64,7 +64,7 @@ pub trait BufferIndex: Clone {
     #[track_caller] 
     #[inline]
     fn index_mut(self, context: &mut Buffer) -> &mut Self::Output {
-        SliceIndex::index_mut(self.index_of(context), context)
+        SliceIndex::index_mut(self.slice_index(context), context)
     }
 }
 
@@ -73,7 +73,7 @@ impl BufferIndex for Point {
     type Index = usize;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> usize {
+    fn slice_index(self, buffer: &Buffer) -> usize {
         buffer.resolve(self)
     }
 }
@@ -83,7 +83,7 @@ impl BufferIndex for PointLike {
     type Index = usize;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> usize {
+    fn slice_index(self, buffer: &Buffer) -> usize {
         buffer.resolve(self)
     }
 }
@@ -93,7 +93,7 @@ impl BufferIndex for Row {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::Range<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
         buffer.resolve(self)
     }
 }
@@ -103,7 +103,7 @@ impl BufferIndex for ops::Range<Row> {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::Range<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
         buffer.resolve(self)
     }
 }
@@ -113,7 +113,7 @@ impl BufferIndex for ops::RangeInclusive<Row> {
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
         buffer.resolve(self)
     }
 }
@@ -124,7 +124,7 @@ impl BufferIndex for ops::RangeTo<Row> {
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeTo<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
         buffer.resolve(self)
     }
 }
@@ -134,7 +134,7 @@ impl BufferIndex for ops::RangeToInclusive<Row> {
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
         buffer.resolve(self)
     }
 }
@@ -143,7 +143,7 @@ impl BufferIndex for ops::RangeFrom<Row> {
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
         buffer.resolve(self)
 
     }
@@ -154,7 +154,7 @@ impl BufferIndex for ops::RangeFull {
     type Index = ops::RangeFull;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> ops::RangeFull {
+    fn slice_index(self, _: &Buffer) -> ops::RangeFull {
         ..
     }
 }
@@ -165,7 +165,7 @@ impl BufferIndex for usize {
     type Index = usize;
 
     #[inline]
-    fn index_of(self, _: &Buffer) -> usize {
+    fn slice_index(self, _: &Buffer) -> usize {
         self
     }
 }
@@ -175,9 +175,9 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::Range<I> {
     type Index = ops::Range<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::Range<usize> {
-        let start = self.start.index_of(buffer);
-        let end = self.end.index_of(buffer);
+    fn slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
+        let start = self.start.slice_index(buffer);
+        let end = self.end.slice_index(buffer);
         start..end
     }
 }
@@ -187,8 +187,8 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeTo<I> {
     type Index = ops::RangeTo<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeTo<usize> {
-        let end = self.end.index_of(buffer);
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
+        let end = self.end.slice_index(buffer);
         ..end
     }
 }
@@ -199,8 +199,8 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeFrom<I> {
     type Index = ops::RangeFrom<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
-        let start = self.start.index_of(buffer);
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
+        let start = self.start.slice_index(buffer);
         start..
     }
 }
@@ -210,9 +210,9 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<I> {
     type Index = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
-        let start = self.start().clone().index_of(buffer);
-        let end = self.end().clone().index_of(buffer);
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
+        let start = self.start().clone().slice_index(buffer);
+        let end = self.end().clone().slice_index(buffer);
         start..=end
     }
 }
@@ -222,8 +222,8 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeToInclusive<I> {
     type Index = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn index_of(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
-        let end = self.end.index_of(buffer);
+    fn slice_index(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
+        let end = self.end.slice_index(buffer);
         ..=end
     }
 }

@@ -1,7 +1,29 @@
 use std::ops::{Range, RangeInclusive, RangeTo, RangeToInclusive, RangeFull, RangeFrom};
-use crate::{Point, Rect, Row, Column, Bounded, PointLike, Map};
+use crate::{Point, Row, Column, Bounded, PointLike, Map};
 
 /// Resolve a context-dependent value.
+///
+/// This trait is used to convert values from one context to another.
+///
+/// # Example
+///
+/// ```rust
+/// struct MyContext<T> {
+///     inner: Vec<T>,
+///     width: usize,
+/// }
+///
+/// impl<T> Resolve<(usize, usize), usize> for MyContext<T> {
+///     fn resolve(&self, value: (usize, usize)) -> usize {
+///         value.1 * self.width + value.0
+///     }
+/// }
+///
+/// let ctx = MyContext { inner: Vec::from_iter(0..50), width: 5 };
+///
+/// let index = ctx.resolve((5, 0)); // Result: 25
+/// let data = &ctx.inner[index]; // Result: &25
+/// ```
 pub trait Resolve<T, U> {
     /// Resolve value within context of [`Self`].
     fn resolve(&self, value: T) -> U;
@@ -27,13 +49,11 @@ impl<B: Bounded> Resolve<Point, Column> for B {
     }
 }
 
-
 impl<B: Bounded> Resolve<Range<Point>, Range<usize>> for B {
     fn resolve(&self, value: Range<Point>) -> Range<usize> {
         self.resolve(value.start)..self.resolve(value.end)
     }
 }
-
 
 impl<B: Bounded> Resolve<RangeInclusive<Point>, RangeInclusive<usize>> for B {
     fn resolve(&self, value: RangeInclusive<Point>) -> RangeInclusive<usize> {

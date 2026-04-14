@@ -8,7 +8,9 @@
       "Bash(cargo test:*)",
       "Bash(cargo tree:*)",
       "Bash(cargo build:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)"
     ]
   },
   "sandbox": {

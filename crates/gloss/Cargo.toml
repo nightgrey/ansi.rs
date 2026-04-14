@@ -16,6 +16,7 @@ taffy = {  workspace = true, features = ["default"] }
 bitflags = { workspace = true }
 unicode-width = { workspace = true }
 unicode-segmentation = { workspace = true }
+unicode-linebreak = { workspace = true }
 derive_more = { workspace = true }
 rustix = { workspace = true }
 bilge = { workspace = true }

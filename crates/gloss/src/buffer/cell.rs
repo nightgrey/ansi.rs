@@ -263,10 +263,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_cell() {
+    fn space_cell() {
         let cell = Cell::SPACE;
         assert!(cell.is_default());
-        assert_eq!(cell.width(), 0);
+        assert!(cell.is_space());
+        assert_eq!(cell.width(), 1);
+    }
+
+    #[test]
+    fn continuation_cell() {
+        let cell = Cell::CONTINUATION;
+        assert!(cell.is_continuation());
         assert_eq!(cell.width(), 0);
     }
 

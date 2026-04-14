@@ -329,6 +329,7 @@ impl<'buf> BufferDrawingContext<'buf> {
 
     /// Draw text at `pos` with per-call style overrides.
     ///
+    /// Respects the current clip rect and applies the effective style.
     /// Returns the number of cells written (accounts for wide characters).
     pub fn text_with(
         &mut self,
@@ -338,10 +339,45 @@ impl<'buf> BufferDrawingContext<'buf> {
     ) -> usize {
         let local_pos = self.to_local(pos);
         let style = options.style.unwrap_or(self.context.style);
+        let clip = self.context.clip;
 
-        let position = local_pos;
+        // Drop early when the row is outside the clip.
+        if local_pos.y < clip.min.y || local_pos.y >= clip.max.y {
+            return 0;
+        }
 
-        let drawn = self.buffer.set_string(position.., content.as_ref(), self.arena).unwrap_or(0);
+        let row_left = clip.min.x.max(local_pos.x);
+        let row_right = clip.max.x;
+        if row_left >= row_right {
+            return 0;
+        }
+
+        let mut x = local_pos.x;
+        let mut drawn = 0usize;
+
+        for grapheme in UnicodeSegmentation::graphemes(content.as_ref(), true) {
+            if grapheme.contains(char::is_control) {
+                continue;
+            }
+            let width = grapheme.width();
+            if width == 0 {
+                continue;
+            }
+            if x + width > row_right {
+                break;
+            }
+            if x >= row_left {
+                self.buffer[(x, local_pos.y)]
+                    .set_str_measured(grapheme, width, self.arena)
+                    .set_style(style);
+                // Clear continuation cells for wide characters.
+                for dx in 1..width {
+                    self.buffer[(x + dx, local_pos.y)].set_continuation(self.arena);
+                }
+                drawn += width;
+            }
+            x += width;
+        }
 
         drawn
     }
@@ -865,6 +901,7 @@ mod tests {
         let document = &mut context.document;
 
         let root = document.node_mut(document.root);
+        root.display = crate::Display::Flex;
         root.flex_direction = FlexDirection::Row;
 
         let child_a = document.insert_with(

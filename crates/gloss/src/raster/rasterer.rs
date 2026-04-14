@@ -21,12 +21,16 @@ pub struct Rasterer {
 
 impl Rasterer {
     /// Create a new rasterizer with the given screen dimensions.
+    ///
+    /// Capabilities default to [`Capabilities::default()`]. Use
+    /// [`with_capabilities`](Self::with_capabilities) with
+    /// [`Capabilities::from_env`] to opt into terminal auto-detection.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             output: Vec::with_capacity(width * height * 4),
             shadow: Buffer::new(width, height),
             pen: Pen::new(),
-            capabilities: Capabilities::from_env(),
+            capabilities: Capabilities::default(),
             invalidated: true,
             inline: None,
         }

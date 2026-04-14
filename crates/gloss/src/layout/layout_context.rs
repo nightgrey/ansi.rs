@@ -367,7 +367,7 @@ where
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
         let style = self.style(node_id);
 
-        match (style.display) {
+        match style.display {
             Display::Inline => match &self.node(node_id).kind {
                 NodeKind::Span(_) => "Span (Inline)",
                 NodeKind::Div => "Div (Inline)",

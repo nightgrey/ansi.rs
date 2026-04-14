@@ -4,7 +4,7 @@ use geometry::{Bounded, Point, Rect, Size};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use crate::drawing_context::DrawingContext;
 
-#[derive(Default, Deref, DerefMut, AsRef, AsMut)]
+#[derive(Default, Deref, DerefMut, AsRef, AsMut, Debug)]
 pub struct Painter<B: DrawingContext>(pub B);
 
 impl<B: DrawingContext> Painter<B> {
@@ -52,10 +52,10 @@ impl<B: DrawingContext> Painter<B> {
         }
 
         // Recurse — clip to *content* area so children don't paint over padding/borders.
-        // Don't translate — child bounds from taffy are relative to the parent's
-        // border box, so translating to the content area would double-count padding.
+        // Use normalized bounds: origin is already at border_bounds.min, and child
+        // layouts from taffy are border-box-relative, so the clip must be too.
         self.save();
-        self.clip(content_bounds);
+        self.clip(normalized_bounds);
 
         for child in document.children(id) {
             self.paint_node(document, child, style);

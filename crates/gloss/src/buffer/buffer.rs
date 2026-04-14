@@ -128,7 +128,7 @@ impl Buffer {
 
             for (grapheme, width) in UnicodeSegmentation::graphemes(string.as_ref(), true)
                 .filter(|symbol| !symbol.contains(char::is_control))
-                .map(|(symbol)| (symbol, symbol.width()))
+                .map(|symbol| (symbol, symbol.width()))
                 .map_while(|(symbol, width)| {
                     remaining = remaining.checked_sub(width)?;
                     Some((symbol, width))
@@ -154,7 +154,7 @@ impl Buffer {
     /// Skips zero-width graphemes and control characters.
     pub fn set_line(&mut self, point: impl Into<Point>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
         let point = point.into();
-        self.set_string(point..Point { x: point.x, y: self.width }, string, arena)
+        self.set_string(point..Point { x: self.width, y: point.y }, string, arena)
     }
 
     pub fn index_of<T>(&self, value: T) -> usize where Self: Resolve<T, usize> {
@@ -514,7 +514,7 @@ impl Buffer {
     }
 
     pub fn iter_mut(&mut self) -> IterMut<Cell> {
-        self.iter_mut()
+        self.inner.iter_mut()
     }
 
     pub fn to_string(&self, arena: &Arena) -> String {

@@ -56,6 +56,15 @@ impl<'a> Document<'a> {
         self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
 
+    pub fn root(&self) -> &Node<'a> {
+        &self.nodes[self.root]
+    }
+
+    pub fn root_mut(&mut self) -> &mut Node<'a> {
+        self.mark_dirty(self.root, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        &mut self.nodes[self.root]
+    }
+
     pub fn node(&self, id: NodeId) -> &Node<'a> {
         &self.nodes[id]
     }
@@ -88,7 +97,8 @@ impl<'a> Document<'a> {
         self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
 
-    pub fn compute_layout(&mut self, space: Space) {
+    pub fn compute_layout(&mut self, space: impl Into<Space>) {
+        let space = space.into();
         self.nodes[self.root].size.width = match space.width {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,

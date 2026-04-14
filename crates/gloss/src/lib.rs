@@ -18,6 +18,7 @@ pub mod layout;
 pub mod nodes;
 pub mod buffer;
 pub mod raster;
+mod engine;
 
 pub use document::*;
 pub use style::*;
@@ -26,3 +27,4 @@ pub use layout::*;
 pub use nodes::*;
 pub use buffer::*;
 pub use raster::*;
+pub use engine::*;

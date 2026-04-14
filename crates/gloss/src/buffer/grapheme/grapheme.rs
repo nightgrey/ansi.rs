@@ -339,16 +339,16 @@ mod tests {
 
     #[test]
     fn empty_grapheme() {
-        let g = Grapheme::SPACE;
+        let g = Grapheme::EMPTY;
         assert!(g.is_empty());
         assert!(g.is_inline());
         assert!(!g.is_extended());
     }
 
     #[test]
-    fn nul_is_empty() {
+    fn space_is_not_empty() {
         let g = Grapheme::inline(' ');
-        assert!(g.is_empty());
+        assert!(!g.is_empty());
         assert_eq!(g, Grapheme::SPACE);
     }
 
@@ -457,7 +457,7 @@ mod tests {
         let dbg = format!("{g:?}");
         assert!(dbg.contains("Z"));
 
-        let g2 = Grapheme::SPACE;
+        let g2 = Grapheme::EMPTY;
         let dbg2 = format!("{g2:?}");
         assert!(dbg2.contains("EMPTY"));
     }

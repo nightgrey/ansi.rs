@@ -1,22 +1,17 @@
-use std::io::{self, Write as _};
+use std::io::{self};
 use ansi::{Color};
-use geometry::{Bounded, Point, Rect};
 use gloss::*;
 use tree::At;
 
 fn main() -> io::Result<()> {
-    let mut arena = Arena::new();
-    let mut buffer = Buffer::new(40, 10);
-    let mut rasterizer = Rasterer::inline(buffer.width, buffer.height);
-    let mut document = Document::new();
-    let mut stdout = io::stdout();
+    let mut ui = Engine::new(40, 10);
 
-    let root = document.node_mut(document.root);
+    let root = ui.root_mut();
     root.background = Some(Color::Red);
     root.color = Some(Color::White);
     root.border = BorderStyle::Bold;
 
-    document.insert_with(
+    ui.insert_with(
         Node::Span("👨🏿👨🏿 Hello"),
         |node| {
             node.background = Some(Color::None);
@@ -26,34 +21,29 @@ fn main() -> io::Result<()> {
         },
     );
 
-    let row = document.insert_with(Node::Div(), |node| {
+    let row = ui.insert_with(Node::Div(), |node| {
         node.border = BorderStyle::Bold;
     });
 
-    let a = document.insert_at_with(Node::Div(), At::Child(row), |node| {
+    let a = ui.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.background = Some(Color::Green);
     });
 
-    let a_content = document.insert_at(Node::Span("A"), At::Child(a));
+    let a_content = ui.insert_at(Node::Span("A"), At::Child(a));
 
-    let b = document.insert_at_with(Node::Div(), At::Child(row), |node| {
+    let b = ui.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.background = Some(Color::Yellow);
     });
 
-    let b_content = document.insert_at(Node::Span("B"), At::Child(b));
-    let c = document.insert_at_with(Node::Div(), At::Child(row), |node| {
+    let b_content = ui.insert_at(Node::Span("B"), At::Child(b));
+    let c = ui.insert_at_with(Node::Div(), At::Child(row), |node| {
         node.background = Some(Color::Blue);
     });
 
-    let c_content = document.insert_at(Node::Span("C"), At::Child(c));
+    let c_content = ui.insert_at(Node::Span("C"), At::Child(c));
 
-    document.compute_layout(Space::from(buffer.size()));
-    let mut painter = BufferDrawingContext::new(&mut buffer, &mut arena).painter();
+    ui.render(&mut io::stdout())?;
 
-    painter.paint(&document);
-
-    rasterizer.raster(&buffer, &arena)?;
-    rasterizer.flush(&mut stdout)?;
 
     Ok(())
 }

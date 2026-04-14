@@ -10,7 +10,7 @@ use crate::Cell;
 use crate::{Buffer, Arena};
 
 #[derive(Debug, Clone)]
-pub struct Rasterizer {
+pub struct Rasterer {
     output: Vec<u8>,
     shadow: Buffer,
     pen: Pen,
@@ -19,7 +19,7 @@ pub struct Rasterizer {
     inline: Option<InlineState>,
 }
 
-impl Rasterizer {
+impl Rasterer {
     /// Create a new rasterizer with the given screen dimensions.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
@@ -195,13 +195,13 @@ impl Rasterizer {
             let row = &buffer[Row(y)];
             let last_content = (0..buffer.width)
                 .rev()
-                .find(|&x| !row[x].is_empty());
+                .find(|&x| !row[x].is_default());
 
             if let Some(end) = last_content {
                 for col in 0..=end {
                     let cell = &row[col];
                     pen.transition(&mut output, cell.style)?;
-                    if cell.is_blank() {
+                    if cell.is_empty() {
                         output.push(b' ');
                     } else {
                         output.extend_from_slice(cell.as_bytes(arena));
@@ -251,7 +251,7 @@ impl Rasterizer {
                 // Find last non-empty cell in this row.
                 let last_content = (0..width).rev().find(|&x| {
                     let cell = &row[x];
-                    !cell.is_empty()
+                    !cell.is_default()
                 });
 
                 match last_content {
@@ -273,7 +273,7 @@ impl Rasterizer {
             self.pen.row = height - 1;
             self.pen.col = match (0..width)
                 .rev()
-                .find(|&x| !next[x].is_empty())
+                .find(|&x| !next[x].is_default())
             {
                 Some(end) => end + 1,
                 None => 0,
@@ -379,7 +379,7 @@ impl Rasterizer {
         // Within [first, last], find the last non-empty new cell. If the tail
         // of the diff range is all-empty new cells replacing old content, we
         // can use EL instead of emitting spaces.
-        let last_content = (first..=last).rev().find(|&x| !next[x].is_empty());
+        let last_content = (first..=last).rev().find(|&x| !next[x].is_default());
 
         // Move cursor to start of changed region.
         match cursor_mode {
@@ -459,7 +459,7 @@ mod tests {
 
         let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
-        let mut r = Rasterizer::new(5, 1);
+        let mut r = Rasterer::new(5, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -477,7 +477,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -507,7 +507,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -535,7 +535,7 @@ mod tests {
     fn invalidate_forces_full_redraw() {
         let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
 
-        let mut r = Rasterizer::new(2, 1);
+        let mut r = Rasterer::new(2, 1);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -555,7 +555,7 @@ mod tests {
         let style = Style::None;
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -589,7 +589,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterizer::new(5, 1);
+        let mut r = Rasterer::new(5, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -612,7 +612,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -636,7 +636,7 @@ mod tests {
         let s2 = Style::default().foreground(Color::Index(2));
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -656,7 +656,7 @@ mod tests {
     fn sync_output_wraps_render() {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::new(3, 1).with_capabilities(caps);
+        let mut r = Rasterer::new(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn no_sync_without_cap() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -695,7 +695,7 @@ mod tests {
 
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -709,7 +709,7 @@ mod tests {
         let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
 
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -728,7 +728,7 @@ mod tests {
     #[test]
     fn render_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -756,7 +756,7 @@ mod tests {
 
     #[test]
     fn enter_exit_alt_screen_sequences() {
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
 
         r.enter_alt_screen();
         let output = r.as_str();
@@ -780,7 +780,7 @@ mod tests {
     #[test]
     fn flush_writes_and_clears() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::new(3, 1);
+        let mut r = Rasterer::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         assert!(
@@ -799,24 +799,24 @@ mod tests {
 
     #[test]
     fn is_inline_reflects_mode() {
-        let fs = Rasterizer::new(3, 1);
+        let fs = Rasterer::new(3, 1);
         assert!(!fs.is_inline());
 
-        let il = Rasterizer::inline(3, 1);
+        let il = Rasterer::inline(3, 1);
         assert!(il.is_inline());
     }
 
     #[test]
     fn with_capabilities_chainable() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let r = Rasterizer::new(3, 1).with_capabilities(caps);
+        let r = Rasterer::new(3, 1).with_capabilities(caps);
         assert!(r.capabilities.sync_output);
     }
 
     #[test]
     fn inline_with_capabilities_chainable() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let r = Rasterizer::inline(3, 1).with_capabilities(caps);
+        let r = Rasterer::inline(3, 1).with_capabilities(caps);
         assert!(r.is_inline());
         assert!(r.capabilities.sync_output);
     }
@@ -837,7 +837,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterizer::inline(5, 2);
+        let mut r = Rasterer::inline(5, 2);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
@@ -864,7 +864,7 @@ mod tests {
         // Only first 2 of 10 columns have content.
         let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
-        let mut r = Rasterizer::inline(10, 1);
+        let mut r = Rasterer::inline(10, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
@@ -885,7 +885,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
 
-        let mut r = Rasterizer::inline(5, 3);
+        let mut r = Rasterer::inline(5, 3);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -909,7 +909,7 @@ mod tests {
         let style = Style::None;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
-        let mut r = Rasterizer::inline(3, 1);
+        let mut r = Rasterer::inline(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -928,7 +928,7 @@ mod tests {
         let style = Style::None;
         let buffer = Buffer::from_chars(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
-        let mut r = Rasterizer::inline(3, 2);
+        let mut r = Rasterer::inline(3, 2);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -956,7 +956,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterizer::inline(5, 2);
+        let mut r = Rasterer::inline(5, 2);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1005,7 +1005,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterizer::inline(5, 2);
+        let mut r = Rasterer::inline(5, 2);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -1027,7 +1027,7 @@ mod tests {
         let style = Style::None;
         let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
-        let mut r = Rasterizer::inline(3, 2);
+        let mut r = Rasterer::inline(3, 2);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1056,7 +1056,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
 
-        let mut r = Rasterizer::inline(3, 3);
+        let mut r = Rasterer::inline(3, 3);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1073,7 +1073,7 @@ mod tests {
     #[test]
     fn inline_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::inline(3, 1);
+        let mut r = Rasterer::inline(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -1099,7 +1099,7 @@ mod tests {
     fn inline_sync_output() {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterizer::inline(3, 1).with_capabilities(caps);
+        let mut r = Rasterer::inline(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();

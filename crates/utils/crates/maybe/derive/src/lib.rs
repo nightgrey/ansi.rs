@@ -23,7 +23,6 @@ use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
 /// - `impl From<Option<T>> for T`
 ///
 /// # Examples
-/// ```rust
 /// // Zero-config: variant named `None` is auto-detected
 /// #[derive(Maybe)]
 /// enum Color {
@@ -41,7 +40,6 @@ use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
 ///     Normal,
 ///     Bold,
 /// }
-/// ```
 #[proc_macro_derive(Maybe, attributes(none, maybe))]
 pub fn derive_maybe(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

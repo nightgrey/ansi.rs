@@ -14,7 +14,9 @@ pub trait Maybe: Sized {
     /// ```
     /// use maybe::Maybe;
     ///
+    /// #[derive(Maybe, Default, Debug, PartialEq)]
     /// enum Foo {
+    ///     #[default]
     ///     None,
     ///     Something,
     /// }
@@ -34,7 +36,9 @@ pub trait Maybe: Sized {
     /// ```
     /// use maybe::Maybe;
     ///
+    /// #[derive(Maybe, Default, Debug, PartialEq)]
     /// enum Foo {
+    ///     #[default]
     ///     None,
     ///     Something,
     /// }
@@ -50,21 +54,23 @@ pub trait Maybe: Sized {
         !self.is_none()
     }
 
-    /// Maps [`Self`] by applying a function to a contained value (if "Some") or returns [`Self::None`] (if [`Self::None`]).
+    /// Maps [`Self`] by applying a function to a contained value (if "Some") or returns `None` (if [`Self::None`]).
     ///
     /// # Examples
     ///
-    /// Gets the color space of an <code>Color</code> as an
-    /// <code>ColorSpace</code>, consuming the original:
-    ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let x = Color::Rgb(255, 0, 0);
-    /// // `Color::map` takes self *by value*, consuming `maybe_some_color`
-    /// let maybe_color_space = x.map(|c| c.color_space());
-    /// assert_eq!(maybe_color_space, Some(ColorSpace::Rgb));
+    /// assert_eq!(x.map(|_| "rgb"), Some("rgb"));
     ///
     /// let x: Color = Color::None;
-    /// assert_eq!(x.map(|c| c.color_space()), None);
+    /// assert_eq!(x.map(|_| "rgb"), None);
     /// ```
     #[inline]
     fn map<U>(self, f: impl FnOnce(Self) -> U) -> Option<U> {
@@ -79,12 +85,22 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
-    /// fn stringified_space(color: Color) -> Option<String> {
-    ///     color.map(|c| Some(c.color_space().to_string()))
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
+    /// fn space_name(color: Color) -> &'static str {
+    ///     match color {
+    ///         Color::Rgb(..) => "RGB",
+    ///         _ => "",
+    ///     }
     /// }
     ///
-    /// assert_eq!(Color::Rgb(255, 0, 0).and_then(stringified_space), Some("RGB".to_string()));
-    /// assert_eq!(Color::None.and_then(stringified_space), None);
+    /// assert_eq!(Color::Rgb(255, 0, 0).and_then(space_name), Some("RGB"));
+    /// assert_eq!(Color::None.and_then(space_name), None);
     /// ```
     ///
     /// Often used to chain fallible operations that may return [`Self::None`].
@@ -113,11 +129,18 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let x = Color::Rgb(255, 0, 0);
-    /// assert_eq!(x.map_or(42, |c| c.name().len()), 3);
+    /// assert_eq!(x.map_or(42, |_| 3), 3);
     ///
     /// let x: Color = Color::None;
-    /// assert_eq!(x.map_or(42, |c| c.name().len()), 42);
+    /// assert_eq!(x.map_or(42, |_| 3), 42);
     /// ```
     #[inline]
     fn map_or<U>(self, default: U, f: impl FnOnce(Self) -> U) -> U {
@@ -130,13 +153,20 @@ pub trait Maybe: Sized {
     /// # Basic examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let k = 21;
     ///
     /// let x = Color::Rgb(255, 0, 0);
-    /// assert_eq!(x.map_or_else(|| 2 * k, |c| c.color_space()), ColorSpace::Rgb);
+    /// assert_eq!(x.map_or_else(|| 2 * k, |_| 3), 3);
     ///
     /// let x: Color = Color::None;
-    /// assert_eq!(x.map_or_else(|| 2 * k, |c| c.color_space), ColorSpace::None);
+    /// assert_eq!(x.map_or_else(|| 2 * k, |_| 3), 42);
     /// ```
     ///
     /// # Handling a Result-based fallback
@@ -169,11 +199,18 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let x = Color::Rgb(255, 0, 0);
     /// let y: Color = Color::None;
     ///
-    /// assert_eq!(x.map_or_default(|c| c.name().len()), 3);
-    /// assert_eq!(y.map_or_default(|c| c.name().len()), 0);
+    /// assert_eq!(x.map_or_default(|_| 3usize), 3);
+    /// assert_eq!(y.map_or_default(|_| 3usize), 0);
     /// ```
     ///
     /// [default value]: Default::default
@@ -195,6 +232,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let x = Color::Rgb(255, 0, 0);
     /// let y = Color::None;
     /// assert_eq!(x.or(y), Color::Rgb(255, 0, 0));
@@ -222,6 +266,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// fn none_color() -> Color { Color::None }
     /// fn red_color() -> Color { Color::Rgb(255, 0, 0) }
     ///
@@ -243,6 +294,16 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #    #[default]
+    /// #    #[none]
+    /// #    None,
+    /// #    Rgb(u8, u8, u8),
+    /// #    Index(u8),
+    /// # }
+    ///
     /// let x = Color::Rgb(255, 0, 0);
     /// let y: Color = Color::None;
     /// assert_eq!(x.and(y), Color::None);
@@ -274,6 +335,18 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```rust
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #    #[default]
+    /// #    None,
+    /// #    Black,
+    /// #    Red,
+    /// #    Green,
+    /// #    Blue,
+    /// #    Rgb(u8, u8, u8),
+    /// #    Index(u8),
+    /// # }
     /// fn has_blue(color: &Color) -> bool {
     ///     match color {
     ///         Color::Rgb(r, g, b) => *b > 0,
@@ -303,6 +376,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let mut x = Color::None;
     ///
     /// {
@@ -328,6 +408,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let mut x = Color::None;
     ///
     /// {
@@ -352,6 +439,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let mut x = Color::Rgb(255, 0, 0);
     /// let y = x.take();
     /// assert_eq!(x, Color::None);
@@ -374,6 +468,13 @@ pub trait Maybe: Sized {
     /// # Examples
     ///
     /// ```
+    /// # use maybe::Maybe;
+    /// # #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]
+    /// # enum Color {
+    /// #     #[default]
+    /// #     None,
+    /// #     Rgb(u8, u8, u8),
+    /// # }
     /// let mut x = Color::Rgb(255, 0, 0);
     /// let old = x.replace(Color::Rgb(0, 255, 0));
     /// assert_eq!(x, Color::Rgb(0, 255, 0));
@@ -396,7 +497,9 @@ pub trait Maybe: Sized {
     /// ```
     /// use maybe::Maybe;
     ///
+    /// #[derive(Maybe, Default, Debug, PartialEq)]
     /// enum Foo {
+    ///     #[default]
     ///     None,
     ///     Something,
     /// }
@@ -419,8 +522,9 @@ pub trait Maybe: Sized {
     /// ```
     /// use maybe::Maybe;
     ///
-    /// #[derive(Maybe)]
+    /// #[derive(Maybe, Default, Debug, PartialEq)]
     /// enum Foo {
+    ///     #[default]
     ///     None,
     ///     Something,
     /// }
@@ -460,6 +564,8 @@ mod tests {
         Red,
         Green,
         Blue,
+        Rgb(u8, u8, u8),
+        Index(u8),
     }
 
     #[derive(Maybe, Default, Clone, Copy, Debug, PartialEq)]

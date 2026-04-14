@@ -25,28 +25,14 @@
 //! | `windows_console()` | Windows Console Host |
 //! | `modern()` | Modern terminal with all features |
 //!
-//! ## Profile Builder
-//!
-//! For custom configurations, use [`CapabilityProfileBuilder`]:
-//!
-//! ```
-//! use ftui_core::terminal_capabilities::CapabilityProfileBuilder;
-//!
-//! let custom = CapabilityProfileBuilder::new()
-//!     .colors_256(true)
-//!     .true_color(true)
-//!     .mouse_sgr(true)
-//!     .build();
-//! ```
-//!
 //! ## Profile Switching
 //!
 //! Profiles can be identified by name for dynamic switching in tests:
 //!
 //! ```
-//! use ftui_core::terminal_capabilities::TerminalCapabilities;
+//! use terminal::Capabilities;
 //!
-//! let profile = TerminalCapabilities::xterm_256color();
+//! let profile = Capabilities::xterm_256color();
 //! assert_eq!(profile.profile_name(), Some("xterm-256color"));
 //! ```
 //!
@@ -80,7 +66,7 @@
 //!    `sync_output` → `scroll_region` → `overlay_redraw`
 //!
 //! 5. **Detection determinism**: Given the same environment variables,
-//!    `TerminalCapabilities::detect()` always produces the same result.
+//!    `Capabilities::detect()` always produces the same result.
 //!
 //! # Failure Modes
 //!

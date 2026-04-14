@@ -1,7 +1,7 @@
 use crate::{Column, Point, Rect, Row, Size};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub};
-
+use super::{Column, Row};
 /// Type alias for tuple-based positions: `(row, col)`.
 ///
 /// Used for convenient position construction from tuples.
@@ -233,6 +233,20 @@ impl<T: Display> Display for Position<T> {
         write!(f, "[{}, {}]", self.row, self.col)
     }
 }
+
+
+impl From<Position> for Row {
+    fn from(value: Position) -> Self {
+        Self(value.row)
+    }
+}
+
+impl From<Position> for Column {
+    fn from(value: Position) -> Self {
+        Self(value.col)
+    }
+}
+
 
 /// An axis-aligned rectangle for buffer-space coordinates.
 ///

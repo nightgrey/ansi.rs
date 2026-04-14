@@ -167,8 +167,8 @@ pub trait Float: Number + Neg<Output = Self>
     /// use std::f32;
     ///
     /// let f = 7.0f32;
-    /// let inf: f32 = Float::infinity();
-    /// let neg_inf: f32 = Float::neg_infinity();
+    /// let inf: f32 = Float::INFINITY;
+    /// let neg_inf: f32 = Float::NEG_INFINITY;
     /// let nan: f32 = f32::NAN;
     ///
     /// assert!(!f.is_infinite());
@@ -186,8 +186,8 @@ pub trait Float: Number + Neg<Output = Self>
     /// use std::f32;
     ///
     /// let f = 7.0f32;
-    /// let inf: f32 = Float::infinity();
-    /// let neg_inf: f32 = Float::neg_infinity();
+    /// let inf: f32 = Float::INFINITY;
+    /// let neg_inf: f32 = Float::NEG_INFINITY;
     /// let nan: f32 = f32::NAN;
     ///
     /// assert!(f.is_finite());
@@ -938,7 +938,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// assert_eq!((-f).copysign(0.42), 3.5_f32);
     /// assert_eq!((-f).copysign(-0.42), -3.5_f32);
     ///
-    /// assert!(f32::nan().copysign(1.0).is_nan());
+    /// assert!(f32::NAN.copysign(1.0).is_nan());
     /// ```
     fn copysign(self, sign: Self) -> Self;
 }

@@ -8,6 +8,8 @@ use crate::{Point, Row, Column, Bounded, PointLike, Map};
 /// # Example
 ///
 /// ```rust
+/// use geometry::Resolve;
+///
 /// struct MyContext<T> {
 ///     inner: Vec<T>,
 ///     width: usize,

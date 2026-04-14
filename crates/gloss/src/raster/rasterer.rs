@@ -3,16 +3,22 @@ use ansi::escape;
 use ansi::io::Write;
 use ansi::sequences::*;
 use std::io;
-use geometry::{Bounded, Row};
+use geometry::Row;
 use terminal::Capabilities;
 use super::cursor::Pen;
 use crate::Cell;
 use crate::{Buffer, Arena};
 
+/// Emits escape sequences to apply a frame to the terminal.
+///
+/// Holds no frame history — the caller owns both the previous and next frames
+/// and passes them to [`present`](Self::present). Rasterer's own state is only
+/// about the terminal connection: pen position, capabilities, and inline-mode
+/// bookkeeping. An `invalidated` flag forces a full repaint on the next call
+/// (used after resize, alt-screen toggle, or explicit `invalidate`).
 #[derive(Debug, Clone)]
 pub struct Rasterer {
     output: Vec<u8>,
-    shadow: Buffer,
     pen: Pen,
     capabilities: Capabilities,
     invalidated: bool,
@@ -20,15 +26,18 @@ pub struct Rasterer {
 }
 
 impl Rasterer {
-    /// Create a new rasterizer with the given screen dimensions.
+    /// Create a new rasterizer.
     ///
     /// Capabilities default to [`Capabilities::default()`]. Use
     /// [`with_capabilities`](Self::with_capabilities) with
     /// [`Capabilities::from_env`] to opt into terminal auto-detection.
+    ///
+    /// The `width`/`height` arguments only size the output buffer's initial
+    /// capacity; actual frame dimensions come from the buffers passed to
+    /// [`present`](Self::present).
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             output: Vec::with_capacity(width * height * 4),
-            shadow: Buffer::new(width, height),
             pen: Pen::new(),
             capabilities: Capabilities::default(),
             invalidated: true,
@@ -47,17 +56,6 @@ impl Rasterer {
         }
     }
 
-    pub fn for_buffer(buffer: &Buffer) -> Self {
-        Self {
-            output: Vec::with_capacity(buffer.width * buffer.height * 4),
-            shadow: Buffer::new(buffer.width, buffer.height),
-            pen: Pen::new(),
-            capabilities: Capabilities::default(),
-            invalidated: true,
-            inline: None,
-        }
-    }
-
     /// Set terminal capabilities. Chainable.
     pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
         self.capabilities = capabilities;
@@ -69,12 +67,18 @@ impl Rasterer {
         self.inline.is_some()
     }
 
-    /// Rasterize a buffer, diffing against the shadow frame.
-    pub fn raster(&mut self, buffer: &Buffer, arena: &Arena) -> io::Result<()> {
-        let (shadow, next) = (&mut self.shadow, buffer);
-
+    /// Apply `next` to the terminal, diffing against `prev` when possible.
+    ///
+    /// The caller owns both frames (typically via a [`DoubleBuffer`]). When
+    /// the rasterer is internally invalidated (after a resize, alt-screen
+    /// toggle, or explicit [`invalidate`](Self::invalidate)) or the buffers
+    /// don't share dimensions, `prev` is ignored and every non-default cell
+    /// in `next` is emitted.
+    ///
+    /// [`DoubleBuffer`]: crate::DoubleBuffer
+    pub fn present(&mut self, prev: &Buffer, next: &Buffer, arena: &Arena) -> io::Result<()> {
         if self.inline.is_some() {
-            return self.raster_inline_impl(next, arena);
+            return self.present_inline(prev, next, arena);
         }
 
         let width = next.width;
@@ -84,13 +88,13 @@ impl Rasterer {
             self.output.escape(SynchronizedOutput::Set)?;
         }
 
-        // Handle dimension change or forced clear.
-        if shadow.width != width || shadow.height != height || self.invalidated {
+        // Force a full repaint when prev can't be trusted to reflect the
+        // terminal's current state.
+        let force_full = self.invalidated || prev.width != width || prev.height != height;
+        if force_full {
             self.output.escape(Home)?;
             self.output.escape(EraseDisplay)?;
             self.pen.reset();
-            shadow.resize(width, height);
-            shadow.clear();
             self.invalidated = false;
         }
 
@@ -98,8 +102,9 @@ impl Rasterer {
 
         let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
+            let prev_row = if force_full { None } else { Some(&prev[Row(y)]) };
             Self::row(
-                &shadow[Row(y)],
+                prev_row,
                 &next[Row(y)],
                 arena,
                 y,
@@ -116,8 +121,6 @@ impl Rasterer {
             self.output.escape(SynchronizedOutput::Reset)?;
         }
 
-        // Swap prev ← new.
-        self.shadow.copy_from_slice(buffer.as_ref());
         Ok(())
     }
     pub fn write(&mut self, out: &mut impl io::Write) -> io::Result<()> {
@@ -134,7 +137,6 @@ impl Rasterer {
 
     pub fn clear(&mut self) {
         self.output.clear();
-        self.shadow.clear();
         self.pen.reset();
         self.invalidated = true;
     }
@@ -144,9 +146,8 @@ impl Rasterer {
         self.invalidated = true;
     }
 
-    /// Handle a terminal resize.
-    pub fn resize(&mut self, width: usize, height: usize) {
-        self.shadow.resize(width, height);
+    /// Note that the terminal was resized. Forces a full repaint next frame.
+    pub fn resize(&mut self, _width: usize, _height: usize) {
         self.invalidated = true;
     }
 
@@ -219,13 +220,16 @@ impl Rasterer {
         out.flush()
     }
 
-    /// Render in inline mode (no alternate screen, relative cursor only).
-    fn raster_inline_impl(&mut self, buffer: &Buffer, arena: &Arena) -> io::Result<()> {
-        let (prev, next) = (&mut self.shadow, buffer);
+    /// Inline variant of [`present`](Self::present).
+    ///
+    /// Uses relative cursor movement and claims scrollback rows on first
+    /// render. Treats `prev` the same way [`present`] does — ignored when
+    /// `invalidated` or dims don't match.
+    fn present_inline(&mut self, prev: &Buffer, next: &Buffer, arena: &Arena) -> io::Result<()> {
         let width = next.width;
         let height = next.height;
 
-        let inline = self.inline.as_mut().expect("inline state required");
+        let force_full = self.invalidated || prev.width != width || prev.height != height;
 
         if self.capabilities.use_sync_output() {
             self.output.escape(SynchronizedOutput::Set)?;
@@ -233,36 +237,24 @@ impl Rasterer {
 
         self.output.escape(TextCursorEnable::Reset)?;
 
+        let inline = self.inline.as_mut().expect("inline state required");
+
         if inline.first_render {
-            // First render: emit each row with \n separators.
-            // Only emit up to the last non-empty cell per row, then EL.
+            // First render: emit each row with \n separators to claim scrollback.
             inline.first_render = false;
             inline.owned_rows = height;
-            prev.resize(width, height);
 
             for y in 0..height {
                 if y > 0 {
                     self.output.push(b'\n');
                 }
 
-                let row = &buffer[Row(y)];
+                let row = &next[Row(y)];
+                let last_content = (0..width).rev().find(|&x| !row[x].is_default());
 
-
-                // Find last non-empty cell in this row.
-                let last_content = (0..width).rev().find(|&x| {
-                    let cell = &row[x];
-                    !cell.is_default()
-                });
-
-                match last_content {
-                    Some(end) => {
-                        for col in 0..=end {
-                            let cell = &row[col];
-                            Self::render_cell(cell, &mut self.output, &mut self.pen, arena)?;
-                        }
-                    }
-                    None => {
-                        // Entire row is empty — nothing to emit before EL.
+                if let Some(end) = last_content {
+                    for col in 0..=end {
+                        Self::render_cell(&row[col], &mut self.output, &mut self.pen, arena)?;
                     }
                 }
 
@@ -271,19 +263,15 @@ impl Rasterer {
             }
 
             self.pen.row = height - 1;
-            self.pen.col = match (0..width)
-                .rev()
-                .find(|&x| !next[x].is_default())
-            {
+            let last_row = &next[Row(height - 1)];
+            self.pen.col = match (0..width).rev().find(|&x| !last_row[x].is_default()) {
                 Some(end) => end + 1,
                 None => 0,
             };
         } else {
-            // Subsequent renders: move up to the top of our owned region, diff rows.
             let old_owned = inline.owned_rows;
 
             if height > old_owned {
-                // Growing: emit newlines to claim more rows.
                 let extra = height - old_owned;
                 for _ in 0..extra {
                     self.output.push(b'\n');
@@ -292,7 +280,6 @@ impl Rasterer {
                 inline.owned_rows = height;
             }
 
-            // Move to the top of our owned region.
             if self.pen.row > 0 {
                 self.output.escape(CursorUp(self.pen.row))?;
             }
@@ -300,33 +287,25 @@ impl Rasterer {
             self.pen.row = 0;
             self.pen.col = 0;
 
-            // Resize prev if needed.
-            if self.shadow.width != width || self.shadow.height != height {
-                self.shadow.resize(width, height);
-            }
-
-            // Diff each row using relative movement.
             for y in 0..height {
+                let prev_row = if force_full { None } else { Some(&prev[Row(y)]) };
                 Self::row(
-                    &self.shadow[y * width..(y) * width + width],
-                    &next[y * width..(y) * width + width],
+                    prev_row,
+                    &next[Row(y)],
                     arena,
                     y,
                     &mut self.output,
                     &mut self.pen,
                     CursorMode::Relative,
                     width,
-                );
+                )?;
             }
 
-            // If we shrank, clear extra rows.
             if height < old_owned {
                 for _ in height..old_owned {
-                    self.pen
-                        .move_to_relative(self.pen.row + 1, 0, &mut self.output);
+                    self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output);
                     self.output.escape(EraseLineToEnd)?;
                 }
-                // Move back to last row of content.
                 if self.pen.row > height - 1 {
                     let up = self.pen.row - (height - 1);
                     self.output.escape(CursorUp(up))?;
@@ -336,6 +315,8 @@ impl Rasterer {
             }
         }
 
+        self.invalidated = false;
+
         self.pen.reset_style(&mut self.output);
         self.output.escape(TextCursorEnable::Set)?;
 
@@ -343,22 +324,16 @@ impl Rasterer {
             self.output.escape(SynchronizedOutput::Reset)?;
         }
 
-        // Reuse the allocation when dimensions match.
-        if self.shadow.width == width && self.shadow.height == height {
-            self.shadow.copy_from_slice(next.as_ref());
-        } else {
-            self.shadow.clone_from(next);
-        }
-
         Ok(())
     }
 
     /// Diff a single row, emitting only the changed cells.
     ///
-    /// Uses left→right and right→left scanning to find the minimal dirty
-    /// region, plus a trailing EL optimization when the tail goes empty.
+    /// Passing `prev = None` treats every non-default cell in `next` as a
+    /// change — used for full-paint scenarios where the terminal is known
+    /// to be blank (post `Home`/`EraseDisplay`, or pre-scrollback claim).
     fn row(
-        prev: &[Cell],
+        prev: Option<&[Cell]>,
         next: &[Cell],
         arena: &Arena,
         y: usize,
@@ -367,21 +342,19 @@ impl Rasterer {
         cursor_mode: CursorMode,
         width: usize,
     ) -> io::Result<()> {
-        // Scan left→right for first differing cell.
-        let first = match (0..width).find(|&x| next[x] != prev[x]) {
-            Some(col) => col,
-            None => return Ok(()), // Entire line is identical.
+        let differs = |x: usize| match prev {
+            Some(p) => next[x] != p[x],
+            None => !next[x].is_default(),
         };
 
-        // Scan right→left for last differing cell.
-        let last = (0..width).rev().find(|&x| next[x] != prev[x]).unwrap_or(width - 1);
+        let first = match (0..width).find(|&x| differs(x)) {
+            Some(col) => col,
+            None => return Ok(()),
+        };
+        let last = (0..width).rev().find(|&x| differs(x)).unwrap_or(width - 1);
 
-        // Within [first, last], find the last non-empty new cell. If the tail
-        // of the diff range is all-empty new cells replacing old content, we
-        // can use EL instead of emitting spaces.
         let last_content = (first..=last).rev().find(|&x| !next[x].is_default());
 
-        // Move cursor to start of changed region.
         match cursor_mode {
             CursorMode::Absolute(caps) => cursor.move_to(y, first, output),
             CursorMode::Relative => cursor.move_to_relative(y, first, output),
@@ -389,13 +362,10 @@ impl Rasterer {
 
         match last_content {
             None => {
-
-                // Entire diff range is now empty — just erase to end of line.
                 cursor.reset_style(output);
                 escape!(output, EraseLineToEnd)?;
             }
             Some(emit_end) => {
-                // Emit changed cells from first through emit_end.
                 let mut col = first;
                 while col <= emit_end {
                     let cell = &next[col];
@@ -405,14 +375,13 @@ impl Rasterer {
                     cursor.col += w;
                 }
 
-                // Clear to end of line if trailing cells transitioned to empty.
                 if emit_end < last {
                     cursor.reset_style(output);
                     escape!(output, EraseLineToEnd)?;
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -452,6 +421,49 @@ mod tests {
 
     use super::*;
 
+    /// Test wrapper that tracks the previous frame internally, so tests can
+    /// keep calling `raster(next)` like before while `Rasterer::present`
+    /// takes both frames explicitly. Production code uses a `DoubleBuffer`
+    /// on `Engine` instead.
+    struct Shadowed {
+        inner: Rasterer,
+        prev: Buffer,
+    }
+
+    impl Shadowed {
+        fn new(width: usize, height: usize) -> Self {
+            Self { inner: Rasterer::new(width, height), prev: Buffer::new(width, height) }
+        }
+
+        fn inline(width: usize, height: usize) -> Self {
+            Self { inner: Rasterer::inline(width, height), prev: Buffer::new(width, height) }
+        }
+
+        fn with_capabilities(mut self, caps: Capabilities) -> Self {
+            self.inner = self.inner.with_capabilities(caps);
+            self
+        }
+
+        fn raster(&mut self, next: &Buffer, arena: &Arena) -> io::Result<()> {
+            if self.prev.width != next.width || self.prev.height != next.height {
+                self.prev.resize(next.width, next.height);
+                self.prev.clear();
+            }
+            self.inner.present(&self.prev, next, arena)?;
+            self.prev.copy_from_slice(next.as_ref());
+            Ok(())
+        }
+    }
+
+    impl std::ops::Deref for Shadowed {
+        type Target = Rasterer;
+        fn deref(&self) -> &Rasterer { &self.inner }
+    }
+
+    impl std::ops::DerefMut for Shadowed {
+        fn deref_mut(&mut self) -> &mut Rasterer { &mut self.inner }
+    }
+
     // ── Fullscreen: Basic Rendering ─────────────────────────────────
 
     #[test]
@@ -460,7 +472,7 @@ mod tests {
 
         let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
-        let mut r = Rasterer::new(5, 1);
+        let mut r = Shadowed::new(5, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -478,7 +490,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -508,7 +520,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -536,7 +548,7 @@ mod tests {
     fn invalidate_forces_full_redraw() {
         let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
 
-        let mut r = Rasterer::new(2, 1);
+        let mut r = Shadowed::new(2, 1);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -556,7 +568,7 @@ mod tests {
         let style = Style::None;
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -590,7 +602,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterer::new(5, 1);
+        let mut r = Shadowed::new(5, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -613,7 +625,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
         );
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -637,7 +649,7 @@ mod tests {
         let s2 = Style::default().foreground(Color::Index(2));
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -657,7 +669,7 @@ mod tests {
     fn sync_output_wraps_render() {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::new(3, 1).with_capabilities(caps);
+        let mut r = Shadowed::new(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -674,7 +686,7 @@ mod tests {
     #[test]
     fn no_sync_without_cap() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -696,7 +708,7 @@ mod tests {
 
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -710,7 +722,7 @@ mod tests {
         let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
 
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -729,7 +741,7 @@ mod tests {
     #[test]
     fn render_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -757,7 +769,7 @@ mod tests {
 
     #[test]
     fn enter_exit_alt_screen_sequences() {
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
 
         r.enter_alt_screen();
         let output = r.as_str();
@@ -781,7 +793,7 @@ mod tests {
     #[test]
     fn flush_writes_and_clears() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::new(3, 1);
+        let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new());
 
         assert!(
@@ -800,24 +812,24 @@ mod tests {
 
     #[test]
     fn is_inline_reflects_mode() {
-        let fs = Rasterer::new(3, 1);
+        let fs = Shadowed::new(3, 1);
         assert!(!fs.is_inline());
 
-        let il = Rasterer::inline(3, 1);
+        let il = Shadowed::inline(3, 1);
         assert!(il.is_inline());
     }
 
     #[test]
     fn with_capabilities_chainable() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let r = Rasterer::new(3, 1).with_capabilities(caps);
+        let r = Shadowed::new(3, 1).with_capabilities(caps);
         assert!(r.capabilities.sync_output);
     }
 
     #[test]
     fn inline_with_capabilities_chainable() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let r = Rasterer::inline(3, 1).with_capabilities(caps);
+        let r = Shadowed::inline(3, 1).with_capabilities(caps);
         assert!(r.is_inline());
         assert!(r.capabilities.sync_output);
     }
@@ -838,7 +850,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterer::inline(5, 2);
+        let mut r = Shadowed::inline(5, 2);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
@@ -865,7 +877,7 @@ mod tests {
         // Only first 2 of 10 columns have content.
         let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
-        let mut r = Rasterer::inline(10, 1);
+        let mut r = Shadowed::inline(10, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_bytes();
@@ -886,7 +898,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
 
-        let mut r = Rasterer::inline(5, 3);
+        let mut r = Shadowed::inline(5, 3);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -910,7 +922,7 @@ mod tests {
         let style = Style::None;
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
-        let mut r = Rasterer::inline(3, 1);
+        let mut r = Shadowed::inline(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -929,7 +941,7 @@ mod tests {
         let style = Style::None;
         let buffer = Buffer::from_chars(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
-        let mut r = Rasterer::inline(3, 2);
+        let mut r = Shadowed::inline(3, 2);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();
@@ -957,7 +969,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterer::inline(5, 2);
+        let mut r = Shadowed::inline(5, 2);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1006,7 +1018,7 @@ mod tests {
             ],
         );
 
-        let mut r = Rasterer::inline(5, 2);
+        let mut r = Shadowed::inline(5, 2);
         r.raster(&buffer, &Arena::new());
         r.clear_output();
 
@@ -1028,7 +1040,7 @@ mod tests {
         let style = Style::None;
         let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
-        let mut r = Rasterer::inline(3, 2);
+        let mut r = Shadowed::inline(3, 2);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1057,7 +1069,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
 
-        let mut r = Rasterer::inline(3, 3);
+        let mut r = Shadowed::inline(3, 3);
         r.raster(&buf1, &Arena::new());
         r.clear_output();
 
@@ -1074,7 +1086,7 @@ mod tests {
     #[test]
     fn inline_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::inline(3, 1);
+        let mut r = Shadowed::inline(3, 1);
         r.raster(&buffer, &Arena::new());
 
         let output_str = r.as_str();
@@ -1100,7 +1112,7 @@ mod tests {
     fn inline_sync_output() {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
-        let mut r = Rasterer::inline(3, 1).with_capabilities(caps);
+        let mut r = Shadowed::inline(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new());
 
         let output = r.as_str();

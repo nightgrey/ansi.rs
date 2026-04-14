@@ -165,7 +165,7 @@ impl Grapheme {
     /// # Example
     ///
     /// ```
-    /// # use sigil::{Grapheme, Arena};
+    /// # use gloss::{Grapheme, Arena};
     /// let arena = Arena::new();
     /// let g = Grapheme::inline('A');
     /// assert_eq!(g.as_str(&arena), "A");

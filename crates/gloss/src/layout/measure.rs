@@ -1,15 +1,15 @@
 use geometry::Size;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::{Display, Node, NodeKind};
+use crate::{Display, Element, ElementKind};
 
-pub fn measure_node(
+pub fn measure(
     known: taffy::Size<Option<f32>>,
     available: taffy::Size<taffy::AvailableSpace>,
-    node: &Node<'_>,
+    node: &Element<'_>,
 ) -> taffy::Size<f32> {
     match &node.kind {
-        NodeKind::Span(text) => {
+        ElementKind::Span(text) => {
             let wrap_width = resolve_wrap_width(known.width, available.width, node.style.display);
 
             let size = measure_text_block(text, wrap_width, node.style.display);
@@ -21,7 +21,7 @@ pub fn measure_node(
         }
 
         // Non-leaf containers are sized by Taffy from children.
-        NodeKind::Div => taffy::Size::ZERO,
+        ElementKind::Div => taffy::Size::ZERO,
     }
 }
 

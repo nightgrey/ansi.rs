@@ -1,165 +1,162 @@
-use crate::{Dirty, LayoutContext, LayoutNode, Node, NodeId};
-use crate::measure_node;
+use crate::{Dirty, LayoutContext, LayoutNode, Element, ElementId};
+use crate::measure;
 use crate::{Available, Dimension, Space, Style};
-use geometry::{Point, Rect, Size};
+use geometry::{Bounded, Point, Rect, Size};
 use tree::{At, Secondary, Tree, id};
 
 #[derive(Debug)]
 pub struct Document<'a> {
-    pub root: NodeId,
-    pub nodes: Tree<NodeId, Node<'a>>,
-    pub layouts: Secondary<NodeId, LayoutNode>,
+    pub root_id: ElementId,
+    elements: Tree<ElementId, Element<'a>>,
+    layouts: Secondary<ElementId, LayoutNode>,
 }
 
 impl<'a> Document<'a> {
     pub fn new() -> Self {
-        let mut nodes = Tree::default();
+        let mut inner = Tree::default();
         let mut layouts = Secondary::default();
 
-        let root_id = nodes.insert(Node::Div());
+        let root_id = inner.insert(Element::Div());
         layouts.insert(root_id, LayoutNode::default());
 
         Self {
-            root: root_id,
-            nodes,
+            root_id,
+            elements: inner,
             layouts,
         }
     }
     
     /// Inserts a node as the last child of the root.
-    pub fn insert(&mut self, node: Node<'a>) -> NodeId {
-        self.insert_at(node, At::Child(self.root))
+    pub fn insert(&mut self, node: Element<'a>) -> ElementId {
+        self.insert_at(node, At::Child(self.root_id))
     }
 
     /// Inserts a node as the last child of the root.
-    pub fn insert_with(&mut self, node: Node<'a>, f: impl FnOnce(&mut Node<'a>)) -> NodeId {
+    pub fn insert_with(&mut self, node: Element<'a>, f: impl FnOnce(&mut Element<'a>)) -> ElementId {
         let id = self.insert(node);
-        f(&mut self.nodes[id]);
+        f(&mut self.elements[id]);
         id
     }
     
     /// Inserts a node at the given position.
-    pub fn insert_at(&mut self, node: Node<'a>, at: At<NodeId>) -> NodeId{
-        let id = self.nodes.insert_at(node, at);
+    pub fn insert_at(&mut self, node: Element<'a>, at: At<ElementId>) -> ElementId {
+        let id = self.elements.insert_at(node, at);
         self.layouts.insert(id, LayoutNode::default());
         id
     }
     
-    pub fn insert_at_with(&mut self, node: Node<'a>, at: At<NodeId>, f: impl FnOnce(&mut Node<'a>)) -> NodeId {
+    pub fn insert_at_with(&mut self, node: Element<'a>, at: At<ElementId>, f: impl FnOnce(&mut Element<'a>)) -> ElementId {
         let id = self.insert_at(node, at);
-        f(&mut self.nodes[id]);
+        f(&mut self.elements[id]);
         id
     }
     
-    pub fn move_to(&mut self, id: NodeId, at: At<NodeId>) {
-        self.nodes.move_to(id, at);
-        self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+    pub fn move_to(&mut self, id: ElementId, at: At<ElementId>) {
+        self.elements.move_to(id, at);
+        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
 
-    pub fn root(&self) -> &Node<'a> {
-        &self.nodes[self.root]
+    pub fn root(&self) -> &Element<'a> {
+        &self.elements[self.root_id]
     }
 
-    pub fn root_mut(&mut self) -> &mut Node<'a> {
-        self.mark_dirty(self.root, Dirty::Style | Dirty::Measure | Dirty::Layout);
-        &mut self.nodes[self.root]
+    pub fn root_mut(&mut self) -> &mut Element<'a> {
+        self.mark(self.root_id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        &mut self.elements[self.root_id]
     }
 
-    pub fn node(&self, id: NodeId) -> &Node<'a> {
-        &self.nodes[id]
+    pub fn element(&self, id: ElementId) -> &Element<'a> {
+        &self.elements[id]
     }
 
-    pub fn node_mut(&mut self, id: NodeId) -> &mut Node<'a> {
-        self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
-        &mut self.nodes[id]
+    pub fn element_mut(&mut self, id: ElementId) -> &mut Element<'a> {
+        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        &mut self.elements[id]
     }
 
-    pub fn layout_node(&self, id: NodeId) -> &LayoutNode {
+    pub fn layout_node(&self, id: ElementId) -> &LayoutNode {
         &self.layouts[id]
     }
 
-    pub fn layout_node_mut(&mut self, id: NodeId) -> &mut LayoutNode {
-        self.layouts.get_mut(id).expect("missing layout node")
+    pub fn layout_node_mut(&mut self, id: ElementId) -> &mut LayoutNode {
+        &mut self.layouts[id]
     }
 
-    pub fn children(&self, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.nodes.children(id)
+    pub fn children(&self, id: ElementId) -> impl Iterator<Item =ElementId> + '_ {
+        self.elements.children(id)
     }
 
-    pub fn mark_dirty(&mut self, id: NodeId, flags: Dirty) {
-        if let Some(layout) = self.layouts.get_mut(id) {
-            layout.dirty |= flags;
-        }
+    pub fn mark(&mut self, id: ElementId, flags: Dirty) {
+        self.layout_node_mut(id).mark(flags);
     }
 
-    pub fn set_style(&mut self, id: NodeId, style: Style) {
-        self.nodes[id].style = style;
-        self.mark_dirty(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+    pub fn unmark(&mut self, id: ElementId, flags: Dirty) {
+        self.layout_node_mut(id).unmark(flags);
+    }
+    
+    pub fn is_dirty(&self, id: ElementId) -> bool {
+        self.layout_node(id).is_dirty()
+    }
+
+    pub fn border_bounds(&self, id: ElementId) -> Rect {
+        self.layout_node(id).border_bounds()
+    }
+
+    pub fn content_bounds(&self, id: ElementId) -> Rect {
+        self.layout_node(id).content_bounds()
+    }
+
+
+    pub fn set_style(&mut self, id: ElementId, style: Style) {
+        self.elements[id].style = style;
+        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }
 
     pub fn compute_layout(&mut self, space: impl Into<Space>) {
         let space = space.into();
-        self.nodes[self.root].size.width = match space.width {
+        self.elements[self.root_id].size.width = match space.width {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
         };
-        self.nodes[self.root].size.height = match space.height {
+        self.elements[self.root_id].size.height = match space.height {
             Available::Definite(val) => Dimension::Length(val),
             Available::Min => Dimension::Auto,
             Available::Max => Dimension::MAX,
         };
         let mut context = LayoutContext::new(
-            &mut self.nodes,
+            &mut self.elements,
             &mut self.layouts,
-            |known, available, id, style| measure_node(known, available, style),
+            |known, available, id, style| measure(known, available, style),
         );
 
         context.compute_layout(
-            self.root,
+            self.root_id,
             space
         );
 
-        self.clear_layout(self.root);
+        self.clear_layout(self.root_id);
     }
 
     pub fn print_layout(&mut self) {
         LayoutContext::new(
-            &mut self.nodes,
+            &mut self.elements,
             &mut self.layouts,
-            |known, available, id, style| measure_node(known, available, style),
-        ).print_tree(self.root)
+            |known, available, id, style| measure(known, available, style),
+        ).print_tree(self.root_id)
     }
 
-    fn clear_layout(&mut self, id: NodeId) {
-        let ids: Vec<NodeId> = std::iter::once(id)
-            .chain(self.nodes.descendants(id))
+    fn clear_layout(&mut self, id: ElementId) {
+        let ids: Vec<ElementId> = std::iter::once(id)
+            .chain(self.elements.descendants(id))
             .collect();
         for id in ids {
             if let Some(layout) = self.layouts.get_mut(id) {
-                layout.dirty.remove(Dirty::Layout | Dirty::Measure);
+                layout.unmark(Dirty::Layout | Dirty::Measure);
             }
         }
     }
 
-    pub fn border_bounds(&self, id: NodeId) -> Rect {
-        let layout = &self.layouts[id].final_layout;
-        let x = layout.location.x.max(0.0) as usize;
-        let y = layout.location.y.max(0.0) as usize;
-        let w = layout.size.width.max(0.0) as usize;
-        let h = layout.size.height.max(0.0) as usize;
-
-        Rect {
-            min: Point { x, y },
-            max: Point { x: x + w, y: y + h },
-        }
-    }
-
-    pub fn content_bounds(&self, id: NodeId) -> Rect {
-        let layout = &self.layouts[id].final_layout;
-
-        Rect::new(layout.content_box_x() as usize, layout.content_box_y() as usize, layout.content_box_width() as usize, layout.content_box_height() as usize)
-    }
 }
 
 impl<'a> Default for Document<'a> {

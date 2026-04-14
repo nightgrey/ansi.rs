@@ -16,7 +16,7 @@ fn main() -> io::Result<()> {
     root.color = Some(Color::White);
 
     engine.insert_with(
-        Node::Span("~ 肏 ~"),
+        Element::Span("~ 肏 ~"),
         |node| {
             node.font_weight = Some(FontWeight::Bold);
         },
@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
 
 
     engine.insert_with(
-        Node::Span("Mystical"),
+        Element::Span("Mystical"),
         |node| {
             node.margin.top = 1.into();
             node.color = Some(Color::Rgb(255, 0, 0));

@@ -587,7 +587,7 @@ mod tests {
     use ansi::Color;
     use crate::Grapheme;
     use tree::At;
-    use crate::{Document, FlexDirection, FontWeight, Node, TextDecoration};
+    use crate::{Document, FlexDirection, FontWeight, Element, TextDecoration};
     use super::*;
 
     struct Context<'a> {
@@ -598,14 +598,14 @@ mod tests {
 
     fn add_content(context: &mut Context) {
         let document = &mut context.document;
-        let root = document.node_mut(document.root);
+        let root = document.root_mut();
 
         root.border = BorderStyle::Solid;
         root.margin = (2, 2).into();
         root.padding = (1, 1).into();
 
         let heading = document.insert_with(
-            Node::Span(Cow::Borrowed("Title")),
+            Element::Span(Cow::Borrowed("Title")),
             |node| {
                 node.color = Some(Color::Red);
                 node.text_decoration = Some(TextDecoration::Underline);
@@ -613,20 +613,20 @@ mod tests {
             },
         );
 
-        let footer = document.insert_with(Node::Div(), |node| {
+        let footer = document.insert_with(Element::Div(), |node| {
             node.background = Some(Color::BrightBlack);
             node.flex_direction = FlexDirection::Row;
         });
 
-        let footer_left = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
+        let footer_left = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
             node.padding = (1, 1).into();
         });
-        let footer_left_content = document.insert_at(Node::Span("Gloss Rendering"), At::Child(footer_left));
+        let footer_left_content = document.insert_at(Element::Span("Gloss Rendering"), At::Child(footer_left));
 
-        let footer_right = document.insert_at_with(Node::Div(), At::Child(footer), |node| {
+        let footer_right = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
             node.padding = (1, 1).into();
         });
-        let footer_right_content = document.insert_at(Node::Span("Test Consortium"), At::Child(footer_right));
+        let footer_right_content = document.insert_at(Element::Span("Test Consortium"), At::Child(footer_right));
 
     }
 
@@ -788,12 +788,12 @@ mod tests {
         let document = &mut context.document;
 
         // Root with padding — children should render inside the content area
-        let root = document.node_mut(document.root);
+        let root = document.root_mut();
         root.padding = (2, 2).into();
         root.flex_direction = FlexDirection::Column;
 
         let child = document.insert_with(
-            Node::Span(Cow::Borrowed("AB")),
+            Element::Span(Cow::Borrowed("AB")),
             |node| { node.color = Some(Color::Blue); },
         );
 
@@ -820,19 +820,19 @@ mod tests {
         let document = &mut context.document;
 
         // Root with padding, column layout
-        let root = document.node_mut(document.root);
+        let root = document.root_mut();
         root.padding = (1, 1).into();
         root.flex_direction = FlexDirection::Column;
 
         // Child div with its own padding
-        let child_div = document.insert_with(Node::Div(), |node| {
+        let child_div = document.insert_with(Element::Div(), |node| {
             node.padding = (1, 1).into();
             node.flex_direction = FlexDirection::Column;
         });
 
         // Grandchild text inside the child div
         let text_id = document.insert_at_with(
-            Node::Span("OK"),
+            Element::Span("OK"),
             At::Child(child_div),
             |node| { node.color = Some(Color::Blue); },
         );
@@ -865,16 +865,16 @@ mod tests {
         let mut context = context(30, 15);
         let document = &mut context.document;
 
-        let root = document.node_mut(document.root);
+        let root = document.root_mut();
         root.flex_direction = FlexDirection::Column;
 
         // Two stacked children in column layout
         let child_a = document.insert_with(
-            Node::Span(Cow::Borrowed("AA")),
+            Element::Span(Cow::Borrowed("AA")),
             |node| { node.color = Some(Color::Blue); },
         );
         let child_b = document.insert_with(
-            Node::Span(Cow::Borrowed("BB")),
+            Element::Span(Cow::Borrowed("BB")),
             |node| { node.color = Some(Color::Green); },
         );
 
@@ -900,16 +900,16 @@ mod tests {
         let mut context = context(30, 5);
         let document = &mut context.document;
 
-        let root = document.node_mut(document.root);
+        let root = document.root_mut();
         root.display = crate::Display::Flex;
         root.flex_direction = FlexDirection::Row;
 
         let child_a = document.insert_with(
-            Node::Span(Cow::Borrowed("L")),
+            Element::Span(Cow::Borrowed("L")),
             |node| { node.color = Some(Color::Blue); },
         );
         let child_b = document.insert_with(
-            Node::Span(Cow::Borrowed("R")),
+            Element::Span(Cow::Borrowed("R")),
             |node| { node.color = Some(Color::Green); },
         );
 

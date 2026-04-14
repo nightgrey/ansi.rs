@@ -1,4 +1,4 @@
-use crate::{Document, NodeId, NodeKind, Style};
+use crate::{Document, ElementId, ElementKind, Style};
 use maybe::Maybe;
 use geometry::{Bounded, Point, Rect, Size};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -9,18 +9,18 @@ pub struct Painter<B: DrawingContext>(pub B);
 
 impl<B: DrawingContext> Painter<B> {
     pub fn paint(&mut self, document: &Document<'_>) {
-        self.resize(document.border_bounds(document.root));
-        self.paint_node(document, document.root, Style::DEFAULT);
+        self.resize(document.border_bounds(document.root_id));
+        self.paint_node(document, document.root_id, Style::DEFAULT);
         self.finish();
     }
 
     fn paint_node(
         &mut self,
         document: &Document<'_>,
-        id: NodeId,
+        id: ElementId,
         parent_style: Style,
     ) {
-        let node = document.node(id);
+        let node = document.element(id);
         let border_bounds = document.border_bounds(id);
         let content_bounds = document.content_bounds(id);
         let style = node.style.inherit(parent_style);
@@ -44,10 +44,10 @@ impl<B: DrawingContext> Painter<B> {
         if style.background.is_some() { self.rect(normalized_bounds); }
 
         match &node.kind {
-            NodeKind::Span(text) => {
+            ElementKind::Span(text) => {
                 self.text(normalized_bounds.min, text);
             }
-            NodeKind::Div => {
+            ElementKind::Div => {
             }
         }
 

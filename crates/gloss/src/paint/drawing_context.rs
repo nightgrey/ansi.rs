@@ -1,6 +1,7 @@
 use bon::Builder;
-use geometry::{Point, Rect, Size};
-use crate::{BorderStyle, Painter, Style};
+use geometry::{Bounded, Point, Rect, Size};
+use maybe::Maybe;
+use crate::{BorderStyle, Document, ElementId, ElementKind, Style};
 
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
@@ -120,7 +121,61 @@ pub trait DrawingContext {
     /// Finish any pending operations.
     fn finish(&mut self) -> &mut Self;
 
-    fn painter(self) -> Painter<Self> where Self: Sized {
-        Painter(self)
+    /// Paint a document into this context.
+    ///
+    /// Resizes to fit the document's root, traverses the element tree
+    /// applying styles/borders/content, then flushes any pending work.
+    fn paint(&mut self, document: &Document<'_>) {
+        self.resize(document.border_bounds(document.root_id));
+        paint_node(self, document, document.root_id, Style::DEFAULT);
+        self.finish();
     }
+}
+
+fn paint_node<B: DrawingContext + ?Sized>(
+    ctx: &mut B,
+    document: &Document<'_>,
+    id: ElementId,
+    parent_style: Style,
+) {
+    let node = document.element(id);
+    let border_bounds = document.border_bounds(id);
+    let content_bounds = document.content_bounds(id);
+    let style = node.style.inherit(parent_style);
+
+    ctx.save();
+
+    if style.border.is_some() {
+        ctx.border(border_bounds);
+    }
+
+    ctx.translate(border_bounds.min)
+        .clip(border_bounds.size().into())
+        .style(style)
+        .border_style(node.border);
+
+    // Children's taffy locations are border-box relative, so clip/bg use
+    // content bounds normalized into the node's own origin.
+    let normalized_bounds = content_bounds - border_bounds.min;
+
+    if style.background.is_some() {
+        ctx.rect(normalized_bounds);
+    }
+
+    match &node.kind {
+        ElementKind::Span(text) => {
+            ctx.text(normalized_bounds.min, text);
+        }
+        ElementKind::Div => {}
+    }
+
+    ctx.save();
+    ctx.clip(normalized_bounds);
+
+    for child in document.children(id) {
+        paint_node(ctx, document, child, style);
+    }
+
+    ctx.restore();
+    ctx.restore();
 }

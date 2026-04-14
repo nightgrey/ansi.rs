@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd};
 use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{BorderStyle, DrawingContext, Painter};
+use crate::{BorderStyle, DrawingContext};
 use crate::symbols::Symbol;
 use ansi::{Attribute, Color, Style};
 
@@ -455,12 +455,6 @@ impl<'buf> BufferDrawingContext<'buf> {
 
 }
 
-impl<'a> Painter<BufferDrawingContext<'a>> {
-    pub fn new(buffer: &'a mut Buffer, arena: &'a mut Arena) -> Self {
-        Self(BufferDrawingContext::new(buffer, arena))
-    }
-}
-
 impl<'a> DrawingContext for BufferDrawingContext<'a> {
     type Error = io::Error;
     type Options = BufferDrawingOptions;
@@ -642,8 +636,8 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> Painter<BufferDrawingContext<'a>> {
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter()
+    fn renderer<'a>(context: &'a mut Context) -> BufferDrawingContext<'a> {
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena)
     }
 
     #[test]
@@ -799,8 +793,7 @@ mod tests {
 
         document.compute_layout(Space::new(20u32, 10u32));
 
-        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
-        painter.paint(&document);
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
@@ -841,8 +834,7 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
-        painter.paint(&document);
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         let div_bounds = document.border_bounds(child_div);
         let text_bounds = document.border_bounds(text_id);
@@ -883,8 +875,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
-        painter.paint(&document);
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // First child
         assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('A'));
@@ -918,8 +909,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
-        painter.paint(&document);
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Side by side in row layout
         assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('L'));

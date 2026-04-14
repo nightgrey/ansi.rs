@@ -1,6 +1,6 @@
 use std::io;
 use derive_more::{Deref, DerefMut};
-use crate::{Arena, BufferDrawingContext, Document, DoubleBuffer, DrawingContext, Painter, Rasterer, Space};
+use crate::{Arena, BufferDrawingContext, Document, DoubleBuffer, DrawingContext, Rasterer};
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct Engine<'a> {
@@ -27,7 +27,6 @@ impl<'a> Engine<'a> {
 
         self.buffer.back_mut().clear();
         BufferDrawingContext::new(self.buffer.back_mut(), &mut self.arena)
-            .painter()
             .paint(&self.document);
 
         self.rasterer.present(self.buffer.front(), self.buffer.back(), &self.arena)?;

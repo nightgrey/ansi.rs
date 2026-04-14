@@ -10,7 +10,7 @@ use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use geometry::Resolve;
-use crate::{Cell, Arena, BufferIndex, Buf, BufMut};
+use crate::{Cell, Arena, BufferIndex, Buf, BufMut, BufferDiff};
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
     #[deref]
@@ -526,6 +526,12 @@ impl Buffer {
 
     pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {
         Buf::new(self, arena)
+    }
+
+    /// Iterate over the cells that differ between `self` (the previous frame)
+    /// and `next` (the current frame). See [`BufferDiff`] for details.
+    pub fn diff<'a, 'b>(&'a self, next: &'b Buffer) -> BufferDiff<'a, 'b> {
+        BufferDiff::new(self, next)
     }
 
     pub fn as_buf_mut<'a>(&'a mut self, arena: &'a mut Arena) -> BufMut<'a> {

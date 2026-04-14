@@ -1,7 +1,10 @@
 use geometry::Size;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::{Display, Element, ElementKind};
+
+const DEFAULT_TAB_WIDTH: usize = 4;
 
 pub fn measure(
     known: taffy::Size<Option<f32>>,
@@ -37,11 +40,11 @@ fn resolve_wrap_width(
     }
 
     if let Some(w) = known_width {
-        return Some((w as u32).max(0));
+        return Some(w.floor().max(0.0) as u32);
     }
 
     match available_width {
-        taffy::AvailableSpace::Definite(w) => Some(w.max(0.0) as u32),
+        taffy::AvailableSpace::Definite(w) => Some(w.floor().max(0.0) as u32),
         taffy::AvailableSpace::MinContent | taffy::AvailableSpace::MaxContent => None,
     }
 }
@@ -54,25 +57,25 @@ pub fn measure_text_block(text: &str, wrap_width: Option<u32>, display: Display)
         };
     }
 
-    let mut x = 0;
-    let mut y = 1;
-    let mut max_x = 0;
+    let mut x: usize = 0;
+    let mut lines: usize = 1;
+    let mut max_x: usize = 0;
 
-    for ch in text.chars() {
-        if ch == '\n' && !matches!(display, Display::Inline) {
+    for cluster in text.graphemes(true) {
+        if cluster == "\n" && !matches!(display, Display::Inline) {
             max_x = max_x.max(x);
             x = 0;
-            y += 1;
+            lines += 1;
             continue;
         }
 
-        let w = char_cell_width(ch, x, 4);
+        let w = grapheme_cell_width(cluster, x, DEFAULT_TAB_WIDTH);
 
         if let Some(limit) = wrap_width {
             if limit > 0 && x > 0 && x + w > limit as usize {
                 max_x = max_x.max(x);
                 x = 0;
-                y += 1;
+                lines += 1;
             }
         }
 
@@ -82,20 +85,19 @@ pub fn measure_text_block(text: &str, wrap_width: Option<u32>, display: Display)
 
     Size {
         width: max_x,
-        height: y,
+        height: lines,
     }
 }
 
-fn char_cell_width(ch: char, x: usize, tab_width: usize) -> usize {
-    match ch {
-        '\t' => {
-            if tab_width == 0 {
-                0
-            } else {
-                let next_tab_stop = ((x / tab_width) + 1) * tab_width;
-                next_tab_stop.saturating_sub(x)
-            }
+fn grapheme_cell_width(cluster: &str, x: usize, tab_width: usize) -> usize {
+    if cluster == "\t" {
+        if tab_width == 0 {
+            return 0;
         }
-        _ => UnicodeWidthChar::width(ch).unwrap_or(0),
+        let next_tab_stop = ((x / tab_width) + 1) * tab_width;
+        return next_tab_stop.saturating_sub(x);
     }
+
+    // Control chars (CR, ESC, etc.) measure as 0 — they don't advance the cursor.
+    UnicodeWidthStr::width(cluster)
 }

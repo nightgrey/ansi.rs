@@ -1,282 +1,250 @@
-// use geometry::{Bounded, Rect};
-// use utils::Resolve;
-// use crate::buffer::{Buffer, Cell};
-//
-// /// A zero-allocation iterator over the differences between two buffers of the same width.
-// ///
-// /// Yields `(x, y, &Cell)` tuples for each cell in `next` that differs from the corresponding cell
-// /// in `prev`. Handles multi-width characters (including VS16 emoji trailing cells) and
-// /// [`CellDiffOption`] directives.
-// #[derive(Debug)]
-// pub struct BufferDiff<'prev, 'next> {
-//     /// The next (current) buffer's cells.
-//     next: &'next [Cell],
-//     /// The previous buffer's cells.
-//     prev: &'prev [Cell],
-//     /// Buffer width (for `pos_of` calculation).
-//     bounds: Rect,
-//     /// Current position in the flat cell array.
-//     pos: usize,
-//     /// When processing VS16 trailing cells, tracks the range of trailing indices still to yield.
-//     trailing: Option<TrailingState>,
-// }
-//
-// /// Tracks pending trailing-cell yields for VS16 wide characters.
-// #[derive(Debug)]
-// struct TrailingState {
-//     next_index: usize,
-//     end: usize,
-// }
-//
-// impl<'prev, 'next> BufferDiff<'prev, 'next> {
-//     /// Creates a new iterator over the differences between `prev` and `next` terminal cells.
-//     ///
-//     /// Heights may differ; the iterator uses the minimum of the two.
-//     ///
-//     /// # Panics
-//     ///
-//     /// Panics if the buffers have different `x`, `y`, or `width` values.
-//     pub(crate) fn new(prev: &'prev Buffer, next: &'next Buffer) -> Self {
-//         assert!(
-//             prev.x() == next.x()
-//                 && prev.y() == next.y()
-//                 && prev.width() == next.width(),
-//             "buffer areas must have the same x, y, and width: prev={:?}, next={:?}",
-//             prev,
-//             next,
-//         );
-//
-//         let mut bounds = prev.bounds();
-//         bounds.set_height(bounds.height().min(next.height()));
-//
-//         Self {
-//             next: &next,
-//             prev: &prev,
-//             bounds,
-//             pos: 0,
-//             trailing: None,
-//         }
-//     }
-// }
-//
-// impl<'next> Iterator for BufferDiff<'_, 'next> {
-//     type Item = (u16, u16, &'next Cell);
-//
-//     fn next(&mut self) -> Option<Self::Item> {
-//         // First, yield any pending VS16 trailing cells.
-//         if let Some(TrailingState {
-//                         ref mut next_index,
-//                         end,
-//                     }) = self.trailing
-//         {
-//             while *next_index < end {
-//                 let j = *next_index;
-//                 *next_index += 1;
-//
-//                 // Only emit update if the symbol has changed.
-//                 // The style of hidden trailing cells is not visible, so style
-//                 // differences alone should not trigger updates that can cause
-//                 // cursor positioning issues on some terminals.
-//                 if !is_skip(&self.next[j]) && self.prev[j].grapheme() != self.next[j].grapheme() {
-//                     let (tx, ty) = self.bounds.resolve(j);
-//                     return Some((tx, ty, &self.next[j]));
-//                 }
-//             }
-//
-//             // Done with trailing cells; resume main loop past the wide character.
-//             self.pos = end;
-//             self.trailing = None;
-//         }
-//
-//         let len = self.next.len().min(self.prev.len());
-//         while self.pos < len {
-//             let i = self.pos;
-//             self.pos += 1;
-//
-//             let current = &self.next[i];
-//             let previous = &self.prev[i];
-//
-//             match current.diff_option {
-//                 CellDiffOption::Skip => {}
-//                 _ if is_skip(current) => {}
-//
-//                 CellDiffOption::ForcedWidth(width) => {
-//                     self.pos += width.get().saturating_sub(1) as usize;
-//                     if current != previous {
-//                         let (x, y) = self.pos_of(i);
-//                         return Some((x, y, &self.next[i]));
-//                     }
-//                 }
-//                 CellDiffOption::None => {
-//                     // If the current cell is multi-width, ensure the trailing cells are
-//                     // explicitly cleared when they previously contained non-blank content.
-//                     // Some terminals do not reliably clear the trailing cell(s) when printing
-//                     // a wide grapheme, which can result in visual artifacts (e.g., leftover
-//                     // characters). Emitting an explicit update for the trailing cells avoids
-//                     // this.
-//                     let cell_width = current.cell_width() as usize;
-//                     if current == previous {
-//                         // Equal cells still need to account for multi-width skip.
-//                         self.pos += cell_width.saturating_sub(1);
-//                         continue;
-//                     }
-//
-//                     // Work around terminals that fail to clear the trailing cell of certain
-//                     // emoji presentation sequences (those containing VS16 / U+FE0F).
-//                     // Only emit explicit clears for such sequences to avoid bloating diffs
-//                     // for standard wide characters (e.g., CJK), which terminals handle well.
-//                     let contains_vs16 =
-//                         cell_width > 1 && current.symbol().chars().any(|c| c == '\u{FE0F}');
-//
-//                     if contains_vs16 {
-//                         let trailing_end = (i + cell_width).min(len);
-//                         self.trailing = Some(TrailingState {
-//                             next_index: i + 1,
-//                             end: trailing_end,
-//                         });
-//                     } else if cell_width > 1 {
-//                         self.pos += cell_width.saturating_sub(1);
-//                     } else {
-//                         // single-width character, no position adjustment needed
-//                     }
-//
-//                     let (x, y) = self.pos_of(i);
-//                     return Some((x, y, &self.next[i]));
-//                 }
-//             }
-//         }
-//
-//         None
-//     }
-// }
-//
-// /// Returns `true` if this cell should be skipped during diffing.
-// #[allow(deprecated)]
-// const fn is_skip(cell: &Cell) -> bool {
-//     matches!(cell.diff_option, CellDiffOption::Skip)
-//         || (cell.skip && matches!(cell.diff_option, CellDiffOption::None))
-// }
-//
-// #[cfg(test)]
-// mod tests {
-//     use core::num::NonZeroU16;
-//
-//     use compact_str::CompactString;
-//
-//     use super::*;
-//     use crate::buffer::Buffer;
-//
-//     #[test]
-//     fn empty_buffers_yield_no_diffs() {
-//         let buf = Buffer::new(5, 1);
-//         let diff: Vec<_> = BufferDiff::new(&buf, &buf).collect();
-//         assert!(diff.is_empty());
-//     }
-//
-//     #[test]
-//     fn identical_buffers_yield_no_diffs() {
-//         let buf = Buffer::from_lines(["hello"]);
-//         let diff: Vec<_> = BufferDiff::new(&buf, &buf).collect();
-//         assert!(diff.is_empty());
-//     }
-//
-//     #[test]
-//     fn single_cell_change() {
-//         let prev = Buffer::from_lines(["hello"]);
-//         let next = Buffer::from_lines(["hallo"]);
-//         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
-//         assert_eq!(diff.len(), 1);
-//         assert_eq!(diff[0].0, 1); // x
-//         assert_eq!(diff[0].1, 0); // y
-//         assert_eq!(diff[0].2.symbol(), "a");
-//     }
-//
-//     #[test]
-//     fn all_cells_changed() {
-//         let prev = Buffer::from_lines(["aaa"]);
-//         let next = Buffer::from_lines(["bbb"]);
-//         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
-//         assert_eq!(diff.len(), 3);
-//     }
-//
-//     #[test]
-//     fn skip_cells_are_skipped() {
-//         let prev = Buffer::from_lines(["abc"]);
-//         let mut next = Buffer::from_lines(["xyz"]);
-//         next[1].diff_option = CellDiffOption::Skip;
-//
-//         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
-//         assert_eq!(diff.len(), 2);
-//         assert_eq!(diff[0].2.symbol(), "x");
-//         assert_eq!(diff[1].2.symbol(), "z");
-//     }
-//
-//     #[test]
-//     fn forced_width_skips_trailing() {
-//         let prev = Buffer::from_lines(["abcd"]);
-//         let mut next = Buffer::from_lines(["xbcd"]);
-//         next[0].diff_option = CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap());
-//
-//         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
-//         assert_eq!(diff.len(), 1);
-//         assert_eq!(diff[0].2.symbol(), "x");
-//     }
-//
-//     #[test]
-//     fn vs16_trailing_cell_unchanged() {
-//         use ansi::{Color, Style};
-//
-//         let mut prev = Buffer::new(4, 1);
-//         prev.set_string(0, 0, "⌨️", Style::new());
-//         prev.set_string(2, 0, "ab", Style::new());
-//
-//         let mut next = Buffer::new(4, 1);
-//         next.set_string(0, 0, "⌨️", Style::new().fg(Color::Red));
-//         next.set_string(2, 0, "ab", Style::new());
-//
-//         // Only the main emoji cell (0,0) differs (different style);
-//         // the trailing cell (1,0) is identical in both buffers.
-//         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
-//         assert_eq!(diff.len(), 1);
-//         assert_eq!(diff[0].0, 0);
-//         assert_eq!(diff[0].1, 0);
-//     }
-//
-//     #[test]
-//     #[allow(deprecated)]
-//     fn deprecated_skip_field_is_respected() {
-//         let prev = Buffer::from_lines(["abc"]);
-//         let mut next = Buffer::from_lines(["xyz"]);
-//         next[1].skip = true;
-//
-//         let diff: CompactString = BufferDiff::new(&prev, &next)
-//             .map(|(_, _, cell)| cell.grapheme())
-//             .collect();
-//
-//         assert_eq!(diff, "xz");
-//     }
-//
-//     #[test]
-//     #[allow(deprecated)]
-//     fn forced_width_takes_precedence_over_deprecated_skip() {
-//         let prev = Buffer::from_lines(["abcd"]);
-//         let mut next = Buffer::from_lines(["xbcd"]);
-//         next[0].skip = true;
-//         next[0].diff_option = CellDiffOption::ForcedWidth(NonZeroUsize::new(2).unwrap());
-//
-//         // ForcedWidth wins over skip=true, so the cell is diffed with forced width
-//         let diff: CompactString = BufferDiff::new(&prev, &next)
-//             .map(|(_, _, cell)| cell.grapheme())
-//             .collect();
-//
-//         assert_eq!(diff, "x");
-//     }
-//
-//     #[test]
-//     #[should_panic(expected = "buffer areas must have the same x, y, and width")]
-//     fn mismatched_widths_panics() {
-//         let prev = Buffer::new(5, 1);
-//         let next = Buffer::new(10, 1);
-//         BufferDiff::new(&prev, &next);
-//     }
-// }
+use std::iter::FusedIterator;
+
+use crate::buffer::{Buffer, Cell};
+
+/// A zero-allocation iterator over the differences between two buffers of the same width.
+///
+/// Yields `(x, y, &Cell)` tuples for each cell in `next` that differs from the
+/// corresponding cell in `prev`. Zero-width cells (the trailing positions of a
+/// wide grapheme) are skipped: they are implicitly redrawn by the wide base
+/// cell, so diffing them separately would produce redundant updates.
+///
+/// When the two buffers have different heights, the iterator only walks the
+/// overlapping region (the shorter of the two).
+///
+/// # Known limitation: VS16 emoji presentation
+///
+/// Some terminals fail to clear the continuation cell when re-rendering an
+/// emoji that uses the variation selector U+FE0F (VS16). This iterator does
+/// not carry the arena needed to inspect grapheme bytes, so it cannot detect
+/// that case. If you target terminals with this quirk, emit an explicit clear
+/// of the trailing cell after each wide emoji update in a post-pass.
+#[derive(Debug)]
+pub struct BufferDiff<'prev, 'next> {
+    next: &'next [Cell],
+    prev: &'prev [Cell],
+    width: usize,
+    len: usize,
+    pos: usize,
+}
+
+impl<'prev, 'next> BufferDiff<'prev, 'next> {
+    /// Creates a new iterator over the cells that differ between `prev` and `next`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the buffers do not have the same width.
+    pub fn new(prev: &'prev Buffer, next: &'next Buffer) -> Self {
+        assert_eq!(
+            prev.width, next.width,
+            "buffers must have the same width: prev={}, next={}",
+            prev.width, next.width,
+        );
+
+        let width = prev.width;
+        let height = prev.height.min(next.height);
+
+        Self {
+            next: &next.inner,
+            prev: &prev.inner,
+            width,
+            len: width * height,
+            pos: 0,
+        }
+    }
+}
+
+impl<'next> Iterator for BufferDiff<'_, 'next> {
+    type Item = (usize, usize, &'next Cell);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.pos < self.len {
+            let i = self.pos;
+            let current = &self.next[i];
+            let cell_width = current.width() as usize;
+
+            // Zero-width cells are the trailing positions of a wide grapheme
+            // and are redrawn implicitly by that base cell.
+            if cell_width == 0 {
+                self.pos += 1;
+                continue;
+            }
+
+            self.pos += cell_width;
+
+            if current != &self.prev[i] {
+                let x = i % self.width;
+                let y = i / self.width;
+                return Some((x, y, current));
+            }
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.len.saturating_sub(self.pos)))
+    }
+}
+
+impl FusedIterator for BufferDiff<'_, '_> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buffer::Arena;
+
+    #[test]
+    fn empty_buffers_yield_no_diffs() {
+        let buf = Buffer::new(5, 1);
+        let diff: Vec<_> = BufferDiff::new(&buf, &buf).collect();
+        assert!(diff.is_empty());
+    }
+
+    #[test]
+    fn identical_buffers_yield_no_diffs() {
+        let mut arena = Arena::new();
+        let buf = Buffer::from_lines(["hello"], &mut arena);
+        let diff: Vec<_> = BufferDiff::new(&buf, &buf).collect();
+        assert!(diff.is_empty());
+    }
+
+    #[test]
+    fn single_cell_change() {
+        let mut arena = Arena::new();
+        let prev = Buffer::from_lines(["hello"], &mut arena);
+        let next = Buffer::from_lines(["hallo"], &mut arena);
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+        assert_eq!(diff.len(), 1);
+        assert_eq!((diff[0].0, diff[0].1), (1, 0));
+        assert_eq!(diff[0].2.as_str(&arena), "a");
+    }
+
+    #[test]
+    fn all_cells_changed() {
+        let mut arena = Arena::new();
+        let prev = Buffer::from_lines(["aaa"], &mut arena);
+        let next = Buffer::from_lines(["bbb"], &mut arena);
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+        assert_eq!(diff.len(), 3);
+    }
+
+    #[test]
+    fn continuation_cells_are_skipped() {
+        let mut arena = Arena::new();
+        let prev = Buffer::new(4, 1);
+        let mut next = Buffer::new(4, 1);
+        // Layout: [中, CONT, X, SPACE] — the wide 中 has a continuation at x=1.
+        next.set_string(0..4, "中X", &mut arena);
+
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+
+        // Only the two base cells (x=0, x=2) differ; the continuation at x=1
+        // is not emitted.
+        assert_eq!(diff.len(), 2);
+        assert_eq!((diff[0].0, diff[0].1), (0, 0));
+        assert_eq!((diff[1].0, diff[1].1), (2, 0));
+    }
+
+    #[test]
+    fn wide_to_narrow_updates_both_positions() {
+        let mut arena = Arena::new();
+        let mut prev = Buffer::new(2, 1);
+        prev.set_string(0..2, "中", &mut arena);
+        let next = Buffer::from_lines(["ab"], &mut arena);
+
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+
+        // prev[1] was CONT, next[1] is 'b' (narrow) — both differ and both are
+        // yielded since neither cell in `next` is a continuation.
+        assert_eq!(diff.len(), 2);
+        assert_eq!(diff[0].0, 0);
+        assert_eq!(diff[1].0, 1);
+    }
+
+    #[test]
+    fn coordinates_are_row_major() {
+        let mut arena = Arena::new();
+        let prev = Buffer::new(3, 2);
+        let mut next = Buffer::new(3, 2);
+        next.set_string(1..2, "x", &mut arena); // (1, 0)
+        next.set_string(5..6, "y", &mut arena); // (2, 1)
+
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+
+        assert_eq!(diff.len(), 2);
+        assert_eq!((diff[0].0, diff[0].1), (1, 0));
+        assert_eq!((diff[1].0, diff[1].1), (2, 1));
+    }
+
+    #[test]
+    fn different_heights_use_minimum() {
+        let mut arena = Arena::new();
+        let prev = Buffer::new(3, 1);
+        let mut next = Buffer::new(3, 3);
+        next.set_string(0..3, "abc", &mut arena); // row 0
+        next.set_string(3..6, "xyz", &mut arena); // row 1 — beyond prev's height
+
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+
+        assert_eq!(diff.len(), 3);
+        assert!(diff.iter().all(|(_, y, _)| *y == 0));
+    }
+
+    #[test]
+    #[should_panic(expected = "buffers must have the same width")]
+    fn mismatched_widths_panic() {
+        let prev = Buffer::new(5, 1);
+        let next = Buffer::new(10, 1);
+        let _ = BufferDiff::new(&prev, &next);
+    }
+
+    #[test]
+    fn size_hint_is_an_upper_bound() {
+        let mut arena = Arena::new();
+        let prev = Buffer::from_lines(["aaa"], &mut arena);
+        let next = Buffer::from_lines(["bbb"], &mut arena);
+
+        let iter = BufferDiff::new(&prev, &next);
+        let (lower, upper) = iter.size_hint();
+        assert_eq!(lower, 0);
+        assert_eq!(upper, Some(3));
+        assert_eq!(iter.count(), 3);
+    }
+
+    #[test]
+    fn exhausted_iterator_stays_none() {
+        let buf = Buffer::new(2, 1);
+        let mut iter = BufferDiff::new(&buf, &buf);
+        assert!(iter.next().is_none());
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn buffer_diff_method_matches_free_function() {
+        let mut arena = Arena::new();
+        let prev = Buffer::from_lines(["hello"], &mut arena);
+        let next = Buffer::from_lines(["hallo"], &mut arena);
+
+        let via_method: Vec<_> = prev.diff(&next).map(|(x, y, _)| (x, y)).collect();
+        let via_ctor: Vec<_> = BufferDiff::new(&prev, &next).map(|(x, y, _)| (x, y)).collect();
+        assert_eq!(via_method, via_ctor);
+    }
+
+    #[test]
+    fn styled_zero_width_cells_are_still_skipped() {
+        use ansi::{Color, Style};
+
+        let mut arena = Arena::new();
+        let prev = Buffer::new(2, 1);
+        let mut next = Buffer::new(2, 1);
+        next.set_string(0..2, "中", &mut arena);
+        // Mutate the continuation's style so it no longer equals Cell::CONTINUATION
+        // exactly — the diff should still treat it as zero-width.
+        next.inner[1].set_style(Style::default().foreground(Color::Red));
+        assert_eq!(next.inner[1].width(), 0);
+
+        let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
+        assert_eq!(diff.len(), 1);
+        assert_eq!((diff[0].0, diff[0].1), (0, 0));
+    }
+}

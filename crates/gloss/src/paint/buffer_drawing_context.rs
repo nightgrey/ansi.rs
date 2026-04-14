@@ -2,6 +2,7 @@ use std::io;
 use std::ops::Sub;
 use bon::{Builder};
 use derive_more::{Deref, DerefMut};
+use smallvec::SmallVec;
 use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd};
 use crate::{Buffer, Arena,  DrawingOptions};
@@ -60,7 +61,7 @@ pub struct BufferDrawingContext<'a> {
     #[deref]
     #[deref_mut]
     context: Context,
-    stacks: Vec<Context>,
+    stacks: SmallVec<Context, 16>,
 }
 
 impl<'buf> BufferDrawingContext<'buf> {
@@ -77,7 +78,7 @@ impl<'buf> BufferDrawingContext<'buf> {
                 glyph: ' ',
                 border_style: BorderStyle::None,
             },
-            stacks: Vec::new(),
+            stacks: SmallVec::new(),
         }
     }
     // ── State Mutations ────────────────────────────────────────────────

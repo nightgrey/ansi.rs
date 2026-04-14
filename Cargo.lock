@@ -569,6 +569,7 @@ dependencies = [
  "paste",
  "rustix",
  "slotmap",
+ "smallvec 2.0.0-alpha.12",
  "taffy 0.10.0",
  "tagged",
  "terminal",

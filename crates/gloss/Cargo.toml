@@ -21,6 +21,7 @@ derive_more = { workspace = true }
 rustix = { workspace = true }
 bilge = { workspace = true }
 thiserror = { workspace = true }
+smallvec = { workspace = true }
 
 paste = "1.0.15"
 slotmap = "1.1.1"

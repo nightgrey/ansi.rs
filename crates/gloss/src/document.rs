@@ -93,7 +93,7 @@ impl<'a> Document<'a> {
     pub fn unmark(&mut self, id: ElementId, flags: Dirty) {
         self.layout_node_mut(id).unmark(flags);
     }
-    
+
     pub fn is_dirty(&self, id: ElementId) -> bool {
         self.layout_node(id).is_dirty()
     }

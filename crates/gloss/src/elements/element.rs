@@ -1,17 +1,9 @@
 use std::borrow::Cow;
-use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
-use geometry::{Bounded, Edges, Point, Rect, Size};
-use crate::{Display,  Style};
+use crate::{Display, ElementKind, Style};
 use tree::id;
 
 id!(pub struct ElementId);
-
-#[derive(Clone, Debug)]
-pub enum ElementKind<'a> {
-    Span(Cow<'a, str>),
-    Div,
-}
 
 #[derive(Clone, Debug, Deref, DerefMut)]
 pub struct Element<'a> {

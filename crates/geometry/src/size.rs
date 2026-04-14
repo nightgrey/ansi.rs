@@ -1,5 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
-use crate::{Number, Zero};
+use crate::{Bounded, Number, Rect, Zero};
 
 /// A 2D size representing width and height.
 ///
@@ -88,5 +88,11 @@ impl<T: DivAssign<T> + Copy> DivAssign<T> for Size<T> {
     fn div_assign(&mut self, rhs: T) {
         self.width /= rhs;
         self.height /= rhs;
+    }
+}
+
+impl From<Rect> for Size {
+    fn from(value: Rect) -> Self {
+        Self::new(value.width(), value.height())
     }
 }

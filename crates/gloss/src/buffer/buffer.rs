@@ -32,7 +32,7 @@ impl Buffer {
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            inner: vec![Cell::EMPTY; width * height],
+            inner: vec![Cell::SPACE; width * height],
             width,
             height,
         }
@@ -122,27 +122,24 @@ impl Buffer {
     /// Print the given string until the end of the given index.
     /// Skips zero-width graphemes and control characters.
     pub fn set_string(&mut self, index: impl BufferIndex<Output = [Cell]>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
-        let width = self.width;
-
         if let Some(slice) = self.get_mut(index) {
-            let mut remaining_width = width.saturating_sub(slice.len());
+            let mut remaining = slice.len();
             let mut i = 0;
 
-            for (symbol, width) in UnicodeSegmentation::graphemes(string.as_ref(), true)
+            for (grapheme, width) in UnicodeSegmentation::graphemes(string.as_ref(), true)
                 .filter(|symbol| !symbol.contains(char::is_control))
                 .map(|(symbol)| (symbol, symbol.width()))
-                .filter(|(_symbol, width)| *width > 0)
                 .map_while(|(symbol, width)| {
-                    remaining_width = remaining_width.checked_sub(width)?;
+                    remaining = remaining.checked_sub(width)?;
                     Some((symbol, width))
                 }) {
-                slice[i].set_str_measured(symbol, width, arena);
+                slice[i].set_str_measured(grapheme, width, arena);
 
                 let next_symbol = i + width;
                 i += 1;
                 // Reset following cells if multi-width (they would be hidden by the grapheme),
                 while i < next_symbol {
-                    slice[i].clear();
+                    slice[i].set_continuation(arena);
                     i += 1;
                 }
             }
@@ -157,7 +154,7 @@ impl Buffer {
     /// Skips zero-width graphemes and control characters.
     pub fn set_line(&mut self, point: impl Into<Point>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
         let point = point.into();
-        self.set_string(point..Point { x: self.width, y: point.y }, string, arena)
+        self.set_string(point..Point { x: point.x, y: self.width }, string, arena)
     }
 
     pub fn index_of<T>(&self, value: T) -> usize where Self: Resolve<T, usize> {
@@ -408,16 +405,16 @@ impl Buffer {
 
             if width > cur_w {
                 // Growing: extend first, then shift rows back-to-front
-                self.inner.resize(width * cur_h, Cell::EMPTY);
+                self.inner.resize(width * cur_h, Cell::SPACE);
                 for y in (1..cur_h).rev() {
                     let src = y * cur_w;
                     let dst = y * width;
                     self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::EMPTY);
+                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::SPACE);
                 }
                 // Row 0: just fill the tail
-                &mut self.inner[copy_w..width].fill(Cell::EMPTY);
+                &mut self.inner[copy_w..width].fill(Cell::SPACE);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
                 for y in 1..cur_h {
@@ -432,7 +429,7 @@ impl Buffer {
         }
 
         if height > cur_h {
-            self.inner.resize(width * height, Cell::EMPTY);
+            self.inner.resize(width * height, Cell::SPACE);
         } else if height < cur_h {
             self.inner.truncate(width * height);
         }

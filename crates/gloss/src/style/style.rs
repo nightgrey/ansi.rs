@@ -33,7 +33,7 @@ pub struct Style {
 #[allow(non_upper_case_globals)]
 impl Style {
     pub const DEFAULT: Style = Style {
-        display: Display::Flex,
+        display: Display::Block,
         margin: Edges::ZERO,
         padding: Edges::ZERO,
         border: BorderStyle::None,
@@ -206,7 +206,7 @@ impl taffy::CoreStyle for Style {
 
     #[inline(always)]
     fn is_block(&self) -> bool {
-        matches!(self.display, Display::Flex)
+        matches!(self.display, Display::Block)
     }
 
     fn box_sizing(&self) -> taffy::BoxSizing {

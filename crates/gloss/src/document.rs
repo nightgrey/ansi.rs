@@ -132,7 +132,7 @@ impl<'a> Document<'a> {
         }
     }
 
-    pub fn bounds(&self, id: NodeId) -> Rect {
+    pub fn border_bounds(&self, id: NodeId) -> Rect {
         let layout = &self.layouts[id].final_layout;
         let x = layout.location.x.max(0.0) as usize;
         let y = layout.location.y.max(0.0) as usize;
@@ -142,14 +142,6 @@ impl<'a> Document<'a> {
         Rect {
             min: Point { x, y },
             max: Point { x: x + w, y: y + h },
-        }
-    }
-
-    pub fn size(&self, id: NodeId) -> Size {
-        let layout = &self.layouts[id].final_layout;
-        Size {
-            width: layout.size.width.max(0.0) as usize,
-            height: layout.size.height.max(0.0) as usize,
         }
     }
 

@@ -36,7 +36,7 @@ pub struct Cell {
     ///
     /// - `1` for ASCII and most single-width characters
     /// - `2` for CJK ideographs, fullwidth forms, and most emoji
-    /// - `0` is treated as `1` by [`columns()`](Self::width)
+    /// - `0` for continuation cells (no grapheme)
     ///
     /// Wide characters (width 2) occupy this cell and the next cell to the
     /// right, which should be a "continuation" cell with an empty grapheme.
@@ -47,9 +47,16 @@ pub struct Cell {
 }
 
 impl Cell {
-    /// An empty cell with no grapheme and default style.
-    pub const EMPTY: Self = Self {
+    pub const DEFAULT: Self = Self::SPACE;
+
+    pub const SPACE: Self = Self {
         grapheme: Grapheme::SPACE,
+        width: 1,
+        style: Style::None,
+    };
+
+    pub const CONTINUATION: Self = Self {
+        grapheme: Grapheme::EMPTY,
         width: 0,
         style: Style::None,
     };
@@ -107,18 +114,18 @@ impl Cell {
 
     #[inline]
     pub fn is_continuation(&self) -> bool {
-        self.width == 0
+        self == &Self::CONTINUATION
     }
 
-    /// Returns `true` if this cell has no grapheme (blank).
-    pub fn is_blank(&self) -> bool {
-        self.grapheme.is_empty()
+    /// Returns `true` if this cell has no grapheme.
+    pub fn is_space(&self) -> bool {
+        self.grapheme == Grapheme::SPACE
     }
 
-    /// Returns `true` if this cell has no grapheme (blank) or style (default).
+    /// Returns `true` if this cell is the default (empty space).
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self == &Cell::EMPTY
+    pub fn is_default(&self) -> bool {
+        self == &Cell::DEFAULT
     }
 
     /// Returns `true` if this cell has no style (default).
@@ -173,8 +180,7 @@ impl Cell {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
-        self.grapheme = Grapheme::SPACE;
-        self.width = 0;
+        *self = Self::CONTINUATION;
         self
     }
 
@@ -203,12 +209,12 @@ impl Cell {
         self
     }
 
-    /// Reset this cell to empty (no grapheme, default style).
+    /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call
     /// [`release`](Self::release) first if needed.
     pub fn clear(&mut self) {
-        *self = Self::EMPTY;
+        *self = Self::DEFAULT;
     }
 
     /// Resolve the grapheme to a readable string.
@@ -225,22 +231,22 @@ impl Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Self::EMPTY
+        Self::SPACE
     }
 }
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() {
+        if self.is_default() {
             return f.write_str("Cell::EMPTY");
         }
+        if self.is_continuation() {
+            return f.write_str("Cell::CONTINUATION");
+        }
+
         let mut debug = f.debug_tuple("Cell");
 
-        if self.is_continuation() {
-            debug.field(&" ");
-        } else {
-            debug.field(&self.grapheme);
-        }
+        debug.field(&self.grapheme);
 
         if !self.is_unstyled() {
             debug.field(&self.style);
@@ -258,8 +264,8 @@ mod tests {
 
     #[test]
     fn empty_cell() {
-        let cell = Cell::EMPTY;
-        assert!(cell.is_empty());
+        let cell = Cell::SPACE;
+        assert!(cell.is_default());
         assert_eq!(cell.width(), 0);
         assert_eq!(cell.width(), 0);
     }
@@ -271,7 +277,7 @@ mod tests {
             .foreground(Color::Rgb(255, 0, 0));
 
         let cell = Cell::inline('A', style);
-        assert!(!cell.is_empty());
+        assert!(!cell.is_default());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
@@ -307,7 +313,7 @@ mod tests {
         let cell_before = Cell::inline('Z', Style::default().foreground(Color::Index(1)));
         let mut cell = cell_before;
         cell.clear();
-        assert!(cell.is_empty());
-        assert_eq!(cell, Cell::EMPTY);
+        assert!(cell.is_default());
+        assert_eq!(cell, Cell::SPACE);
     }
 }

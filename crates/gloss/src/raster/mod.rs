@@ -1,4 +1,4 @@
 mod cursor;
-mod rasterizer;
+mod rasterer;
 
-pub use rasterizer::*;
+pub use rasterer::*;

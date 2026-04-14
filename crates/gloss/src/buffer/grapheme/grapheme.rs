@@ -63,8 +63,10 @@ pub struct Grapheme {
 }
 
 impl Grapheme {
-    /// A grapheme representing a replacement character (). This is the default for empty cells.
-    pub const EMPTY: Self = Self::inline(char::REPLACEMENT_CHARACTER);
+    /// A grapheme representing an empty character.
+    pub const EMPTY: Self = Self { value: 0 };
+    /// A grapheme representing a replacement character ().
+    pub const REPLACEMENT: Self = Self::inline(char::REPLACEMENT_CHARACTER);
     /// A grapheme representing a space (U+0020). This is the default for blank cells.
     pub const SPACE: Self = Self::inline(' ');
 
@@ -136,7 +138,7 @@ impl Grapheme {
     /// Returns `true` if this grapheme is empty (no character).
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self == &Self::SPACE
+        self == &Self::EMPTY
     }
 
     /// Returns `true` if this grapheme is stored inline (≤4 UTF-8 bytes).
@@ -171,7 +173,7 @@ impl Grapheme {
     #[cfg(target_endian = "little")]
     pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &str {
         if self.is_empty() {
-            " "
+            ""
         } else if self.is_inline() {
             self.as_inline_str()
         } else {

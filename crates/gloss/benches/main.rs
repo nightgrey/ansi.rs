@@ -2,7 +2,7 @@ use ansi::{Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
 use derive_more::{Deref, DerefMut};
 use gloss::{Arena, Buffer, Cell};
-use gloss::Rasterizer;
+use gloss::Rasterer;
 use std::hint::black_box;
 use terminal::Capabilities;
 
@@ -10,18 +10,18 @@ use terminal::Capabilities;
 struct Test(
     #[deref]
     #[deref_mut]
-    Rasterizer,
+    Rasterer,
     Arena,
 );
 impl Test {
     /// Create a fullscreen rasterizer with the given dimensions.
     pub fn new(width: usize, height: usize) -> Self {
-        Self(Rasterizer::new(width, height), Arena::new())
+        Self(Rasterer::new(width, height), Arena::new())
     }
 
     /// Create an inline rasterizer (renders in the normal scrollback region).
     pub fn inline(width: usize, height: usize) -> Self {
-        Self(Rasterizer::inline(width, height), Arena::new())
+        Self(Rasterer::inline(width, height), Arena::new())
     }
 
     pub fn with_capabilities(mut self, caps: Capabilities) -> Self {

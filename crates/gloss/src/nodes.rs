@@ -36,7 +36,7 @@ impl<'a> Node<'a> {
         Self {
             kind: NodeKind::Div,
             style: Style {
-                display: Display::Flex,
+                display: Display::Block,
                 ..Default::default()
             },
         }

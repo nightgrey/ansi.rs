@@ -9,7 +9,7 @@ pub struct Painter<B: DrawingContext>(pub B);
 
 impl<B: DrawingContext> Painter<B> {
     pub fn paint(&mut self, document: &Document<'_>) {
-        self.resize(document.size(document.root));
+        self.resize(document.border_bounds(document.root));
         self.paint_node(document, document.root, Style::DEFAULT);
         self.finish();
     }
@@ -21,30 +21,31 @@ impl<B: DrawingContext> Painter<B> {
         parent_style: Style,
     ) {
         let node = document.node(id);
-        let bounds = document.bounds(id);
+        let border_bounds = document.border_bounds(id);
         let content_bounds = document.content_bounds(id);
         let style = node.style.inherit(parent_style);
 
         // Snapshot the current state
         self.save();
 
+        if style.border.is_some() { self.border(border_bounds); }
+
         // Apply this node's style and clip
         self
-            .translate(bounds.min)
-            .clip(bounds.size().into())
+            .translate(border_bounds.min)
+            .clip(border_bounds.size().into())
             .style(style)
             .border_style(node.border);
 
         // Normalize content bounds to be relative to the node's border box.
-        let content_bounds = content_bounds - bounds.min;
+        let normalized_bounds = content_bounds - border_bounds.min;
 
         // Paint
-        if style.background.is_some() { self.rect(content_bounds); }
-        if style.border.is_some() { self.border(content_bounds); }
+        if style.background.is_some() { self.rect(normalized_bounds); }
 
         match &node.kind {
             NodeKind::Span(text) => {
-                self.text(content_bounds.min, text);
+                self.text(normalized_bounds.min, text);
             }
             NodeKind::Div => {
             }

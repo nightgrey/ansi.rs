@@ -367,21 +367,23 @@ where
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
         let style = self.style(node_id);
 
-        match (style.display, &self.node(node_id).kind) {
-            (Display::Inline, NodeKind::Span(_)) => "Node::Span",
-            (Display::Block, NodeKind::Span(_)) => "Node::Span [Block]",
-            (Display::Flex, NodeKind::Span(_)) => "Node::Span [Flex]",
-            (Display::None, NodeKind::Span(_)) => "Node::Span [None]",
-
-            (Display::Inline, NodeKind::Div) => "Node::Div [Inline]",
-            (Display::Block, NodeKind::Div) => "Node::Div [Block]",
-            (Display::Flex, NodeKind::Div) => match style.flex_direction {
-                FlexDirection::Column => "Node::Div [Flex::Column]",
-                FlexDirection::Row => "Node::Div [Flex::Row]",
-                FlexDirection::RowReverse => "Node::Div [Flex::RowReverse]",
-                FlexDirection::ColumnReverse => "Node::Div [Flex::ColumnReverse]",
+        match (style.display) {
+            Display::Inline => match &self.node(node_id).kind {
+                NodeKind::Span(_) => "Span (Inline)",
+                NodeKind::Div => "Div (Inline)",
             },
-            (Display::None, NodeKind::Div) => "Node::Div [None]",
+            Display::Block => match &self.node(node_id).kind {
+                NodeKind::Span(_) => "Span (Block)",
+                NodeKind::Div => "Div (Block)",
+            },
+            Display::Flex => match &self.node(node_id).kind {
+                NodeKind::Span(_) => "Span (Flex)",
+                NodeKind::Div => "Div (Flex)",
+            },
+            Display::None => match &self.node(node_id).kind {
+                NodeKind::Span(_) => "Span (None)",
+                NodeKind::Div => "Div (None)",
+            },
         }
     }
 

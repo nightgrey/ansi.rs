@@ -338,40 +338,12 @@ impl<'buf> BufferDrawingContext<'buf> {
     ) -> usize {
         let local_pos = self.to_local(pos);
         let style = options.style.unwrap_or(self.context.style);
-        let y = local_pos.y;
-        let mut cells_written = 0;
 
-        for (grapheme, width) in content
-            .as_ref()
-            .graphemes(true)
-            .map(|grapheme| (grapheme, grapheme.width()))
-        {
-            let x = local_pos.x + cells_written;
+        let position = local_pos;
 
-            // Stop if past clip right edge
-            if x + width > self.context.clip.right() {
-                break;
-            }
+        let drawn = self.buffer.set_string(position.., content.as_ref(), self.arena).unwrap_or(0);
 
-            if self.context.clip.contains(&(x, y)) {
-                self.buffer[(x, y)]
-                    .set_str_measured(grapheme, width, self.arena);
-
-                // Mark continuation cells for wide characters
-                for offset in 1..width {
-                    let continuation_pos = (x + offset, y);
-                    if self.context.clip.contains(&continuation_pos) {
-                        self.buffer[continuation_pos]
-                            .set_continuation(self.arena)
-                            .set_style(style);
-                    }
-                }
-            }
-
-            cells_written += width;
-        }
-
-        cells_written
+        drawn
     }
 
     /// Draw a horizontal line with per-call style/glyph overrides.
@@ -560,7 +532,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.within(rect, f)
     }
 
-    fn resize(&mut self, size: Size) -> &mut Self {
+    fn resize(&mut self, size: impl Into<Size>) -> &mut Self {
+        let size = size.into();
         self.buffer.resize(size.width, size.height);
         self.context.clip = self.buffer.bounds();
         self
@@ -835,8 +808,8 @@ mod tests {
         let mut painter = BufferDrawingContext::new(&mut context.buffer, &mut context.arena).painter();
         painter.paint(&document);
 
-        let div_bounds = document.bounds(child_div);
-        let text_bounds = document.bounds(text_id);
+        let div_bounds = document.border_bounds(child_div);
+        let text_bounds = document.border_bounds(text_id);
 
         // Absolute position = parent bounds + child bounds (taffy locations are parent-relative)
         let tx = div_bounds.min.x + text_bounds.min.x;

@@ -115,7 +115,7 @@ pub trait DrawingContext {
     fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self;
 
     /// Resize the canvas, if necessary.
-    fn resize(&mut self, size: Size) -> &mut Self;
+    fn resize(&mut self, size: impl Into<Size>) -> &mut Self;
 
     /// Finish any pending operations.
     fn finish(&mut self) -> &mut Self;

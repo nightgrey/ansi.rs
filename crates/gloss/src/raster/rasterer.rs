@@ -201,11 +201,7 @@ impl Rasterer {
                 for col in 0..=end {
                     let cell = &row[col];
                     pen.transition(&mut output, cell.style)?;
-                    if cell.is_empty() {
-                        output.push(b' ');
-                    } else {
-                        output.extend_from_slice(cell.as_bytes(arena));
-                    }
+                    Self::render_cell(cell, &mut output, &mut pen, arena)?;
                 }
             }
 
@@ -421,7 +417,8 @@ impl Rasterer {
     fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
         cursor.transition(output, cell.style)?;
 
-            output.extend_from_slice(cell.as_bytes(arena));
+        output.extend_from_slice(cell.as_bytes(arena));
+
         Ok(())
     }
 }

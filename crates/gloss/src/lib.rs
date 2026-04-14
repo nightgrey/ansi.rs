@@ -13,16 +13,16 @@ extern crate core;
 
 mod document;
 mod style;
-mod painting;
-pub mod layouting;
+mod paint;
+pub mod layout;
 pub mod nodes;
 pub mod buffer;
-pub mod rasterizer;
+pub mod raster;
 
 pub use document::*;
 pub use style::*;
-pub use painting::*;
-pub use layouting::*;
+pub use paint::*;
+pub use layout::*;
 pub use nodes::*;
 pub use buffer::*;
-pub use rasterizer::*;
+pub use raster::*;

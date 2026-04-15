@@ -1,6 +1,6 @@
-use std::ops::*;
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
-pub trait WrappingOps<Rhs = Self>: WrappingAdd<Rhs> + WrappingSub<Rhs> + WrappingMul<Rhs> + WrappingDiv<Rhs>  { }
+pub trait WrappingOps<Rhs = Self>: WrappingAdd<Rhs> + WrappingSub<Rhs> + WrappingMul<Rhs> + WrappingDiv<Rhs> + WrappingRem<Rhs>  { }
 
 pub trait WrappingAdd<Rhs = Self>: Sized + Add<Rhs, Output=Self> {
     fn wrapping_add(self, other: Rhs) -> Self;
@@ -10,12 +10,16 @@ pub trait WrappingSub<Rhs = Self>: Sized + Sub<Self, Output=Self> {
     fn wrapping_sub(self, other: Rhs) -> Self;
 }
 
+pub trait WrappingMul<Rhs = Self>: Sized + Mul<Self, Output=Self> {
+    fn wrapping_mul(self, other: Rhs) -> Self;
+}
+
 pub trait WrappingDiv <Rhs = Self>: Sized + Div<Self, Output=Self> {
     fn wrapping_div(self, other: Rhs) -> Self;
 }
 
-pub trait WrappingMul<Rhs = Self>: Sized + Mul<Self, Output=Self> {
-    fn wrapping_mul(self, other: Rhs) -> Self;
+pub trait WrappingRem<Rhs = Self>: Sized + Rem<Self, Output=Self> {
+    fn wrapping_rem(self, other: Rhs) -> Self;
 }
 
 macro_rules! wrapping_impl {
@@ -40,12 +44,18 @@ macro_rules! wrapping_impl {
             }
         }
 
+        impl WrappingRem for $T {
+            fn wrapping_rem(self, rhs: Self) -> Self {
+                Self::wrapping_rem(self, rhs)
+            }
+        }
 
         impl WrappingDiv for $T {
             fn wrapping_div(self, rhs: Self) -> Self {
                 Self::wrapping_div(self, rhs)
             }
         }
+        
     }
 }
 

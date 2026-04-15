@@ -4,7 +4,7 @@ use bon::{Builder};
 use derive_more::{Deref, DerefMut};
 use smallvec::SmallVec;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd};
+use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd, pos};
 use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{BorderStyle, DrawingContext};
@@ -207,12 +207,12 @@ impl<'buf> BufferDrawingContext<'buf> {
     }
 
     /// Draw a horizontal line from `origin` using current fill state.
-    pub fn horizontal_line(&mut self, origin: Point, length: usize) -> &mut Self {
+    pub fn horizontal_line(&mut self, origin: Point, length: u16) -> &mut Self {
         self.horizontal_line_with(origin, length, BufferDrawingOptions::default())
     }
 
     /// Draw a vertical line from `origin` using current fill state.
-    pub fn vertical_line(&mut self, origin: Point, length: usize) -> &mut Self {
+    pub fn vertical_line(&mut self, origin: Point, length: u16) -> &mut Self {
         self.vertical_line_with(origin, length, BufferDrawingOptions::default())
     }
 
@@ -288,17 +288,17 @@ impl<'buf> BufferDrawingContext<'buf> {
         let border = border_style.into_border();
 
         // Shrink rect to account for border thickness
-        local_rect.max.x = local_rect.max.x.saturating_sub(border.right.width());
-        local_rect.max.y = local_rect.max.y.saturating_sub(border.bottom.width());
+        local_rect.max.x = local_rect.max.x.saturating_sub(border.right.width() as u16);
+        local_rect.max.y = local_rect.max.y.saturating_sub(border.bottom.width() as u16);
 
         if local_rect.is_empty() {
             return self;
         }
 
         // Helper: set cell if within clip
-        let mut set_cell = |x: usize, y: usize, symbol: Symbol| {
-            if self.context.clip.contains(&(x, y)) {
-                self.buffer[(x, y)]
+        let mut set_cell = |x: u16, y: u16, symbol: Symbol| {
+            if self.context.clip.contains(&(y as usize, x as usize)) {
+                self.buffer[(y as usize, x as usize)]
                     .set_char_measured(symbol.symbol(), symbol.width(), self.arena);
             }
         };
@@ -310,7 +310,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         set_cell(local_rect.right(), local_rect.bottom(), border.bottom_right);
 
         // Horizontal edges
-        let left_offset = border.left.width();
+        let left_offset = border.left.width() as u16;
         let right_bound = local_rect.right();
         for x in (local_rect.left() + left_offset)..right_bound {
             set_cell(x, local_rect.top(), border.top);
@@ -318,7 +318,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         }
 
         // Vertical edges
-        let top_offset = border.top.width();
+        let top_offset = border.top.width() as u16;
         let bottom_bound = local_rect.bottom();
         for y in (local_rect.top() + top_offset)..bottom_bound {
             set_cell(local_rect.left(), y, border.left);
@@ -360,7 +360,7 @@ impl<'buf> BufferDrawingContext<'buf> {
             if grapheme.contains(char::is_control) {
                 continue;
             }
-            let width = grapheme.width();
+            let width = grapheme.width() as u16;
             if width == 0 {
                 continue;
             }
@@ -368,14 +368,14 @@ impl<'buf> BufferDrawingContext<'buf> {
                 break;
             }
             if x >= row_left {
-                self.buffer[(x, local_pos.y)]
-                    .set_str_measured(grapheme, width, self.arena)
+                self.buffer[(local_pos.y as usize, x as usize)]
+                    .set_str_measured(grapheme, width as usize, self.arena)
                     .set_style(style);
                 // Clear continuation cells for wide characters.
                 for dx in 1..width {
-                    self.buffer[(x + dx, local_pos.y)].set_continuation(self.arena);
+                    self.buffer[(local_pos.y as usize + dx as usize, x as usize)].set_continuation(self.arena);
                 }
-                drawn += width;
+                drawn += width as usize;
             }
             x += width;
         }
@@ -387,7 +387,7 @@ impl<'buf> BufferDrawingContext<'buf> {
     pub fn horizontal_line_with(
         &mut self,
         origin: Point,
-        length: usize,
+        length: u16,
         options: BufferDrawingOptions,
     ) -> &mut Self {
         let local_origin = self.to_local(origin);
@@ -401,7 +401,7 @@ impl<'buf> BufferDrawingContext<'buf> {
 
         if self.context.clip.contains(&local_origin) && self.context.clip.contains(&end) {
             for offset in 0..length {
-                self.buffer[(local_origin.x.saturating_add(offset), local_origin.y)]
+                self.buffer[pos!(local_origin.y, local_origin.x.saturating_add(offset))]
                     .set_style(style)
                     .set_char(glyph, self.arena);
             }
@@ -414,7 +414,7 @@ impl<'buf> BufferDrawingContext<'buf> {
     pub fn vertical_line_with(
         &mut self,
         origin: Point,
-        length: usize,
+        length: u16,
         opts: BufferDrawingOptions,
     ) -> &mut Self {
         let local_origin = self.to_local(origin);
@@ -428,7 +428,7 @@ impl<'buf> BufferDrawingContext<'buf> {
 
         if self.context.clip.contains(&local_origin) && self.context.clip.contains(&end) {
             for offset in 0..length {
-                self.buffer[(local_origin.x, local_origin.y.saturating_add(offset))]
+                self.buffer[pos!(local_origin.y.saturating_add(offset), local_origin.x)]
                     .set_style(style)
                     .set_char(glyph, self.arena);
             }
@@ -527,19 +527,19 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.text_with(position, str, options)
     }
 
-    fn horizontal_line(&mut self, position: Point, length: usize) -> &mut Self {
+    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self {
         self.horizontal_line(position, length)
     }
 
-    fn horizontal_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self {
+    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
         self.horizontal_line_with(position, length, options)
     }
 
-    fn vertical_line(&mut self, position: Point, length: usize) -> &mut Self {
+    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self {
         self.vertical_line(position, length)
     }
 
-    fn vertical_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self {
+    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
         self.vertical_line_with(position, length, options)
     }
 
@@ -565,7 +565,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn resize(&mut self, size: impl Into<Size>) -> &mut Self {
         let size = size.into();
-        self.buffer.resize(size.width, size.height);
+        self.buffer.resize(size.width as usize, size.height as usize);
         self.context.clip = self.buffer.bounds();
         self
     }
@@ -580,6 +580,7 @@ mod tests {
     use std::borrow::Cow;
     use std::ops::{Sub};
     use ansi::Color;
+    use geometry::pos;
     use crate::Grapheme;
     use tree::At;
     use crate::{Document, FlexDirection, FontWeight, Element, TextDecoration};
@@ -682,8 +683,8 @@ mod tests {
         // After restore, origin is back to (0,0)
         renderer.text(Point::ZERO, "B");
 
-        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[pos!(3, 3)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::inline('B'));
     }
 
     #[test]
@@ -754,10 +755,10 @@ mod tests {
 
         renderer.text(Point::new(4, 1), "Hi");
 
-        assert_eq!(context.buffer[(4, 1)].grapheme(), Grapheme::inline('H'));
-        assert_eq!(context.buffer[(5, 1)].grapheme(), Grapheme::inline('i'));
+        assert_eq!(context.buffer[(1, 4)].grapheme(), Grapheme::inline('H'));
+        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('i'));
         // Adjacent cell untouched
-        assert_eq!(context.buffer[(6, 1)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(1, 6)].grapheme(), Grapheme::SPACE);
     }
 
     #[test]
@@ -770,7 +771,7 @@ mod tests {
 
         // Only first 4 chars fit in clip
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('H'));
-        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::inline('l'));
+        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('l'));
         // 5th char ('o') is outside clip — cell stays empty
         assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::SPACE);
     }
@@ -798,10 +799,10 @@ mod tests {
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
-        let text_x = child_content.min.x;
-        let text_y = child_content.min.y;
-        assert_eq!(context.buffer[(text_x, text_y)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[(text_x + 1, text_y)].grapheme(), Grapheme::inline('B'));
+        let text_x = child_content.min.x as usize;
+        let text_y = child_content.min.y as usize;
+        assert_eq!(context.buffer[(text_y, text_x)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(text_y, text_x + 1)].grapheme(), Grapheme::inline('B'));
         // Origin cell should be empty (it's in the padding)
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
     }
@@ -841,12 +842,12 @@ mod tests {
         let text_bounds = document.border_bounds(text_id);
 
         // Absolute position = parent bounds + child bounds (taffy locations are parent-relative)
-        let tx = div_bounds.min.x + text_bounds.min.x;
-        let ty = div_bounds.min.y + text_bounds.min.y;
-        assert_eq!(context.buffer[(tx, ty)].grapheme(), Grapheme::inline('O'));
-        assert_eq!(context.buffer[(tx + 1, ty)].grapheme(), Grapheme::inline('K'));
+        let tx = (div_bounds.min.x + text_bounds.min.x) as usize;
+        let ty = (div_bounds.min.y + text_bounds.min.y) as usize;
+        assert_eq!(context.buffer[(ty, tx)].grapheme(), Grapheme::inline('O'));
+        assert_eq!(context.buffer[(ty, tx + 1)].grapheme(), Grapheme::inline('K'));
         // Padding area should be empty
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::SPACE);
 
 
     }
@@ -879,10 +880,10 @@ mod tests {
         BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // First child
-        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(), Grapheme::inline('A'));
         // Second child should be below the first
         assert!(b_bounds.min.y > a_bounds.min.y, "B should be below A: A.y={}, B.y={}", a_bounds.min.y, b_bounds.min.y);
-        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(), Grapheme::inline('B'));
     }
 
     #[test]
@@ -913,8 +914,8 @@ mod tests {
         BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Side by side in row layout
-        assert_eq!(context.buffer[(a_bounds.min.x, a_bounds.min.y)].grapheme(), Grapheme::inline('L'));
+        assert_eq!(context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(), Grapheme::inline('L'));
         assert!(b_bounds.min.x > a_bounds.min.x, "R should be right of L");
-        assert_eq!(context.buffer[(b_bounds.min.x, b_bounds.min.y)].grapheme(), Grapheme::inline('R'));
+        assert_eq!(context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(), Grapheme::inline('R'));
     }
 }

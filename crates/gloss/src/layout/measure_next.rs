@@ -218,8 +218,8 @@ mod shape {
             }
     
             Size {
-                width: max_w as usize,
-                height: lines.max(1) as usize,
+                width: max_w as u16,
+                height: lines.max(1) as u16,
             }
         }
     

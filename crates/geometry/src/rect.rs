@@ -1,5 +1,5 @@
 use std::ops::{Add, Sub};
-use crate::{Bounded, Coordinated, Edges, Point, SaturatingAdd, SaturatingSub, Size, Step, Steps, Zero};
+use crate::{Bounded, Coordinated, Edges, Ops, Point, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Step, Steps, Zero};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///
@@ -13,23 +13,6 @@ pub struct Rect<T = Point> {
 
     /// Maximum (bottom-right) point (exclusive).
     pub max: T,
-}
-
-impl const Rect {
-    pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
-        Self {
-         min: Point::new(x, y),
-         max: Point::new(x + width, y + height),
-        }
-    }
-
-    pub fn set_height(&mut self, height: u16) {
-        self.max.y = self.min.y + height;
-    }
-    
-    pub fn set_width(&mut self, width: u16) {
-        self.max.x = self.min.x + width;
-    }
 }
 
 impl<T> Rect<T> {
@@ -49,12 +32,28 @@ impl<T> Rect<T> {
         Self { min, max }
     }
 
-
     pub fn iter(self) -> Steps<Self, T>
     where
         Self: Bounded<Coordinate= T> + Step<T>,
     {
         Steps::new(self)
+    }
+}
+
+impl const Rect {
+    pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
+        Self {
+            min: Point::new(x, y),
+            max: Point::new(x + width, y + height),
+        }
+    }
+
+    pub fn set_height(&mut self, height: u16) {
+        self.max.y = self.min.y + height;
+    }
+
+    pub fn set_width(&mut self, width: u16) {
+        self.max.x = self.min.x + width;
     }
 }
 
@@ -64,20 +63,7 @@ impl<T: Zero> From<Size<T>> for Rect<Point<T>> {
     }
 }
 
-impl<T: Copy> IntoIterator for &Rect<T>
-where
-    Rect<T>: Bounded<Coordinate= T> + Step<T>,
-    Steps<Rect<T>, T>: Iterator,
-{
-    type Item = <Steps<Rect<T>, T> as Iterator>::Item;
-    type IntoIter = Steps<Rect<T>, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Steps::new(*self)
-    }
-}
-
-impl<T: Add<T, Output = T>> Add<Rect<T>> for Rect<T> {
+impl<T: Ops> Add<Rect<T>> for Rect<T> {
     type Output = Self;
 
     fn add(self, rhs: Rect<T>) -> Self {
@@ -88,7 +74,7 @@ impl<T: Add<T, Output = T>> Add<Rect<T>> for Rect<T> {
     }
 }
 
-impl<T: Sub<T, Output = T>> Sub<Rect<T>> for Rect<T> {
+impl<T: Ops> Sub<Rect<T>> for Rect<T> {
     type Output = Self;
 
     fn sub(self, rhs: Rect<T>) -> Self {
@@ -99,7 +85,7 @@ impl<T: Sub<T, Output = T>> Sub<Rect<T>> for Rect<T> {
     }
 }
 
-impl<T: SaturatingAdd<T> + SaturatingSub<T>> SaturatingAdd<Rect<T>> for Rect<T> {
+impl<T: SaturatingOps> SaturatingAdd<Rect<T>> for Rect<T> {
     fn saturating_add(self, rhs: Rect<T>) -> Self {
         let min = self.min.saturating_add(rhs.min);
         let max = self.max.saturating_add(rhs.max);
@@ -108,7 +94,7 @@ impl<T: SaturatingAdd<T> + SaturatingSub<T>> SaturatingAdd<Rect<T>> for Rect<T> 
     }
 }
 
-impl<T: SaturatingAdd<T> + SaturatingSub<T>> SaturatingSub<Rect<T>> for Rect<T> {
+impl<T: SaturatingOps> SaturatingSub<Rect<T>> for Rect<T> {
     fn saturating_sub(self, rhs: Rect<T>) -> Self {
         let min = self.min.saturating_sub(rhs.min);
         let max = self.max.saturating_sub(rhs.max);
@@ -118,7 +104,7 @@ impl<T: SaturatingAdd<T> + SaturatingSub<T>> SaturatingSub<Rect<T>> for Rect<T> 
 }
 
 
-impl<T: Add<T, Output = T> + Copy> Add<Point<T>> for Rect<Point<T>> {
+impl<T: Ops + Copy> Add<Point<T>> for Rect<Point<T>> {
     type Output = Self;
 
     fn add(self, rhs: Point<T>) -> Self {
@@ -129,7 +115,7 @@ impl<T: Add<T, Output = T> + Copy> Add<Point<T>> for Rect<Point<T>> {
     }
 }
 
-impl<T: Sub<T, Output = T> + Copy> Sub<Point<T>> for Rect<Point<T>> {
+impl<T: Ops + Copy> Sub<Point<T>> for Rect<Point<T>> {
     type Output = Self;
 
     fn sub(self, rhs: Point<T>) -> Self {
@@ -140,7 +126,7 @@ impl<T: Sub<T, Output = T> + Copy> Sub<Point<T>> for Rect<Point<T>> {
     }
 }
 
-impl<T: Add<T, Output = T> + Sub<T, Output = T>> Add<Edges<T>> for Rect<Point<T>> {
+impl<T: Ops> Add<Edges<T>> for Rect<Point<T>> {
     type Output = Self;
 
     fn add(self, rhs: Edges<T>) -> Self {
@@ -156,7 +142,7 @@ impl<T: Add<T, Output = T> + Sub<T, Output = T>> Add<Edges<T>> for Rect<Point<T>
     }
 }
 
-impl<T: Add<T, Output = T> + Sub<T, Output = T>> Sub<Edges<T>> for Rect<Point<T>> {
+impl<T: Ops + Copy> Sub<Edges<T>> for Rect<Point<T>> {
     type Output = Self;
 
     fn sub(self, rhs: Edges<T>) -> Self {
@@ -169,5 +155,18 @@ impl<T: Add<T, Output = T> + Sub<T, Output = T>> Sub<Edges<T>> for Rect<Point<T>
             min: Point { x: min_x, y: min_y },
             max: Point { x: max_x, y: max_y },
         }
+    }
+}
+
+impl<T: Copy> IntoIterator for &Rect<T>
+where
+    Rect<T>: Bounded<Coordinate= T> + Step<T>,
+    Steps<Rect<T>, T>: Iterator,
+{
+    type Item = <Steps<Rect<T>, T> as Iterator>::Item;
+    type IntoIter = Steps<Rect<T>, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Steps::new(*self)
     }
 }

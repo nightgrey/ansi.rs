@@ -1,4 +1,4 @@
-use geometry::{Point, PointLike, Resolve, Row};
+use geometry::{Point, PointLike, Position, PositionLike, Resolve, Row};
 use std::ops;
 use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
@@ -78,7 +78,19 @@ impl BufferIndex for Point {
     }
 }
 
-impl BufferIndex for PointLike {
+
+
+impl BufferIndex for Position {
+    type Output = Cell;
+    type Index = usize;
+
+    #[inline]
+    fn slice_index(self, buffer: &Buffer) -> usize {
+        buffer.resolve(self)
+    }
+}
+
+impl BufferIndex for PositionLike {
     type Output = Cell;
     type Index = usize;
 

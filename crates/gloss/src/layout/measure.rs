@@ -84,8 +84,8 @@ pub fn measure_text_block(text: &str, wrap_width: Option<u32>, display: Display)
     }
 
     Size {
-        width: max_x,
-        height: lines,
+        width: max_x as u16,
+        height: lines as u16,
     }
 }
 

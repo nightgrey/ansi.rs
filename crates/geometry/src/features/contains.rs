@@ -1,4 +1,4 @@
-use crate::{Bounded, Column, Coordinated, Point, PointLike, Rect, Row, Size};
+use crate::{Bounded, Column, Coordinated, Point, PointLike, Position, PositionLike, Rect, Row, Size};
 
 /// Tests if a geometry is completely contained within another geometry.
 pub trait Contains<Rhs = Self> {
@@ -23,6 +23,23 @@ impl<B: Bounded> Contains<PointLike> for B {
     }
 }
 
+impl<B: Bounded> Contains<Position> for B {
+    fn contains(&self, rhs: &Position) -> bool {
+        rhs.x() >= self.min_x()
+            && rhs.x() < self.max_x()
+            && rhs.y() >= self.min_y()
+            && rhs.y() < self.max_y()
+    }
+}
+
+impl<B: Bounded> Contains<PositionLike> for B {
+    fn contains(&self, rhs: &PositionLike) -> bool {
+        rhs.1 >= self.min_x() as usize
+            && rhs.1 < self.max_x() as usize
+            && rhs.0 >= self.min_y() as usize
+            && rhs.0 < self.max_y() as usize
+    }
+}
 
 impl<B: Bounded> Contains<Row> for B {
     fn contains(&self, rhs: &Row) -> bool {

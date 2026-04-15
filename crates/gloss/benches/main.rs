@@ -265,7 +265,7 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     let changed = Cell::inline('Z', style);
     for x in 0..W {
-        buf2[(x, 20)] = changed;
+        buf2[(20, x)] = changed;
     }
 
     let mut r = Bench::new(W, H);
@@ -342,7 +342,7 @@ fn terminal_full_ui(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     let update_style = Style::default().foreground(Color::Rgb(255, 0, 0)).bold();
     for x in 0..W {
-        buf2[(x, 15)] = Cell::inline('!', update_style);
+        buf2[(15, x)] = Cell::inline('!', update_style);
     }
 
     let mut r = Bench::new(W, H);
@@ -367,9 +367,9 @@ fn terminal_strict_ui(c: &mut Criterion) {
     // Second frame: update a few rows in each column.
     let mut buf2 = buf1.clone();
     let upd = Style::default().foreground(Color::Rgb(255, 255, 0)).bold();
-    for y in [10, 20, 30] {
+    for y in [10u16, 20, 30] {
         for x in 0..W {
-            buf2[(x, y)] = Cell::inline('*', upd);
+            buf2[(y as usize, x)] = Cell::inline('*', upd);
         }
     }
 
@@ -415,8 +415,8 @@ fn terminal_table(c: &mut Criterion) {
     // Second frame: update 5 cells scattered across different rows/columns.
     let mut buf2 = buf1.clone();
     let upd = Style::default().foreground(Color::Rgb(255, 50, 50)).bold();
-    for &(y, x) in &[(5, 10), (12, 30), (20, 60), (30, 90), (38, 110)] {
-        buf2[(x, y)] = Cell::inline('!', upd);
+    for &(row, col) in &[(5usize, 10usize), (12, 30), (20, 60), (30, 90), (38, 110)] {
+        buf2[(row, col)] = Cell::inline('!', upd);
     }
 
     let mut r = Bench::new(W, H);
@@ -461,7 +461,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
         if y < H {
             let cell = Cell::inline('#', style);
             for x in 0..W {
-                buf2[(x, y)] = cell;
+                buf2[(y, x)] = cell;
             }
         }
     }
@@ -601,7 +601,7 @@ fn inline_rerender(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     let changed = Cell::inline('J', style);
     for x in 0..W {
-        buf2[(x, 5)] = changed;
+        buf2[(5, x)] = changed;
     }
 
     let mut r = Bench::inline(W, 10);

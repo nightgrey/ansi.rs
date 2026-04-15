@@ -1,9 +1,10 @@
-use crate::{Column, Number, One, Row, SaturatingAdd, SaturatingSub, Size, Zero};
+use crate::{AssignOps, Column, Number, One, Ops, Row, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
 pub type PointLike<T = u16> = (T, T);
+
 
 /// A 2D point in screen-space coordinates.
 ///
@@ -34,7 +35,6 @@ pub struct Point<T = u16> {
     pub y: T,
 }
 
-
 impl<T> Point<T> {
     /// Create a new point at the given coordinates.
     ///
@@ -49,16 +49,7 @@ impl<T> Point<T> {
     pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
-
-    /// Swap x and y components.
-    pub fn transpose(self) -> Point<T> {
-        Point {
-            x: self.y,
-            y: self.x,
-        }
-    }
 }
-
 
 impl<T: One> Point<T> {
     pub const ONE: Self = Point { x: T::ONE, y: T::ONE };
@@ -67,7 +58,9 @@ impl<T: One> Point<T> {
 impl<T: Zero> Point<T> {
     pub const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
 }
-impl<T: Add<Output = T>> Add for Point<T> {
+
+
+impl<T: Ops> Add for Point<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -78,7 +71,7 @@ impl<T: Add<Output = T>> Add for Point<T> {
     }
 }
 
-impl<T: AddAssign> AddAssign for Point<T> {
+impl<T: AssignOps> AddAssign for Point<T> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
@@ -86,7 +79,7 @@ impl<T: AddAssign> AddAssign for Point<T> {
     }
 }
 
-impl<T: Sub<T, Output = T>> Sub for Point<T> {
+impl<T: Ops> Sub for Point<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -97,23 +90,14 @@ impl<T: Sub<T, Output = T>> Sub for Point<T> {
     }
 }
 
-impl<T: SubAssign> SubAssign for Point<T> {
+impl<T: AssignOps> SubAssign for Point<T> {
     fn sub_assign(&mut self, rhs: Self) {
         self.x -= rhs.x;
         self.y -= rhs.y;
     }
 }
 
-impl<T: SaturatingSub<T, Output = T>> SaturatingSub for Point<T> {
-    fn saturating_sub(self, rhs: Self) -> Self {
-        Self {
-            x: self.x.saturating_sub(rhs.x),
-            y: self.y.saturating_sub(rhs.y),
-        }
-    }
-}
-
-impl<T: SaturatingAdd<T, Output = T>> SaturatingAdd for Point<T> {
+impl<T: SaturatingOps> SaturatingAdd for Point<T> {
     fn saturating_add(self, rhs: Self) -> Self {
         Self {
             x: self.x.saturating_add(rhs.x),
@@ -121,32 +105,14 @@ impl<T: SaturatingAdd<T, Output = T>> SaturatingAdd for Point<T> {
         }
     }
 }
-
-
-impl<T: Add<Output = T> + Copy> Add<T> for Point<T> {
-    type Output = Self;
-
-    fn add(self, rhs: T) -> Self::Output {
+impl<T: SaturatingOps> SaturatingSub for Point<T> {
+    fn saturating_sub(self, rhs: Self) -> Self {
         Self {
-            x: self.x + rhs,
-            y: self.y + rhs,
+            x: self.x.saturating_sub(rhs.x),
+            y: self.y.saturating_sub(rhs.y),
         }
     }
 }
-
-impl<T: Sub<Output = T> + Copy> Sub<T> for Point<T> {
-    type Output = Self;
-
-    fn sub(self, rhs: T) -> Self::Output {
-        Self {
-            x: self.x - rhs,
-            y: self.y - rhs,
-        }
-    }
-}
-
-
-
 
 impl<T: Ord> PartialOrd for Point<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

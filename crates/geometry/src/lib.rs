@@ -20,6 +20,7 @@ mod size;
 mod index;
 pub mod num;
 pub mod geometry;
+pub mod macros;
 
 pub use sides::*;
 pub use edges::*;

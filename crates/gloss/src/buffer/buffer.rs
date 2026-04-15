@@ -44,7 +44,7 @@ impl Buffer {
     pub fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
-            buffer[(col, row)] = Cell::inline(ch, style);
+            buffer[(row, col)] = Cell::inline(ch, style);
         }
         buffer
     }
@@ -60,7 +60,7 @@ impl Buffer {
         let width = lines.iter().map(|line| line.width()).max().unwrap_or_default();
         let mut buffer = Self::new(width, height);
         for (y, line) in lines.iter().enumerate() {
-            buffer.set_line((0, y), line, arena);
+            buffer.set_line((0u16, y as u16), line, arena);
         }
         buffer
     }
@@ -154,7 +154,7 @@ impl Buffer {
     /// Skips zero-width graphemes and control characters.
     pub fn set_line(&mut self, point: impl Into<Point>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
         let point = point.into();
-        self.set_string(point..Point { x: self.width, y: point.y }, string, arena)
+        self.set_string(point..Point { x: self.width as u16, y: point.y }, string, arena)
     }
 
     pub fn index_of<T>(&self, value: T) -> usize where Self: Resolve<T, usize> {
@@ -199,25 +199,28 @@ impl Buffer {
 
         // Clip to buffer bounds and ensure y is within bounds
         let bounds = self.clip(&Rect::from(bounds));
-        let y = y.clamp(bounds.min.y, bounds.max.y);
-        let n = n.min(bounds.max.y - y);
-        let width = bounds.width();
+        let min_x = bounds.min.x as usize;
+        let min_y = bounds.min.y as usize;
+        let max_y = bounds.max.y as usize;
+        let y = y.clamp(min_y, max_y);
+        let n = n.min(max_y - y);
+        let width = bounds.width() as usize;
 
-        if width == 0 || y >= bounds.max.y {
+        if width == 0 || y >= max_y {
             return;
         }
 
         // Move lines down (backwards to prevent overwriting)
         // Source: [y, max-n) -> Dest: [y+n, max)
-        for row in (y..(bounds.max.y - n)).rev() {
-            let src_start = row * self.width() + bounds.min.x;
-            let dst_start = (row + n) * self.width() + bounds.min.x;
+        for row in (y..(max_y - n)).rev() {
+            let src_start = row * self.width() + min_x;
+            let dst_start = (row + n) * self.width() + min_x;
             self.copy_within(src_start..src_start + width, dst_start);
         }
 
         // Fill new lines with the provided cell
         for row in y..(y + n) {
-            let start = row * self.width() + bounds.min.x;
+            let start = row * self.width() + min_x;
             &mut self[start..start + width].fill(cell);
         }
     }
@@ -229,11 +232,14 @@ impl Buffer {
             return;
         }
         let bounds = self.clip(&Rect::from(bounds));
-        let y = y.clamp(bounds.min.y, bounds.max.y);
-        let n = n.min(bounds.max.y - y);
-        let width = bounds.width();
+        let min_x = bounds.min.x as usize;
+        let min_y = bounds.min.y as usize;
+        let max_y = bounds.max.y as usize;
+        let y = y.clamp(min_y, max_y);
+        let n = n.min(max_y - y);
+        let width = bounds.width() as usize;
 
-        if width == 0 || y >= bounds.max.y {
+        if width == 0 || y >= max_y {
             return;
         }
 
@@ -241,15 +247,15 @@ impl Buffer {
 
         // Move lines up
         // Source: [y+n, max) -> Dest: [y, max-n)
-        for row in y..(bounds.max.y - n) {
-            let src_start = (row + n) * row_stride + bounds.min.x;
-            let dst_start = row * row_stride + bounds.min.x;
+        for row in y..(max_y - n) {
+            let src_start = (row + n) * row_stride + min_x;
+            let dst_start = row * row_stride + min_x;
             self.copy_within(src_start..src_start + width, dst_start);
         }
 
         // Clear bottom n lines
-        for row in (bounds.max.y - n)..bounds.max.y {
-            let start = row * row_stride + bounds.min.x;
+        for row in (max_y - n)..max_y {
+            let start = row * row_stride + min_x;
             self[start..start + width].fill(cell);
         }
     }
@@ -262,14 +268,18 @@ impl Buffer {
         }
 
         let bounds = self.clip(&Rect::from(bounds));
+        let min_x = bounds.min.x as usize;
+        let max_x = bounds.max.x as usize;
+        let min_y = bounds.min.y as usize;
+        let max_y = bounds.max.y as usize;
 
         // Validate y is within vertical bounds
-        if row < bounds.min.y || row >= bounds.max.y {
+        if row < min_y || row >= max_y {
             return;
         }
 
-        let x = col.clamp(bounds.min.x, bounds.max.x);
-        let n = n.min(bounds.max.x - x);
+        let x = col.clamp(min_x, max_x);
+        let n = n.min(max_x - x);
 
         if n == 0 {
             return;
@@ -278,9 +288,9 @@ impl Buffer {
         let row_offset = row * self.width();
 
         // Shift cells right: [x, max-n) -> [x+n, max)
-        if x + n < bounds.max.x {
+        if x + n < max_x {
             let src_start = row_offset + x;
-            let src_end = row_offset + bounds.max.x - n;
+            let src_end = row_offset + max_x - n;
             let dst_start = row_offset + x + n;
             self.copy_within(src_start..src_end, dst_start);
         }
@@ -299,13 +309,17 @@ impl Buffer {
         }
 
         let bounds = self.clip(&Rect::from(bounds));
+        let min_x = bounds.min.x as usize;
+        let max_x = bounds.max.x as usize;
+        let min_y = bounds.min.y as usize;
+        let max_y = bounds.max.y as usize;
 
-        if row < bounds.min.y || row >= bounds.max.y {
+        if row < min_y || row >= max_y {
             return;
         }
 
-        let x = col.clamp(bounds.min.x, bounds.max.x);
-        let n = n.min(bounds.max.x - x);
+        let x = col.clamp(min_x, max_x);
+        let n = n.min(max_x - x);
 
         if n == 0 {
             return;
@@ -315,16 +329,16 @@ impl Buffer {
         let row_offset = row * self.width();
 
         // Shift cells left: [x+n, max) -> [x, max-n)
-        if x + n < bounds.max.x {
+        if x + n < max_x {
             let src_start = row_offset + x + n;
-            let src_end = row_offset + bounds.max.x;
+            let src_end = row_offset + max_x;
             let dst_start = row_offset + x;
             self.copy_within(src_start..src_end, dst_start);
         }
 
         // Clear rightmost cells
-        let clear_start = row_offset + bounds.max.x - n;
-        let clear_end = row_offset + bounds.max.x;
+        let clear_start = row_offset + max_x - n;
+        let clear_end = row_offset + max_x;
         self[clear_start..clear_end].fill(fill_cell);
     }
 
@@ -541,7 +555,7 @@ impl Buffer {
 
 impl From<Rect> for Buffer {
     fn from(value: Rect) -> Self {
-        Self::new(value.width(), value.height())
+        Self::new(value.width() as usize, value.height() as usize)
     }
 }
 
@@ -549,20 +563,20 @@ impl Bounded for Buffer {
     type Coordinate = Point;
     type Bounds = Rect;
 
-    fn min_x(&self) -> usize {
+    fn min_x(&self) -> u16 {
         0
     }
 
-    fn min_y(&self) -> usize {
+    fn min_y(&self) -> u16 {
         0
     }
 
-    fn max_x(&self) -> usize {
-        self.width
+    fn max_x(&self) -> u16 {
+        self.width as u16
     }
 
-    fn max_y(&self) -> usize {
-        self.height
+    fn max_y(&self) -> u16 {
+        self.height as u16
     }
 
     fn min(&self) -> Self::Coordinate {

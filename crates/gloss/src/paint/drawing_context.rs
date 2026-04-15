@@ -66,12 +66,12 @@ pub trait DrawingContext {
     fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize;
 
     /// Draw a horizontal line.
-    fn horizontal_line(&mut self, position: Point, length: usize) -> &mut Self;
-    fn horizontal_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self;
+    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self;
+    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self;
 
     /// Draw a vertical line.
-    fn vertical_line(&mut self, position: Point, length: usize) -> &mut Self;
-    fn vertical_line_with(&mut self, position: Point, length: usize, options: Self::Options) -> &mut Self;
+    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self;
+    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self;
 
     /// Clear an area.
     fn clear(&mut self, rect: Rect) -> &mut Self;

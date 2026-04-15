@@ -1,20 +1,5 @@
 use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
-
-pub const trait Zero {
-    const ZERO: Self;
-}
-
-pub const trait One {
-    const ONE: Self;
-}
-
-pub const trait Min {
-    const MIN: Self;
-}
-
-pub const trait Max {
-    const MAX: Self;
-}
+use crate::{Zero, One, Min, Max};
 
 impl<T: Zero> Zero for Point<T> { const ZERO: Self = Point { x: T::ZERO, y: T::ZERO }; }
 impl<T: One> One for Point<T> { const ONE: Self = Point { x: T::ONE, y: T::ONE }; }

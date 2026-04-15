@@ -1,6 +1,6 @@
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Sides<T = usize> {
+pub struct Sides<T = u16> {
     pub horizontal: T,
     pub vertical: T,
 }

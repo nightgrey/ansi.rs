@@ -16,18 +16,18 @@ pub struct Rect<T = Point> {
 }
 
 impl const Rect {
-    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
+    pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
         Self {
          min: Point::new(x, y),
          max: Point::new(x + width, y + height),
         }
     }
 
-    pub fn set_height(&mut self, height: usize) {
+    pub fn set_height(&mut self, height: u16) {
         self.max.y = self.min.y + height;
     }
     
-    pub fn set_width(&mut self, width: usize) {
+    pub fn set_width(&mut self, width: u16) {
         self.max.x = self.min.x + width;
     }
 }

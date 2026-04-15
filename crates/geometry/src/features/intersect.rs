@@ -38,24 +38,8 @@ impl<T: Bounded, U: Bounded> Intersect<T> for U {
         let x2 = self.max_x().min(other.max_x());
         let y2 = self.max_y().min(other.max_y());
 
-        let mut w = x2.saturating_sub(x1);
-        let mut h = y2.saturating_sub(y1);
-
-        if w < 0 {
-            w = 0;
-        }
-
-        if h < 0 {
-            h = 0;
-        }
-
-        if w > usize::MAX {
-            w = usize::MAX;
-        }
-
-        if h > usize::MAX {
-            h = usize::MAX;
-        }
+        let w = x2.saturating_sub(x1);
+        let h = y2.saturating_sub(y1);
 
         Rect {
             min: Point { x: x1, y: y1 },

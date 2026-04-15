@@ -8,16 +8,16 @@ pub trait Bounded {
     type Bounds: Bounded;
 
     #[inline]
-    fn min_x(&self) -> usize;
+    fn min_x(&self) -> u16;
 
     #[inline]
-    fn min_y(&self) -> usize;
+    fn min_y(&self) -> u16;
 
     #[inline]
-    fn max_x(&self) -> usize;
+    fn max_x(&self) -> u16;
 
     #[inline]
-    fn max_y(&self) -> usize;
+    fn max_y(&self) -> u16;
 
     #[inline]
     fn min(&self) -> Self::Coordinate;
@@ -26,28 +26,28 @@ pub trait Bounded {
     fn max(&self) -> Self::Coordinate;
 
     #[inline]
-    fn x(&self) -> usize {
+    fn x(&self) -> u16 {
         self.min_x()
     }
 
     #[inline]
-    fn y(&self) -> usize {
+    fn y(&self) -> u16 {
         self.min_y()
     }
 
     #[inline]
-    fn width(&self) -> usize {
+    fn width(&self) -> u16 {
         self.max_x().saturating_sub(self.min_x())
     }
 
     #[inline]
-    fn height(&self) -> usize {
+    fn height(&self) -> u16 {
         self.max_y().saturating_sub(self.min_y())
     }
 
     #[inline]
     fn len(&self) -> usize {
-        self.width().saturating_mul(self.height())
+        (self.width() as usize).saturating_mul(self.height() as usize)
     }
 
     #[inline]
@@ -71,19 +71,19 @@ impl<C: Coordinated> Bounded for Rect<C> {
     type Coordinate = C;
     type Bounds = Self;
 
-    fn min_x(&self) -> usize {
+    fn min_x(&self) -> u16 {
         self.min.x()
     }
 
-    fn min_y(&self) -> usize {
+    fn min_y(&self) -> u16 {
         self.min.y()
     }
 
-    fn max_x(&self) -> usize {
+    fn max_x(&self) -> u16 {
         self.max.x()
     }
 
-    fn max_y(&self) -> usize {
+    fn max_y(&self) -> u16 {
         self.max.y()
     }
 
@@ -104,19 +104,19 @@ impl Bounded for Size {
     type Coordinate = Point;
     type Bounds = Rect;
 
-    fn min_x(&self) -> usize {
+    fn min_x(&self) -> u16 {
         0
     }
 
-    fn min_y(&self) -> usize {
+    fn min_y(&self) -> u16 {
         0
     }
 
-    fn max_x(&self) -> usize {
+    fn max_x(&self) -> u16 {
         self.width
     }
 
-    fn max_y(&self) -> usize {
+    fn max_y(&self) -> u16 {
         self.height
     }
 
@@ -131,11 +131,11 @@ impl Bounded for Size {
         }
     }
 
-    fn width(&self) -> usize {
+    fn width(&self) -> u16 {
         self.width
     }
 
-    fn height(&self) -> usize {
+    fn height(&self) -> u16 {
         self.height
     }
 
@@ -148,19 +148,19 @@ impl Bounded for Edges {
     type Coordinate = Point;
     type Bounds = Rect;
 
-    fn min_x(&self) -> usize {
+    fn min_x(&self) -> u16 {
         0
     }
 
-    fn min_y(&self) -> usize {
+    fn min_y(&self) -> u16 {
         0
     }
 
-    fn max_x(&self) -> usize {
+    fn max_x(&self) -> u16 {
         self.horizontal()
     }
 
-    fn max_y(&self) -> usize {
+    fn max_y(&self) -> u16 {
         self.vertical()
     }
 

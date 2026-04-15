@@ -34,20 +34,21 @@ pub trait Resolve<T, U> {
 // Point -> *
 impl<B: Bounded> Resolve<Point, usize> for B {
     fn resolve(&self, value: Point) -> usize {
-        (value.y - self.min_y()) * self.width() + (value.x - self.min_x())
+        (value.y - self.min_y()) as usize * self.width() as usize
+            + (value.x - self.min_x()) as usize
     }
 }
 
 impl<B: Bounded> Resolve<Point, Row> for B {
     fn resolve(&self, value: Point) -> Row {
-        Row(value.y - self.min_y())
+        Row((value.y - self.min_y()) as usize)
     }
 }
 
 
 impl<B: Bounded> Resolve<Point, Column> for B {
     fn resolve(&self, value: Point) -> Column {
-        Column(value.x - self.min_x())
+        Column((value.x - self.min_x()) as usize)
     }
 }
 
@@ -87,20 +88,21 @@ impl<B: Bounded> Resolve<RangeFrom<Point>, RangeFrom<usize>> for B {
 // PointLike -> *
 impl<B: Bounded> Resolve<PointLike, usize> for B {
     fn resolve(&self, value: PointLike) -> usize {
-        (value.1 - self.min_y()) * self.width() + (value.0 - self.min_x())
+        (value.1 - self.min_y()) as usize * self.width() as usize
+            + (value.0 - self.min_x()) as usize
     }
 }
 
 impl<B: Bounded> Resolve<PointLike, Row> for B {
     fn resolve(&self, value: PointLike) -> Row {
-        Row(value.1 - self.min_y())
+        Row((value.1 - self.min_y()) as usize)
     }
 }
 
 
 impl<B: Bounded> Resolve<PointLike, Column> for B {
     fn resolve(&self, value: PointLike) -> Column {
-        Column(value.0 - self.min_x())
+        Column((value.0 - self.min_x()) as usize)
     }
 }
 
@@ -142,13 +144,13 @@ impl<B: Bounded> Resolve<RangeFrom<PointLike>, RangeFrom<usize>> for B {
 // Row -> *
 impl<B: Bounded> Resolve<Row, Point> for B {
     fn resolve(&self, value: Row) -> Point {
-        Point::new(self.min_x(), value.value())
+        Point::new(self.min_x(), value.value() as u16)
     }
 }
 
 impl<B: Bounded> Resolve<Row, usize> for B {
     fn resolve(&self, value: Row) -> usize {
-        (value.value() - self.min_y()) * self.width()
+        (value.value() - self.min_y() as usize) * self.width() as usize
     }
 }
 impl<B: Bounded> Resolve<Row, Column> for B {
@@ -214,13 +216,13 @@ impl<B: Bounded> Resolve<RangeFrom<Row>, RangeFrom<usize>> for B {
 // Column -> *
 impl<B: Bounded> Resolve<Column, Point> for B {
     fn resolve(&self, value: Column) -> Point {
-        Point::new(value.value(), 0)
+        Point::new(value.value() as u16, 0)
     }
 }
 
 impl<B: Bounded> Resolve<Column, usize> for B {
     fn resolve(&self, value: Column) -> usize {
-        value.value() - self.min_x()
+        value.value() - self.min_x() as usize
     }
 }
 
@@ -233,28 +235,34 @@ impl<B: Bounded> Resolve<Column, Row> for B {
 // Index -> *
 impl<B: Bounded> Resolve<usize, Point> for B {
     fn resolve(&self, value: usize) -> Point {
-        let w = self.width();
+        let w = self.width() as usize;
 
-        Point::new(value % w + self.min_x(), value / w + self.min_y())
+        Point::new(
+            (value % w) as u16 + self.min_x(),
+            (value / w) as u16 + self.min_y(),
+        )
     }
 }
 impl<B: Bounded> Resolve<usize, PointLike> for B {
     fn resolve(&self, value: usize) -> PointLike {
-        let w = self.width();
+        let w = self.width() as usize;
 
-        (value % w + self.min_x(), value / w + self.min_y())
+        (
+            (value % w) as u16 + self.min_x(),
+            (value / w) as u16 + self.min_y(),
+        )
     }
 }
 
 impl<B: Bounded> Resolve<usize, Row> for B {
     fn resolve(&self, value: usize) -> Row {
-        Row(value / self.width())
+        Row(value / self.width() as usize)
     }
 }
 
 impl<B: Bounded> Resolve<usize, Column> for B {
     fn resolve(&self, value: usize) -> Column {
-        Column(value % self.width())
+        Column(value % self.width() as usize)
     }
 }
 
@@ -294,4 +302,3 @@ impl<B: Bounded> Resolve<usize, usize> for B {
         value
     }
 }
-

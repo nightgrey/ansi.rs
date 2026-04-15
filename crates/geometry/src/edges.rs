@@ -16,7 +16,7 @@ use std::ops::Add;
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Edges<T = usize> {
+pub struct Edges<T = u16> {
     /// Spacing from the top edge.
     pub top: T,
 

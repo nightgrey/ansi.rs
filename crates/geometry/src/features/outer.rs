@@ -17,27 +17,27 @@ pub trait Outer: Bounded {
 
     #[inline]
     /// Returns the y-coordinate of the top edge.
-    fn top(&self) -> usize;
+    fn top(&self) -> u16;
     #[inline]
     /// Returns the x-coordinate of the left edge.
-    fn left(&self) -> usize;
+    fn left(&self) -> u16;
     #[inline]
     /// Returns the y-coordinate of the bottom edge.
-    fn bottom(&self) -> usize;
+    fn bottom(&self) -> u16;
     #[inline]
     /// Returns the x-coordinate of the right edge.
-    fn right(&self) -> usize;
+    fn right(&self) -> u16;
 
     #[inline]
-    fn range_x(&self) -> Range<usize> {
+    fn range_x(&self) -> Range<u16> {
         self.left()..self.right()
     }
     #[inline]
-    fn range_y(&self) -> Range<usize> {
+    fn range_y(&self) -> Range<u16> {
         self.top()..self.bottom()
     }
 
-    fn ranges(&self) -> impl Iterator<Item = (usize, usize)> {
+    fn ranges(&self) -> impl Iterator<Item = (u16, u16)> {
         self.range_x().flat_map(move |x| self.range_y().map(move |y| (x, y)))
     }
 }
@@ -59,19 +59,19 @@ impl<C: Coordinated, T: Bounded<Coordinate = C>> Outer for T {
         Self::Coordinate::new(self.min_x(), self.max_y())
     }
 
-    fn top(&self) -> usize {
+    fn top(&self) -> u16 {
         self.min_y()
     }
 
-    fn left(&self) -> usize {
+    fn left(&self) -> u16 {
         self.min_x()
     }
 
-    fn bottom(&self) -> usize {
+    fn bottom(&self) -> u16 {
         self.max_y()
     }
 
-    fn right(&self) -> usize {
+    fn right(&self) -> u16 {
         self.max_x()
     }
 }

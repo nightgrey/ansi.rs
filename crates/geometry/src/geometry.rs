@@ -21,6 +21,4 @@ impl Bounds for Size {}
 impl Bounds for Edges {}
 
 impl Coordinate for Point {}
-impl Coordinate for Row {}
-impl Coordinate for Column {}
 impl Coordinate for PointLike {}

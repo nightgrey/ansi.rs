@@ -26,15 +26,15 @@ impl<B: Bounded> Contains<PointLike> for B {
 
 impl<B: Bounded> Contains<Row> for B {
     fn contains(&self, rhs: &Row) -> bool {
-        rhs.value() >= self.min_y()
-            && rhs.value() < self.max_y()
+        rhs.value() >= self.min_y() as usize
+            && rhs.value() < self.max_y() as usize
     }
 }
 
 impl<B: Bounded> Contains<Column> for B {
     fn contains(&self, rhs: &Column) -> bool {
-        rhs.value() >= self.min_x()
-            && rhs.value() < self.max_x()
+        rhs.value() >= self.min_x() as usize
+            && rhs.value() < self.max_x() as usize
     }
 }
 

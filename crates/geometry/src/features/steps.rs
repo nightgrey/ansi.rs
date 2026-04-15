@@ -99,8 +99,8 @@ impl Step<Point> for Rect {
 
     fn backward_checked(&self, start: Point, count: usize) -> Option<Point> {
         // Fast path: stay on the same row.
-        if start.y < self.max().x && count <= start.y - self.min.x {
-            return Some(Point::new(start.x, start.y - count));
+        if start.y < self.max().x && count <= (start.y - self.min.x) as usize {
+            return Some(Point::new(start.x, start.y - count as u16));
         }
         // General path: linearize through the exclusive end.
         let idx = if start >= self.max() {

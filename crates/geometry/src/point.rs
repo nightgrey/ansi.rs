@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
-pub type PointLike<T = usize> = (T, T);
+pub type PointLike<T = u16> = (T, T);
 
 /// A 2D point in screen-space coordinates.
 ///
@@ -26,7 +26,7 @@ pub type PointLike<T = usize> = (T, T);
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Point<T = usize> {
+pub struct Point<T = u16> {
     /// Horizontal position (column).
     pub x: T,
 

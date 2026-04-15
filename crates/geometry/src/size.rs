@@ -16,7 +16,7 @@ use crate::{Bounded, Number, Rect, Zero};
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
-pub struct Size<T = usize> {
+pub struct Size<T = u16> {
     /// Width in columns.
     pub width: T,
 

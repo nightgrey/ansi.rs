@@ -2,6 +2,7 @@ use crate::{Column, Point, Rect, Row, Size};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub};
 use super::{Column, Row};
+
 /// Type alias for tuple-based positions: `(row, col)`.
 ///
 /// Used for convenient position construction from tuples.

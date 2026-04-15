@@ -7,7 +7,6 @@ use derive_more::{AsRef, Deref, DerefMut, From, Into};
 #[repr(transparent)]
 pub struct Background(Color);
 
-
 impl Background {
     pub fn as_color(&self) -> Color {
         self.0

@@ -11,6 +11,8 @@ use std::ops::{
 #[derive_const(Default, Clone, Eq, PartialEq)]
 #[derive(Copy, Maybe)]
 pub enum Color {
+    #[default]
+    None,
     Black,
     Red,
     Green,
@@ -30,8 +32,7 @@ pub enum Color {
 
     Index(u8),
     Rgb(u8, u8, u8),
-    #[default]
-    None,
+
 }
 impl Color {
     #[inline]
@@ -61,6 +62,7 @@ impl Color {
             (_, x) => x,
         }
     }
+    
     // pub fn convert(self, target: ColorSpace) -> Color {
     //     match target {
     //         ColorSpace::Ansi => Basic::from(self).into(),
@@ -112,8 +114,7 @@ impl Color {
 
 impl From<u32> for Color {
     fn from(value: u32) -> Self {
-        let (r, g, b) = ((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
-        Color::Rgb(r as u8, g as u8, b as u8)
+        Color::Rgb(((value >> 16) & 0xFF) as u8, ((value >> 8) & 0xFF) as u8, (value & 0xFF) as u8)
     }
 }
 

@@ -1,5 +1,18 @@
+pub const trait Zero {
+    const ZERO: Self;
+}
 
-use crate::{Zero, One, Min, Max};
+pub const trait One {
+    const ONE: Self;
+}
+
+pub const trait Min {
+    const MIN: Self;
+}
+
+pub const trait Max {
+    const MAX: Self;
+}
 
 macro_rules! impl_zero {
     ($($ty:ty = $val:expr),*) => {

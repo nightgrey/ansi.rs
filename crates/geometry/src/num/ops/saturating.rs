@@ -1,4 +1,5 @@
 use std::ops::*;
+
 pub trait SaturatingOps<Rhs = Self>: SaturatingAdd<Rhs> + SaturatingSub<Rhs> + SaturatingMul<Rhs> + SaturatingDiv<Rhs>  { }
 
 pub trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output=Self> {
@@ -20,6 +21,7 @@ pub trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output=Self> {
 macro_rules! saturating_impl {
     ($T:ty) => {
         impl SaturatingOps for $T {}
+        
         impl SaturatingAdd for $T {
             fn saturating_add(self, rhs: Self) -> Self {
                 Self::saturating_add(self, rhs)

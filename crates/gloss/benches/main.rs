@@ -57,7 +57,7 @@ const H: usize = 40;
 /// Build a buffer where every cell has the given char and style.
 fn filled_buffer(width: usize, height: usize, ch: char, style: Style) -> Buffer {
     let chars: Vec<_> = (0..height)
-        .flat_map(|y| (0..width).map(move |x| (y, x, ch, style)))
+        .flat_map(|row| (0..width).map(move |col| (row, col, ch, style)))
         .collect();
     Buffer::from_chars(width, height, &chars)
 }
@@ -237,10 +237,9 @@ fn virtual_list_buffer(offset: usize) -> Buffer {
 fn terminal_rerender(c: &mut Criterion) {
     let style = Style::default().foreground(Color::Rgb(0, 200, 100));
     let buf1 = filled_buffer(W, H, 'x', style);
-
     // Change a single cell in the middle of the screen.
     let mut buf2 = buf1.clone();
-    buf2[(W / 2, H / 2)] = Cell::inline('!', style);
+    buf2[(H / 2, W / 2)] = Cell::inline('!', style);
 
     let mut r = Bench::new(W, H);
     r.render(&buf1);

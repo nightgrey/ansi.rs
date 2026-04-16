@@ -1,3 +1,4 @@
+use std::io;
 use bon::Builder;
 use geometry::{Bounded, Point, Rect, Size};
 use maybe::Maybe;
@@ -6,7 +7,7 @@ use crate::{BorderStyle, Document, ElementId, ElementKind, Layout};
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
 pub struct DrawingOptions {
-    pub style: Option<Layout>,
+    pub layout: Option<Layout>,
     pub glyph: Option<char>,
     pub border: Option<BorderStyle>,
 }

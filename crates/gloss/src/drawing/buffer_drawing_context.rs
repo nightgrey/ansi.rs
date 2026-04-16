@@ -11,8 +11,16 @@ use crate::{BorderStyle, DrawingContext};
 use crate::symbols::Symbol;
 use ansi::{Attribute, Color, Style};
 
-// ── Options Structs ────────────────────────────────────────────────────────
-//
+/// Snapshot of all context state, pushed/popped via save/restore.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ContextState {
+    clip: Rect,
+    origin: Point,
+    pub style: Style,
+    pub border_style: BorderStyle,
+    pub glyph: char,
+}
+
 // Lightweight per-call override containers. `None` fields inherit from
 // the current context state. All methods are `const` to enable static
 // construction without runtime overhead.
@@ -32,21 +40,11 @@ impl BufferDrawingOptions {
 impl From<DrawingOptions> for BufferDrawingOptions {
     fn from(value: DrawingOptions) -> Self {
         Self {
-            style: value.style.map(Into::into),
+            style: value.layout.map(Into::into),
             glyph: value.glyph,
             border: value.border,
         }
     }
-}
-
-/// Snapshot of all context state, pushed/popped via save/restore.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Context {
-    clip: Rect,
-    origin: Point,
-    pub style: Style,
-    pub border_style: BorderStyle,
-    pub glyph: char,
 }
 
 /// 2D drawing context for terminal buffers.
@@ -60,8 +58,8 @@ pub struct BufferDrawingContext<'a> {
     arena: &'a mut Arena,
     #[deref]
     #[deref_mut]
-    context: Context,
-    stacks: SmallVec<Context, 16>,
+    context: ContextState,
+    stacks: SmallVec<ContextState, 16>,
 }
 
 impl<'buf> BufferDrawingContext<'buf> {
@@ -71,7 +69,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         Self {
             buffer,
             arena,
-            context: Context {
+            context: ContextState {
                 clip,
                 origin: Point::ZERO,
                 style: Style::None,
@@ -81,37 +79,72 @@ impl<'buf> BufferDrawingContext<'buf> {
             stacks: SmallVec::new(),
         }
     }
-    // ── State Mutations ────────────────────────────────────────────────
 
-    /// Set the fill style for subsequent draw operations.
-    pub fn style(&mut self, style: Style) -> &mut Self {
-        self.context.style = style;
-        self
-    }
-
+    /// Set the foreground color for subsequent draw operations.
     pub fn foreground(&mut self, color: Color) -> &mut Self {
         self.context.style.foreground = color;
         self
     }
 
+    /// Set the background color for subsequent draw operations.
     pub fn background(&mut self, color: Color) -> &mut Self {
         self.context.style.background = color;
         self
     }
 
+    /// Set the text attributes for subsequent draw operations.
     pub fn attributes(&mut self, attributes: Attribute) -> &mut Self {
         self.context.style.attributes = attributes;
         self
     }
 
-    /// Set the fill glyph for subsequent draw operations.
-    pub fn glyph(&mut self, glyph: char) -> &mut Self {
+    /// Reset state to defaults without affecting the stack.
+    pub fn reset(&mut self) -> &mut Self {
+        self.context = ContextState::default();
+        self
+    }
+
+    fn to_local<T: Translate<Point>>(&self, rect: T) -> T::Output {
+        rect.translate(&self.context.origin)
+    }
+
+    fn intersect(&self, rect: Rect) -> Option<Rect> {
+        let result = self.context.clip.intersect(&rect);
+        (!result.is_empty()).then_some(result)
+    }
+}
+
+impl<'a> DrawingContext for BufferDrawingContext<'a> {
+    type Error = io::Error;
+    type Options = BufferDrawingOptions;
+
+    fn current_clip(&self) -> Rect {
+        self.context.clip
+    }
+
+    fn current_style(&self) -> crate::Layout {
+        self.context.style.into()
+    }
+
+    fn current_glyph(&self) -> char {
+        self.context.glyph
+    }
+
+    fn current_border_style(&self) -> BorderStyle {
+        self.context.border_style
+    }
+
+    fn style(&mut self, style: crate::Layout) -> &mut Self {
+        self.context.style = style.into();
+        self
+    }
+
+    fn glyph(&mut self, glyph: char) -> &mut Self {
         self.context.glyph = glyph;
         self
     }
 
-    /// Set the border style for subsequent stroke operations.
-    pub fn border_style(&mut self, border: BorderStyle) -> &mut Self {
+    fn border_style(&mut self, border: BorderStyle) -> &mut Self {
         self.context.border_style = border;
         self
     }
@@ -119,114 +152,23 @@ impl<'buf> BufferDrawingContext<'buf> {
     /// Intersect the current clip region with `rect`.
     ///
     /// The input is in local coordinates and will be transformed before
-    /// intersection. Use `clip_intersect()` to pass buffer-space coordinates
-    /// directly.
-    pub fn clip(&mut self, rect: Rect) -> &mut Self {
+    /// intersection.
+    fn clip(&mut self, rect: Rect) -> &mut Self {
         self.context.clip = self.context.clip.intersect(&self.to_local(rect));
         self
     }
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
-    pub fn translate(&mut self, offset: Point) -> &mut Self {
+    fn translate(&mut self, offset: Point) -> &mut Self {
         self.context.origin = self.context.origin + offset;
         self
     }
 
-    /// Push current state onto the stack.
-    pub fn save(&mut self) -> &mut Self {
-        self.stacks.push(self.context.clone());
-        self
-    }
-
-    /// Pop state from the stack, restoring previous values.
-    ///
-    /// No-op if the stack is empty.
-    pub fn restore(&mut self) -> &mut Self {
-        if let Some(previous) = self.stacks.pop() {
-            self.context = previous;
-        }
-        self
-    }
-
-    /// Reset state to defaults without affecting the stack.
-    pub fn reset(&mut self) -> &mut Self {
-        self.context = Context::default();
-        self
-    }
-
-    /// Execute `f` with a temporary state modification.
-    ///
-    /// State is saved before `f` runs and restored afterward, regardless
-    /// of whether `f` returns or panics (on panic, the restore is skipped
-    /// — use a `Drop` guard if panic safety is required).
-    pub fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.save();
-        f(self);
-        self.restore()
-    }
-
-    /// Execute `f` within a sub-region.
-    ///
-    /// Equivalent to:
-    /// ```ignore
-    /// self.save();
-    /// self.translate(rect.min);
-    /// self.clip(Rect::from(rect.size()));
-    /// f(self);
-    /// self.restore();
-    /// ```
-    pub fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.save();
-        self.translate(rect.min);
-        self.clip(Rect::from(rect.size()));
-        f(self);
-        self.restore()
-    }
-
-
-    /// Fill a rectangle using current fill state.
-    pub fn rect(&mut self, rect: Rect) -> &mut Self {
+    fn rect(&mut self, rect: Rect) -> &mut Self {
         self.rect_with(rect, BufferDrawingOptions::default())
     }
 
-    /// Draw an outline (edges without corners) using current fill state.
-    pub fn outline(&mut self, rect: Rect) -> &mut Self {
-        self.outline_with(rect, BufferDrawingOptions::default())
-    }
-
-    /// Draw a border with corners using current stroke state.
-    pub fn border(&mut self, rect: Rect) -> &mut Self {
-        self.border_with(rect, BufferDrawingOptions::default())
-    }
-
-    /// Draw text at `pos` using current fill state.
-    ///
-    /// Returns the number of cells written (accounts for wide characters).
-    pub fn text(&mut self, pos: Point, content: impl AsRef<str>) -> usize {
-        self.text_with(pos, content, BufferDrawingOptions::default())
-    }
-
-    /// Draw a horizontal line from `origin` using current fill state.
-    pub fn horizontal_line(&mut self, origin: Point, length: u16) -> &mut Self {
-        self.horizontal_line_with(origin, length, BufferDrawingOptions::default())
-    }
-
-    /// Draw a vertical line from `origin` using current fill state.
-    pub fn vertical_line(&mut self, origin: Point, length: u16) -> &mut Self {
-        self.vertical_line_with(origin, length, BufferDrawingOptions::default())
-    }
-
-    /// Fill the current clip region using current fill state.
-    ///
-    /// Equivalent to `self.rect(self.current_clip())`.
-    pub fn clear(&mut self, rect: Rect) -> &mut Self {
-        self.rect(rect)
-    }
-
-    // ── Draw Operations with Overrides ────────────────────────────────
-
-    /// Fill a rectangle with per-call style/glyph overrides.
-    pub fn rect_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
+    fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         let local_rect = self.to_local(rect);
         let style = options.style.unwrap_or(self.context.style);
         let glyph = options.glyph.unwrap_or(self.context.glyph);
@@ -241,8 +183,11 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    /// Draw an outline with per-call style/glyph overrides.
-    pub fn outline_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
+    fn outline(&mut self, rect: Rect) -> &mut Self {
+        self.outline_with(rect, BufferDrawingOptions::default())
+    }
+
+    fn outline_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         let local_rect = self.to_local(rect);
 
         // Top edge
@@ -281,8 +226,11 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    /// Draw a border with corners, with per-call stroke overrides.
-    pub fn border_with(&mut self, rect: Rect, options: BufferDrawingOptions) -> &mut Self {
+    fn border(&mut self, rect: Rect) -> &mut Self {
+        self.border_with(rect, BufferDrawingOptions::default())
+    }
+
+    fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         let mut local_rect = self.to_local(rect);
         let border_style = options.border.unwrap_or(self.context.border_style);
         let border = border_style.into_border();
@@ -295,7 +243,6 @@ impl<'buf> BufferDrawingContext<'buf> {
             return self;
         }
 
-        // Helper: set cell if within clip
         let mut set_cell = |x: u16, y: u16, symbol: Symbol| {
             if self.context.clip.contains(&(y as usize, x as usize)) {
                 self.buffer[(y as usize, x as usize)]
@@ -328,17 +275,12 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    /// Draw text at `pos` with per-call style overrides.
-    ///
-    /// Respects the current clip rect and applies the effective style.
-    /// Returns the number of cells written (accounts for wide characters).
-    pub fn text_with(
-        &mut self,
-        pos: Point,
-        content: impl AsRef<str>,
-        options: BufferDrawingOptions,
-    ) -> usize {
-        let local_pos = self.to_local(pos);
+    fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize {
+        self.text_with(position, str, BufferDrawingOptions::default())
+    }
+
+    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
+        let local_pos = self.to_local(position);
         let style = options.style.unwrap_or(self.context.style);
         let clip = self.context.clip;
 
@@ -356,7 +298,7 @@ impl<'buf> BufferDrawingContext<'buf> {
         let mut x = local_pos.x;
         let mut drawn = 0usize;
 
-        for grapheme in UnicodeSegmentation::graphemes(content.as_ref(), true) {
+        for grapheme in UnicodeSegmentation::graphemes(str.as_ref(), true) {
             if grapheme.contains(char::is_control) {
                 continue;
             }
@@ -383,14 +325,12 @@ impl<'buf> BufferDrawingContext<'buf> {
         drawn
     }
 
-    /// Draw a horizontal line with per-call style/glyph overrides.
-    pub fn horizontal_line_with(
-        &mut self,
-        origin: Point,
-        length: u16,
-        options: BufferDrawingOptions,
-    ) -> &mut Self {
-        let local_origin = self.to_local(origin);
+    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self {
+        self.horizontal_line_with(position, length, BufferDrawingOptions::default())
+    }
+
+    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
+        let local_origin = self.to_local(position);
         let style = options.style.unwrap_or(self.context.style);
         let glyph = options.glyph.unwrap_or(self.context.glyph);
 
@@ -410,16 +350,14 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    /// Draw a vertical line with per-call style/glyph overrides.
-    pub fn vertical_line_with(
-        &mut self,
-        origin: Point,
-        length: u16,
-        opts: BufferDrawingOptions,
-    ) -> &mut Self {
-        let local_origin = self.to_local(origin);
-        let style = opts.style.unwrap_or(self.context.style);
-        let glyph = opts.glyph.unwrap_or(self.context.glyph);
+    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self {
+        self.vertical_line_with(position, length, BufferDrawingOptions::default())
+    }
+
+    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
+        let local_origin = self.to_local(position);
+        let style = options.style.unwrap_or(self.context.style);
+        let glyph = options.glyph.unwrap_or(self.context.glyph);
 
         let end = (
             local_origin.x,
@@ -437,130 +375,34 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    // Utils
-    fn to_local<T: Translate<Point>>(&self, rect: T) -> T::Output {
-        rect.translate(&self.context.origin)
-    }
-
-    fn intersect(&self, rect: Rect) -> Option<Rect> {
-        let result = self.context.clip
-            .intersect(&rect);
-
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
-    }
-
-
-}
-
-impl<'a> DrawingContext for BufferDrawingContext<'a> {
-    type Error = io::Error;
-    type Options = BufferDrawingOptions;
-    fn current_clip(&self) -> Rect {
-        self.context.clip
-    }
-
-    fn current_style(&self) -> crate::Layout {
-       self.context.style.into()
-    }
-
-    fn current_glyph(&self) -> char {
-        self.context.glyph
-    }
-
-    fn current_border_style(&self) -> BorderStyle {
-        self.context.border_style
-    }
-
-    fn style(&mut self, style: crate::Layout) -> &mut Self {
-        self.style(style.into())
-    }
-
-    fn glyph(&mut self, fill: char) -> &mut Self {
-        self.glyph(fill)
-    }
-
-    fn border_style(&mut self, border: BorderStyle) -> &mut Self {
-        self.border_style(border)
-    }
-
-    fn clip(&mut self, rect: Rect) -> &mut Self {
-        self.clip(rect)
-    }
-
-    fn translate(&mut self, offset: Point) -> &mut Self {
-        self.translate(offset)
-    }
-
-    fn rect(&mut self, rect: Rect) -> &mut Self {
+    fn clear(&mut self, rect: Rect) -> &mut Self {
         self.rect(rect)
     }
 
-    fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        self.rect_with(rect, options.into())
-    }
-
-    fn outline(&mut self, rect: Rect) -> &mut Self {
-        self.outline(rect)
-    }
-
-    fn outline_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        self.outline_with(rect, options.into())
-    }
-
-    fn border(&mut self, rect: Rect) -> &mut Self {
-        self.border(rect)
-    }
-
-    fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        self.border_with(rect, options)
-    }
-
-    fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize {
-        self.text(position, str)
-    }
-
-    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
-        self.text_with(position, str, options)
-    }
-
-    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self {
-        self.horizontal_line(position, length)
-    }
-
-    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
-        self.horizontal_line_with(position, length, options)
-    }
-
-    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self {
-        self.vertical_line(position, length)
-    }
-
-    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
-        self.vertical_line_with(position, length, options)
-    }
-
-    fn clear(&mut self, rect: Rect) -> &mut Self {
-        self.clear(rect)
-    }
-
     fn save(&mut self) -> &mut Self {
-        self.save()
+        self.stacks.push(self.context.clone());
+        self
     }
 
     fn restore(&mut self) -> &mut Self {
-        self.restore()
+        if let Some(previous) = self.stacks.pop() {
+            self.context = previous;
+        }
+        self
     }
 
     fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.with(f)
+        self.save();
+        f(self);
+        self.restore()
     }
 
     fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.within(rect, f)
+        self.save();
+        self.translate(rect.min);
+        self.clip(Rect::from(rect.size()));
+        f(self);
+        self.restore()
     }
 
     fn resize(&mut self, size: impl Into<Size>) -> &mut Self {

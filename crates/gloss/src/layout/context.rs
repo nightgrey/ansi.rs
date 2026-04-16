@@ -1,4 +1,4 @@
-use crate::{Display, FlexDirection, LayoutNode, Element, ElementId, ElementKind, Space, Style};
+use crate::{Display, FlexDirection, Computation, Element, ElementId, ElementKind, Space, Layout};
 use tree::{Id, Secondary, Tree};
 use compact_str::CompactString;
 use slotmap::Key;
@@ -9,14 +9,14 @@ use taffy::{BlockContext, LayoutInput, LayoutOutput, TraversePartialTree};
 #[derive(Debug)]
 pub struct LayoutContext<'d, 'n, M: MeasureFunction<'n>> {
     pub tree: &'d mut Tree<ElementId, Element<'n>>,
-    pub layouts: &'d mut Secondary<ElementId, LayoutNode>,
+    pub layouts: &'d mut Secondary<ElementId, Computation>,
     pub measure_function: M,
 }
 
 impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
     pub fn new(
         tree: &'d mut Tree<ElementId, Element<'n>>,
-        layouts: &'d mut Secondary<ElementId, LayoutNode>,
+        layouts: &'d mut Secondary<ElementId, Computation>,
         measure_function: M,
     ) -> Self {
         Self {
@@ -40,7 +40,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
         taffy::util::print_tree(self, Self::taffy_id(root));
     }
 
-    fn style(&self, id: taffy::NodeId) -> &Style {
+    fn style(&self, id: taffy::NodeId) -> &Layout {
         &self.node(id).style
     }
 
@@ -55,12 +55,12 @@ impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
     }
 
     #[inline]
-    fn layout_node(&self, node_id: taffy::NodeId) -> &LayoutNode {
+    fn layout_node(&self, node_id: taffy::NodeId) -> &Computation {
         &self.layouts[Self::tree_id(node_id)]
     }
 
     #[inline]
-    fn layout_node_mut(&mut self, node_id: taffy::NodeId) -> &mut LayoutNode {
+    fn layout_node_mut(&mut self, node_id: taffy::NodeId) -> &mut Computation {
         &mut self.layouts[Self::tree_id(node_id)]
     }
 
@@ -105,7 +105,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::TraverseTree for LayoutContext<'d, '
 
 impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutPartialTree for LayoutContext<'d, 'n, M> {
     type CoreContainerStyle<'a>
-        = &'a Style
+        = &'a Layout
     where
         Self: 'a;
     type CustomIdent = CompactString;
@@ -189,11 +189,11 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::CacheTree for LayoutContext<'d, 'n, 
 
 impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutFlexboxContainer for LayoutContext<'d, 'n, M> {
     type FlexboxContainerStyle<'a>
-        = &'a Style
+        = &'a Layout
     where
         Self: 'a;
     type FlexboxItemStyle<'a>
-        = &'a Style
+        = &'a Layout
     where
         Self: 'a;
 
@@ -230,11 +230,11 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutFlexboxContainer for LayoutCon
 
 impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutBlockContainer for LayoutContext<'d, 'n, M> {
     type BlockContainerStyle<'a>
-        = &'a Style
+        = &'a Layout
     where
         Self: 'a;
     type BlockItemStyle<'a>
-        = &'a Style
+        = &'a Layout
     where
         Self: 'a;
 

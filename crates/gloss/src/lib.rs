@@ -11,20 +11,23 @@
 #![feature(const_try)]
 extern crate core;
 
-mod document;
-mod style;
-mod paint;
-pub mod layout;
-pub mod buffer;
-pub mod raster;
-mod engine;
-pub mod elements;
+pub mod drawing;
+pub use drawing::*;
 
-pub use document::*;
-pub use style::*;
-pub use paint::*;
+pub mod layout;
 pub use layout::*;
+
+pub mod buffer;
 pub use buffer::*;
+
+pub mod raster;
 pub use raster::*;
-pub use engine::*;
+
+pub mod elements;
 pub use elements::*;
+
+mod engine;
+pub use engine::*;
+
+mod document;
+pub use document::*;

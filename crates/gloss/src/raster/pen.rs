@@ -21,13 +21,6 @@ impl Pen {
         }
     }
 
-    /// Reset cursor to origin with empty pen.
-    pub fn reset(&mut self) {
-        self.row = 0;
-        self.col = 0;
-        self.style = Style::None;
-    }
-
     /// Emit the shortest cursor movement sequence to reach `(target_row, target_col)`.
     ///
     /// Evaluates up to 4 strategies and picks the one with the fewest bytes:
@@ -161,24 +154,33 @@ impl Pen {
 
     /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn transition(&mut self, out: &mut Vec<u8>, to: Style) -> io::Result<()> {
+    pub fn transition(&mut self, to: Style, w: &mut Vec<u8>) -> io::Result<()> {
         if self.style == to {
             return Ok(());
         }
 
-        out.escape(SGR::transition(self.style, to))?;
+        w.escape(SGR::transition(self.style, to))?;
         self.style = to;
         Ok(())
 
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
-    pub fn reset_style(&mut self, w: &mut impl Write) {
+    pub fn reset_style(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         if !self.style.is_none() {
-            w.escape(SGR::reset()).unwrap();
+            w.escape(SGR::reset())?;
             self.style = Style::None;
         }
+        Ok(())
     }
+
+    /// Reset cursor to origin with empty pen.
+    pub fn reset(&mut self) {
+        self.row = 0;
+        self.col = 0;
+        self.style = Style::None;
+    }
+
 }
 
 impl Default for Pen {
@@ -236,7 +238,7 @@ mod tests {
         let mut cursor = Pen::new();
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor.transition(&mut buf, Style::default().bold()).unwrap();
+        cursor.transition(Style::default().bold(), &mut buf).unwrap();
         assert!(buf.is_empty());
     }
 

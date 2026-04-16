@@ -1,15 +1,15 @@
 mod buffer;
 mod cell;
 mod grapheme;
-mod index;
+mod buffer_index;
 mod buf;
-mod diff;
-mod double;
+mod buffer_diff;
+mod double_buffer;
 
 pub use buffer::*;
 pub use cell::*;
 pub use grapheme::*;
-pub use index::*;
+pub use buffer_index::*;
 pub use buf::*;
-pub use diff::*;
-pub use double::*;
+pub use buffer_diff::*;
+pub use double_buffer::*;

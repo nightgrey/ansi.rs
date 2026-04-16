@@ -9,7 +9,7 @@ pub struct Symbol<T = char> {
     #[as_ref]
     #[as_mut]
     pub inner: T,
-    pub(super) width: usize,
+    pub(crate) width: usize,
 }
 
 impl<T> Symbol<T> {

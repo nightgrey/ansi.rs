@@ -11,14 +11,14 @@ bitflags! {
 }
 
 #[derive(Debug, Clone)]
-pub struct LayoutNode {
+pub struct Computation {
     pub(crate) cache: taffy::Cache,
     pub(crate) unrounded_layout: taffy::Layout,
     pub(crate) final_layout: taffy::Layout,
     pub(crate) dirty: Dirty,
 }
 
-impl LayoutNode {
+impl Computation {
     pub fn border(&self) -> Edges {
         Edges::new(
             self.final_layout.border.left.max(0.0) as u16,
@@ -80,7 +80,7 @@ impl LayoutNode {
     }
 }
 
-impl Bounded for LayoutNode {
+impl Bounded for Computation {
     type Coordinate = Point;
     type Bounds = Rect;
 
@@ -122,7 +122,7 @@ impl Bounded for LayoutNode {
     }
 }
 
-impl Default for LayoutNode {
+impl Default for Computation {
     fn default() -> Self {
         Self {
             cache: taffy::Cache::default(),

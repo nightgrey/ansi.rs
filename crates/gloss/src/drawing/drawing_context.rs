@@ -1,12 +1,12 @@
 use bon::Builder;
 use geometry::{Bounded, Point, Rect, Size};
 use maybe::Maybe;
-use crate::{BorderStyle, Document, ElementId, ElementKind, Style};
+use crate::{BorderStyle, Document, ElementId, ElementKind, Layout};
 
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
 pub struct DrawingOptions {
-    pub style: Option<Style>,
+    pub style: Option<Layout>,
     pub glyph: Option<char>,
     pub border: Option<BorderStyle>,
 }
@@ -19,7 +19,7 @@ pub trait DrawingContext {
     fn current_clip(&self) -> Rect;
 
     /// Get the current style.
-    fn current_style(&self) -> Style;
+    fn current_style(&self) -> Layout;
 
     /// Get the current fill glyph.
     fn current_glyph(&self) -> char;
@@ -28,7 +28,7 @@ pub trait DrawingContext {
     fn current_border_style(&self) -> BorderStyle;
 
     /// Set the current style.
-    fn style(&mut self, style: Style) -> &mut Self;
+    fn style(&mut self, style: Layout) -> &mut Self;
 
     /// Set the current fill glyph.
     fn glyph(&mut self, fill: char) -> &mut Self;
@@ -127,7 +127,7 @@ pub trait DrawingContext {
     /// applying styles/borders/content, then flushes any pending work.
     fn paint(&mut self, document: &Document<'_>) {
         self.resize(document.border_bounds(document.root_id));
-        paint_node(self, document, document.root_id, Style::DEFAULT);
+        paint_node(self, document, document.root_id, Layout::DEFAULT);
         self.finish();
     }
 }
@@ -136,7 +136,7 @@ fn paint_node<B: DrawingContext + ?Sized>(
     ctx: &mut B,
     document: &Document<'_>,
     id: ElementId,
-    parent_style: Style,
+    parent_style: Layout,
 ) {
     let node = document.element(id);
     let border_bounds = document.border_bounds(id);

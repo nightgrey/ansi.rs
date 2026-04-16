@@ -1,6 +1,6 @@
-use crate::{Dirty, LayoutContext, LayoutNode, Element, ElementId};
+use crate::{Dirty, LayoutContext, Computation, Element, ElementId};
 use crate::measure;
-use crate::{Available, Dimension, Space, Style};
+use crate::{Available, Dimension, Space, Layout};
 use geometry::{Bounded, Point, Rect, Size};
 use tree::{At, Secondary, Tree, id};
 
@@ -8,7 +8,7 @@ use tree::{At, Secondary, Tree, id};
 pub struct Document<'a> {
     pub root_id: ElementId,
     elements: Tree<ElementId, Element<'a>>,
-    layouts: Secondary<ElementId, LayoutNode>,
+    layouts: Secondary<ElementId, Computation>,
 }
 
 impl<'a> Document<'a> {
@@ -17,7 +17,7 @@ impl<'a> Document<'a> {
         let mut layouts = Secondary::default();
 
         let root_id = inner.insert(Element::Div());
-        layouts.insert(root_id, LayoutNode::default());
+        layouts.insert(root_id, Computation::default());
 
         Self {
             root_id,
@@ -41,7 +41,7 @@ impl<'a> Document<'a> {
     /// Inserts a node at the given position.
     pub fn insert_at(&mut self, node: Element<'a>, at: At<ElementId>) -> ElementId {
         let id = self.elements.insert_at(node, at);
-        self.layouts.insert(id, LayoutNode::default());
+        self.layouts.insert(id, Computation::default());
         id
     }
     
@@ -74,11 +74,11 @@ impl<'a> Document<'a> {
         &mut self.elements[id]
     }
 
-    pub fn layout_node(&self, id: ElementId) -> &LayoutNode {
+    pub fn computation(&self, id: ElementId) -> &Computation {
         &self.layouts[id]
     }
 
-    pub fn layout_node_mut(&mut self, id: ElementId) -> &mut LayoutNode {
+    pub fn computation_mut(&mut self, id: ElementId) -> &mut Computation {
         &mut self.layouts[id]
     }
 
@@ -87,27 +87,27 @@ impl<'a> Document<'a> {
     }
 
     pub fn mark(&mut self, id: ElementId, flags: Dirty) {
-        self.layout_node_mut(id).mark(flags);
+        self.computation_mut(id).mark(flags);
     }
 
     pub fn unmark(&mut self, id: ElementId, flags: Dirty) {
-        self.layout_node_mut(id).unmark(flags);
+        self.computation_mut(id).unmark(flags);
     }
 
     pub fn is_dirty(&self, id: ElementId) -> bool {
-        self.layout_node(id).is_dirty()
+        self.computation(id).is_dirty()
     }
 
     pub fn border_bounds(&self, id: ElementId) -> Rect {
-        self.layout_node(id).border_bounds()
+        self.computation(id).border_bounds()
     }
 
     pub fn content_bounds(&self, id: ElementId) -> Rect {
-        self.layout_node(id).content_bounds()
+        self.computation(id).content_bounds()
     }
 
 
-    pub fn set_style(&mut self, id: ElementId, style: Style) {
+    pub fn set_style(&mut self, id: ElementId, style: Layout) {
         self.elements[id].style = style;
         self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
     }

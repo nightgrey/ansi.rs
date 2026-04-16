@@ -5,7 +5,7 @@ use ansi::sequences::*;
 use std::io;
 use geometry::Row;
 use terminal::Capabilities;
-use super::cursor::Pen;
+use super::pen::Pen;
 use crate::Cell;
 use crate::{Buffer, Arena};
 
@@ -205,7 +205,7 @@ impl Rasterer {
             if let Some(end) = last_content {
                 for col in 0..=end {
                     let cell = &row[col];
-                    pen.transition(&mut output, cell.style)?;
+                    pen.transition(cell.style, &mut output)?;
                     Self::render_cell(cell, &mut output, &mut pen, arena)?;
                 }
             }
@@ -388,7 +388,7 @@ impl Rasterer {
     /// Write a single cell's content, updating the pen first.
     #[inline]
     fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
-        cursor.transition(output, cell.style)?;
+        cursor.transition(cell.style, output)?;
 
         output.extend_from_slice(cell.as_bytes(arena));
 

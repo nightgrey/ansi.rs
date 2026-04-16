@@ -1,9 +1,9 @@
 use compact_str::CompactString;
-use crate::style::*;
 use ansi::Color;
+use super::*;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Style {
+pub struct Layout {
     pub min_size: Size,
     pub size: Size,
     pub max_size: Size,
@@ -31,8 +31,8 @@ pub struct Style {
 }
 
 #[allow(non_upper_case_globals)]
-impl Style {
-    pub const DEFAULT: Style = Style {
+impl Layout {
+    pub const DEFAULT: Layout = Layout {
         display: Display::Block,
         margin: Edges::ZERO,
         padding: Edges::ZERO,
@@ -142,7 +142,7 @@ macro_rules! property {
     };
 }
 
-impl From<ansi::Style> for Style {
+impl From<ansi::Style> for Layout {
     fn from(style: ansi::Style) -> Self {
         let mut result = Self::DEFAULT;
 
@@ -166,8 +166,8 @@ impl From<ansi::Style> for Style {
     }
 }
 
-impl From<Style> for ansi::Style {
-    fn from(style: Style) -> Self {
+impl From<Layout> for ansi::Style {
+    fn from(style: Layout) -> Self {
         if style.is_default() { return ansi::Style::default() }
         let mut attributes = ansi::Attribute::empty();
 
@@ -195,13 +195,13 @@ impl From<Style> for ansi::Style {
     }
 }
 
-impl Default for Style {
+impl Default for Layout {
     fn default() -> Self {
         Self::DEFAULT
     }
 }
 
-impl taffy::CoreStyle for Style {
+impl taffy::CoreStyle for Layout {
     type CustomIdent = CompactString;
 
     #[inline(always)]
@@ -248,11 +248,11 @@ impl taffy::CoreStyle for Style {
     }
 }
 
-impl taffy::BlockContainerStyle for Style {}
+impl taffy::BlockContainerStyle for Layout {}
 
-impl taffy::BlockItemStyle for Style {}
+impl taffy::BlockItemStyle for Layout {}
 
-impl taffy::FlexboxContainerStyle for Style {
+impl taffy::FlexboxContainerStyle for Layout {
     #[inline(always)]
     fn flex_direction(&self) -> FlexDirection {
         self.flex_direction
@@ -279,7 +279,7 @@ impl taffy::FlexboxContainerStyle for Style {
     }
 }
 
-impl taffy::FlexboxItemStyle for Style {
+impl taffy::FlexboxItemStyle for Layout {
     #[inline(always)]
     fn flex_basis(&self) -> taffy::Dimension {
         self.flex_basis.into()

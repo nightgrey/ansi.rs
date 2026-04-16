@@ -6,7 +6,7 @@ pub use element::*;
 pub use kind::*;
 
 
-use crate::style::*;
+use crate::layout::*;
 use ansi::Color;
 
 #[builder]
@@ -53,7 +53,7 @@ pub fn div<'a>(
 ) -> Element<'a> {
     Element {
         kind: ElementKind::Div,
-        style: Style {
+        style: Layout {
             min_size,
             size,
             max_size,

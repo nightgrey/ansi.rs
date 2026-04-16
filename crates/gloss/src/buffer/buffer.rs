@@ -11,6 +11,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use geometry::Resolve;
 use crate::{Cell, Arena, BufferIndex, Buf, BufMut, BufferDiff};
+
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
     #[deref]
@@ -18,7 +19,7 @@ pub struct Buffer {
     #[as_ref(forward)]
     #[as_mut(forward)]
     #[into_iterator(owned, ref, ref_mut)]
-    pub(crate) inner: Vec<Cell>,
+    inner: Vec<Cell>,
     pub width: usize,
     pub height: usize,
 }
@@ -538,24 +539,18 @@ impl Buffer {
             .collect()
     }
 
+    /// Iterate over the cells that differ between `prev` (the previous frame)
+    /// and `next` (the current frame). See [`BufferDiff`] for details.
+    pub fn diff<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b> {
+        BufferDiff::new(prev, next)
+    }
+
     pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {
         Buf::new(self, arena)
     }
 
-    /// Iterate over the cells that differ between `self` (the previous frame)
-    /// and `next` (the current frame). See [`BufferDiff`] for details.
-    pub fn diff<'a, 'b>(&'a self, next: &'b Buffer) -> BufferDiff<'a, 'b> {
-        BufferDiff::new(self, next)
-    }
-
     pub fn as_buf_mut<'a>(&'a mut self, arena: &'a mut Arena) -> BufMut<'a> {
         BufMut::new(self, arena)
-    }
-}
-
-impl From<Rect> for Buffer {
-    fn from(value: Rect) -> Self {
-        Self::new(value.width() as usize, value.height() as usize)
     }
 }
 
@@ -589,6 +584,20 @@ impl Bounded for Buffer {
 
     fn bounds(&self) -> Self::Bounds {
         Rect::bounds(self.min(), self.max())
+    }
+}
+
+impl PartialEq for Buffer {
+    fn eq(&self, other: &Self) -> bool {
+        if self.height != other.height || self.width != other.width {
+            return false;
+        }
+        for (self_row, other_row) in core::iter::zip(self.iter_rows(), other.iter_rows()) {
+            if self_row.ne(other_row) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -630,18 +639,5 @@ impl Debug for Buffer {
             }
         }
         write!(f, "]")
-    }
-}
-impl PartialEq for Buffer {
-    fn eq(&self, other: &Self) -> bool {
-        if self.height != other.height || self.width != other.width {
-            return false;
-        }
-        for (self_row, other_row) in core::iter::zip(self.iter_rows(), other.iter_rows()) {
-            if self_row.ne(other_row) {
-                return false;
-            }
-        }
-        true
     }
 }

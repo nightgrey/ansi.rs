@@ -45,8 +45,8 @@ impl<'prev, 'next> BufferDiff<'prev, 'next> {
         let height = prev.height.min(next.height);
 
         Self {
-            next: &next.inner,
-            prev: &prev.inner,
+            next: &next,
+            prev: &prev,
             width,
             len: width * height,
             pos: 0,
@@ -225,7 +225,7 @@ mod tests {
         let prev = Buffer::from_lines(["hello"], &mut arena);
         let next = Buffer::from_lines(["hallo"], &mut arena);
 
-        let via_method: Vec<_> = prev.diff(&next).map(|(x, y, _)| (x, y)).collect();
+        let via_method: Vec<_> = Buffer::diff(&prev, &next).map(|(x, y, _)| (x, y)).collect();
         let via_ctor: Vec<_> = BufferDiff::new(&prev, &next).map(|(x, y, _)| (x, y)).collect();
         assert_eq!(via_method, via_ctor);
     }
@@ -240,8 +240,8 @@ mod tests {
         next.set_string(0..2, "中", &mut arena);
         // Mutate the continuation's style so it no longer equals Cell::CONTINUATION
         // exactly — the diff should still treat it as zero-width.
-        next.inner[1].set_style(Style::default().foreground(Color::Red));
-        assert_eq!(next.inner[1].width(), 0);
+        next[1].set_style(Style::default().foreground(Color::Red));
+        assert_eq!(next[1].width(), 0);
 
         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();
         assert_eq!(diff.len(), 1);

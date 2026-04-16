@@ -463,7 +463,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.context.clip
     }
 
-    fn current_style(&self) -> crate::Style {
+    fn current_style(&self) -> crate::Layout {
        self.context.style.into()
     }
 
@@ -475,7 +475,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.context.border_style
     }
 
-    fn style(&mut self, style: crate::Style) -> &mut Self {
+    fn style(&mut self, style: crate::Layout) -> &mut Self {
         self.style(style.into())
     }
 

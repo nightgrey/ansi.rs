@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use derive_more::{Deref, DerefMut};
-use crate::{Display, ElementKind, Style};
+use crate::{Display, ElementKind, Layout};
 use tree::id;
 
 id!(pub struct ElementId);
@@ -10,7 +10,7 @@ pub struct Element<'a> {
     pub kind: ElementKind<'a>,
     #[deref]
     #[deref_mut]
-    pub style: Style,
+    pub style: Layout,
 }
 
 #[allow(non_snake_case)]
@@ -18,7 +18,7 @@ impl<'a> Element<'a> {
     pub fn Span(text: impl Into<Cow<'a, str>>) -> Self {
         Self {
             kind: ElementKind::Span(text.into()),
-            style: Style {
+            style: Layout {
                 display: Display::Inline,
                 ..Default::default()
             },
@@ -28,7 +28,7 @@ impl<'a> Element<'a> {
     pub fn Div() -> Self {
         Self {
             kind: ElementKind::Div,
-            style: Style {
+            style: Layout {
                 display: Display::Block,
                 ..Default::default()
             },

@@ -52,7 +52,7 @@ impl Rasterer {
         Self {
             inline: Some(InlineState {
                 height: 0,
-                first: true,
+                is_first: true,
             }),
             ..Self::new(width, height)
         }
@@ -102,7 +102,6 @@ impl Rasterer {
 
         self.output.escape(TextCursorEnable::Reset)?;
 
-        let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
             Self::row(
                 if invalidated { None } else { Some(&prev[Row(y)]) },
@@ -111,7 +110,7 @@ impl Rasterer {
                 y,
                 &mut self.output,
                 &mut self.pen,
-                cursor_mode,
+                CursorMode::Absolute,
                 width,
             )?;
         }
@@ -193,7 +192,7 @@ impl Rasterer {
         let width = next.width;
         let height = next.height;
 
-        let force_full = self.invalidated || prev.width != width || prev.height != height;
+        let invalidated = self.invalidated || prev.width != width || prev.height != height;
 
         if self.capabilities.use_sync_output() {
             self.output.escape(SynchronizedOutput::Set)?;
@@ -201,11 +200,11 @@ impl Rasterer {
 
         self.output.escape(TextCursorEnable::Reset)?;
 
-        let inline = self.inline.as_mut().expect("inline state required");
+        let inline = self.inline.as_mut().unwrap();
 
-        if inline.first {
+        if inline.is_first {
             // First render: emit each row with \n separators to claim scrollback.
-            inline.first = false;
+            inline.is_first = false;
             inline.height = height;
 
             for y in 0..height {
@@ -248,11 +247,10 @@ impl Rasterer {
                 self.output.escape(CursorUp(self.pen.row))?;
             }
             self.output.escape(CarriageReturn)?;
-            self.pen.row = 0;
-            self.pen.col = 0;
+            self.pen.clear_position();
 
             for y in 0..height {
-                let prev_row = if force_full { None } else { Some(&prev[Row(y)]) };
+                let prev_row = if invalidated { None } else { Some(&prev[Row(y)]) };
                 Self::row(
                     prev_row,
                     &next[Row(y)],
@@ -267,7 +265,7 @@ impl Rasterer {
 
             if height < prev_height {
                 for _ in height..prev_height {
-                    self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output);
+                    self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output)?;
                     self.output.escape(EraseLineToEnd)?;
                 }
                 if self.pen.row > height - 1 {
@@ -306,25 +304,26 @@ impl Rasterer {
         cursor_mode: CursorMode,
         width: usize,
     ) -> io::Result<()> {
-        let differs = |x: usize| match prev {
-            Some(p) => next[x] != p[x],
+        let diff = |x: usize| match prev {
+            Some(prev) => next[x] != prev[x],
             None => !next[x].is_default(),
         };
 
-        let first = match (0..width).find(|&x| differs(x)) {
+        let first = match (0..width).find(|&x| diff(x)) {
             Some(col) => col,
             None => return Ok(()),
         };
-        let last = (0..width).rev().find(|&x| differs(x)).unwrap_or(width - 1);
 
-        let last_content = (first..=last).rev().find(|&x| !next[x].is_default());
+        let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
+
+        let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_default());
 
         match cursor_mode {
-            CursorMode::Absolute(caps) => cursor.move_to(y, first, output),
+            CursorMode::Absolute => cursor.move_to(y, first, output),
             CursorMode::Relative => cursor.move_to_relative(y, first, output),
-        }
+        }?;
 
-        match last_content {
+        match last_non_default_cell {
             None => {
                 cursor.clear_style(output)?;
                 output.escape(EraseLineToEnd)?;
@@ -363,7 +362,7 @@ impl Rasterer {
 #[derive(Clone, Copy)]
 enum CursorMode {
     /// Use absolute or optimized movement (fullscreen).
-    Absolute(Capabilities),
+    Absolute,
     /// Use only relative movement (inline).
     Relative,
 }
@@ -371,10 +370,10 @@ enum CursorMode {
 /// State for inline rendering.
 #[derive(Debug, Clone, Copy)]
 struct InlineState {
-    /// Number of rows the rasterizer "owns" in the terminal.
+    /// Number of rows the rasterer is using in the terminal.
     height: usize,
     /// Whether this is the first render call.
-    first: bool,
+    is_first: bool,
 }
 
 #[cfg(test)]

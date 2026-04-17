@@ -28,9 +28,9 @@ impl Pen {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn move_to(&mut self, row: usize, col: usize, w: &mut impl Write) {
+    pub fn move_to(&mut self, row: usize, col: usize, w: &mut impl Write) -> io::Result<()> {
         if self.row == row && self.col == col {
-            return;
+            return Ok(());
         }
 
         let dr = row as isize - self.row as isize;
@@ -69,38 +69,40 @@ impl Pen {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                w.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as usize)).unwrap();
+                w.escape(CursorForward(dc as usize))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as usize)).unwrap();
+                w.escape(CursorBackward((-dc) as usize))?;
             }
         } else if min == cost_cr {
-            w.escape(CarriageReturn).unwrap();
+            w.escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col)).unwrap();
+                w.escape(CursorForward(col))?;
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                w.escape(VerticalPositionAbsolute(row)).unwrap();
+                w.escape(VerticalPositionAbsolute(row))?;
             }
             if dc != 0 || dr != 0 {
-                w.escape(HorizontalPositionAbsolute(col)).unwrap();
+                w.escape(HorizontalPositionAbsolute(col))?;
             }
         } else {
-            w.escape(CursorPosition(row, col)).unwrap();
+            w.escape(CursorPosition(row, col))?;
         }
 
         self.row = row;
         self.col = col;
+
+        Ok(())
     }
 
     /// Emit a relative-only cursor movement sequence (no CUP, VPA, CHA).
@@ -109,9 +111,9 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(&mut self, row: usize, col: usize, w: &mut impl Write) {
+    pub fn move_to_relative(&mut self, row: usize, col: usize, w: &mut impl Write) -> io::Result<()> {
         if self.row == row && self.col == col {
-            return;
+            return Ok(())
         }
 
         let dr = row as isize - self.row as isize;
@@ -126,30 +128,32 @@ impl Pen {
         let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
-            w.escape(CarriageReturn).unwrap();
+            w.escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col)).unwrap();
+                w.escape(CursorForward(col))?;
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                w.escape(CursorDown(dr as usize)).unwrap();
+                w.escape(CursorDown(dr as usize))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize)).unwrap();
+                w.escape(CursorUp((-dr) as usize))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as usize)).unwrap();
+                w.escape(CursorForward(dc as usize))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as usize)).unwrap();
+                w.escape(CursorBackward((-dc) as usize))?;
             }
         }
 
         self.row = row;
         self.col = col;
+
+        Ok(())
     }
 
     /// Update the pen (SGR state) to match `target`, emitting only
@@ -158,12 +162,17 @@ impl Pen {
         if self.style == to {
             return Ok(());
         }
-        
+
         w.escape(SGR::transition(self.style, to))?;
         self.style = to;
-        
+
         Ok(())
 
+    }
+
+    pub fn clear_position(&mut self) {
+        self.row = 0;
+        self.col = 0;
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.

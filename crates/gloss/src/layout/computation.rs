@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use geometry::{Bounded, Edges, Point, Rect, Size};
+use geometry::{Bounds, Edges, Point, Rect, Size};
 
 bitflags! {
     #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
@@ -80,7 +80,7 @@ impl Computation {
     }
 }
 
-impl Bounded for Computation {
+impl Bounds for Computation {
     type Coordinate = Point;
 
     fn min_x(&self) -> u16 {

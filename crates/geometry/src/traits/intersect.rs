@@ -1,4 +1,4 @@
-use crate::{Bounded, Contains, Locatable, Point, Rect, Size};
+use crate::{Bounds, Contains, Locatable, Point, Rect, Size};
 use number::Zero;
 pub trait Intersect<Rhs = Self> {
     type Output;
@@ -14,7 +14,7 @@ pub trait Intersect<Rhs = Self> {
     }
 }
 
-impl<B: Bounded, U: Bounded> Intersect<U> for B {
+impl<B: Bounds, U: Bounds> Intersect<U> for B {
     type Output = Rect;
 
     fn intersect(&self, other: &U) -> Self::Output {

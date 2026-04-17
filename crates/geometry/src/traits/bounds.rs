@@ -2,7 +2,7 @@ use crate::{Coordinate, Edges, Point, Rect,  Size};
 use crate::Locatable;
 
 /// Provides the bounds of a geometry.
-pub trait Bounded {
+pub trait Bounds {
     type Coordinate: Locatable;
 
     #[inline]
@@ -57,7 +57,7 @@ pub trait Bounded {
     }
 }
 
-impl<C: Coordinate> Bounded for Rect<C> {
+impl<C: Coordinate> Bounds for Rect<C> {
     type Coordinate = C;
 
     fn min_x(&self) -> u16 {
@@ -89,7 +89,7 @@ impl<C: Coordinate> Bounded for Rect<C> {
     }
 }
 
-impl Bounded for Size {
+impl Bounds for Size {
     type Coordinate = Point;
 
     fn min_x(&self) -> u16 {
@@ -132,7 +132,7 @@ impl Bounded for Size {
     }
 }
 
-impl Bounded for Edges {
+impl Bounds for Edges {
     type Coordinate = Point;
 
     fn min_x(&self) -> u16 {
@@ -160,7 +160,7 @@ impl Bounded for Edges {
     }
 }
 
-impl Bounded for Point {
+impl Bounds for Point {
     type Coordinate = Self;
     fn min_x(&self) -> u16 {
         self.x
@@ -187,6 +187,6 @@ impl Bounded for Point {
     }
 
     fn bounds(&self) -> Rect {
-        Rect::bounds(Bounded::min(self), Bounded::max(self))
+        Rect::bounds(Bounds::min(self), Bounds::max(self))
     }
 }

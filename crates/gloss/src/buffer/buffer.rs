@@ -1,7 +1,7 @@
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Rect};
+use geometry::{Bounds, Intersect, Point, Rect};
 use number::{Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;
@@ -555,7 +555,7 @@ impl Buffer {
     }
 }
 
-impl Bounded for Buffer {
+impl Bounds for Buffer {
     type Coordinate = Point;
 
     fn min_x(&self) -> u16 {

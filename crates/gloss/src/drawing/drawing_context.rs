@@ -1,6 +1,6 @@
 use std::io;
 use bon::Builder;
-use geometry::{Bounded, Point, Rect, Size};
+use geometry::{Bounds, Point, Rect, Size};
 use maybe::Maybe;
 use crate::{Border, Document, ElementId, ElementKind, Layout};
 

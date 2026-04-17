@@ -4,7 +4,7 @@ use bon::{Builder};
 use derive_more::{Deref, DerefMut};
 use smallvec::SmallVec;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, pos};
+use geometry::{Bounds, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, pos};
 use number::{SaturatingSub, SaturatingAdd};
 use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};

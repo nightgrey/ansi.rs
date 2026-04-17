@@ -146,7 +146,7 @@ mod tests {
     use super::*;
     use crate::geometry::rect::Rect;
     use crate::geometry::size::Size;
-    use crate::{Bounded, Contains};
+    use crate::{Bounds, Contains};
 
     // === Point Tests ===
 

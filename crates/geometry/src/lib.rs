@@ -51,13 +51,6 @@ impl Geometric for Point {}
 impl Geometric for Row {}
 impl Geometric for Column {}
 
-pub const trait Bounds: Bounded {
-}
-
-impl Bounds for Rect {
-
-}
-
 pub const trait Coordinate: Locatable {
     fn new(x: u16, y: u16) -> Self;
 }

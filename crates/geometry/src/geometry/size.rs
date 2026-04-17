@@ -1,5 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
-use crate::{Bounded, Rect, Zero};
+use crate::{Bounds, Rect, Zero};
 
 /// A 2D size representing width and height.
 ///

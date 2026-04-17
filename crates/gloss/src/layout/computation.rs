@@ -4,9 +4,9 @@ use geometry::{Bound, Edges, Point, Rect, Size};
 bitflags! {
     #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
     pub struct Dirty: u8 {
-        const Style   = 1 << 0;
+        const Layout   = 1 << 0;
         const Measure = 1 << 1;
-        const Layout  = 1 << 2;
+        const Computation  = 1 << 2;
     }
 }
 
@@ -97,20 +97,6 @@ impl Bound for Computation {
 
     fn max_y(&self) -> u16 {
         (self.final_layout.location.y + self.final_layout.size.height).max(0.0) as u16
-    }
-
-    fn min(&self) -> Self::Point {
-        Point {
-            x: self.min_x(),
-            y: self.min_y(),
-        }
-    }
-
-    fn max(&self) -> Self::Point {
-        Point {
-            x: self.max_x(),
-            y: self.max_y(),
-        }
     }
 }
 

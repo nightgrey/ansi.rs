@@ -1,5 +1,6 @@
 use std::io;
 use derive_more::{Deref, DerefMut};
+use geometry::Row;
 use crate::{Arena, BufferDrawingContext, Document, DoubleBuffer, DrawingContext, Rasterer};
 
 #[derive(Debug, Deref, DerefMut)]
@@ -22,7 +23,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub fn render(&mut self, mut w: impl io::Write) -> io::Result<()> {
+    pub fn render(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         self.document.compute_layout(self.buffer.size());
 
         self.buffer.back_mut().clear();
@@ -30,12 +31,11 @@ impl<'a> Engine<'a> {
             .paint(&self.document);
 
         self.rasterer.present(self.buffer.front(), self.buffer.back(), &self.arena)?;
-        self.rasterer.flush(&mut w)?;
+        self.rasterer.flush(w)?;
         self.buffer.swap();
 
         Ok(())
     }
-
     pub fn resize(&mut self, width: usize, height: usize) {
         self.buffer.resize(width, height);
         self.rasterer.resize(width, height);

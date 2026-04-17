@@ -11,7 +11,7 @@ pub fn measure_next(
 ) -> taffy::Size<f32> {
     match &node.kind {
          ElementKind::Span(text) => {
-             let wrap_width = resolve_wrap_width(known.width, available.width, node.style.display);
+             let wrap_width = resolve_wrap_width(known.width, available.width, node.layout.display);
             // Fall back to on-the-fly shaping if no pre-shaped cache entry is available
             // (e.g. when the measure function is invoked outside a `compute_layout` pass).
             let owned;
@@ -22,7 +22,7 @@ pub fn measure_next(
                     &owned
                 }
             };
-            let size = shape.measure(wrap_width, node.style.display);
+            let size = shape.measure(wrap_width, node.layout.display);
 
             taffy::Size {
                 width: size.width as f32,

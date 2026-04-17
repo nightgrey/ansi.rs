@@ -1,7 +1,7 @@
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use geometry::{Bound, Intersect, Point, Rect};
+use geometry::{Bound, Intersect, Outer, Point, Rect};
 use number::{Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;

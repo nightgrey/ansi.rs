@@ -281,23 +281,23 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
-        let local_pos = self.to_local(position);
+        let position = self.to_local(position);
         let style = options.style.unwrap_or(self.style);
         let clip = self.clip;
 
         // Drop early when the row is outside the clip.
-        if local_pos.y < clip.min.y || local_pos.y >= clip.max.y {
+        if position.y < clip.min.y || position.y >= clip.max.y {
             return 0;
         }
 
-        let row_left = clip.min.x.max(local_pos.x);
-        let row_right = clip.max.x;
-        if row_left >= row_right {
+        let (left, right) = (clip.left().max(position.x), clip.right());
+
+        if left >= right {
             return 0;
         }
 
-        let mut x = local_pos.x;
-        let mut drawn = 0usize;
+        let mut col = position.x;
+        let mut n = 0;
 
         for grapheme in UnicodeSegmentation::graphemes(str.as_ref(), true) {
             if grapheme.contains(char::is_control) {
@@ -307,23 +307,26 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
             if width == 0 {
                 continue;
             }
-            if x + width > row_right {
+
+            if col + width > right {
                 break;
             }
-            if x >= row_left {
-                self.buffer[(local_pos.y as usize, x as usize)]
+
+            if col >= left {
+                self.buffer[pos!(position.y, col)]
                     .set_str_measured(grapheme, width as usize, self.arena)
                     .set_style(style);
+
                 // Clear continuation cells for wide characters.
                 for dx in 1..width {
-                    self.buffer[(local_pos.y as usize + dx as usize, x as usize)].set_continuation(self.arena);
+                    self.buffer[pos!(position.y, col + dx)].set_continuation(self.arena);
                 }
-                drawn += width as usize;
+                n += width as usize;
             }
-            x += width;
+            col += width;
         }
 
-        drawn
+        n
     }
 
     fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self {

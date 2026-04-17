@@ -4,43 +4,41 @@ use gloss::*;
 use tree::At;
 
 fn main() -> io::Result<()> {
-    let mut ui = Engine::new(40, 10);
+    let mut ui = Engine::new(20, 20);
 
     let root = ui.root_mut();
     root.background = Some(Color::Red);
     root.color = Some(Color::White);
-    root.border = Border::Bold;
+    root.padding = 1.into();
 
     ui.insert_with(
         Element::Span("👨🏿👨🏿 Hello"),
         |node| {
             node.background = Some(Color::None);
-            node.color = Some(Color::White);
             node.border = Border::Bold;
             node.font_weight = Some(FontWeight::Bold);
         },
     );
 
-    let row = ui.insert_with(Element::Div(), |node| {
+    let abc = ui.insert_with(Element::Div(), |node| {
         node.border = Border::Bold;
     });
 
-    let a = ui.insert_at_with(Element::Div(), At::Child(row), |node| {
+    let a = ui.insert_at_with(Element::Div(), At::Child(abc), |node| {
         node.background = Some(Color::Green);
     });
 
-    let a_content = ui.insert_at(Element::Span("A"), At::Child(a));
-
-    let b = ui.insert_at_with(Element::Div(), At::Child(row), |node| {
+    let b = ui.insert_at_with(Element::Div(), At::Child(abc), |node| {
         node.background = Some(Color::Yellow);
     });
 
-    let b_content = ui.insert_at(Element::Span("B"), At::Child(b));
-    let c = ui.insert_at_with(Element::Div(), At::Child(row), |node| {
+    let c = ui.insert_at_with(Element::Div(), At::Child(abc), |node| {
         node.background = Some(Color::Blue);
     });
 
-    let c_content = ui.insert_at(Element::Span("C"), At::Child(c));
+    ui.insert_at(Element::Span("A"), At::Child(a));
+    ui.insert_at(Element::Span("B"), At::Child(b));
+    ui.insert_at(Element::Span("C"), At::Child(c));
 
     ui.render(&mut io::stdout())?;
 

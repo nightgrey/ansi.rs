@@ -41,7 +41,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
     }
 
     fn style(&self, id: taffy::NodeId) -> &Layout {
-        &self.node(id).style
+        &self.node(id).layout
     }
 
     #[inline]
@@ -139,16 +139,16 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutPartialTree for LayoutContext<
             let has_children = ctx.child_count(node_id) > 0;
 
             let node = &ctx.tree[node_key];
-            let style = &node.style;
+            let layout = &node.layout;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
-            match (style.display, has_children) {
+            match (layout.display, has_children) {
                 (Display::None, _) => taffy::compute_hidden_layout(ctx, node_id),
                 (Display::Block, true) => taffy::compute_block_layout(ctx, node_id, inputs, None),
                 (Display::Flex, true) => taffy::compute_flexbox_layout(ctx, node_id, inputs),
                 (_, false) | (Display::Inline, _) => taffy::compute_leaf_layout(
                     inputs,
-                    style,
+                    layout,
                     |_, _| 0.0,
                     |known_dimensions, available_space| {
                         (ctx.measure_function)(

@@ -1,6 +1,8 @@
+use bon::Builder;
 use compact_str::CompactString;
 use ansi::Color;
 use super::*;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Layout {
     // Block
@@ -252,7 +254,6 @@ impl taffy::CoreStyle for Layout {
             top: taffy::LengthPercentage::length(edges.top as f32),
             bottom: taffy::LengthPercentage::length(edges.bottom as f32),
         }
-
     }
 }
 

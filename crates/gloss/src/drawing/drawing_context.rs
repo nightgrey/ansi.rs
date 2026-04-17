@@ -137,12 +137,12 @@ fn paint_node<B: DrawingContext + ?Sized>(
     ctx: &mut B,
     document: &Document<'_>,
     id: ElementId,
-    parent_style: Layout,
+    parent_layout: Layout,
 ) {
     let node = document.element(id);
     let border_bounds = document.border_bounds(id);
     let content_bounds = document.content_bounds(id);
-    let style = node.style.inherit(parent_style);
+    let style = node.layout.inherit(parent_layout);
 
     ctx.save();
 

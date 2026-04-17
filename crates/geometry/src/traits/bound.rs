@@ -11,10 +11,11 @@ pub trait Bound {
     fn max_y(&self) -> u16;
 
     fn min(&self) -> Self::Point {
-        Location::new(self.min_y(), self.min_y())
+        Location::new(self.min_x(), self.min_y())
     }
+
     fn max(&self) -> Self::Point {
-        Location::new(self.max_y(), self.max_y())
+        Location::new(self.max_x(), self.max_y())
     }
  
     #[inline]
@@ -41,7 +42,7 @@ pub trait Bound {
     fn bounds(&self) -> Rect<Self::Point> {
         Rect::bounds(self.min(), self.max())
     }
-    
+
     #[inline]
     fn size(&self) -> Size {
         Size {

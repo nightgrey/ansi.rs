@@ -13,9 +13,9 @@ pub fn measure(
 ) -> taffy::Size<f32> {
     match &node.kind {
         ElementKind::Span(text) => {
-            let wrap_width = resolve_wrap_width(known.width, available.width, node.style.display);
+            let wrap_width = resolve_wrap_width(known.width, available.width, node.layout.display);
 
-            let size = measure_text_block(text, wrap_width, node.style.display);
+            let size = measure_text_block(text, wrap_width, node.layout.display);
 
             taffy::Size {
                 width: size.width as f32,

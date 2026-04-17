@@ -50,10 +50,10 @@ impl<'a> Document<'a> {
         f(&mut self.elements[id]);
         id
     }
-    
+
     pub fn move_to(&mut self, id: ElementId, at: At<ElementId>) {
         self.elements.move_to(id, at);
-        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        self.mark(id, Dirty::all());
     }
 
     pub fn root(&self) -> &Element<'a> {
@@ -61,7 +61,7 @@ impl<'a> Document<'a> {
     }
 
     pub fn root_mut(&mut self) -> &mut Element<'a> {
-        self.mark(self.root_id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        self.mark(self.root_id, Dirty::all());
         &mut self.elements[self.root_id]
     }
 
@@ -70,7 +70,7 @@ impl<'a> Document<'a> {
     }
 
     pub fn element_mut(&mut self, id: ElementId) -> &mut Element<'a> {
-        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+        self.mark(id, Dirty::all());
         &mut self.elements[id]
     }
 
@@ -107,23 +107,13 @@ impl<'a> Document<'a> {
     }
 
 
-    pub fn set_style(&mut self, id: ElementId, style: Layout) {
-        self.elements[id].style = style;
-        self.mark(id, Dirty::Style | Dirty::Measure | Dirty::Layout);
+    pub fn set_layout(&mut self, id: ElementId, style: Layout) {
+        self.elements[id].layout = style;
+        self.mark(id, Dirty::all());
     }
 
     pub fn compute_layout(&mut self, space: impl Into<Space>) {
-        let space = space.into();
-        self.elements[self.root_id].size.width = match space.width {
-            Available::Pixel(val) => Length::Value(val),
-            Available::Min => Length::Auto,
-            Available::Max => Length::MAX,
-        };
-        self.elements[self.root_id].size.height = match space.height {
-            Available::Pixel(val) => Length::Value(val),
-            Available::Min => Length::Auto,
-            Available::Max => Length::MAX,
-        };
+
         let mut context = LayoutContext::new(
             &mut self.elements,
             &mut self.layouts,
@@ -132,7 +122,7 @@ impl<'a> Document<'a> {
 
         context.compute_layout(
             self.root_id,
-            space
+            space.into()
         );
 
         self.clear_layout(self.root_id);
@@ -152,7 +142,7 @@ impl<'a> Document<'a> {
             .collect();
         for id in ids {
             if let Some(layout) = self.layouts.get_mut(id) {
-                layout.unmark(Dirty::Layout | Dirty::Measure);
+                layout.unmark(Dirty::Computation | Dirty::Measure);
             }
         }
     }

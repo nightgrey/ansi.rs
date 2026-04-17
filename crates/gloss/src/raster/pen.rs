@@ -158,15 +158,16 @@ impl Pen {
         if self.style == to {
             return Ok(());
         }
-
+        
         w.escape(SGR::transition(self.style, to))?;
         self.style = to;
+        
         Ok(())
 
     }
 
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
-    pub fn reset_style(&mut self, w: &mut impl io::Write) -> io::Result<()> {
+    pub fn clear_style(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         if !self.style.is_none() {
             w.escape(SGR::reset())?;
             self.style = Style::None;
@@ -175,7 +176,7 @@ impl Pen {
     }
 
     /// Reset cursor to origin with empty pen.
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.row = 0;
         self.col = 0;
         self.style = Style::None;
@@ -247,12 +248,12 @@ mod tests {
         let mut cursor = Pen::new();
         let mut buf = Vec::new();
         // Clean pen — no output
-        cursor.reset_style(&mut buf);
+        cursor.clear_style(&mut buf);
         assert!(buf.is_empty());
 
         // Dirty pen — emits SGR reset
         cursor.style = Style::default().bold();
-        cursor.reset_style(&mut buf);
+        cursor.clear_style(&mut buf);
         assert_eq!(buf, b"\x1B[0m");
         assert!(cursor.style.is_none());
     }

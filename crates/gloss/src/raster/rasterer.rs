@@ -1,9 +1,11 @@
+use ansi::Escape;
 use std::io::Write as _;
 use ansi::escape;
 use ansi::io::Write;
 use ansi::sequences::*;
 use std::io;
-use geometry::Row;
+use ansi::fmt::Fmt;
+use geometry::{Resolve, Row};
 use terminal::Capabilities;
 use super::pen::Pen;
 use crate::Cell;
@@ -49,8 +51,8 @@ impl Rasterer {
     pub fn inline(width: usize, height: usize) -> Self {
         Self {
             inline: Some(InlineState {
-                owned_rows: 0,
-                first_render: true,
+                height: 0,
+                first: true,
             }),
             ..Self::new(width, height)
         }
@@ -90,11 +92,11 @@ impl Rasterer {
 
         // Force a full repaint when prev can't be trusted to reflect the
         // terminal's current state.
-        let force_full = self.invalidated || prev.width != width || prev.height != height;
-        if force_full {
+        let invalidated = self.invalidated || prev.width != width || prev.height != height;
+        if invalidated {
             self.output.escape(Home)?;
             self.output.escape(EraseDisplay)?;
-            self.pen.reset();
+            self.pen.clear();
             self.invalidated = false;
         }
 
@@ -102,9 +104,8 @@ impl Rasterer {
 
         let cursor_mode = CursorMode::Absolute(self.capabilities);
         for y in 0..height {
-            let prev_row = if force_full { None } else { Some(&prev[Row(y)]) };
             Self::row(
-                prev_row,
+                if invalidated { None } else { Some(&prev[Row(y)]) },
                 &next[Row(y)],
                 arena,
                 y,
@@ -137,7 +138,7 @@ impl Rasterer {
 
     pub fn clear(&mut self) {
         self.output.clear();
-        self.pen.reset();
+        self.pen.clear();
         self.invalidated = true;
     }
 
@@ -160,7 +161,7 @@ impl Rasterer {
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
         escape!(self.output, SelectGraphicRendition::RESET, AlternateScreen::Reset, SelectGraphicRendition::RESET);
-        self.pen.reset();
+        self.pen.clear();
         self.invalidated = true;
     }
 
@@ -183,43 +184,6 @@ impl Rasterer {
         self.output.clear();
     }
 
-    /// Render an entire buffer to the writer, no diffing.
-    pub fn once(buffer: &Buffer, arena: &Arena, out: &mut impl io::Write) -> io::Result<()> {
-        let mut pen = Pen::new();
-        let mut output = Vec::with_capacity(buffer.width * buffer.height * 4);
-
-        output.escape(TextCursorEnable::Reset)?;
-        output.escape(Home)?;
-
-        for y in 0..buffer.height {
-            if y > 0 {
-                output.push(b'\n');
-                output.escape(CarriageReturn)?;
-            }
-
-            let row = &buffer[Row(y)];
-            let last_content = (0..buffer.width)
-                .rev()
-                .find(|&x| !row[x].is_default());
-
-            if let Some(end) = last_content {
-                for col in 0..=end {
-                    let cell = &row[col];
-                    pen.transition(cell.style, &mut output)?;
-                    Self::render_cell(cell, &mut output, &mut pen, arena)?;
-                }
-            }
-
-            output.escape(EraseLineToEnd)?;
-        }
-
-        output.escape(SelectGraphicRendition::RESET)?;
-        output.escape(TextCursorEnable::Set)?;
-
-        out.write_all(&output)?;
-        out.flush()
-    }
-
     /// Inline variant of [`present`](Self::present).
     ///
     /// Uses relative cursor movement and claims scrollback rows on first
@@ -239,10 +203,10 @@ impl Rasterer {
 
         let inline = self.inline.as_mut().expect("inline state required");
 
-        if inline.first_render {
+        if inline.first {
             // First render: emit each row with \n separators to claim scrollback.
-            inline.first_render = false;
-            inline.owned_rows = height;
+            inline.first = false;
+            inline.height = height;
 
             for y in 0..height {
                 if y > 0 {
@@ -258,7 +222,7 @@ impl Rasterer {
                     }
                 }
 
-                self.pen.reset_style(&mut self.output);
+                self.pen.clear_style(&mut self.output)?;
                 self.output.escape(EraseLineToEnd)?;
             }
 
@@ -269,15 +233,15 @@ impl Rasterer {
                 None => 0,
             };
         } else {
-            let old_owned = inline.owned_rows;
+            let prev_height = inline.height;
 
-            if height > old_owned {
-                let extra = height - old_owned;
+            if height > prev_height {
+                let extra = height - prev_height;
                 for _ in 0..extra {
                     self.output.push(b'\n');
                 }
                 self.pen.row += extra;
-                inline.owned_rows = height;
+                inline.height = height;
             }
 
             if self.pen.row > 0 {
@@ -301,8 +265,8 @@ impl Rasterer {
                 )?;
             }
 
-            if height < old_owned {
-                for _ in height..old_owned {
+            if height < prev_height {
+                for _ in height..prev_height {
                     self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output);
                     self.output.escape(EraseLineToEnd)?;
                 }
@@ -311,13 +275,13 @@ impl Rasterer {
                     self.output.escape(CursorUp(up))?;
                     self.pen.row = height - 1;
                 }
-                inline.owned_rows = height;
+                inline.height = height;
             }
         }
 
         self.invalidated = false;
 
-        self.pen.reset_style(&mut self.output);
+        self.pen.clear_style(&mut self.output)?;
         self.output.escape(TextCursorEnable::Set)?;
 
         if self.capabilities.sync_output {
@@ -362,8 +326,8 @@ impl Rasterer {
 
         match last_content {
             None => {
-                cursor.reset_style(output);
-                escape!(output, EraseLineToEnd)?;
+                cursor.clear_style(output)?;
+                output.escape(EraseLineToEnd)?;
             }
             Some(emit_end) => {
                 let mut col = first;
@@ -376,8 +340,8 @@ impl Rasterer {
                 }
 
                 if emit_end < last {
-                    cursor.reset_style(output);
-                    escape!(output, EraseLineToEnd)?;
+                    cursor.clear_style(output)?;
+                    output.escape(EraseLineToEnd)?;
                 }
             }
         }
@@ -389,7 +353,6 @@ impl Rasterer {
     #[inline]
     fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
         cursor.transition(cell.style, output)?;
-
         output.extend_from_slice(cell.as_bytes(arena));
 
         Ok(())
@@ -409,9 +372,9 @@ enum CursorMode {
 #[derive(Debug, Clone, Copy)]
 struct InlineState {
     /// Number of rows the rasterizer "owns" in the terminal.
-    owned_rows: usize,
+    height: usize,
     /// Whether this is the first render call.
-    first_render: bool,
+    first: bool,
 }
 
 #[cfg(test)]

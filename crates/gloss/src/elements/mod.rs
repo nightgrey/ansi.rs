@@ -53,7 +53,7 @@ pub fn div<'a>(
 ) -> Element<'a> {
     Element {
         kind: ElementKind::Div,
-        style: Layout {
+        layout: Layout {
             min_size,
             size,
             max_size,

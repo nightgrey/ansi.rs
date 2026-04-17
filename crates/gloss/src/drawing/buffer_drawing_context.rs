@@ -732,6 +732,192 @@ mod tests {
         assert_eq!(context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(), Grapheme::inline('B'));
     }
 
+    /// Padding should be part of the element's background (CSS
+    /// `background-clip: border-box`). Regression for a bug where the
+    /// background only filled the content-box and left the padding area
+    /// transparent.
+    #[test]
+    fn test_render_background_fills_padding() {
+        use crate::Space;
+
+        let mut context = context(10, 5);
+        let document = &mut context.document;
+
+        let root = document.root_mut();
+        root.background = Some(Color::Red);
+        root.padding = (1, 1).into();
+
+        document.compute_layout(Space::new(10u32, 5u32));
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+
+        let h = context.buffer.bounds().height() as usize;
+        let w = context.buffer.bounds().width() as usize;
+        for y in 0..h {
+            for x in 0..w {
+                assert_eq!(
+                    context.buffer[(y, x)].style.background,
+                    Color::Red,
+                    "cell ({y},{x}) should be red, padding included",
+                );
+            }
+        }
+    }
+
+    /// The bordered div's border characters should be drawn. Regression for
+    /// a bug where `paint_node` called `ctx.border(..)` before setting the
+    /// node's border style on the context, so the draw used the parent's
+    /// style (`Border::None`) and produced no output.
+    #[test]
+    fn test_render_node_border_is_drawn() {
+        use crate::Space;
+
+        let mut context = context(10, 4);
+        let document = &mut context.document;
+
+        document.insert_with(Element::Div(), |node| {
+            node.border = Border::Bold;
+            node.size = crate::Size::new(10u32, 4u32);
+        });
+
+        document.compute_layout(Space::new(10u32, 4u32));
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+
+        // Bold border: top-left ┏, top ━, top-right ┓, etc.
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('┏'));
+        assert_eq!(context.buffer[(0, 9)].grapheme(), Grapheme::inline('┓'));
+        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::inline('┗'));
+        assert_eq!(context.buffer[(3, 9)].grapheme(), Grapheme::inline('┛'));
+        // Top and bottom horizontal edges
+        for x in 1..9 {
+            assert_eq!(context.buffer[(0, x)].grapheme(), Grapheme::inline('━'));
+            assert_eq!(context.buffer[(3, x)].grapheme(), Grapheme::inline('━'));
+        }
+    }
+
+    /// `background: Some(Color::None)` means "no fill" and must not clear
+    /// the parent's backdrop. Regression for a bug where any `Some(_)`
+    /// background triggered a `rect` fill, including the no-color sentinel.
+    #[test]
+    fn test_child_none_background_preserves_parent() {
+        use crate::Space;
+
+        let mut context = context(10, 3);
+        let document = &mut context.document;
+
+        let root = document.root_mut();
+        root.background = Some(Color::Red);
+
+        document.insert_with(Element::Span(Cow::Borrowed("X")), |node| {
+            node.background = Some(Color::None);
+        });
+
+        document.compute_layout(Space::new(10u32, 3u32));
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+
+        // Every cell that isn't the glyph itself should still carry the
+        // root's red backdrop — the span must not overwrite it.
+        let h = context.buffer.bounds().height() as usize;
+        let w = context.buffer.bounds().width() as usize;
+        for y in 0..h {
+            for x in 0..w {
+                let cell = &context.buffer[(y, x)];
+                if cell.grapheme() == Grapheme::inline('X') { continue; }
+                assert_eq!(
+                    cell.style.background,
+                    Color::Red,
+                    "cell ({y},{x}) lost root's red backdrop",
+                );
+            }
+        }
+    }
+
+    /// End-to-end coverage of the `crates/gloss/src/bin/main.rs` scene:
+    /// root with padding + red background, transparent text element, a
+    /// bordered container with three colored children. Asserts the
+    /// characteristics the crate binary renders.
+    #[test]
+    fn test_render_main_scene() {
+        use crate::Space;
+
+        let mut context = context(20, 20);
+        let document = &mut context.document;
+
+        let root = document.root_mut();
+        root.background = Some(Color::Red);
+        root.color = Some(Color::White);
+        root.padding = (1, 1).into();
+
+        document.insert_with(
+            Element::Span(Cow::Borrowed("Hello")),
+            |node| {
+                node.background = Some(Color::None);
+                node.font_weight = Some(FontWeight::Bold);
+            },
+        );
+
+        let abc = document.insert_with(Element::Div(), |node| {
+            node.border = Border::Bold;
+        });
+
+        let a = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Green);
+        });
+        let b = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Yellow);
+        });
+        let c = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Blue);
+        });
+        document.insert_at(Element::Span("A"), At::Child(a));
+        document.insert_at(Element::Span("B"), At::Child(b));
+        document.insert_at(Element::Span("C"), At::Child(c));
+
+        document.compute_layout(Space::new(20u32, 20u32));
+        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+
+        let w = context.buffer.bounds().width() as usize;
+        let h = context.buffer.bounds().height() as usize;
+
+        // Root's padding row (top/bottom) is filled with red.
+        for x in 0..w {
+            assert_eq!(
+                context.buffer[(0, x)].style.background, Color::Red,
+                "top padding row should be red at col {x}",
+            );
+            assert_eq!(
+                context.buffer[(h - 1, x)].style.background, Color::Red,
+                "bottom padding row should be red at col {x}",
+            );
+        }
+
+        // Root's padding column (left/right) is filled with red.
+        for y in 0..h {
+            assert_eq!(
+                context.buffer[(y, 0)].style.background, Color::Red,
+                "left padding col should be red at row {y}",
+            );
+            assert_eq!(
+                context.buffer[(y, w - 1)].style.background, Color::Red,
+                "right padding col should be red at row {y}",
+            );
+        }
+
+        // "Hello" text lands at col 1 (after padding) on row 1.
+        assert_eq!(context.buffer[(1, 1)].grapheme(), Grapheme::inline('H'));
+        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('o'));
+
+        // abc's border is drawn (bold box) — top/bottom corners.
+        let abc_bounds = document.border_bounds(abc);
+        let top = abc_bounds.min.y as usize;
+        let bottom = abc_bounds.max.y as usize - 1;
+        let left = abc_bounds.min.x as usize;
+        let right = abc_bounds.max.x as usize - 1;
+        assert_eq!(context.buffer[(top, left)].grapheme(), Grapheme::inline('┏'));
+        assert_eq!(context.buffer[(top, right)].grapheme(), Grapheme::inline('┓'));
+        assert_eq!(context.buffer[(bottom, left)].grapheme(), Grapheme::inline('┗'));
+        assert_eq!(context.buffer[(bottom, right)].grapheme(), Grapheme::inline('┛'));
+    }
+
     #[test]
     fn test_render_row_children() {
         use crate::Space;

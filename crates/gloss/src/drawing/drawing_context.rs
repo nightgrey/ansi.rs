@@ -146,21 +146,28 @@ fn paint_node<B: DrawingContext + ?Sized>(
 
     ctx.save();
 
-    if style.border.is_some() {
-        ctx.border(border_bounds);
-    }
-
     ctx.translate(border_bounds.min)
         .clip(border_bounds.size().into())
         .style(style)
         .border_style(node.border);
 
+    // Everything below is in node-local coordinates (relative to border-box origin).
+    let local_bounds = Rect::from(border_bounds.size());
+    
     // Children's taffy locations are border-box relative, so clip/bg use
     // content bounds normalized into the node's own origin.
     let normalized_bounds = content_bounds - border_bounds.min;
 
-    if style.background.is_some() {
-        ctx.rect(normalized_bounds);
+    // Background fills the border-box (CSS `background-clip: border-box`)
+    // so padding participates in the backdrop. Only a real color paints —
+    // `Color::None` means "no fill", leaving the parent's backdrop visible.
+    if let Some(bg) = style.background && bg != ansi::Color::None {
+        ctx.rect(local_bounds);
+    }
+
+    // Border is drawn over the background so the corners / edges overwrite it.
+    if style.border.is_some() {
+        ctx.border(local_bounds);
     }
 
     match &node.kind {

@@ -7,6 +7,7 @@ edition = "2024"
 utils = { workspace = true }
 ansi = { workspace = true }
 terminal = { workspace = true }
+number = { workspace = true }
 
 geometry = { workspace = true }
 tree = { workspace = true }

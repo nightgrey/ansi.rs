@@ -1,10 +1,11 @@
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Intersect, Point, Rect, Zero};
+use geometry::{Bounded, Intersect, Point, Rect};
+use number::{Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;
-use std::ops::{Index, IndexMut};
+use std::ops::{Index};
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;

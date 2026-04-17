@@ -1,15 +1,10 @@
 use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
-use crate::{Zero, One, Min, Max};
+use number::{Zero, One, Min, Max};
 
 impl<T: Zero> Zero for Point<T> { const ZERO: Self = Point { x: T::ZERO, y: T::ZERO }; }
 impl<T: One> One for Point<T> { const ONE: Self = Point { x: T::ONE, y: T::ONE }; }
 impl<T: Min> Min for Point<T> { const MIN: Self = Point { x: T::MIN, y: T::MIN }; }
 impl<T: Max> Max for Point<T> { const MAX: Self = Point { x: T::MAX, y: T::MAX }; }
-
-impl<T: Zero> Zero for PointLike<T> { const ZERO: Self = (T::ZERO, T::ZERO); }
-impl<T: One> One for PointLike<T> { const ONE: Self = (T::ONE, T::ONE); }
-impl<T: Min> Min for PointLike<T> { const MIN: Self = (T::MIN, T::MIN); }
-impl<T: Max> Max for PointLike<T> { const MAX: Self = (T::MAX, T::MAX); }
 
 impl Zero for Row { const ZERO: Self = Row(0); }
 impl One for Row { const ONE: Self = Row(1); }

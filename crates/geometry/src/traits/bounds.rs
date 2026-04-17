@@ -1,4 +1,4 @@
-use crate::{Coordinate, Edges, Point, Rect, SaturatingSub, Size};
+use crate::{Coordinate, Edges, Point, Rect,  Size};
 use crate::Locatable;
 
 /// Provides the bounds of a geometry.

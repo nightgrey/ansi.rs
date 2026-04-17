@@ -529,6 +529,7 @@ name = "geometry"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "number",
  "nutype",
  "synonym",
  "utils",
@@ -575,6 +576,7 @@ dependencies = [
  "geometry",
  "maybe",
  "memchr",
+ "number",
  "packed_struct",
  "paste",
  "rustix",
@@ -770,6 +772,10 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "number"
+version = "0.1.0"
 
 [[package]]
 name = "nutype"

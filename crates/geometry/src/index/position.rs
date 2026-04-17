@@ -1,5 +1,6 @@
-use std::cmp::Ordering;
-use crate::{AssignOps, Column, One, Ops, Point, PointLike, Rect, Row, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Zero};
+use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
+use number::{Zero, One, Min, Max, Ops, AssignOps, SaturatingOps, SaturatingAdd, SaturatingSub};
+
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 

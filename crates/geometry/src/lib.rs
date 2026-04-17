@@ -13,16 +13,14 @@
 mod traits;
 pub mod prelude;
 mod index;
-mod number;
 mod geometry;
 mod macros;
 
 pub use geometry::*;
 pub use traits::*;
 pub use index::*;
-pub use number::*;
 pub use macros::*;
-
+use number::{Zero, One, Min, Max};
 
 /// # Geometric primitives
 ///
@@ -52,13 +50,12 @@ impl Geometric for Sides {}
 impl Geometric for Point {}
 impl Geometric for Row {}
 impl Geometric for Column {}
-impl Geometric for PointLike {}
 
-pub const trait Region: Bounded {
+pub const trait Bounds: Bounded {
 }
 
-impl Region for Rect {
-  
+impl Bounds for Rect {
+
 }
 
 pub const trait Coordinate: Locatable {

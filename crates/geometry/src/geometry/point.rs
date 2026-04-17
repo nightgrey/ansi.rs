@@ -1,4 +1,5 @@
-use crate::{AssignOps, Column, Number, One, Ops, Row, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Zero};
+use crate::{Size};
+use number::{AssignOps, Number, One, Ops,SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 

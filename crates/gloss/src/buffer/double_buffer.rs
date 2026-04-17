@@ -1,4 +1,4 @@
-use geometry::{Bounds, Size};
+use geometry::{Bound, Size};
 use crate::Buffer;
 
 /// A double-buffered [`Buffer`]. The front holds the last rendered frame

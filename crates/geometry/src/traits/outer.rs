@@ -1,30 +1,22 @@
-use crate::{Bounds, Coordinate, Edges, Point, Rect, Size};
+use crate::{Bound, Anchor};
 use std::ops::Range;
 
-pub trait Outer: Bounds {
-    #[inline]
-    /// Returns the x-coordinate of the left edge.
-    fn top_left(&self) -> Self::Coordinate;
-    #[inline]
-    /// Returns the y-coordinate of the top edge.
-    fn top_right(&self) -> Self::Coordinate;
-    #[inline]
-    /// Returns the y-coordinate of the bottom edge.
-    fn bottom_right(&self) -> Self::Coordinate;
-    #[inline]
-    /// Returns the x-coordinate of the right edge.
-    fn bottom_left(&self) -> Self::Coordinate;
+pub trait Outer: Bound {
+    /// Returns the top-left corner.
+    fn top_left(&self) -> Self::Point;
+    /// Returns the top-right corner.
+    fn top_right(&self) -> Self::Point;
+    /// Returns the bottom-right corner.
+    fn bottom_right(&self) -> Self::Point;
+    /// Returns the bottom-left corner.
+    fn bottom_left(&self) -> Self::Point;
 
-    #[inline]
     /// Returns the y-coordinate of the top edge.
     fn top(&self) -> u16;
-    #[inline]
     /// Returns the x-coordinate of the left edge.
     fn left(&self) -> u16;
-    #[inline]
     /// Returns the y-coordinate of the bottom edge.
     fn bottom(&self) -> u16;
-    #[inline]
     /// Returns the x-coordinate of the right edge.
     fn right(&self) -> u16;
 
@@ -42,36 +34,18 @@ pub trait Outer: Bounds {
     }
 }
 
-impl<C: Coordinate, T: Bounds<Coordinate = C>> Outer for T {
-    fn top_left(&self) -> Self::Coordinate {
-        self.min()
+impl<C: Anchor, T: Bound<Point= C>> Outer for T {
+    fn top_left(&self) -> Self::Point { self.min() }
+    fn top_right(&self) -> Self::Point {
+        Self::Point::new(self.max_x(), self.min_y())
+    }
+    fn bottom_right(&self) -> Self::Point { self.max() }
+    fn bottom_left(&self) -> Self::Point {
+        Self::Point::new(self.min_x(), self.max_y())
     }
 
-    fn top_right(&self) -> Self::Coordinate {
-        Self::Coordinate::new(self.max_x(), self.min_y())
-    }
-
-    fn bottom_right(&self) -> Self::Coordinate {
-        self.max()
-    }
-
-    fn bottom_left(&self) -> Self::Coordinate {
-        Self::Coordinate::new(self.min_x(), self.max_y())
-    }
-
-    fn top(&self) -> u16 {
-        self.min_y()
-    }
-
-    fn left(&self) -> u16 {
-        self.min_x()
-    }
-
-    fn bottom(&self) -> u16 {
-        self.max_y()
-    }
-
-    fn right(&self) -> u16 {
-        self.max_x()
-    }
+    fn top(&self) -> u16 { self.min_y() }
+    fn left(&self) -> u16 { self.min_x() }
+    fn bottom(&self) -> u16 { self.max_y() }
+    fn right(&self) -> u16 { self.max_x() }
 }

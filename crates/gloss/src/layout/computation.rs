@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use geometry::{Bounds, Edges, Point, Rect, Size};
+use geometry::{Bound, Edges, Point, Rect, Size};
 
 bitflags! {
     #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
@@ -80,8 +80,8 @@ impl Computation {
     }
 }
 
-impl Bounds for Computation {
-    type Coordinate = Point;
+impl Bound for Computation {
+    type Point = Point;
 
     fn min_x(&self) -> u16 {
         self.final_layout.location.x.max(0.0) as u16
@@ -99,14 +99,14 @@ impl Bounds for Computation {
         (self.final_layout.location.y + self.final_layout.size.height).max(0.0) as u16
     }
 
-    fn min(&self) -> Self::Coordinate {
+    fn min(&self) -> Self::Point {
         Point {
             x: self.min_x(),
             y: self.min_y(),
         }
     }
 
-    fn max(&self) -> Self::Coordinate {
+    fn max(&self) -> Self::Point {
         Point {
             x: self.max_x(),
             y: self.max_y(),

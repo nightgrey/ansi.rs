@@ -1,4 +1,4 @@
-use crate::{Bounds, Locatable, Coordinate, Point, Rect, Row};
+use crate::{Bound, Anchor, Point, Rect};
 use std::iter::FusedIterator;
 use crate::{Resolve};
 
@@ -55,7 +55,7 @@ pub trait Step<T> {
         self.backward(start, count)
     }
 }
-impl<C: Coordinate, B: Bounds<Coordinate = C> + Resolve<C, usize>  + Resolve<usize, C>> Step<C> for B {
+impl<C: Anchor + Ord, B: Bound<Point= C> + Resolve<C, usize> + Resolve<usize, C>> Step<C> for B {
     fn steps_between(&self, start: C, end: C) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
@@ -113,17 +113,17 @@ impl<C: Coordinate, B: Bounds<Coordinate = C> + Resolve<C, usize>  + Resolve<usi
     }
 }
 
-/// Owned, double-ended iterator over every `Position` in a `Bounds`.
+/// Owned, double-ended iterator over every coordinate in a `Bounded` region.
 ///
-/// Created by [`Area::iter`].
+/// Created by [`Rect::iter`].
 #[derive(Copy, Debug, Clone)]
-pub struct Steps<Ctx: Bounds<Coordinate= T> + Step<T>, T> {
+pub struct Steps<Ctx: Bound<Point= T> + Step<T>, T> {
     pub(crate) context: Ctx,
     pub(crate) front: T,
     pub(crate) back: T,
 }
 
-impl<Ctx: Bounds<Coordinate= T> + Step<T>, T> Steps<Ctx, T> {
+impl<Ctx: Bound<Point= T> + Step<T>, T: Ord> Steps<Ctx, T> {
     pub fn new(context: Ctx) -> Self {
         let front = if context.is_empty() {
             context.max()
@@ -288,8 +288,8 @@ impl DoubleEndedIterator for Steps<Rect, Point> {
     }
 }
 
-impl<Ctx: Bounds<Coordinate= T> + Step<T>, T> ExactSizeIterator for Steps<Ctx, T> where Self: Iterator {}
-impl<Ctx: Bounds<Coordinate= T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where Self: Iterator {}
+impl<Ctx: Bound<Point= T> + Step<T>, T> ExactSizeIterator for Steps<Ctx, T> where Self: Iterator {}
+impl<Ctx: Bound<Point= T> + Step<T>, T> FusedIterator for Steps<Ctx, T> where Self: Iterator {}
 
 // ─── Tests ─────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
-use geometry::{Bounds, Intersect, Point, Rect};
+use geometry::{Bound, Intersect, Point, Rect};
 use number::{Zero};
 use std::fmt::Debug;
 use std::iter::StepBy;
@@ -555,8 +555,8 @@ impl Buffer {
     }
 }
 
-impl Bounds for Buffer {
-    type Coordinate = Point;
+impl Bound for Buffer {
+    type Point = Point;
 
     fn min_x(&self) -> u16 {
         0
@@ -574,11 +574,11 @@ impl Bounds for Buffer {
         self.height as u16
     }
 
-    fn min(&self) -> Self::Coordinate {
+    fn min(&self) -> Self::Point {
         Point::ZERO
     }
 
-    fn max(&self) -> Self::Coordinate {
+    fn max(&self) -> Self::Point {
         Point::new(self.max_x(), self.max_y())
     }
 

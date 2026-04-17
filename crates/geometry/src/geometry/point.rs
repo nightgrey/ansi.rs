@@ -12,13 +12,10 @@ impl<T> From<PointLike<T>> for Point<T> {
     }
 }
 
-// A 2D point in screen-space coordinates.
+/// A 2D point in screen-space coordinates.
 ///
-/// Points use (x, y) coordinates where:
-/// - `x` increases left to right (column)
-/// - `y` increases top to bottom (row)
-///
-/// This matches terminal coordinate systems where (0, 0) is the top-left corner.
+/// - `x` => left to right (column)
+/// - `y` => top to bottom (row)
 ///
 /// # Example
 ///
@@ -146,7 +143,7 @@ mod tests {
     use super::*;
     use crate::geometry::rect::Rect;
     use crate::geometry::size::Size;
-    use crate::{Bounds, Contains};
+    use crate::{Bound, Contains};
 
     // === Point Tests ===
 

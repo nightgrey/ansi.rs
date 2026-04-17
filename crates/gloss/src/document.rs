@@ -1,8 +1,8 @@
 use crate::{Dirty, LayoutContext, Computation, Element, ElementId};
 use crate::measure;
-use crate::{Available, Dimension, Space, Layout};
-use geometry::{Bounded, Point, Rect, Size};
-use tree::{At, Secondary, Tree, id};
+use crate::{Available, Length, Space, Layout};
+use geometry::{Rect};
+use tree::{At, Secondary, Tree,};
 
 #[derive(Debug)]
 pub struct Document<'a> {
@@ -115,14 +115,14 @@ impl<'a> Document<'a> {
     pub fn compute_layout(&mut self, space: impl Into<Space>) {
         let space = space.into();
         self.elements[self.root_id].size.width = match space.width {
-            Available::Definite(val) => Dimension::Length(val),
-            Available::Min => Dimension::Auto,
-            Available::Max => Dimension::MAX,
+            Available::Pixel(val) => Length::Value(val),
+            Available::Min => Length::Auto,
+            Available::Max => Length::MAX,
         };
         self.elements[self.root_id].size.height = match space.height {
-            Available::Definite(val) => Dimension::Length(val),
-            Available::Min => Dimension::Auto,
-            Available::Max => Dimension::MAX,
+            Available::Pixel(val) => Length::Value(val),
+            Available::Min => Length::Auto,
+            Available::Max => Length::MAX,
         };
         let mut context = LayoutContext::new(
             &mut self.elements,

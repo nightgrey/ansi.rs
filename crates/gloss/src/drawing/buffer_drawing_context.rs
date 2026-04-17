@@ -7,17 +7,17 @@ use unicode_segmentation::UnicodeSegmentation;
 use geometry::{Bounded, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, SaturatingSub, SaturatingAdd, pos};
 use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{BorderStyle, DrawingContext};
+use crate::{Border, DrawingContext};
 use crate::symbols::Symbol;
 use ansi::{Attribute, Color, Style};
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ContextState {
+pub struct State {
     clip: Rect,
     origin: Point,
     pub style: Style,
-    pub border_style: BorderStyle,
+    pub border: Border,
     pub glyph: char,
 }
 
@@ -28,7 +28,7 @@ pub struct ContextState {
 pub struct BufferDrawingOptions {
     pub style: Option<Style>,
     pub glyph: Option<char>,
-    pub border: Option<BorderStyle>,
+    pub border: Option<Border>,
 }
 
 impl BufferDrawingOptions {
@@ -58,8 +58,8 @@ pub struct BufferDrawingContext<'a> {
     arena: &'a mut Arena,
     #[deref]
     #[deref_mut]
-    context: ContextState,
-    stacks: SmallVec<ContextState, 16>,
+    state: State,
+    stacks: SmallVec<State, 16>,
 }
 
 impl<'buf> BufferDrawingContext<'buf> {
@@ -69,12 +69,12 @@ impl<'buf> BufferDrawingContext<'buf> {
         Self {
             buffer,
             arena,
-            context: ContextState {
+            state: State {
                 clip,
                 origin: Point::ZERO,
                 style: Style::None,
                 glyph: ' ',
-                border_style: BorderStyle::None,
+                border: Border::None,
             },
             stacks: SmallVec::new(),
         }
@@ -82,34 +82,34 @@ impl<'buf> BufferDrawingContext<'buf> {
 
     /// Set the foreground color for subsequent draw operations.
     pub fn foreground(&mut self, color: Color) -> &mut Self {
-        self.context.style.foreground = color;
+        self.style.foreground = color;
         self
     }
 
     /// Set the background color for subsequent draw operations.
     pub fn background(&mut self, color: Color) -> &mut Self {
-        self.context.style.background = color;
+        self.style.background = color;
         self
     }
 
     /// Set the text attributes for subsequent draw operations.
     pub fn attributes(&mut self, attributes: Attribute) -> &mut Self {
-        self.context.style.attributes = attributes;
+        self.style.attributes = attributes;
         self
     }
 
     /// Reset state to defaults without affecting the stack.
     pub fn reset(&mut self) -> &mut Self {
-        self.context = ContextState::default();
+        self.state = State::default();
         self
     }
 
     fn to_local<T: Translate<Point>>(&self, rect: T) -> T::Output {
-        rect.translate(&self.context.origin)
+        rect.translate(&self.origin)
     }
 
     fn intersect(&self, rect: Rect) -> Option<Rect> {
-        let result = self.context.clip.intersect(&rect);
+        let result = self.clip.intersect(&rect);
         (!result.is_empty()).then_some(result)
     }
 }
@@ -119,33 +119,33 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     type Options = BufferDrawingOptions;
 
     fn current_clip(&self) -> Rect {
-        self.context.clip
+        self.clip
     }
 
     fn current_style(&self) -> crate::Layout {
-        self.context.style.into()
+        self.style.into()
     }
 
     fn current_glyph(&self) -> char {
-        self.context.glyph
+        self.glyph
     }
 
-    fn current_border_style(&self) -> BorderStyle {
-        self.context.border_style
+    fn current_border_style(&self) -> Border {
+        self.border
     }
 
     fn style(&mut self, style: crate::Layout) -> &mut Self {
-        self.context.style = style.into();
+        self.style = style.into();
         self
     }
 
     fn glyph(&mut self, glyph: char) -> &mut Self {
-        self.context.glyph = glyph;
+        self.glyph = glyph;
         self
     }
 
-    fn border_style(&mut self, border: BorderStyle) -> &mut Self {
-        self.context.border_style = border;
+    fn border_style(&mut self, border: Border) -> &mut Self {
+        self.border = border;
         self
     }
 
@@ -154,13 +154,13 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     /// The input is in local coordinates and will be transformed before
     /// intersection.
     fn clip(&mut self, rect: Rect) -> &mut Self {
-        self.context.clip = self.context.clip.intersect(&self.to_local(rect));
+        self.clip = self.clip.intersect(&self.to_local(rect));
         self
     }
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
     fn translate(&mut self, offset: Point) -> &mut Self {
-        self.context.origin = self.context.origin + offset;
+        self.origin = self.origin + offset;
         self
     }
 
@@ -170,8 +170,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         let local_rect = self.to_local(rect);
-        let style = options.style.unwrap_or(self.context.style);
-        let glyph = options.glyph.unwrap_or(self.context.glyph);
+        let style = options.style.unwrap_or(self.style);
+        let glyph = options.glyph.unwrap_or(self.glyph);
 
         if let Some(clipped) = self.intersect(local_rect) {
             for pos in &clipped {
@@ -232,8 +232,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
         let mut local_rect = self.to_local(rect);
-        let border_style = options.border.unwrap_or(self.context.border_style);
-        let border = border_style.into_border();
+        let border_style = options.border.unwrap_or(self.border);
+        let border = border_style.into_symbols();
 
         // Shrink rect to account for border thickness
         local_rect.max.x = local_rect.max.x.saturating_sub(border.right.width() as u16);
@@ -244,7 +244,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         }
 
         let mut set_cell = |x: u16, y: u16, symbol: Symbol| {
-            if self.context.clip.contains(&(y as usize, x as usize)) {
+            if self.clip.contains(&(y as usize, x as usize)) {
                 self.buffer[(y as usize, x as usize)]
                     .set_char_measured(symbol.symbol(), symbol.width(), self.arena);
             }
@@ -281,8 +281,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
         let local_pos = self.to_local(position);
-        let style = options.style.unwrap_or(self.context.style);
-        let clip = self.context.clip;
+        let style = options.style.unwrap_or(self.style);
+        let clip = self.clip;
 
         // Drop early when the row is outside the clip.
         if local_pos.y < clip.min.y || local_pos.y >= clip.max.y {
@@ -331,15 +331,15 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
         let local_origin = self.to_local(position);
-        let style = options.style.unwrap_or(self.context.style);
-        let glyph = options.glyph.unwrap_or(self.context.glyph);
+        let style = options.style.unwrap_or(self.style);
+        let glyph = options.glyph.unwrap_or(self.glyph);
 
         let end = (
             local_origin.x.saturating_add(length),
             local_origin.y,
         );
 
-        if self.context.clip.contains(&local_origin) && self.context.clip.contains(&end) {
+        if self.clip.contains(&local_origin) && self.clip.contains(&end) {
             for offset in 0..length {
                 self.buffer[pos!(local_origin.y, local_origin.x.saturating_add(offset))]
                     .set_style(style)
@@ -356,15 +356,15 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
         let local_origin = self.to_local(position);
-        let style = options.style.unwrap_or(self.context.style);
-        let glyph = options.glyph.unwrap_or(self.context.glyph);
+        let style = options.style.unwrap_or(self.style);
+        let glyph = options.glyph.unwrap_or(self.glyph);
 
         let end = (
             local_origin.x,
             local_origin.y.saturating_add(length),
         );
 
-        if self.context.clip.contains(&local_origin) && self.context.clip.contains(&end) {
+        if self.clip.contains(&local_origin) && self.clip.contains(&end) {
             for offset in 0..length {
                 self.buffer[pos!(local_origin.y.saturating_add(offset), local_origin.x)]
                     .set_style(style)
@@ -380,13 +380,13 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn save(&mut self) -> &mut Self {
-        self.stacks.push(self.context.clone());
+        self.stacks.push(self.clone());
         self
     }
 
     fn restore(&mut self) -> &mut Self {
         if let Some(previous) = self.stacks.pop() {
-            self.context = previous;
+            self.state = previous;
         }
         self
     }
@@ -408,7 +408,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     fn resize(&mut self, size: impl Into<Size>) -> &mut Self {
         let size = size.into();
         self.buffer.resize(size.width as usize, size.height as usize);
-        self.context.clip = self.buffer.bounds();
+        self.clip = self.buffer.bounds();
         self
     }
 
@@ -438,7 +438,7 @@ mod tests {
         let document = &mut context.document;
         let root = document.root_mut();
 
-        root.border = BorderStyle::Solid;
+        root.border = Border::Solid;
         root.margin = (2, 2).into();
         root.padding = (1, 1).into();
 
@@ -502,7 +502,7 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.border_style = BorderStyle::Solid;
+        renderer.border = Border::Solid;
         renderer.border(Rect::new(0, 0, 10, 10));
 
         assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::SPACE), true);

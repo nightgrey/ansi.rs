@@ -1,4 +1,4 @@
-use crate::{Bounded, Coordinated, Edges, Point, Rect, Size};
+use crate::{Bounded, Coordinate, Edges, Point, Rect, Size};
 use std::ops::Range;
 
 pub trait Outer: Bounded {
@@ -42,7 +42,7 @@ pub trait Outer: Bounded {
     }
 }
 
-impl<C: Coordinated, T: Bounded<Coordinate = C>> Outer for T {
+impl<C: Coordinate, T: Bounded<Coordinate = C>> Outer for T {
     fn top_left(&self) -> Self::Coordinate {
         self.min()
     }

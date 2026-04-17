@@ -1,33 +1,41 @@
 use compact_str::CompactString;
 use ansi::Color;
 use super::*;
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Layout {
-    pub min_size: Size,
+    // Block
+    pub display: Display,
     pub size: Size,
+    pub min_size: Size,
     pub max_size: Size,
+    // Inline
+
+
+    // This
     pub padding: Edges,
     pub margin: Edges,
-    pub gap: Gap,
+    pub border: Border,
+
+    // Flex
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
-    pub flex_basis: Dimension,
+    pub flex_basis: Length,
     pub flex_grow: f32,
     pub flex_shrink: f32,
+    pub gap: Gap,
     pub align_items: Option<AlignItems>,
     pub align_self: Option<AlignSelf>,
     pub align_content: Option<AlignContent>,
     pub justify_items: Option<JustifyItems>,
-    pub justify_self: Option<AlignSelf>,
+    pub justify_self: Option<JustifySelf>,
     pub justify_content: Option<JustifyContent>,
-    pub border: BorderStyle,
+
+    // Inline (inheritable)
     pub color: Option<Color>,
     pub background: Option<Color>,
     pub text_decoration: Option<TextDecoration>,
     pub font_weight: Option<FontWeight>,
     pub font_style: Option<FontStyle>,
-    pub display: Display,
 }
 
 #[allow(non_upper_case_globals)]
@@ -36,7 +44,7 @@ impl Layout {
         display: Display::Block,
         margin: Edges::ZERO,
         padding: Edges::ZERO,
-        border: BorderStyle::None,
+        border: Border::None,
         color: None,
         background: None,
         text_decoration: None,
@@ -56,7 +64,7 @@ impl Layout {
         flex_wrap: FlexWrap::NoWrap,
         flex_grow: 0.0,
         flex_shrink: 1.0,
-        flex_basis: Dimension::Auto,
+        flex_basis: Length::Auto,
         font_style: None,
     };
 
@@ -156,7 +164,7 @@ impl From<ansi::Style> for Layout {
             result.text_decoration = Some(TextDecoration::Underline);
         }
         if style.attributes.contains(ansi::Attribute::Strikethrough) {
-            result.text_decoration = Some(TextDecoration::LineThrough);
+            result.text_decoration = Some(TextDecoration::Strikethrough);
         }
 
         result.color = Some(style.foreground);
@@ -178,7 +186,7 @@ impl From<Layout> for ansi::Style {
 
         match style.text_decoration {
             Some(TextDecoration::Underline) => attributes.insert(ansi::Attribute::Underline),
-            Some(TextDecoration::LineThrough) => attributes.insert(ansi::Attribute::Strikethrough),
+            Some(TextDecoration::Strikethrough) => attributes.insert(ansi::Attribute::Strikethrough),
             _ => (),
         };
 

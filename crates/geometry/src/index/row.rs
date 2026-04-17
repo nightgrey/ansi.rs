@@ -1,30 +1,15 @@
-use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 use derive_more::{Deref, DerefMut};
 use synonym::Synonym;
 
-/// A row in buffer coordinates.
-#[derive_const(Synonym)]
+/// A row in index coordinates.
+#[derive_const(Synonym, Deref, DerefMut)]
 #[synonym(skip(Value))]
 #[repr(transparent)]
-#[derive(Deref, DerefMut)]
 pub struct Row(pub usize);
 
 impl const Row {
-    pub fn value(self) -> usize {
+    pub fn into_inner(self) -> usize {
         self.0
-    }
-}
-
-impl Add<usize> for Row {
-    type Output = Self;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        Self(self.0 + rhs)
-    }
-}
-
-impl AddAssign<usize> for Row {
-    fn add_assign(&mut self, rhs: usize) {
-        self.0 += rhs;
     }
 }

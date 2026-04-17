@@ -1,5 +1,5 @@
 use std::ops::{Add, Sub};
-use crate::{Bounded, Coordinated, Edges, Ops, Point, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Step, Steps, Zero};
+use crate::{Bounded, Locatable, Edges, Ops, Point, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Step, Steps, Zero};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///

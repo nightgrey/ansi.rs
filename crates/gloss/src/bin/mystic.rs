@@ -12,7 +12,7 @@ fn main() -> io::Result<()> {
     root.align_content = Some(AlignContent::Center);
     root.justify_content = Some(ContentAlignment::Center);
     root.background = Some(Color::Rgb(0, 0, 255));
-    root.border = BorderStyle::Bold;
+    root.border = Border::Bold;
     root.color = Some(Color::White);
 
     engine.insert_with(

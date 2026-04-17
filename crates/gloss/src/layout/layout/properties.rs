@@ -7,7 +7,7 @@ pub enum TextDecoration {
     #[default]
     None,
     Underline,
-    LineThrough,
+    Strikethrough,
 }
 
 impl From<bool> for TextDecoration {
@@ -52,13 +52,14 @@ pub enum Display {
     Flex,
 }
 
-pub type BorderStyle = crate::symbols::BorderStyle;
+pub type Border = crate::symbols::BorderStyle;
 
 pub type FlexWrap = taffy::FlexWrap;
 pub type FlexDirection = taffy::FlexDirection;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ItemAlignment {
+    #[default]
     /// Items are packed toward the start of the axis
     Start,
     /// Items are packed toward the end of the axis
@@ -71,9 +72,22 @@ pub enum ItemAlignment {
     Stretch,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+impl From<ItemAlignment> for taffy::AlignItems {
+    fn from(val: ItemAlignment) -> Self {
+        match val {
+            ItemAlignment::Start => taffy::AlignItems::Start,
+            ItemAlignment::End => taffy::AlignItems::End,
+            ItemAlignment::Center => taffy::AlignItems::Center,
+            ItemAlignment::Baseline => taffy::AlignItems::Baseline,
+            ItemAlignment::Stretch => taffy::AlignItems::Stretch,
+        }
+    }
+}
+
+#[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum ContentAlignment {
+    #[default]
     /// Items are packed toward the start of the axis
     Start,
     /// Items are packed toward the end of the axis
@@ -93,26 +107,6 @@ pub enum ContentAlignment {
     SpaceAround,
 }
 
-pub type AlignSelf = AlignItems;
-pub type AlignContent = ContentAlignment;
-pub type AlignItems = ItemAlignment;
-
-pub type JustifySelf = JustifyItems;
-pub type JustifyContent = ContentAlignment;
-pub type JustifyItems = ItemAlignment;
-
-impl From<ItemAlignment> for taffy::AlignItems {
-    fn from(val: ItemAlignment) -> Self {
-        match val {
-            ItemAlignment::Start => taffy::AlignItems::Start,
-            ItemAlignment::End => taffy::AlignItems::End,
-            ItemAlignment::Center => taffy::AlignItems::Center,
-            ItemAlignment::Baseline => taffy::AlignItems::Baseline,
-            ItemAlignment::Stretch => taffy::AlignItems::Stretch,
-        }
-    }
-}
-
 impl From<ContentAlignment> for taffy::AlignContent {
     fn from(val: ContentAlignment) -> Self {
         match val {
@@ -126,3 +120,11 @@ impl From<ContentAlignment> for taffy::AlignContent {
         }
     }
 }
+
+pub type AlignSelf = AlignItems;
+pub type AlignContent = ContentAlignment;
+pub type AlignItems = ItemAlignment;
+
+pub type JustifySelf = JustifyItems;
+pub type JustifyContent = ContentAlignment;
+pub type JustifyItems = ItemAlignment;

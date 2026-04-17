@@ -1,4 +1,5 @@
-use crate::{AssignOps, Column, One, Ops, Point, Rect, Row, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Zero};
+use std::cmp::Ordering;
+use crate::{AssignOps, Column, One, Ops, Point, PointLike, Rect, Row, SaturatingAdd, SaturatingOps, SaturatingSub, Size, Zero};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -7,13 +8,13 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 /// Used for convenient position construction from tuples.
 pub type PositionLike<T = usize> = (T, T);
 
-impl From<PositionLike> for Position {
-    fn from(value: PositionLike) -> Self {
+impl<T> From<PositionLike<T>> for Position<T> {
+    fn from(value: PositionLike<T>) -> Self {
         Self::new(value.0, value.1)
     }
 }
 
-/// A position in row/column coordinates.
+/// A position in index coordinates.
 ///
 /// Unlike [`Point`] which uses (x, y) screen coordinates,
 /// `Position` uses row and column:
@@ -21,34 +22,41 @@ impl From<PositionLike> for Position {
 /// - `row` is the vertical position (0 = top)
 /// - `col` is the horizontal position (0 = left)
 ///
-/// This matches typical buffer and array indexing conventions.
+/// This matches typical indexing conventions.
 ///
-/// # Coordinate System Difference
+/// ## Interopability
+/// [`Point`] and [`Position`] can be converted between each other, but note the field order difference if doing so manually.
 ///
-/// - `Point`: (x, y) where x=column, y=row
-/// - `Position`: (row, col) where row=y, col=x
+/// ```rust
+/// # use geometry::{Point, Position};
+/// let point = Point::new(10, 5);
+/// let position = Position::new(5, 10);
 ///
-/// These can be converted between each other, but note the field order difference.
+/// // Point => `Position { row: point.y, col: point.x }`
+/// assert_eq!((position.row, position.col), (point.y, point.x));
+///
+/// // Position => Point { x: position.col, y: position.row }
+/// assert_eq!((point.x, point.y), (position.col, position.row));
+/// ```
+///
+/// You can also use the `From` and `Into` traits to convert between them.
 ///
 /// # Example
 ///
 /// ```rust
-/// use geometry::Position;
+/// # use geometry::{Point, Position};
 ///
-/// let pos = Position::new(5, 10);  // row 5, column 10
-/// assert_eq!(pos.row, 5);
-/// assert_eq!(pos.col, 10);
-///
-/// let manhattan = pos.manhattan();  // Distance from origin
-/// assert_eq!(manhattan, 15);
+/// let position = Position::new(5, 10);
+/// assert_eq!(position.row, 5);
+/// assert_eq!(position.col, 10);
 /// ```
 #[derive(Copy, Debug)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Position<T = usize> {
-    /// Vertical position (row index, 0 = top).
+    /// Vertical position
     pub row: T,
 
-    /// Horizontal position (column index, 0 = left).
+    /// Horizontal position
     pub col: T,
 }
 
@@ -67,6 +75,7 @@ impl<T> Position<T> {
         Self { row, col }
     }
 }
+
 impl<T: One> Position<T> {
     pub const ONE: Self = Position { row: T::ONE, col: T::ONE };
 }
@@ -173,19 +182,6 @@ impl From<Column> for Position {
         Self::new(0, value.0)
     }
 }
-
-impl From<Position> for Point {
-    fn from(value: Position) -> Self {
-        Point::new(value.col as u16, value.row as u16)
-    }
-}
-
-impl From<Point> for Position {
-    fn from(value: Point) -> Self {
-        Self::new(value.y as usize, value.x as usize)
-    }
-}
-
 
 /// An axis-aligned rectangle for buffer-space coordinates.
 ///

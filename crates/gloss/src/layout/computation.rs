@@ -82,7 +82,6 @@ impl Computation {
 
 impl Bounded for Computation {
     type Coordinate = Point;
-    type Bounds = Rect;
 
     fn min_x(&self) -> u16 {
         self.final_layout.location.x.max(0.0) as u16
@@ -111,13 +110,6 @@ impl Bounded for Computation {
         Point {
             x: self.max_x(),
             y: self.max_y(),
-        }
-    }
-
-    fn bounds(&self) -> Self::Bounds {
-        Rect {
-            min: self.min(),
-            max: self.max(),
         }
     }
 }

@@ -1,11 +1,9 @@
-use crate::{Edges, Number, Point, Rect, Size};
-use crate::Coordinated;
-
+use crate::{Coordinate, Edges, Point, Rect, SaturatingSub, Size};
+use crate::Locatable;
 
 /// Provides the bounds of a geometry.
 pub trait Bounded {
-    type Coordinate: Coordinated;
-    type Bounds: Bounded;
+    type Coordinate: Locatable;
 
     #[inline]
     fn min_x(&self) -> u16;
@@ -26,16 +24,6 @@ pub trait Bounded {
     fn max(&self) -> Self::Coordinate;
 
     #[inline]
-    fn x(&self) -> u16 {
-        self.min_x()
-    }
-
-    #[inline]
-    fn y(&self) -> u16 {
-        self.min_y()
-    }
-
-    #[inline]
     fn width(&self) -> u16 {
         self.max_x().saturating_sub(self.min_x())
     }
@@ -47,7 +35,7 @@ pub trait Bounded {
 
     #[inline]
     fn len(&self) -> usize {
-        (self.width() as usize).saturating_mul(self.height() as usize)
+        (self.width()).saturating_mul(self.height()) as usize
     }
 
     #[inline]
@@ -56,7 +44,9 @@ pub trait Bounded {
     }
 
     #[inline]
-    fn bounds(&self) -> Self::Bounds;
+    fn bounds(&self) -> Rect<Self::Coordinate> {
+        Rect::bounds(self.min(), self.max())
+    }
 
     #[inline]
     fn size(&self) -> Size {
@@ -67,9 +57,8 @@ pub trait Bounded {
     }
 }
 
-impl<C: Coordinated> Bounded for Rect<C> {
+impl<C: Coordinate> Bounded for Rect<C> {
     type Coordinate = C;
-    type Bounds = Self;
 
     fn min_x(&self) -> u16 {
         self.min.x()
@@ -95,14 +84,13 @@ impl<C: Coordinated> Bounded for Rect<C> {
         self.max
     }
 
-    fn bounds(&self) -> Self::Bounds {
+    fn bounds(&self) ->  Rect<Self::Coordinate> {
         *self
     }
 }
 
 impl Bounded for Size {
     type Coordinate = Point;
-    type Bounds = Rect;
 
     fn min_x(&self) -> u16 {
         0
@@ -139,14 +127,13 @@ impl Bounded for Size {
         self.height
     }
 
-    fn bounds(&self) -> Self::Bounds {
+    fn bounds(&self) -> Rect {
         Rect::bounds(self.min(), self.max())
     }
 }
 
 impl Bounded for Edges {
     type Coordinate = Point;
-    type Bounds = Rect;
 
     fn min_x(&self) -> u16 {
         0
@@ -171,8 +158,35 @@ impl Bounded for Edges {
     fn max(&self) -> Self::Coordinate {
         Point::new(self.horizontal(), self.vertical())
     }
+}
 
-    fn bounds(&self) -> Self::Bounds {
-        Rect::bounds(self.min(), self.max())
+impl Bounded for Point {
+    type Coordinate = Self;
+    fn min_x(&self) -> u16 {
+        self.x
+    }
+
+    fn min_y(&self) -> u16 {
+        self.y
+    }
+
+    fn max_x(&self) -> u16 {
+        self.x + 1
+    }
+
+    fn max_y(&self) -> u16 {
+        self.y + 1
+    }
+
+    fn min(&self) -> Self::Coordinate {
+        *self
+    }
+
+    fn max(&self) -> Self::Coordinate {
+        Point { x: self.x + 1, y: self.y + 1 }
+    }
+
+    fn bounds(&self) -> Rect {
+        Rect::bounds(Bounded::min(self), Bounded::max(self))
     }
 }

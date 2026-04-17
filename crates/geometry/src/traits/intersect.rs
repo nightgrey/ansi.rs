@@ -1,4 +1,4 @@
-use crate::{Bounded, Bounds, Contains, Point, Rect,  Size, Zero};
+use crate::{Bounded, Contains, Locatable, Point, Rect, Size, Zero};
 
 pub trait Intersect<Rhs = Self> {
     type Output;
@@ -14,23 +14,12 @@ pub trait Intersect<Rhs = Self> {
     }
 }
 
-impl<T: Bounded> Intersect<Point> for T {
-    type Output = Point;
-
-    fn intersect(&self, other: &Point) -> Self::Output {
-        if self.contains(other) {
-            *other
-        } else {
-            Point::ZERO
-        }
-    }
-}
-impl<T: Bounded, U: Bounded> Intersect<T> for U {
+impl<B: Bounded, U: Bounded> Intersect<U> for B {
     type Output = Rect;
 
-    fn intersect(&self, other: &T) -> Self::Output {
+    fn intersect(&self, other: &U) -> Self::Output {
         if self.width() == 0 || self.height() == 0 || other.width() == 0 || other.height() == 0 {
-            return Self::Output::ZERO;
+            return Rect::ZERO;
         }
 
         let x1 = self.min_x().max(other.min_x());

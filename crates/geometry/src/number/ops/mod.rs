@@ -25,4 +25,6 @@ where
     T: AddAssign<Rhs> + SubAssign<Rhs> + MulAssign<Rhs> + DivAssign<Rhs> + RemAssign<Rhs>,
 {}
 
-pub trait SpecialtyOps<Rhs = Self>: CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs> {}
+pub trait ConditionalOps<Rhs = Self>: CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs> {}
+
+impl<T, Rhs> ConditionalOps<Rhs> for T where T: CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs> {}

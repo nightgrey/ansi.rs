@@ -3,7 +3,7 @@ use super::Symbol;
 /// Line
 ///
 /// Defines symbols for edges, junctions, crosses and diagonal segments.
-pub struct Line {
+pub struct LineSymbols {
     pub center: Symbol,
     pub horizontal: Symbol,
     pub vertical: Symbol,
@@ -28,7 +28,7 @@ pub struct Line {
     pub diagonal_left: Symbol,
     pub diagonal_right: Symbol,
 }
-impl Line {
+impl LineSymbols {
     /// Standard light single-line box drawing characters
     ///
     /// Creates clean, lightweight lines suitable for general use in terminal UIs.
@@ -40,7 +40,7 @@ impl Line {
     /// ├─┼─┤
     /// └─┴─┘
     /// ```
-    pub const LIGHT: Line = Line {
+    pub const LIGHT: LineSymbols = LineSymbols {
         top_junction: Symbol::new('┬'),
         bottom_junction: Symbol::new('┴'),
         right_junction: Symbol::new('┼'),
@@ -76,7 +76,7 @@ impl Line {
     /// ┣╍╋╍┫
     /// ┗╍┻╍┛
     /// ```
-    pub const BOLD: Line = Line {
+    pub const BOLD: LineSymbols = LineSymbols {
         top_junction: Symbol::new('┳'),
         bottom_junction: Symbol::new('┻'),
         right_junction: Symbol::new('┫'),
@@ -96,7 +96,7 @@ impl Line {
         left: Symbol::new('╸'),
         down: Symbol::new('╻'),
 
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
     /// Rounded corner box drawing characters with smooth curves
     ///
@@ -109,7 +109,7 @@ impl Line {
     /// ├─┼─┤
     /// ╰─┴─╯
     /// ```
-    pub const ROUNDED: Line = Line {
+    pub const ROUNDED: LineSymbols = LineSymbols {
         top_right: Symbol::new('╮'),
         top_left: Symbol::new('╭'),
         bottom_right: Symbol::new('╯'),
@@ -127,7 +127,7 @@ impl Line {
     /// ╠═╬═╣
     /// ╚═╩═╝
     /// ```
-    pub const DOUBLE: Line = Line {
+    pub const DOUBLE: LineSymbols = LineSymbols {
         top_junction: Symbol::new('╦'),
         bottom_junction: Symbol::new('╩'),
         right_junction: Symbol::new('╣'),
@@ -140,7 +140,7 @@ impl Line {
         bottom_right: Symbol::new('╝'),
         bottom_left: Symbol::new('╚'),
 
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Double-dashed box drawing characters
@@ -154,10 +154,10 @@ impl Line {
     /// ├╌┼╌┤
     /// └╌┴╌┘
     /// ```
-    pub const DASHED_DOUBLE: Line = Line {
+    pub const DASHED_DOUBLE: LineSymbols = LineSymbols {
         vertical: Symbol::new('╎'),
         horizontal: Symbol::new('╌'),
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
     /// Bold single-dashed box drawing characters
     ///
@@ -170,10 +170,10 @@ impl Line {
     /// ┣╍╋╍┫
     /// ┗╍┻╍┛
     /// ```
-    pub const DASHED_DOUBLE_BOLD: Line = Line {
+    pub const DASHED_DOUBLE_BOLD: LineSymbols = LineSymbols {
         vertical: Symbol::new('╏'),
         horizontal: Symbol::new('╍'),
-        ..Line::BOLD
+        ..LineSymbols::BOLD
     };
 
     /// Triple-dashed box drawing characters with three-dash segments
@@ -187,10 +187,10 @@ impl Line {
     /// ├┄┼┄┤
     /// └┄┴┄┘
     /// ```
-    pub const DASHED_TRIPLE: Line = Line {
+    pub const DASHED_TRIPLE: LineSymbols = LineSymbols {
         vertical: Symbol::new('┆'),
         horizontal: Symbol::new('┄'),
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Bold triple-dashed box drawing characters
@@ -204,10 +204,10 @@ impl Line {
     /// ┣┅╋┅┫
     /// ┗┅┻┅┛
     /// ```
-    pub const DASHED_TRIPLE_BOLD: Line = Line {
+    pub const DASHED_TRIPLE_BOLD: LineSymbols = LineSymbols {
         vertical: Symbol::new('┇'),
         horizontal: Symbol::new('┅'),
-        ..Line::BOLD
+        ..LineSymbols::BOLD
     };
 
     /// Quadruple-dashed box drawing characters with four-dash segments
@@ -221,10 +221,10 @@ impl Line {
     /// ├┈┼┈┤
     /// └┈┴┈┘
     /// ```
-    pub const DASHED_QUADRUPLE: Line = Line {
+    pub const DASHED_QUADRUPLE: LineSymbols = LineSymbols {
         vertical: Symbol::new('┊'),
         horizontal: Symbol::new('┈'),
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
     /// Bold quadruple-dashed box drawing characters
     ///
@@ -241,10 +241,10 @@ impl Line {
     /// # Available Characters
     /// - Bold Quadruple Dashed Edges: `┉` (horizontal) `┋` (vertical)
     /// - Corners and Junctions: inherited from bold lines
-    pub const DASHED_QUADRUPLE_BOLD: Line = Line {
+    pub const DASHED_QUADRUPLE_BOLD: LineSymbols = LineSymbols {
         vertical: Symbol::new('┋'),
         horizontal: Symbol::new('┉'),
-        ..Line::BOLD
+        ..LineSymbols::BOLD
     };
 
     // Mixed
@@ -260,9 +260,9 @@ impl Line {
     /// ┠─╂─┨
     /// ┖─┸─┚
     /// ```
-    pub const LIGHT_HORIZONTAL_BOLD_VERTICAL: Line = Line {
-        horizontal: Line::LIGHT.horizontal,
-        vertical: Line::BOLD.vertical,
+    pub const LIGHT_HORIZONTAL_BOLD_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::LIGHT.horizontal,
+        vertical: LineSymbols::BOLD.vertical,
 
         top_left: Symbol::new('┎'),
         top_right: Symbol::new('┒'),
@@ -274,10 +274,10 @@ impl Line {
         left_junction: Symbol::new('┠'),
         right_junction: Symbol::new('┨'),
 
-        up: Line::BOLD.up,
-        right: Line::LIGHT.right,
-        left: Line::BOLD.left,
-        down: Line::LIGHT.down,
+        up: LineSymbols::BOLD.up,
+        right: LineSymbols::LIGHT.right,
+        left: LineSymbols::BOLD.left,
+        down: LineSymbols::LIGHT.down,
 
         center: Symbol::new('╂'),
 
@@ -297,9 +297,9 @@ impl Line {
     /// ┝━┿━┥
     /// ┕━┷━┙
     /// ```
-    pub const BOLD_HORIZONTAL_LIGHT_VERTICAL: Line = Line {
-        horizontal: Line::BOLD.horizontal,
-        vertical: Line::LIGHT.vertical,
+    pub const BOLD_HORIZONTAL_LIGHT_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::BOLD.horizontal,
+        vertical: LineSymbols::LIGHT.vertical,
 
         top_left: Symbol::new('┍'),
         top_right: Symbol::new('┑'),
@@ -313,12 +313,12 @@ impl Line {
 
         center: Symbol::new('┿'),
 
-        up: Line::LIGHT.up,
-        right: Line::BOLD.right,
-        left: Line::BOLD.left,
-        down: Line::LIGHT.down,
+        up: LineSymbols::LIGHT.up,
+        right: LineSymbols::BOLD.right,
+        left: LineSymbols::BOLD.left,
+        down: LineSymbols::LIGHT.down,
 
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Single horizontal / double vertical
@@ -329,9 +329,9 @@ impl Line {
     /// ╟─╫─╢
     /// ╙─╨─╜
     /// ```
-    pub const SINGLE_HORIZONTAL_DOUBLE_VERTICAL: Line = Line {
-        horizontal: Line::LIGHT.horizontal,
-        vertical: Line::DOUBLE.vertical,
+    pub const SINGLE_HORIZONTAL_DOUBLE_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::LIGHT.horizontal,
+        vertical: LineSymbols::DOUBLE.vertical,
 
         top_left: Symbol::new('╓'),
         top_right: Symbol::new('╖'),
@@ -345,7 +345,7 @@ impl Line {
 
         center: Symbol::new('╫'),
 
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
 
     /// Double horizontal / single vertical
@@ -356,9 +356,9 @@ impl Line {
     /// ╞═╪═╡
     /// ╘═╧═╛
     /// ```
-    pub const DOUBLE_HORIZONTAL_SINGLE_VERTICAL: Line = Line {
-        horizontal: Line::DOUBLE.horizontal,
-        vertical: Line::LIGHT.vertical,
+    pub const DOUBLE_HORIZONTAL_SINGLE_VERTICAL: LineSymbols = LineSymbols {
+        horizontal: LineSymbols::DOUBLE.horizontal,
+        vertical: LineSymbols::LIGHT.vertical,
 
         top_left: Symbol::new('╒'),
         top_right: Symbol::new('╕'),
@@ -372,11 +372,11 @@ impl Line {
 
         center: Symbol::new('╪'),
 
-        ..Line::LIGHT
+        ..LineSymbols::LIGHT
     };
 }
 
-impl Line {
+impl LineSymbols {
     pub const fn top(&self) -> char {
        self.horizontal.inner
     }
@@ -394,9 +394,9 @@ impl Line {
     }
 }
 
-impl Default for Line {
+impl Default for LineSymbols {
     fn default() -> Self {
-        Line::LIGHT
+        LineSymbols::LIGHT
     }
 }
 /// Visual line style
@@ -573,29 +573,29 @@ pub enum LineStyle {
 }
 
 impl LineStyle {
-    /// Convert line style into a [`Line`].
-    pub fn as_line(self) -> Line {
+    /// Convert line style into a [`LineSymbols`].
+    pub fn into_symbols(self) -> LineSymbols {
         match self {
-            LineStyle::Light => Line::LIGHT,
-            LineStyle::Bold => Line::BOLD,
-            LineStyle::Rounded => Line::ROUNDED,
-            LineStyle::Double => Line::DOUBLE,
-            LineStyle::Dashed => Line::DASHED_DOUBLE,
-            LineStyle::DashedBold => Line::DASHED_DOUBLE_BOLD,
-            LineStyle::DashedTriple => Line::DASHED_TRIPLE,
-            LineStyle::DashedTripleBold => Line::DASHED_TRIPLE_BOLD,
-            LineStyle::DashedQuadruple => Line::DASHED_QUADRUPLE,
-            LineStyle::DashedQuadrupleBold => Line::DASHED_QUADRUPLE_BOLD,
-            LineStyle::LightHorizontalBoldVertical => Line::LIGHT_HORIZONTAL_BOLD_VERTICAL,
-            LineStyle::BoldHorizontalLightVertical => Line::BOLD_HORIZONTAL_LIGHT_VERTICAL,
-            LineStyle::SingleHorizontalDoubleVertical => Line::SINGLE_HORIZONTAL_DOUBLE_VERTICAL,
-            LineStyle::DoubleHorizontalSingleVertical => Line::DOUBLE_HORIZONTAL_SINGLE_VERTICAL,
+            LineStyle::Light => LineSymbols::LIGHT,
+            LineStyle::Bold => LineSymbols::BOLD,
+            LineStyle::Rounded => LineSymbols::ROUNDED,
+            LineStyle::Double => LineSymbols::DOUBLE,
+            LineStyle::Dashed => LineSymbols::DASHED_DOUBLE,
+            LineStyle::DashedBold => LineSymbols::DASHED_DOUBLE_BOLD,
+            LineStyle::DashedTriple => LineSymbols::DASHED_TRIPLE,
+            LineStyle::DashedTripleBold => LineSymbols::DASHED_TRIPLE_BOLD,
+            LineStyle::DashedQuadruple => LineSymbols::DASHED_QUADRUPLE,
+            LineStyle::DashedQuadrupleBold => LineSymbols::DASHED_QUADRUPLE_BOLD,
+            LineStyle::LightHorizontalBoldVertical => LineSymbols::LIGHT_HORIZONTAL_BOLD_VERTICAL,
+            LineStyle::BoldHorizontalLightVertical => LineSymbols::BOLD_HORIZONTAL_LIGHT_VERTICAL,
+            LineStyle::SingleHorizontalDoubleVertical => LineSymbols::SINGLE_HORIZONTAL_DOUBLE_VERTICAL,
+            LineStyle::DoubleHorizontalSingleVertical => LineSymbols::DOUBLE_HORIZONTAL_SINGLE_VERTICAL,
         }
     }
 }
-impl From<LineStyle> for Line {
+impl From<LineStyle> for LineSymbols {
     fn from(style: LineStyle) -> Self {
-        style.as_line()
+        style.into_symbols()
     }
 }
 

@@ -2,14 +2,14 @@ use std::io;
 use bon::Builder;
 use geometry::{Bounded, Point, Rect, Size};
 use maybe::Maybe;
-use crate::{BorderStyle, Document, ElementId, ElementKind, Layout};
+use crate::{Border, Document, ElementId, ElementKind, Layout};
 
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
 pub struct DrawingOptions {
     pub layout: Option<Layout>,
     pub glyph: Option<char>,
-    pub border: Option<BorderStyle>,
+    pub border: Option<Border>,
 }
 
 pub trait DrawingContext {
@@ -26,7 +26,7 @@ pub trait DrawingContext {
     fn current_glyph(&self) -> char;
 
     /// Get the current border style.
-    fn current_border_style(&self) -> BorderStyle;
+    fn current_border_style(&self) -> Border;
 
     /// Set the current style.
     fn style(&mut self, style: Layout) -> &mut Self;
@@ -35,7 +35,7 @@ pub trait DrawingContext {
     fn glyph(&mut self, fill: char) -> &mut Self;
 
     /// Set the current border style.
-    fn border_style(&mut self, border: BorderStyle) -> &mut Self;
+    fn border_style(&mut self, border: Border) -> &mut Self;
 
     /// Clip to a [`Rect`].
     ///

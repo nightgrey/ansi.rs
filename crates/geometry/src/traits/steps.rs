@@ -1,4 +1,4 @@
-use crate::{Bounded, Point, Rect, Row};
+use crate::{Bounded, Locatable, Coordinate, Point, Rect, Row};
 use std::iter::FusedIterator;
 use crate::{Resolve};
 
@@ -55,8 +55,8 @@ pub trait Step<T> {
         self.backward(start, count)
     }
 }
-impl Step<Point> for Rect {
-    fn steps_between(&self, start: Point, end: Point) -> (usize, Option<usize>) {
+impl<C: Coordinate, B: Bounded<Coordinate = C> + Resolve<C, usize>  + Resolve<usize, C>> Step<C> for B {
+    fn steps_between(&self, start: C, end: C) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
         }
@@ -68,17 +68,17 @@ impl Step<Point> for Rect {
         (dist, Some(dist))
     }
 
-    fn forward_checked(&self, start: Point, count: usize) -> Option<Point> {
+    fn forward_checked(&self, start: C, count: usize) -> Option<C> {
         // Fast path for single step (Iterator usage).
         if count == 1 {
             let mut next = start;
-            next.x += 1;
+            next.set_x(next.x() + 1);
 
-            if next.x >= self.max().x {
-                next.x = self.min().x;
-                next.y += 1;
+            if next.x() >= self.max_x() {
+                next.set_x(self.min_x());
+                next.set_y(next.y() + 1);
 
-                if next.y >= self.max().y {
+                if next.y() >= self.max_y() {
                     return None;
                 }
             }
@@ -97,10 +97,10 @@ impl Step<Point> for Rect {
         Some(self.resolve(index))
     }
 
-    fn backward_checked(&self, start: Point, count: usize) -> Option<Point> {
+    fn backward_checked(&self, start: C, count: usize) -> Option<C> {
         // Fast path: stay on the same row.
-        if start.y < self.max().x && count <= (start.y - self.min.x) as usize {
-            return Some(Point::new(start.x, start.y - count as u16));
+        if start.y() < self.max_y() && count <= (start.y() - self.min_y()) as usize {
+            return Some(C::new(start.x(), start.y() - count as u16));
         }
         // General path: linearize through the exclusive end.
         let idx = if start >= self.max() {

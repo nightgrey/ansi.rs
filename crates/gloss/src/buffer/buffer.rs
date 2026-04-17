@@ -556,7 +556,6 @@ impl Buffer {
 
 impl Bounded for Buffer {
     type Coordinate = Point;
-    type Bounds = Rect;
 
     fn min_x(&self) -> u16 {
         0
@@ -582,9 +581,6 @@ impl Bounded for Buffer {
         Point::new(self.max_x(), self.max_y())
     }
 
-    fn bounds(&self) -> Self::Bounds {
-        Rect::bounds(self.min(), self.max())
-    }
 }
 
 impl PartialEq for Buffer {

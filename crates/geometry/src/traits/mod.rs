@@ -1,21 +1,21 @@
-mod bounds;
 mod contains;
 mod map;
 mod intersect;
 mod outer;
-mod transforms;
+mod translate;
 mod steps;
 mod resolve;
-mod coordinate;
 mod consts;
+mod bounds;
+mod location;
 
-pub use bounds::*;
 pub use contains::*;
 pub use map::*;
 pub use intersect::*;
 pub use outer::*;
 pub use resolve::*;
-pub use transforms::*;
+pub use translate::*;
 pub use steps::*;
 pub use consts::*;
-pub use coordinate::*;
+pub use bounds::*;
+pub use location::*;

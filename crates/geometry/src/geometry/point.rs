@@ -5,8 +5,13 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 /// Type alias for tuple-based points: `(x, y)`.
 pub type PointLike<T = u16> = (T, T);
 
+impl<T> From<PointLike<T>> for Point<T> {
+    fn from(value: PointLike<T>) -> Self {
+        Self::new(value.0, value.1)
+    }
+}
 
-/// A 2D point in screen-space coordinates.
+// A 2D point in screen-space coordinates.
 ///
 /// Points use (x, y) coordinates where:
 /// - `x` increases left to right (column)
@@ -138,8 +143,8 @@ impl<T: Display> Display for Point<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rect::Rect;
-    use crate::size::Size;
+    use crate::geometry::rect::Rect;
+    use crate::geometry::size::Size;
     use crate::{Bounded, Contains};
 
     // === Point Tests ===

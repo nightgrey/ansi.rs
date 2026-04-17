@@ -156,7 +156,7 @@ impl<B: Bounded> Resolve<PositionLike, Column> for B {
 // ── Row -> * ──────────────────────────────────────────────────────────
 impl<B: Bounded> Resolve<Row, Point> for B {
     fn resolve(&self, value: Row) -> Point {
-        Point::new(self.min_x(), value.value() as u16)
+        Point::new(self.min_x(), value.into_inner() as u16)
     }
 }
 
@@ -165,7 +165,7 @@ impl<B: Bounded> Resolve<Row, Point> for B {
 /// cell range covering `start..end` rows.
 impl<B: Bounded> Resolve<Row, usize> for B {
     fn resolve(&self, value: Row) -> usize {
-        (value.value() - self.min_y() as usize) * self.width() as usize
+        (value.into_inner() - self.min_y() as usize) * self.width() as usize
     }
 }
 
@@ -187,19 +187,19 @@ impl<B: Bounded> Resolve<Row, Range<usize>> for B {
 // ── Column -> * ───────────────────────────────────────────────────────
 impl<B: Bounded> Resolve<Column, Point> for B {
     fn resolve(&self, value: Column) -> Point {
-        Point::new(value.value() as u16, 0)
+        Point::new(value.into_inner() as u16, 0)
     }
 }
 
 impl<B: Bounded> Resolve<Column, Position> for B {
     fn resolve(&self, value: Column) -> Position {
-        Position::new(value.value(), 0)
+        Position::new(value.into_inner(), 0)
     }
 }
 
 impl<B: Bounded> Resolve<Column, usize> for B {
     fn resolve(&self, value: Column) -> usize {
-        value.value() - self.min_x() as usize
+        value.into_inner() - self.min_x() as usize
     }
 }
 

@@ -30,13 +30,13 @@ pub fn div<'a>(
     #[builder(default)]
     flex_wrap: FlexWrap,
     #[builder(default)]
-    flex_basis: Dimension,
+    flex_basis: Length,
     #[builder(default)]
     flex_grow: f32,
     #[builder(default)]
     flex_shrink: f32,
     #[builder(default)]
-    border: BorderStyle,
+    border: Border,
 
     align_items: Option<AlignItems>,
     align_self: Option<AlignSelf>,
@@ -71,7 +71,7 @@ pub fn div<'a>(
             justify_items,
             justify_self,
             justify_content,
-            border,
+            border: border,
             color,
             background,
             text_decoration,

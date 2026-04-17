@@ -7,3 +7,4 @@ edition = "2024"
 derive_more = { workspace = true }
 synonym = "0.1.6"
 utils = { workspace = true }
+nutype = "0.6.2"

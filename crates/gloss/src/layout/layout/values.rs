@@ -5,57 +5,56 @@ use derive_more::{Deref, DerefMut, From};
 /// A set of edges with a specific value for each edge.
 #[derive(Copy, Debug, Clone, PartialEq, Default, Deref, DerefMut)]
 #[repr(transparent)]
-pub struct Edges(geometry::Edges<Dimension>);
+pub struct Edges(geometry::Edges<Length>);
 
 impl Edges {
-    pub const AUTO: Self = Self::all(Dimension::Auto);
-    pub const ZERO: Self = Self::all(Dimension::Length(0));
+    pub const AUTO: Self = Self::all(Length::Auto);
+    pub const ZERO: Self = Self::all(Length::Value(0));
 
     pub const fn auto() -> Self {
         Self::AUTO
     }
 
     pub const fn length(value: u32) -> Self {
-        Self::new(Dimension::Length(value), Dimension::Length(value), Dimension::Length(value), Dimension::Length(value))
+        Self::new(Length::Value(value), Length::Value(value), Length::Value(value), Length::Value(value))
     }
 
     pub const fn percent(value: f32) -> Self {
-        Self::new(Dimension::Percent(value), Dimension::Percent(value), Dimension::Percent(value), Dimension::Percent(value))
+        Self::new(Length::Percent(value), Length::Percent(value), Length::Percent(value), Length::Percent(value))
     }
 
-    pub const fn new(top: impl [const] Into<Dimension>, right: impl [const] Into<Dimension>, bottom: impl [const] Into<Dimension>, left: impl [const] Into<Dimension>) -> Self {
+    pub const fn new(top: impl [const] Into<Length>, right: impl [const] Into<Length>, bottom: impl [const] Into<Length>, left: impl [const] Into<Length>) -> Self {
         Self(geometry::Edges::new(top.into(), right.into(), bottom.into(), left.into()))
     }
 
-    pub const fn all(value: impl [const] Into<Dimension> + Copy) -> Self {
+    pub const fn all(value: impl [const] Into<Length> + Copy) -> Self {
         Self::new(value.into(), value.into(), value.into(), value.into())
     }
 
-    pub const fn horizontal(value: impl [const] Into<Dimension> + Copy) -> Self {
+    pub const fn horizontal(value: impl [const] Into<Length> + Copy) -> Self {
         Self::new(value.into(), value.into(), value.into(), value.into())
     }
 
-    pub const fn vertical(value: impl [const] Into<Dimension> + Copy) -> Self {
+    pub const fn vertical(value: impl [const] Into<Length> + Copy) -> Self {
         Self::new(value.into(), value.into(), value.into(), value.into())
     }
 }
 
-
-impl<T: Into<Dimension>> From<T> for Edges {
+impl<T: Into<Length>> From<T> for Edges {
     fn from(value: T) -> Self {
         let value = value.into();
         Self::new(value, value, value, value)
     }
 }
 
-impl<T: Into<Dimension>> From<(T, T)> for Edges {
+impl<T: Into<Length>> From<(T, T)> for Edges {
     fn from(value: (T, T)) -> Self {
         let (vertical, horizontal) = (value.0.into(), value.1.into());
         Self::new(vertical, horizontal, vertical, horizontal)
     }
 }
 
-impl<T: Into<Dimension>> From<(T, T, T, T)> for Edges {
+impl<T: Into<Length>> From<(T, T, T, T)> for Edges {
     fn from(value: (T, T, T, T)) -> Self {
         Self::new(
             value.0.into(),
@@ -66,29 +65,7 @@ impl<T: Into<Dimension>> From<(T, T, T, T)> for Edges {
     }
 }
 
-impl From<Edges> for taffy::Rect<taffy::LengthPercentageAuto> {
-    fn from(edges: Edges) -> Self {
-        taffy::Rect {
-            left: edges.left.into(),
-            right: edges.right.into(),
-            top: edges.top.into(),
-            bottom: edges.bottom.into(),
-        }
-    }
-}
-
-impl From<Edges> for taffy::Rect<taffy::LengthPercentage> {
-    fn from(edges: Edges) -> Self {
-        taffy::Rect {
-            left: edges.left.into(),
-            right: edges.right.into(),
-            top: edges.top.into(),
-            bottom: edges.bottom.into(),
-        }
-    }
-}
-
-impl From<Edges> for taffy::Rect<taffy::Dimension> {
+impl<T: From<Length>> From<Edges> for taffy::Rect<T> {
     fn from(edges: Edges) -> Self {
         taffy::Rect {
             left: edges.left.into(),
@@ -104,7 +81,7 @@ impl From<Edges> for taffy::Rect<taffy::Dimension> {
 pub struct Space(geometry::Size<Available>);
 
 impl Space {
-    pub const ZERO: Self = Self(geometry::Size::new(Available::Definite(0), Available::Definite(0)));
+    pub const ZERO: Self = Self(geometry::Size::new(Available::Pixel(0), Available::Pixel(0)));
     pub const MIN: Self = Self(geometry::Size::new(Available::Min, Available::Min));
     pub const MAX: Self = Self(geometry::Size::new(Available::Max, Available::Max));
 
@@ -127,66 +104,58 @@ impl Space {
 
 impl From<geometry::Size> for Space {
     fn from(value: geometry::Size) -> Self {
-        Self::new(Available::Definite(value.width as u32), Available::Definite(value.height as u32))
+        Self::new(Available::Pixel(value.width as u32), Available::Pixel(value.height as u32))
     }
 }
 
-impl From<Space> for taffy::Size<taffy::AvailableSpace> {
+impl<T: From<Available>> From<Space> for taffy::Size<T> {
     fn from(space: Space) -> Self {
         taffy::Size {
-            width: match space.width {
-                Available::Definite(w) => taffy::AvailableSpace::Definite(w as f32),
-                Available::Min => taffy::AvailableSpace::MinContent,
-                Available::Max => taffy::AvailableSpace::MaxContent,
-            },
-            height: match space.height {
-                Available::Definite(h) => taffy::AvailableSpace::Definite(h as f32),
-                Available::Min => taffy::AvailableSpace::MinContent,
-                Available::Max => taffy::AvailableSpace::MaxContent,
-            },
+            width: space.width.into(),
+            height: space.height.into(),
         }
     }
 }
 
-
 #[derive(Copy, Debug, Clone, PartialEq, Default, Deref, DerefMut)]
 #[repr(transparent)]
-pub struct Gap(geometry::Sides<Dimension>);
+pub struct Gap(geometry::Sides<Length>);
+
 impl Gap {
-    pub const ZERO: Self = Self(geometry::Sides::new(Dimension::Length(0), Dimension::Length(0)));
-    pub const AUTO: Self = Self(geometry::Sides::new(Dimension::Auto, Dimension::Auto));
+    pub const ZERO: Self = Self(geometry::Sides::new(Length::Value(0), Length::Value(0)));
+    pub const AUTO: Self = Self(geometry::Sides::new(Length::Auto, Length::Auto));
 
     pub const fn auto() -> Self {
         Self::AUTO
     }
 
     pub const fn length(value: u32) -> Self {
-        Self::new(Dimension::Length(value), Dimension::Length(value))
+        Self::new(Length::Value(value), Length::Value(value))
     }
 
     pub const fn percent(value: f32) -> Self {
-        Self::new(Dimension::Percent(value), Dimension::Percent(value))
+        Self::new(Length::Percent(value), Length::Percent(value))
     }
 
-    pub const fn new(horizontal: impl [const] Into<Dimension>, vertical: impl [const] Into<Dimension>) -> Self {
+    pub const fn new(horizontal: impl [const] Into<Length>, vertical: impl [const] Into<Length>) -> Self {
         Self(geometry::Sides::new(horizontal.into(), vertical.into()))
     }
 
-    pub const fn horizontal(value: impl [const] Into<Dimension> + Copy) -> Self {
-        Self::new(value.into(), Dimension::Auto)
+    pub const fn horizontal(value: impl [const] Into<Length> + Copy) -> Self {
+        Self::new(value.into(), Length::Auto)
     }
 
-    pub const fn vertical(value: impl [const] Into<Dimension> + Copy) -> Self {
-        Self::new(Dimension::Auto, value.into())
+    pub const fn vertical(value: impl [const] Into<Length> + Copy) -> Self {
+        Self::new(Length::Auto, value.into())
     }
 
-    pub const fn both(value: impl [const] Into<Dimension> + Copy) -> Self {
+    pub const fn both(value: impl [const] Into<Length> + Copy) -> Self {
         Self(geometry::Sides::both(value.into()))
     }
 
 }
 
-impl From<Gap> for taffy::Size<taffy::LengthPercentage> {
+impl<T: From<Length>> From<Gap> for taffy::Size<T> {
     fn from(value: Gap) -> Self {
         taffy::Size {
             width: value.horizontal.into(),
@@ -194,50 +163,34 @@ impl From<Gap> for taffy::Size<taffy::LengthPercentage> {
         }
     }
 }
+
+/// A size with a specific value for each dimension.
 #[derive(Copy, Debug, Clone, PartialEq, Default, Deref, DerefMut)]
 #[repr(transparent)]
-pub struct Size(geometry::Size<Dimension>);
+pub struct Size(geometry::Size<Length>);
 
 impl Size {
-    pub const ZERO: Self = Self(geometry::Size::new(Dimension::Length(0), Dimension::Length(0)));
-    pub const AUTO: Self = Self(geometry::Size::new(Dimension::Auto, Dimension::Auto));
+    pub const ZERO: Self = Self(geometry::Size::new(Length::Value(0), Length::Value(0)));
+    pub const AUTO: Self = Self(geometry::Size::new(Length::Auto, Length::Auto));
 
     pub const fn auto() -> Self {
         Self::AUTO
     }
 
     pub const fn length(value: u32) -> Self {
-        Self::new(Dimension::Length(value), Dimension::Length(value))
+        Self::new(Length::Value(value), Length::Value(value))
     }
 
     pub const fn percent(value: f32) -> Self {
-        Self::new(Dimension::Percent(value), Dimension::Percent(value))
+        Self::new(Length::Percent(value), Length::Percent(value))
     }
 
-    pub const fn new(width: impl [const] Into<Dimension>, height: impl [const] Into<Dimension>) -> Self {
+    pub const fn new(width: impl [const] Into<Length>, height: impl [const] Into<Length>) -> Self {
         Self(geometry::Size::new(width.into(), height.into()))
     }
 }
 
-impl From<Size> for taffy::Size<taffy::Dimension> {
-    fn from(value: Size) -> Self {
-        taffy::Size {
-            width: value.width.into(),
-            height: value.height.into(),
-        }
-    }
-}
-
-impl From<Size> for taffy::Size<taffy::LengthPercentage> {
-    fn from(value: Size) -> Self {
-        taffy::Size {
-            width: value.width.into(),
-            height: value.height.into(),
-        }
-    }
-}
-
-impl From<Size> for taffy::Size<taffy::LengthPercentageAuto> {
+impl<T: From<Length>> From<Size> for taffy::Size<T> {
     fn from(value: Size) -> Self {
         taffy::Size {
             width: value.width.into(),
@@ -249,7 +202,7 @@ impl From<Size> for taffy::Size<taffy::LengthPercentageAuto> {
 #[derive(Copy, Debug, Clone, PartialEq)]
 pub enum Available {
     /// The amount of space available is the specified number of pixels
-    Definite(u32),
+    Pixel(u32),
     /// The amount of space available is indefinite and the node should be laid out under a min-content constraint
     Min,
     /// The amount of space available is indefinite and the node should be laid out under a max-content constraint
@@ -258,13 +211,13 @@ pub enum Available {
 
 impl const From<u32> for Available {
     fn from(value: u32) -> Self {
-        Self::Definite(value)
+        Self::Pixel(value)
     }
 }
 
 impl From<usize> for Available {
     fn from(value: usize) -> Self {
-        Self::Definite(value as u32)
+        Self::Pixel(value as u32)
     }
 }
 impl const From<Option<Available>> for Available {
@@ -273,73 +226,86 @@ impl const From<Option<Available>> for Available {
     }
 }
 
-// Base properties
-#[derive(Copy, Debug, Clone, PartialEq, Default)]
-pub enum Dimension {
-    #[default]
-    Auto,
-    Length(u32),
-    Percent(f32),
-}
-
-impl Dimension {
-    pub const DEFAULT: Self = Self::Auto;
-    pub const ZERO: Self = Self::Length(0);
-    pub const MAX: Self = Self::Percent(1.0);
-    
-    pub const fn or(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::Auto, x) => x,
-            (x, Self::Auto) => x,
-            _ => self,
+impl From<Available> for taffy::AvailableSpace {
+    fn from(value: Available) -> Self {
+        match value {
+            Available::Pixel(val) => taffy::AvailableSpace::Definite(val as f32),
+            Available::Min => taffy::AvailableSpace::MinContent,
+            Available::Max => taffy::AvailableSpace::MaxContent,
         }
     }
 }
 
-impl const From<u32> for Dimension {
+// Base properties
+#[derive(Copy, Debug, Clone, PartialEq, Default)]
+pub enum Length {
+    #[default]
+    Auto,
+    Value(u32),
+    Percent(f32),
+}
+
+impl Length {
+    pub const DEFAULT: Self = Self::Auto;
+    pub const ZERO: Self = Self::Value(0);
+    pub const MIN: Self = Self::ZERO;
+    pub const MAX: Self = Self::Percent(1.0);
+}
+
+impl const From<u32> for Length {
     fn from(value: u32) -> Self {
-        Self::Length(value)
+        Self::Value(value)
     }
 }
 
-impl const From<f32> for Dimension {
+impl const From<f32> for Length {
     fn from(value: f32) -> Self {
         Self::Percent(value)
     }
 }
 
-impl const From<Option<Dimension>> for Dimension {
-    fn from(value: Option<Dimension>) -> Self {
+impl const From<Option<Length>> for Length {
+    fn from(value: Option<Length>) -> Self {
         value.unwrap_or(Self::Auto)
     }
 }
 
-impl From<Dimension> for taffy::LengthPercentage {
-    fn from(dim: Dimension) -> Self {
+impl From<Length> for taffy::LengthPercentage {
+    fn from(dim: Length) -> Self {
         match dim {
-            Dimension::Auto => taffy::LengthPercentage::ZERO,
-            Dimension::Length(val) => taffy::LengthPercentage::length(val as f32),
-            Dimension::Percent(val) => taffy::LengthPercentage::percent(val),
+            Length::Auto => taffy::LengthPercentage::ZERO,
+            Length::Value(val) => taffy::LengthPercentage::length(val as f32),
+            Length::Percent(val) => taffy::LengthPercentage::percent(val),
         }
     }
 }
 
-impl From<Dimension> for taffy::LengthPercentageAuto {
-    fn from(dim: Dimension) -> Self {
+impl From<Length> for taffy::LengthPercentageAuto {
+    fn from(dim: Length) -> Self {
         match dim {
-            Dimension::Auto => taffy::LengthPercentageAuto::auto(),
-            Dimension::Length(val) => taffy::LengthPercentageAuto::length(val as f32),
-            Dimension::Percent(val) => taffy::LengthPercentageAuto::percent(val),
+            Length::Auto => taffy::LengthPercentageAuto::auto(),
+            Length::Value(val) => taffy::LengthPercentageAuto::length(val as f32),
+            Length::Percent(val) => taffy::LengthPercentageAuto::percent(val),
         }
     }
 }
 
-impl From<Dimension> for taffy::Dimension {
-    fn from(dim: Dimension) -> Self {
+impl From<Length> for taffy::Dimension {
+    fn from(dim: Length) -> Self {
         match dim {
-            Dimension::Auto => taffy::Dimension::auto(),
-            Dimension::Length(val) => taffy::Dimension::length(val as f32),
-            Dimension::Percent(val) => taffy::Dimension::percent(val),
+            Length::Auto => taffy::Dimension::auto(),
+            Length::Value(val) => taffy::Dimension::length(val as f32),
+            Length::Percent(val) => taffy::Dimension::percent(val),
+        }
+    }
+}
+
+impl From<Length> for taffy::CompactLength {
+    fn from(dim: Length) -> Self {
+        match dim {
+            Length::Auto => taffy::CompactLength::auto(),
+            Length::Value(val) => taffy::CompactLength::length(val as f32),
+            Length::Percent(val) => taffy::CompactLength::percent(val),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
 use number::{Zero, One, Min, Max, Ops, AssignOps, SaturatingOps, SaturatingAdd, SaturatingSub};
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based positions: `(row, col)`.
@@ -51,7 +51,7 @@ impl<T> From<PositionLike<T>> for Position<T> {
 /// assert_eq!(position.row, 5);
 /// assert_eq!(position.col, 10);
 /// ```
-#[derive(Copy, Debug)]
+#[derive(Copy)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Position<T = usize> {
     /// Vertical position
@@ -157,6 +157,12 @@ impl<T: Ord> Ord for Position<T> {
 impl<T: Display> Display for Position<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}x{}]", self.row, self.col)
+    }
+}
+
+impl<T: Debug> Debug for Position<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{:?}x{:?}]", self.row, self.col)
     }
 }
 

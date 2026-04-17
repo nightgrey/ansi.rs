@@ -1,6 +1,6 @@
 use crate::{Size};
 use number::{AssignOps, Number, One, Ops,SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
@@ -28,7 +28,7 @@ impl<T> From<PointLike<T>> for Point<T> {
 ///
 /// assert_eq!(sum, Point::new(13, 7));
 /// ```
-#[derive(Copy, Debug)]
+#[derive(Copy)]
 #[derive_const(Clone, Default, PartialEq, Eq)]
 pub struct Point<T = u16> {
     /// Horizontal position (column).
@@ -135,6 +135,12 @@ impl<T: Ord> Ord for Point<T> {
 impl<T: Display> Display for Point<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.x, self.y)
+    }
+}
+
+impl<T: Debug> Debug for Point<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{:?}, {:?}]", self.x, self.y)
     }
 }
 

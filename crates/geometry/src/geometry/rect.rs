@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::ops::{Add, Sub};
 use number::{Ops , SaturatingOps, Zero, SaturatingAdd, SaturatingSub};
 use crate::{Location, Bound, Edges, Point, Resolve, Size, Step, Steps};
@@ -6,7 +7,7 @@ use crate::{Location, Bound, Edges, Point, Resolve, Size, Step, Steps};
 ///
 /// Rectangles are represented as half-open ranges: `[min, max)`.
 /// The `min` point is inclusive, the `max` point is exclusive.
-#[derive(Copy, Debug)]
+#[derive(Copy)]
 #[derive_const(Default, Clone, Eq, PartialEq)]
 pub struct Rect<T = Point> {
     /// Minimum (top-left) point (inclusive).
@@ -150,5 +151,11 @@ impl<T: Ops + Copy> Sub<Edges<T>> for Rect<Point<T>> {
             min: Point { x: min_x, y: min_y },
             max: Point { x: max_x, y: max_y },
         }
+    }
+}
+
+impl<T: Debug> Debug for Rect<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Rect").field(&self.min).field(&self.max).finish()
     }
 }

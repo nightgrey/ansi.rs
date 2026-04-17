@@ -97,11 +97,14 @@ impl Escape for SelectGraphicRenditionTransition {
         use crate::io::Write as _;
         use std::io::Write as _;
 
-        let from = self.from;
-        let to = self.to;
+        let (from, to) = (self.from, self.to);
 
         if from.is_none() && to.is_none() {
             return w.write_all(b"\x1B[0m");
+        }
+
+        if self.from == self.to {
+            return Ok(());
         }
 
         w.write_all(b"\x1B[")?;

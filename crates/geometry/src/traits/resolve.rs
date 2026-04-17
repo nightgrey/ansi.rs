@@ -3,31 +3,35 @@ use crate::{Point, Row, Column, Bound, PointLike, Position, PositionLike, Locati
 
 /// Resolve a context-dependent value.
 ///
-/// This trait is used to convert values from one context to another.
-///
 /// # Example
 ///
 /// ```rust
-/// use geometry::Resolve;
+/// # use geometry::{Resolve, Point};
 ///
-/// struct MyContext<T> {
-///     inner: Vec<T>,
+/// struct Context {
+///     inner: Vec<usize>,
 ///     width: usize,
+///     height: usize
 /// }
 ///
-/// impl<T> Resolve<(usize, usize), usize> for MyContext<T> {
-///     fn resolve(&self, value: (usize, usize)) -> usize {
-///         value.1 * self.width + value.0
+/// # impl Context {
+/// #   pub fn new(width: usize, height: usize) -> Self {
+/// #     Self { inner: vec![0; width * height], width, height }
+/// #   }
+/// # }
+/// #
+/// impl Resolve<Point, usize> for Context {
+///     fn resolve(&self, value: Point) -> usize {
+///         value.y as usize * self.width + value.x as usize
 ///     }
 /// }
 ///
-/// let ctx = MyContext { inner: Vec::from_iter(0..50), width: 5 };
-///
-/// let index = ctx.resolve((5, 0)); // Result: 25
-/// let data = &ctx.inner[index]; // Result: &25
+/// let ctx = Context::new(5, 5);
+/// assert_eq!(ctx.inner.len(), 25);
+/// assert_eq!(ctx.resolve(Point::new(1, 2)), 11) // 2 * 5 + 1
 /// ```
 pub trait Resolve<T, U> {
-    /// Resolve value within context of [`Self`].
+    /// Given [`T`], resolve [`U`] within [`Self`].
     fn resolve(&self, value: T) -> U;
 }
 

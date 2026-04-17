@@ -17,7 +17,6 @@ impl<T: Copy + Add<T, Output = T>> Translate<T> for Rect<T> {
     }
 }
 
-
 impl<T: Copy + Add<T, Output = T>> Translate<Point<T>> for Point<T> {
     type Output = Self;
 

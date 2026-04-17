@@ -217,7 +217,7 @@ impl Rasterer {
 
                 if let Some(end) = last_content {
                     for col in 0..=end {
-                        Self::render_cell(&row[col], &mut self.output, &mut self.pen, arena)?;
+                        Self::present_cell(&row[col], &mut self.output, &mut self.pen, arena)?;
                     }
                 }
 
@@ -332,7 +332,7 @@ impl Rasterer {
                 let mut col = first;
                 while col <= emit_end {
                     let cell = &next[col];
-                    Self::render_cell(cell, output, cursor, arena)?;
+                    Self::present_cell(cell, output, cursor, arena)?;
                     let w = cell.width() as usize;
                     col += w;
                     cursor.col += w;
@@ -350,7 +350,7 @@ impl Rasterer {
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
-    fn render_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
+    fn present_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
         cursor.transition(cell.style, output)?;
         output.extend_from_slice(cell.as_bytes(arena));
 

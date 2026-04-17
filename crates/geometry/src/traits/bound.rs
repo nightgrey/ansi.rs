@@ -1,17 +1,21 @@
-use crate::{Anchor, Edges, Point, Rect, Size};
+use crate::{Location, Point, Rect, Resolve, Size, Steps};
 
 /// A geometry with an axis-aligned min/max bounding rectangle in half-open
 /// `[min, max)` coordinates.
 pub trait Bound {
-    type Point: Anchor;
+    type Point: Location;
   
     fn min_x(&self) -> u16;
     fn min_y(&self) -> u16;
     fn max_x(&self) -> u16;
     fn max_y(&self) -> u16;
 
-    fn min(&self) -> Self::Point;
-    fn max(&self) -> Self::Point;
+    fn min(&self) -> Self::Point {
+        Location::new(self.min_y(), self.min_y())
+    }
+    fn max(&self) -> Self::Point {
+        Location::new(self.max_y(), self.max_y())
+    }
  
     #[inline]
     fn width(&self) -> u16 {
@@ -25,7 +29,7 @@ pub trait Bound {
 
     #[inline]
     fn len(&self) -> usize {
-        (self.width()).saturating_mul(self.height()) as usize
+        self.width().saturating_mul(self.height()) as usize
     }
 
     #[inline]
@@ -45,10 +49,15 @@ pub trait Bound {
             height: self.height(),
         }
     }
+
+    fn steps(self) -> Steps<Self::Point, Self> where Self: Resolve<Self::Point, usize> + Resolve<usize, Self::Point> + Sized
+    {
+        Steps::new(self)
+    }
 }
 
-impl<C: Anchor> Bound for Rect<C> {
-    type Point = C;
+impl<P: Location> Bound for Rect<P> {
+    type Point = P;
 
     fn min_x(&self) -> u16 { self.min.x() }
     fn min_y(&self) -> u16 { self.min.y() }
@@ -63,6 +72,15 @@ impl<C: Anchor> Bound for Rect<C> {
     }
 }
 
+impl<P: Location> Bound for P {
+    type Point = Self;
+
+    fn min_x(&self) -> u16 { Location::x(self) }
+    fn min_y(&self) -> u16 { Location::y(self) }
+    fn max_x(&self) -> u16 { Location::x(self) + 1 }
+    fn max_y(&self) -> u16 { Location::y(self) + 1 }
+}
+
 impl Bound for Size {
     type Point = Point;
 
@@ -71,42 +89,6 @@ impl Bound for Size {
     fn max_x(&self) -> u16 { self.width }
     fn max_y(&self) -> u16 { self.height }
 
-    fn min(&self) -> Self::Point { Point { x: 0, y: 0 } }
-    fn max(&self) -> Self::Point {
-        Point {
-            x: self.width,
-            y: self.height,
-        }
-    }
-
     fn width(&self) -> u16 { self.width }
     fn height(&self) -> u16 { self.height }
-}
-
-impl Bound for Edges {
-    type Point = Point;
-
-    fn min_x(&self) -> u16 { 0 }
-    fn min_y(&self) -> u16 { 0 }
-    fn max_x(&self) -> u16 { self.horizontal() }
-    fn max_y(&self) -> u16 { self.vertical() }
-
-    fn min(&self) -> Self::Point { Point::ZERO }
-    fn max(&self) -> Self::Point {
-        Point::new(self.horizontal(), self.vertical())
-    }
-}
-
-impl Bound for Point {
-    type Point = Self;
-
-    fn min_x(&self) -> u16 { self.x }
-    fn min_y(&self) -> u16 { self.y }
-    fn max_x(&self) -> u16 { self.x + 1 }
-    fn max_y(&self) -> u16 { self.y + 1 }
-
-    fn min(&self) -> Self::Point { *self }
-    fn max(&self) -> Self::Point {
-        Point { x: self.x + 1, y: self.y + 1 }
-    }
 }

@@ -17,7 +17,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```rust
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let result = <i32 as Integer>::from_str_radix("27", 10);
     /// assert_eq!(result, Ok(27));
@@ -44,7 +44,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0b01001100u8;
     ///
@@ -57,7 +57,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0b01001100u8;
     ///
@@ -71,7 +71,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0xF00Du16;
     ///
@@ -87,7 +87,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0b0101000u16;
     ///
@@ -101,7 +101,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0xBEEFu16;
     ///
@@ -117,7 +117,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0b0101000u16;
     ///
@@ -131,7 +131,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     /// let m = 0x3456789ABCDEF012u64;
@@ -146,7 +146,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     /// let m = 0xDEF0123456789ABCu64;
@@ -163,7 +163,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     /// let m = 0x3456789ABCDEF000u64;
@@ -180,7 +180,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0xFEDCBA9876543210u64;
     /// let m = 0xFFFFEDCBA9876543u64;
@@ -197,7 +197,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFi64;
     /// let m = 0x3456789ABCDEF000i64;
@@ -214,7 +214,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = -8i8; // 0b11111000
     /// let m = 62i8; // 0b00111110
@@ -228,7 +228,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     /// let m = 0xEFCDAB8967452301u64;
@@ -245,7 +245,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x12345678u32;
     /// let m = 0x1e6a2c48u32;
@@ -262,7 +262,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     ///
@@ -281,7 +281,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     ///
@@ -300,7 +300,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     ///
@@ -319,7 +319,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// let n = 0x0123456789ABCDEFu64;
     ///
@@ -336,7 +336,7 @@ pub trait Integer: Number
     /// # Examples
     ///
     /// ```
-    /// use geometry::Integer;
+    /// use number::Integer;
     ///
     /// assert_eq!(2i32.pow(4), 16);
     /// ```

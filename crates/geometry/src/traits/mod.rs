@@ -7,7 +7,7 @@ mod steps;
 mod resolve;
 mod consts;
 mod bound;
-mod anchor;
+mod location;
 
 pub use contains::*;
 pub use map::*;
@@ -18,4 +18,4 @@ pub use translate::*;
 pub use steps::*;
 pub use consts::*;
 pub use bound::*;
-pub use anchor::*;
+pub use location::*;

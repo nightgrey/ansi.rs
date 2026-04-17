@@ -500,7 +500,7 @@ impl Buffer {
     }
 
     pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item = &Cell> {
-       rect.iter().map(|point| &self[point])
+       rect.steps().map(|point| &self[point])
     }
 
     pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &Cell)> {

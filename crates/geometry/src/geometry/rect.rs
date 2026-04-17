@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 use number::{Ops , SaturatingOps, Zero, SaturatingAdd, SaturatingSub};
-use crate::{Bound, Edges, Point, Size, Step, Steps};
+use crate::{Location, Bound, Edges, Point, Resolve, Size, Step, Steps};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///
@@ -33,13 +33,6 @@ impl<T> Rect<T> {
         Self { min, max }
     }
 
-    pub fn iter(self) -> Steps<Self, T>
-    where
-        T: Ord,
-        Self: Bound<Point= T> + Step<T>,
-    {
-        Steps::new(self)
-    }
 }
 
 impl const Rect {
@@ -157,18 +150,5 @@ impl<T: Ops + Copy> Sub<Edges<T>> for Rect<Point<T>> {
             min: Point { x: min_x, y: min_y },
             max: Point { x: max_x, y: max_y },
         }
-    }
-}
-
-impl<T: Copy + Ord> IntoIterator for &Rect<T>
-where
-    Rect<T>: Bound<Point= T> + Step<T>,
-    Steps<Rect<T>, T>: Iterator,
-{
-    type Item = <Steps<Rect<T>, T> as Iterator>::Item;
-    type IntoIter = Steps<Rect<T>, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Steps::new(*self)
     }
 }

@@ -175,7 +175,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         let glyph = options.glyph.unwrap_or(self.glyph);
 
         if let Some(clipped) = self.intersect(local_rect) {
-            for pos in &clipped {
+            for pos in clipped.steps() {
                 let index: usize = self.buffer.bounds().resolve(pos);
                 self.buffer[index].set_char(glyph, self.arena).set_style(style);
             }

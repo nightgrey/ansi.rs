@@ -17,7 +17,7 @@
 //! - [`Position`] - `row` (vertical) and `col` (horizontal) index coordinates.
 //!
 //! ## Traits
-//! - [`Anchor`] - An (x, y) coordinate with getters, setters, and a `from_xy` constructor.
+//! - [`Location`] - An (x, y) coordinate with getters, setters, and a `from_xy` constructor.
 //! - [`Bound`] - A geometry with a half-open `[min, max)` bounding rectangle.
 
 #![feature(more_float_constants)]

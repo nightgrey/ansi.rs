@@ -148,7 +148,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns `true` if this value is `NaN` and false otherwise.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let nan = f64::NAN;
@@ -163,7 +163,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// false otherwise.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f32;
     ///
     /// let f = 7.0f32;
@@ -182,7 +182,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns `true` if this number is neither infinite nor `NaN`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f32;
     ///
     /// let f = 7.0f32;
@@ -202,7 +202,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// [subnormal][subnormal], or `NaN`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f32;
     ///
     /// let min = f32::MIN_POSITIVE; // 1.17549435e-38f32
@@ -225,7 +225,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns `true` if the number is [subnormal].
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let min = f64::MIN_POSITIVE; // 2.2250738585072014e-308_f64
@@ -251,7 +251,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// predicate instead.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::num::FpCategory;
     /// use std::f32;
     ///
@@ -266,7 +266,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the largest integer less than or equal to a number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 3.99;
     /// let g = 3.0;
@@ -279,7 +279,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the smallest integer greater than or equal to a number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 3.01;
     /// let g = 4.0;
@@ -293,7 +293,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// `0.0`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 3.3;
     /// let g = -3.3;
@@ -306,7 +306,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Return the integer part of a number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 3.3;
     /// let g = -3.7;
@@ -319,7 +319,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the fractional part of a number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 3.5;
     /// let y = -3.5;
@@ -335,7 +335,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// number is `Float::nan()`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = 3.5;
@@ -358,7 +358,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// - `Float::nan()` if the number is `Float::nan()`
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let f = 3.5;
@@ -374,7 +374,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// `Float::infinity()`, and `Float::nan()`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let nan: f64 = f64::NAN;
@@ -394,7 +394,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// `Float::neg_infinity()`, and `-Float::nan()`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let nan: f64 = f64::NAN;
@@ -417,7 +417,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// the target architecture has a dedicated `fma` CPU instruction.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let m = 10.0;
     /// let x = 4.0;
@@ -432,7 +432,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Take the reciprocal (inverse) of a number, `1/x`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.recip() - (1.0/x)).abs();
@@ -446,7 +446,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Using this function is generally faster than using `powf`
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.powi(2) - x*x).abs();
@@ -458,7 +458,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Raise a number to a floating point power.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 2.0;
     /// let abs_difference = (x.powf(2.0) - x*x).abs();
@@ -472,7 +472,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns NaN if `self` is a negative number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let positive = 4.0;
     /// let negative = -4.0;
@@ -487,7 +487,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns `e^(self)`, (the exponential function).
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let one = 1.0;
     /// // e^1
@@ -503,7 +503,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns `2^(self)`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 2.0;
     ///
@@ -517,7 +517,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the natural logarithm of the number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let one = 1.0;
     /// // e^1
@@ -533,7 +533,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the logarithm of the number with respect to an arbitrary base.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let ten = 10.0;
     /// let two = 2.0;
@@ -552,7 +552,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the base 2 logarithm of the number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let two = 2.0;
     ///
@@ -566,7 +566,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Returns the base 10 logarithm of the number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let ten = 10.0;
     ///
@@ -611,7 +611,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// * Else: `self - other`
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 3.0;
     /// let y = -3.0;
@@ -627,7 +627,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Take the cubic root of a number.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 8.0;
     ///
@@ -642,7 +642,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// legs of length `x` and `y`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 2.0;
     /// let y = 3.0;
@@ -657,7 +657,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Computes the sine of a number (in radians).
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/2.0;
@@ -671,7 +671,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Computes the cosine of a number (in radians).
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = 2.0*f64::consts::PI;
@@ -685,7 +685,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Computes the tangent of a number (in radians).
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/4.0;
@@ -700,7 +700,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// [-1, 1].
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let f = f64::consts::PI / 2.0;
@@ -717,7 +717,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// [-1, 1].
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let f = f64::consts::PI / 4.0;
@@ -733,7 +733,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// range [-pi/2, pi/2];
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 1.0;
     ///
@@ -752,7 +752,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// * `y < 0`: `arctan(y/x) - pi` -> `(-pi, -pi/2)`
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let pi = f64::consts::PI;
@@ -777,7 +777,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// `(sin(x), cos(x))`.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::PI/4.0;
@@ -795,7 +795,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// number is close to zero.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 7.0;
     ///
@@ -810,7 +810,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// the operations were performed separately.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let x = f64::consts::E - 1.0;
@@ -825,7 +825,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Hyperbolic sine function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -843,7 +843,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Hyperbolic cosine function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -861,7 +861,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Hyperbolic tangent function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -879,7 +879,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Inverse hyperbolic sine function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 1.0;
     /// let f = x.sinh().asinh();
@@ -893,7 +893,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Inverse hyperbolic cosine function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let x = 1.0;
     /// let f = x.cosh().acosh();
@@ -907,7 +907,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// Inverse hyperbolic tangent function.
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     /// use std::f64;
     ///
     /// let e = f64::consts::E;
@@ -929,7 +929,7 @@ pub trait Float: Number + Neg<Output = Self>
     /// # Examples
     ///
     /// ```
-    /// use geometry::Float;
+    /// use number::Float;
     ///
     /// let f = 3.5_f32;
     ///

@@ -7,10 +7,10 @@ edition = "2024"
 bitflags = { workspace = true }
 utils = { workspace = true }
 geometry = { workspace = true }
+maybe = { workspace = true }
+maybe-derive = { workspace = true }
 derive_more = { workspace = true }
 bilge = "0.3.0"
-maybe.workspace = true
 
 [dev-dependencies]
 criterion = "0.8.2"
-

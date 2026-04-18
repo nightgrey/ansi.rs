@@ -1,10 +1,17 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/ansi", "crates/geometry","crates/utils",
+    "crates/ansi",
+    "crates/geometry",
+    "crates/utils",
     "crates/utils/crates/tree",
-    "crates/utils/crates/tagged/core", "crates/utils/crates/tagged/derive",
-    "crates/utils/crates/maybe/core", "crates/utils/crates/maybe/derive", "crates/gloss", "crates/terminal", "crates/number",
+    "crates/utils/crates/tagged/core",
+    "crates/utils/crates/tagged/derive",
+    "crates/utils/crates/maybe/core",
+    "crates/utils/crates/maybe/derive",
+    "crates/gloss",
+    "crates/terminal",
+    "crates/number",
 ]
 
 [workspace.dependencies]
@@ -23,7 +30,7 @@ maybe = { path = "crates/utils/crates/maybe/core" }
 maybe-derive = { path = "crates/utils/crates/maybe/derive" }
 
 # Shared dependencies
-smallvec = {version = "2.0.0-alpha.12" }
+smallvec = { version = "2.0.0-alpha.12" }
 arrayvec = "0.7.6"
 rustix = { version = "1.1.4", features = ["termios"] }
 derive_more = { version = "2.1.1", features = ["full"] }

@@ -36,6 +36,7 @@ dependencies = [
  "derive_more",
  "geometry",
  "maybe",
+ "maybe-derive",
  "utils",
 ]
 

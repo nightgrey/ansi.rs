@@ -1,13 +1,21 @@
-use crate::Buffer;
+use crate::{Buf, Buffer};
+use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
 use geometry::{Bound, Size};
+use std::ops::{Deref, DerefMut};
 
 /// A double-buffered [`Buffer`]. The front holds the last rendered frame
 /// (what the terminal is assumed to be showing); the back is where the next
 /// frame is painted. Call [`swap`](Self::swap) after the frame has been
 /// applied to the terminal.
-#[derive(Debug)]
+#[derive(Debug, Index, IndexMut, Deref, DerefMut, AsRef, AsMut)]
 pub struct DoubleBuffer {
     pub front: Buffer,
+    #[deref]
+    #[deref_mut]
+    #[index]
+    #[index_mut]
+    #[as_ref]
+    #[as_mut]
     pub back: Buffer,
 }
 

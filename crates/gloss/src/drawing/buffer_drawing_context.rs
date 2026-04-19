@@ -3,7 +3,7 @@ use crate::{Arena, Buffer, Cell, DrawingOptions};
 use crate::{Border, DrawingContext};
 use ansi::{Attribute, Color, Style};
 use bon::Builder;
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, Index, IndexMut};
 use geometry::{
     Bound, Contains, Edges, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos,
 };
@@ -107,8 +107,8 @@ impl<'buf> BufferDrawingContext<'buf> {
         self
     }
 
-    fn to_local<T: Translate<Point>>(&self, rect: T) -> T::Output {
-        rect.translate(&self.origin)
+    fn to_local<T: Translate<Point>>(&self, value: T) -> T::Output {
+        value.translate(&self.origin)
     }
 
     fn intersect(&self, rect: Rect) -> Option<Rect> {
@@ -156,23 +156,23 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     ///
     /// The input is in local coordinates and will be transformed before
     /// intersection.
-    fn clip(&mut self, rect: Rect) -> &mut Self {
-        self.clip = self.clip.intersect(&self.to_local(rect));
+    fn clip(&mut self, rect: impl Into<Rect>) -> &mut Self {
+        self.clip = self.clip.intersect(&self.to_local(rect.into()));
         self
     }
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
-    fn translate(&mut self, offset: Point) -> &mut Self {
-        self.origin = self.origin + offset;
+    fn translate(&mut self, offset: impl Into<Point>) -> &mut Self {
+        self.origin = self.origin + offset.into();
         self
     }
 
-    fn rect(&mut self, rect: Rect) -> &mut Self {
+    fn rect(&mut self, rect: impl Into<Rect>) -> &mut Self {
         self.rect_with(rect, BufferDrawingOptions::default())
     }
 
-    fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        let local_rect = self.to_local(rect);
+    fn rect_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
+        let local_rect = self.to_local(rect.into());
         let style = options.style.unwrap_or(self.style);
         let glyph = options.glyph.unwrap_or(self.glyph);
 
@@ -188,12 +188,12 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self
     }
 
-    fn outline(&mut self, rect: Rect) -> &mut Self {
+    fn outline(&mut self, rect: impl Into<Rect>) -> &mut Self {
         self.outline_with(rect, BufferDrawingOptions::default())
     }
 
-    fn outline_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        let local_rect = self.to_local(rect);
+    fn outline_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
+        let local_rect = self.to_local(rect.into());
 
         // Top edge
         self.horizontal_line_with(local_rect.min, local_rect.width(), options);
@@ -231,12 +231,12 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self
     }
 
-    fn border(&mut self, rect: Rect) -> &mut Self {
+    fn border(&mut self, rect: impl Into<Rect>) -> &mut Self {
         self.border_with(rect, BufferDrawingOptions::default())
     }
 
-    fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self {
-        let mut local_rect = self.to_local(rect);
+    fn border_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
+        let mut local_rect = self.to_local(rect.into());
         let border_style = options.border.unwrap_or(self.border);
         let border = border_style.into_symbols();
 
@@ -286,17 +286,17 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self
     }
 
-    fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize {
+    fn text(&mut self, position: impl Into<Point>, str: impl AsRef<str>) -> usize {
         self.text_with(position, str, BufferDrawingOptions::default())
     }
 
     fn text_with(
         &mut self,
-        position: Point,
+        position: impl Into<Point>,
         str: impl AsRef<str>,
         options: Self::Options,
     ) -> usize {
-        let position = self.to_local(position);
+        let position = self.to_local(position.into());
         let style = options.style.unwrap_or(self.style);
         let clip = self.clip;
 
@@ -344,17 +344,43 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         n
     }
 
-    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self {
+    fn char(&mut self, position: impl Into<Point>, char: char) -> usize {
+        self.char_with(position, char, BufferDrawingOptions::default())
+    }
+
+    fn char_with(
+        &mut self,
+        position: impl Into<Point>,
+        char: char,
+        options: Self::Options,
+    ) -> usize {
+        let position = self.to_local(position.into());
+        let style = options.style.unwrap_or(self.style);
+        let clip = self.clip;
+
+        // Drop early when the row is outside the clip.
+        if !clip.contains(&position) {
+            return 0;
+        }
+
+        self.buffer[position]
+            .set_char(char, self.arena)
+            .set_style(style);
+
+        1
+    }
+
+    fn horizontal_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
         self.horizontal_line_with(position, length, BufferDrawingOptions::default())
     }
 
     fn horizontal_line_with(
         &mut self,
-        position: Point,
+        position: impl Into<Point>,
         length: u16,
         options: Self::Options,
     ) -> &mut Self {
-        let local_origin = self.to_local(position);
+        let local_origin = self.to_local(position.into());
         let style = options.style.unwrap_or(self.style);
         let glyph = options.glyph.unwrap_or(self.glyph);
 
@@ -371,17 +397,17 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self
     }
 
-    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self {
+    fn vertical_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
         self.vertical_line_with(position, length, BufferDrawingOptions::default())
     }
 
     fn vertical_line_with(
         &mut self,
-        position: Point,
+        position: impl Into<Point>,
         length: u16,
         options: Self::Options,
     ) -> &mut Self {
-        let local_origin = self.to_local(position);
+        let local_origin = self.to_local(position.into());
         let style = options.style.unwrap_or(self.style);
         let glyph = options.glyph.unwrap_or(self.glyph);
 
@@ -398,7 +424,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self
     }
 
-    fn clear(&mut self, rect: Rect) -> &mut Self {
+    fn clear(&mut self, rect: impl Into<Rect>) -> &mut Self {
         self.rect(rect)
     }
 
@@ -420,7 +446,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.restore()
     }
 
-    fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self {
+    fn within(&mut self, rect: impl Into<Rect>, f: impl FnOnce(&mut Self)) -> &mut Self {
+        let rect = rect.into();
         self.save();
         self.translate(rect.min);
         self.clip(Rect::from(rect.size()));

@@ -158,3 +158,4 @@ impl<'a> Default for Document<'a> {
         Self::new()
     }
 }
+

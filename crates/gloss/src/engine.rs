@@ -7,14 +7,14 @@ use geometry::Size;
 use geometry::{Bound, Row};
 use std::io;
 
-#[derive(Debug, Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut, Clone)]
 pub struct Engine<'a> {
     size: Size,
     #[deref]
     #[deref_mut]
-    document: Document<'a>,
-    buffer: DoubleBuffer,
-    arena: Arena,
+    pub document: Document<'a>,
+    pub buffer: DoubleBuffer,
+    pub arena: Arena,
     rasterer: Rasterer,
 }
 
@@ -45,6 +45,15 @@ impl<'a> Engine<'a> {
         self.document.compute_layout(self.size);
     }
 
+    pub fn draw(&mut self, f: impl FnOnce(&mut BufferDrawingContext<'_>)) {
+        let buffer = &mut self.buffer.back;
+        let arena = &mut self.arena;
+        let document = &self.document;
+
+        buffer.clear();
+        f(&mut BufferDrawingContext::new(buffer, arena));
+    }
+
     pub fn paint(&mut self) {
         let buffer = &mut self.buffer.back;
         let arena = &mut self.arena;
@@ -54,13 +63,16 @@ impl<'a> Engine<'a> {
         BufferDrawingContext::new(buffer, arena).paint(document);
     }
 
+    pub fn layout_and_paint(&mut self) {
+        self.layout();
+        self.paint();
+    }
+
     pub fn present(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         let back = &mut self.buffer.back;
         let front = &mut self.buffer.front;
         let arena = &mut self.arena;
 
-        dbg!(back.size());
-        dbg!(front.size());
         self.rasterer.present(back, front, arena)?;
         self.rasterer.flush(w)
     }
@@ -68,7 +80,7 @@ impl<'a> Engine<'a> {
     pub fn render(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         self.layout();
         self.paint();
-        self.present(w);
+        self.present(w)?;
 
         self.buffer.swap();
 

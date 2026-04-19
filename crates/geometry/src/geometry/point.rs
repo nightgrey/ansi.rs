@@ -1,4 +1,4 @@
-use crate::Size;
+use crate::{PositionLike, Size};
 use number::{AssignOps, Number, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
@@ -6,8 +6,8 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 /// Type alias for tuple-based points: `(x, y)`.
 pub type PointLike<T = u16> = (T, T);
 
-impl<T> From<PointLike<T>> for Point<T> {
-    fn from(value: PointLike<T>) -> Self {
+impl From<PointLike> for Point {
+    fn from(value: PointLike) -> Self {
         Self::new(value.0, value.1)
     }
 }

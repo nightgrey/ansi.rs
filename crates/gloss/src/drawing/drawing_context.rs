@@ -43,50 +43,65 @@ pub trait DrawingContext {
     /// are clipped by the bounds.
     ///
     /// [`restore`]: DrawingContext::restore
-    fn clip(&mut self, rect: Rect) -> &mut Self;
+    fn clip(&mut self, rect: impl Into<Rect>) -> &mut Self;
 
     /// Translate the origin.
-    fn translate(&mut self, offset: Point) -> &mut Self;
+    fn translate(&mut self, offset: impl Into<Point>) -> &mut Self;
 
     /// Fill an area with a style.
-    fn rect(&mut self, rect: Rect) -> &mut Self;
-    fn rect_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self;
+    fn rect(&mut self, rect: impl Into<Rect>) -> &mut Self;
+    fn rect_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self;
 
     /// Draw an outline.
-    fn outline(&mut self, rect: Rect) -> &mut Self;
-    fn outline_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self;
+    fn outline(&mut self, rect: impl Into<Rect>) -> &mut Self;
+    fn outline_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self;
 
     /// Draw a border.
-    fn border(&mut self, rect: Rect) -> &mut Self;
-    fn border_with(&mut self, rect: Rect, options: Self::Options) -> &mut Self;
+    fn border(&mut self, rect: impl Into<Rect>) -> &mut Self;
+    fn border_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self;
 
     /// Draw text.
     ///
     /// The `pos` parameter specifies the upper-left corner of the text
-    fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize;
-    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options)
-    -> usize;
+    fn text(&mut self, position: impl Into<Point>, str: impl AsRef<str>) -> usize;
+    fn text_with(
+        &mut self,
+        position: impl Into<Point>,
+        str: impl AsRef<str>,
+        options: Self::Options,
+    ) -> usize;
+
+    /// Draw a single character.
+    ///
+    /// The `pos` parameter specifies the upper-left corner of the text
+    fn char(&mut self, position: impl Into<Point>, char: char) -> usize;
+    fn char_with(
+        &mut self,
+        position: impl Into<Point>,
+        char: char,
+        options: Self::Options,
+    ) -> usize;
 
     /// Draw a horizontal line.
-    fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self;
+    fn horizontal_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self;
     fn horizontal_line_with(
         &mut self,
-        position: Point,
+        position: impl Into<Point>,
         length: u16,
         options: Self::Options,
     ) -> &mut Self;
 
     /// Draw a vertical line.
-    fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self;
+    fn vertical_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self;
     fn vertical_line_with(
         &mut self,
-        position: Point,
+        position: impl Into<Point>,
         length: u16,
         options: Self::Options,
     ) -> &mut Self;
 
     /// Clear an area.
-    fn clear(&mut self, rect: Rect) -> &mut Self;
+    fn clear(&mut self, rect: impl Into<Rect>) -> &mut Self;
 
     /// Save the context state.
     ///
@@ -122,7 +137,7 @@ pub trait DrawingContext {
     /// f(self);
     /// self.restore();
     /// ```
-    fn within(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) -> &mut Self;
+    fn within(&mut self, rect: impl Into<Rect>, f: impl FnOnce(&mut Self)) -> &mut Self;
 
     /// Resize the canvas, if necessary.
     fn resize(&mut self, size: impl Into<Size>) -> &mut Self;
@@ -154,7 +169,7 @@ fn paint_node<B: DrawingContext + ?Sized>(
     ctx.save();
 
     ctx.translate(border_bounds.min)
-        .clip(border_bounds.size().into())
+        .clip(border_bounds.size())
         .style(style)
         .border_style(node.border);
 

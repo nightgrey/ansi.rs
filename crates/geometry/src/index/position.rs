@@ -172,6 +172,15 @@ impl<T: Debug> Debug for Position<T> {
     }
 }
 
+impl From<Position> for Point {
+    fn from(value: Position) -> Self {
+        Point {
+            x: value.col as u16,
+            y: value.row as u16,
+        }
+    }
+}
+
 impl From<Position> for Row {
     fn from(value: Position) -> Self {
         Self(value.row)

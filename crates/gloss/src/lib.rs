@@ -29,6 +29,7 @@ mod engine;
 pub use engine::*;
 
 mod document;
+pub mod mock;
 pub mod presenter;
 
 pub use document::*;

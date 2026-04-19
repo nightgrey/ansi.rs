@@ -31,21 +31,15 @@ macro_rules! pos {
 }
 
 #[macro_export]
-macro_rules! point {
+macro_rules! p {
     () => {
-        Point::ZERO
+        (0 as u16, 0 as u16)
     };
     ($x:expr, $y:expr) => {
-        Point {
-            x: $x as u16,
-            y: $y as u16,
-        }
+        ($x as u16, $y as u16)
     };
     ($value:expr) => {
-        Point {
-            x: $value as u16,
-            y: $value as u16,
-        }
+        (value as u16, value as u16)
     };
 }
 

@@ -25,8 +25,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, Eq)]
-#[repr(C)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
@@ -248,10 +247,8 @@ impl Cell {
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)
     }
-}
 
-impl PartialEq for Cell {
-    fn eq(&self, other: &Self) -> bool {
+    pub fn eq_bit(&self, other: &Self) -> bool {
         (self.grapheme == other.grapheme)
             & (self.style.foreground == other.style.foreground)
             & (self.style.background == other.style.background)

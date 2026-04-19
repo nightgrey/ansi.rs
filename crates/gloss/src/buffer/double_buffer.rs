@@ -1,5 +1,5 @@
-use geometry::{Bound, Size};
 use crate::Buffer;
+use geometry::{Bound, Size};
 
 /// A double-buffered [`Buffer`]. The front holds the last rendered frame
 /// (what the terminal is assumed to be showing); the back is where the next
@@ -7,36 +7,40 @@ use crate::Buffer;
 /// applied to the terminal.
 #[derive(Debug)]
 pub struct DoubleBuffer {
-    pub inner: [Buffer; 2],
-    pub index: usize,
+    pub front: Buffer,
+    pub back: Buffer,
 }
 
 impl DoubleBuffer {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            inner: [Buffer::new(width, height), Buffer::new(width, height)],
-            index: 0,
+            front: Buffer::new(width, height),
+            back: Buffer::new(width, height),
         }
     }
 
     pub fn front(&self) -> &Buffer {
-        &self.inner[self.index]
+        &self.front
     }
 
     pub fn front_mut(&mut self) -> &mut Buffer {
-        &mut self.inner[self.index]
+        &mut self.front
     }
 
     pub fn back(&self) -> &Buffer {
-        &self.inner[1 - self.index]
+        &self.back
     }
 
     pub fn back_mut(&mut self) -> &mut Buffer {
-        &mut self.inner[1 - self.index]
+        &mut self.back
+    }
+
+    pub fn both(&self) -> (&Buffer, &Buffer) {
+        (&self.front(), &self.back())
     }
 
     pub fn swap(&mut self) {
-        self.index = 1 - self.index;
+        std::mem::swap(&mut self.front, &mut self.back);
     }
 
     pub fn size(&self) -> Size {
@@ -44,7 +48,7 @@ impl DoubleBuffer {
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.inner[0].resize(width, height);
-        self.inner[1].resize(width, height);
+        self.front.resize(width, height);
+        self.back.resize(width, height);
     }
 }

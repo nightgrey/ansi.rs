@@ -1,6 +1,7 @@
-use super::{Grapheme, Arena};
+use super::{Arena, Grapheme};
 use crate::AsOffset;
-use ansi::Style;
+use ansi::{Attribute, Color, Style};
+use maybe::Maybe;
 use std::fmt::Debug;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -24,7 +25,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Eq)]
 #[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
@@ -47,16 +48,16 @@ pub struct Cell {
 }
 
 impl Cell {
-    pub const DEFAULT: Self = Self::SPACE;
+    pub const DEFAULT: Self = Self::EMPTY;
 
-    pub const SPACE: Self = Self {
-        grapheme: Grapheme::SPACE,
-        width: 1,
+    pub const EMPTY: Self = Self {
+        grapheme: Grapheme::EMPTY,
+        width: 0,
         style: Style::None,
     };
 
     pub const CONTINUATION: Self = Self {
-        grapheme: Grapheme::EMPTY,
+        grapheme: Grapheme::CONTINUATION,
         width: 0,
         style: Style::None,
     };
@@ -84,13 +85,11 @@ impl Cell {
 
     // ── Accessors ──────────────────────────────────────────────────────
 
-    /// The grapheme handle for this cell.
     #[inline]
     pub fn grapheme(&self) -> Grapheme {
         self.grapheme
     }
 
-    /// The raw width value (0 means unset).
     #[inline]
     pub fn width(&self) -> u8 {
         self.width
@@ -101,54 +100,42 @@ impl Cell {
     pub fn style(&self) -> &Style {
         &self.style
     }
-
+    
     #[inline]
-    pub fn is_wide(&self) -> bool {
-        self.width >= 2
-    }
-
-    #[inline]
-    pub fn is_narrow(&self) -> bool {
-        self.width <= 1
+    pub const fn is_none(&self) -> bool {
+        self.grapheme == Grapheme::EMPTY || self.grapheme == Grapheme::CONTINUATION
     }
 
     #[inline]
-    pub fn is_continuation(&self) -> bool {
-        self == &Self::CONTINUATION
+    pub const fn is_continuation(&self) -> bool {
+        self.grapheme == Grapheme::CONTINUATION
     }
 
-    /// Returns `true` if this cell has no grapheme.
-    pub fn is_space(&self) -> bool {
-        self.grapheme == Grapheme::SPACE
-    }
-
-    /// Returns `true` if this cell is the default (empty space).
+    /// Returns `true` if this cell is empty.
     #[inline]
-    pub fn is_default(&self) -> bool {
-        self == &Cell::DEFAULT
+    pub const fn is_empty(&self) -> bool {
+        self.grapheme == Grapheme::EMPTY
     }
 
-    /// Returns `true` if this cell has no style (default).
+    /// Check if this content is the default value.
+    ///
+    /// This is equivalent to `is_empty()` and primarily exists for readability in tests.
     #[inline]
-    pub fn is_unstyled(&self) -> bool {
-        self.style.is_none()
+    pub const fn is_default(self) -> bool {
+        self.is_empty()
     }
 
-    pub fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
-        self.set_char_measured(char, char.width().unwrap_or(0), arena)
+    pub fn with_char(mut self, char: char, arena: &mut Arena) -> Self {
+        self.with_char_measured(char, char.width().unwrap_or(0), arena)
     }
 
-    pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
-        self.set_str_measured(str, str.width(), arena)
+    pub fn with_str(mut self, str: &str, arena: &mut Arena) -> Self {
+        self.with_str_measured(str, str.width(), arena)
     }
 
-    pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
+    pub fn with_char_measured(mut self, char: char, width: usize, arena: &mut Arena) -> Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
-        }
-
-        if char == ' ' {
-            return self.set_space(arena);
         }
 
         self.grapheme = Grapheme::inline(char);
@@ -156,7 +143,8 @@ impl Cell {
 
         self
     }
-    pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
+
+    pub fn with_str_measured(mut self, str: &str, width: usize, arena: &mut Arena) -> Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -165,36 +153,69 @@ impl Cell {
         self
     }
 
-    /// Set this cell to a width-1 space with the given style.
-    pub fn set_space(&mut self, arena: &mut Arena) -> &mut Self {
-        if self.grapheme.is_extended() {
-            arena.remove(self.grapheme);
-        }
-        self.grapheme = Grapheme::SPACE;
-        self.width = 1;
-        self
-    }
-
-    /// Set this cell as a width-0 continuation cell with the given style.
-    pub fn set_continuation(&mut self, arena: &mut Arena) -> &mut Self {
-        if self.grapheme.is_extended() {
-            arena.remove(self.grapheme);
-        }
-        *self = Self::CONTINUATION;
-        self
-    }
-
-    pub fn set_style(&mut self, style: Style)  -> &mut Self {
+    pub fn with_style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
 
-    pub fn replace(&mut self, grapheme: Grapheme, width: usize, arena: &mut Arena) -> &mut Self {
+    pub fn with_foreground(mut self, color: Color) -> Self {
+        self.style.foreground = color;
+        self
+    }
+
+    pub fn with_background(mut self, color: Color) -> Self {
+        self.style.background = color;
+        self
+    }
+
+    pub fn with_attributes(mut self, attribute: Attribute) -> Self {
+        self.style.attributes = attribute;
+        self
+    }
+
+    pub fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
+        *self = self.with_char(char, arena);
+        self
+    }
+
+    pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
+        *self = self.with_str(str, arena);
+        self
+    }
+
+    pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
-        self.grapheme = grapheme;
+
+        self.grapheme = Grapheme::inline(char);
         self.width = width as u8;
+
+        self
+    }
+
+    pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
+        *self = self.with_str_measured(str, width, arena);
+        self
+    }
+
+    pub fn set_style(&mut self, style: Style) -> &mut Self {
+        *self = self.with_style(style);
+        self
+    }
+
+    pub fn set_foreground(&mut self, color: Color) -> &mut Self {
+        *self = self.with_foreground(color);
+        self
+    }
+
+    pub fn set_background(&mut self, color: Color) -> &mut Self {
+        *self = self.with_background(color);
+        self
+    }
+
+    pub fn set_attributes(&mut self, attribute: Attribute) -> &mut Self {
+        *self = self.with_attributes(attribute);
         self
     }
 
@@ -229,15 +250,24 @@ impl Cell {
     }
 }
 
+impl PartialEq for Cell {
+    fn eq(&self, other: &Self) -> bool {
+        (self.grapheme == other.grapheme)
+            & (self.style.foreground == other.style.foreground)
+            & (self.style.background == other.style.background)
+            & (self.style.attributes == other.style.attributes)
+    }
+}
+
 impl Default for Cell {
     fn default() -> Self {
-        Self::SPACE
+        Self::EMPTY
     }
 }
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_default() {
+        if self.is_empty() {
             return f.write_str("Cell::EMPTY");
         }
         if self.is_continuation() {
@@ -248,7 +278,7 @@ impl Debug for Cell {
 
         debug.field(&self.grapheme);
 
-        if !self.is_unstyled() {
+        if self.style.is_some() {
             debug.field(&self.style);
         }
 
@@ -263,10 +293,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn space_cell() {
-        let cell = Cell::SPACE;
-        assert!(cell.is_default());
-        assert!(cell.is_space());
+    fn empty_cell() {
+        let cell = Cell::EMPTY;
+        assert!(cell.is_empty());
         assert_eq!(cell.width(), 1);
     }
 
@@ -284,7 +313,7 @@ mod tests {
             .foreground(Color::Rgb(255, 0, 0));
 
         let cell = Cell::inline('A', style);
-        assert!(!cell.is_default());
+        assert!(!cell.is_empty());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
@@ -320,7 +349,7 @@ mod tests {
         let cell_before = Cell::inline('Z', Style::default().foreground(Color::Index(1)));
         let mut cell = cell_before;
         cell.clear();
-        assert!(cell.is_default());
-        assert_eq!(cell, Cell::SPACE);
+        assert!(cell.is_empty());
+        assert_eq!(cell, Cell::EMPTY);
     }
 }

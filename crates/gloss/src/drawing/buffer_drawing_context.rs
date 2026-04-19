@@ -1,16 +1,18 @@
+use crate::symbols::Symbol;
+use crate::{Arena, Buffer, Cell, DrawingOptions};
+use crate::{Border, DrawingContext};
+use ansi::{Attribute, Color, Style};
+use bon::Builder;
+use derive_more::{Deref, DerefMut};
+use geometry::{
+    Bound, Contains, Edges, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos,
+};
+use number::{SaturatingAdd, SaturatingSub};
+use smallvec::SmallVec;
 use std::io;
 use std::ops::Sub;
-use bon::{Builder};
-use derive_more::{Deref, DerefMut};
-use smallvec::SmallVec;
 use unicode_segmentation::UnicodeSegmentation;
-use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Edges, Size, Translate, Resolve, pos};
-use number::{SaturatingSub, SaturatingAdd};
-use crate::{Buffer, Arena,  DrawingOptions};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::{Border, DrawingContext};
-use crate::symbols::Symbol;
-use ansi::{Attribute, Color, Style};
 
 /// Snapshot of all context state, pushed/popped via save/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -34,7 +36,7 @@ pub struct BufferDrawingOptions {
 
 impl BufferDrawingOptions {
     fn new() -> BufferDrawingOptions {
-       Self::default()
+        Self::default()
     }
 }
 
@@ -177,7 +179,9 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         if let Some(clipped) = self.intersect(local_rect) {
             for pos in clipped.steps() {
                 let index: usize = self.buffer.bounds().resolve(pos);
-                self.buffer[index].set_char(glyph, self.arena).set_style(style);
+                self.buffer[index]
+                    .set_char(glyph, self.arena)
+                    .set_style(style);
             }
         }
 
@@ -238,7 +242,10 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
         // Shrink rect to account for border thickness
         local_rect.max.x = local_rect.max.x.saturating_sub(border.right.width() as u16);
-        local_rect.max.y = local_rect.max.y.saturating_sub(border.bottom.width() as u16);
+        local_rect.max.y = local_rect
+            .max
+            .y
+            .saturating_sub(border.bottom.width() as u16);
 
         if local_rect.is_empty() {
             return self;
@@ -246,8 +253,11 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
         let mut set_cell = |x: u16, y: u16, symbol: Symbol| {
             if self.clip.contains(&(y as usize, x as usize)) {
-                self.buffer[(y as usize, x as usize)]
-                    .set_char_measured(symbol.symbol(), symbol.width(), self.arena);
+                self.buffer[(y as usize, x as usize)].set_char_measured(
+                    symbol.symbol(),
+                    symbol.width(),
+                    self.arena,
+                );
             }
         };
 
@@ -280,7 +290,12 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.text_with(position, str, BufferDrawingOptions::default())
     }
 
-    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize {
+    fn text_with(
+        &mut self,
+        position: Point,
+        str: impl AsRef<str>,
+        options: Self::Options,
+    ) -> usize {
         let position = self.to_local(position);
         let style = options.style.unwrap_or(self.style);
         let clip = self.clip;
@@ -319,7 +334,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
                 // Clear continuation cells for wide characters.
                 for dx in 1..width {
-                    self.buffer[pos!(position.y, col + dx)].set_continuation(self.arena);
+                    self.buffer[pos!(position.y, col + dx)] = Cell::CONTINUATION;
                 }
                 n += width as usize;
             }
@@ -333,15 +348,17 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.horizontal_line_with(position, length, BufferDrawingOptions::default())
     }
 
-    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
+    fn horizontal_line_with(
+        &mut self,
+        position: Point,
+        length: u16,
+        options: Self::Options,
+    ) -> &mut Self {
         let local_origin = self.to_local(position);
         let style = options.style.unwrap_or(self.style);
         let glyph = options.glyph.unwrap_or(self.glyph);
 
-        let end = (
-            local_origin.x.saturating_add(length),
-            local_origin.y,
-        );
+        let end = (local_origin.x.saturating_add(length), local_origin.y);
 
         if self.clip.contains(&local_origin) && self.clip.contains(&end) {
             for offset in 0..length {
@@ -358,15 +375,17 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
         self.vertical_line_with(position, length, BufferDrawingOptions::default())
     }
 
-    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self {
+    fn vertical_line_with(
+        &mut self,
+        position: Point,
+        length: u16,
+        options: Self::Options,
+    ) -> &mut Self {
         let local_origin = self.to_local(position);
         let style = options.style.unwrap_or(self.style);
         let glyph = options.glyph.unwrap_or(self.glyph);
 
-        let end = (
-            local_origin.x,
-            local_origin.y.saturating_add(length),
-        );
+        let end = (local_origin.x, local_origin.y.saturating_add(length));
 
         if self.clip.contains(&local_origin) && self.clip.contains(&end) {
             for offset in 0..length {
@@ -411,7 +430,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     fn resize(&mut self, size: impl Into<Size>) -> &mut Self {
         let size = size.into();
-        self.buffer.resize(size.width as usize, size.height as usize);
+        self.buffer
+            .resize(size.width as usize, size.height as usize);
         self.clip = self.buffer.bounds();
         self
     }
@@ -423,14 +443,14 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-    use std::ops::{Sub};
+    use super::*;
+    use crate::Grapheme;
+    use crate::{Document, Element, FlexDirection, FontWeight, TextDecoration};
     use ansi::Color;
     use geometry::pos;
-    use crate::Grapheme;
+    use std::borrow::Cow;
+    use std::ops::Sub;
     use tree::At;
-    use crate::{Document, FlexDirection, FontWeight, Element, TextDecoration};
-    use super::*;
 
     struct Context<'a> {
         buffer: Buffer,
@@ -446,14 +466,11 @@ mod tests {
         root.margin = (2, 2).into();
         root.padding = (1, 1).into();
 
-        let heading = document.insert_with(
-            Element::Span(Cow::Borrowed("Title")),
-            |node| {
-                node.color = Some(Color::Red);
-                node.text_decoration = Some(TextDecoration::Underline);
-                node.font_weight = Some(FontWeight::Bold);
-            },
-        );
+        let heading = document.insert_with(Element::Span(Cow::Borrowed("Title")), |node| {
+            node.color = Some(Color::Red);
+            node.text_decoration = Some(TextDecoration::Underline);
+            node.font_weight = Some(FontWeight::Bold);
+        });
 
         let footer = document.insert_with(Element::Div(), |node| {
             node.background = Some(Color::BrightBlack);
@@ -463,13 +480,14 @@ mod tests {
         let footer_left = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
             node.padding = (1, 1).into();
         });
-        let footer_left_content = document.insert_at(Element::Span("Gloss Rendering"), At::Child(footer_left));
+        let footer_left_content =
+            document.insert_at(Element::Span("Gloss Rendering"), At::Child(footer_left));
 
         let footer_right = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
             node.padding = (1, 1).into();
         });
-        let footer_right_content = document.insert_at(Element::Span("Test Consortium"), At::Child(footer_right));
-
+        let footer_right_content =
+            document.insert_at(Element::Span("Test Consortium"), At::Child(footer_right));
     }
 
     fn context<'a>(width: usize, height: usize) -> Context<'a> {
@@ -497,9 +515,13 @@ mod tests {
         renderer.glyph = 'x';
         renderer.rect(Rect::new(0, 0, 10, 10));
 
-        assert_eq!(context.buffer.iter().all(|c| c.style.foreground == Color::White && c.grapheme() == Grapheme::inline('x')), true);
+        assert_eq!(
+            context.buffer.iter().all(
+                |c| c.style.foreground == Color::White && c.grapheme() == Grapheme::inline('x')
+            ),
+            true
+        );
     }
-
 
     #[test]
     fn test_basic_stroke() {
@@ -509,11 +531,38 @@ mod tests {
         renderer.border = Border::Solid;
         renderer.border(Rect::new(0, 0, 10, 10));
 
-        assert_eq!(context.buffer.iter_row(0).all(|c| c.grapheme() != Grapheme::SPACE), true);
-        assert_eq!(context.buffer.iter_col(0).all(|c| c.grapheme() != Grapheme::SPACE), true);
-        assert_eq!(context.buffer.iter_col(9).all(|c| c.grapheme() != Grapheme::SPACE), true);
-        assert_eq!(context.buffer.iter_row(9).all(|c| c.grapheme() != Grapheme::SPACE), true);
-        context.buffer.iter_rect(&context.buffer.bounds().sub(Edges::all(1))).for_each(|c| assert_eq!(c.grapheme(), Grapheme::SPACE));
+        assert_eq!(
+            context
+                .buffer
+                .iter_row(0)
+                .all(|c| c.grapheme() != Grapheme::EMPTY),
+            true
+        );
+        assert_eq!(
+            context
+                .buffer
+                .iter_col(0)
+                .all(|c| c.grapheme() != Grapheme::EMPTY),
+            true
+        );
+        assert_eq!(
+            context
+                .buffer
+                .iter_col(9)
+                .all(|c| c.grapheme() != Grapheme::EMPTY),
+            true
+        );
+        assert_eq!(
+            context
+                .buffer
+                .iter_row(9)
+                .all(|c| c.grapheme() != Grapheme::EMPTY),
+            true
+        );
+        context
+            .buffer
+            .iter_rect(&context.buffer.bounds().sub(Edges::all(1)))
+            .for_each(|c| assert_eq!(c.grapheme(), Grapheme::EMPTY));
     }
 
     #[test]
@@ -549,7 +598,7 @@ mod tests {
         // Inside the old clip — should be filled
         assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::inline('X'));
         // Outside the old clip — should be empty
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
 
         {
             // After restore, full clip is back — can write outside
@@ -572,8 +621,8 @@ mod tests {
         // Inside the within rect — filled
         assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::inline('W'));
         // Outside — empty
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
     }
 
     #[test]
@@ -604,7 +653,7 @@ mod tests {
         assert_eq!(context.buffer[(1, 4)].grapheme(), Grapheme::inline('H'));
         assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('i'));
         // Adjacent cell untouched
-        assert_eq!(context.buffer[(1, 6)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(1, 6)].grapheme(), Grapheme::EMPTY);
     }
 
     #[test]
@@ -619,7 +668,7 @@ mod tests {
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('H'));
         assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('l'));
         // 5th char ('o') is outside clip — cell stays empty
-        assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::EMPTY);
     }
 
     #[test]
@@ -634,10 +683,9 @@ mod tests {
         root.padding = (2, 2).into();
         root.flex_direction = FlexDirection::Column;
 
-        let child = document.insert_with(
-            Element::Span(Cow::Borrowed("AB")),
-            |node| { node.color = Some(Color::Blue); },
-        );
+        let child = document.insert_with(Element::Span(Cow::Borrowed("AB")), |node| {
+            node.color = Some(Color::Blue);
+        });
 
         document.compute_layout(Space::new(20u32, 10u32));
 
@@ -647,10 +695,16 @@ mod tests {
         let child_content = document.content_bounds(child);
         let text_x = child_content.min.x as usize;
         let text_y = child_content.min.y as usize;
-        assert_eq!(context.buffer[(text_y, text_x)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[(text_y, text_x + 1)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(
+            context.buffer[(text_y, text_x)].grapheme(),
+            Grapheme::inline('A')
+        );
+        assert_eq!(
+            context.buffer[(text_y, text_x + 1)].grapheme(),
+            Grapheme::inline('B')
+        );
         // Origin cell should be empty (it's in the padding)
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::SPACE);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
     }
 
     #[test]
@@ -672,11 +726,9 @@ mod tests {
         });
 
         // Grandchild text inside the child div
-        let text_id = document.insert_at_with(
-            Element::Span("OK"),
-            At::Child(child_div),
-            |node| { node.color = Some(Color::Blue); },
-        );
+        let text_id = document.insert_at_with(Element::Span("OK"), At::Child(child_div), |node| {
+            node.color = Some(Color::Blue);
+        });
 
         document.compute_layout(Space::new(30u32, 15u32));
 
@@ -691,11 +743,12 @@ mod tests {
         let tx = (div_bounds.min.x + text_bounds.min.x) as usize;
         let ty = (div_bounds.min.y + text_bounds.min.y) as usize;
         assert_eq!(context.buffer[(ty, tx)].grapheme(), Grapheme::inline('O'));
-        assert_eq!(context.buffer[(ty, tx + 1)].grapheme(), Grapheme::inline('K'));
+        assert_eq!(
+            context.buffer[(ty, tx + 1)].grapheme(),
+            Grapheme::inline('K')
+        );
         // Padding area should be empty
-        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::SPACE);
-
-
+        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::EMPTY);
     }
 
     #[test]
@@ -709,14 +762,12 @@ mod tests {
         root.flex_direction = FlexDirection::Column;
 
         // Two stacked children in column layout
-        let child_a = document.insert_with(
-            Element::Span(Cow::Borrowed("AA")),
-            |node| { node.color = Some(Color::Blue); },
-        );
-        let child_b = document.insert_with(
-            Element::Span(Cow::Borrowed("BB")),
-            |node| { node.color = Some(Color::Green); },
-        );
+        let child_a = document.insert_with(Element::Span(Cow::Borrowed("AA")), |node| {
+            node.color = Some(Color::Blue);
+        });
+        let child_b = document.insert_with(Element::Span(Cow::Borrowed("BB")), |node| {
+            node.color = Some(Color::Green);
+        });
 
         document.compute_layout(Space::new(30u32, 15u32));
 
@@ -726,10 +777,21 @@ mod tests {
         BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // First child
-        assert_eq!(context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(
+            context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(),
+            Grapheme::inline('A')
+        );
         // Second child should be below the first
-        assert!(b_bounds.min.y > a_bounds.min.y, "B should be below A: A.y={}, B.y={}", a_bounds.min.y, b_bounds.min.y);
-        assert_eq!(context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(), Grapheme::inline('B'));
+        assert!(
+            b_bounds.min.y > a_bounds.min.y,
+            "B should be below A: A.y={}, B.y={}",
+            a_bounds.min.y,
+            b_bounds.min.y
+        );
+        assert_eq!(
+            context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(),
+            Grapheme::inline('B')
+        );
     }
 
     /// Padding should be part of the element's background (CSS
@@ -821,7 +883,9 @@ mod tests {
         for y in 0..h {
             for x in 0..w {
                 let cell = &context.buffer[(y, x)];
-                if cell.grapheme() == Grapheme::inline('X') { continue; }
+                if cell.grapheme() == Grapheme::inline('X') {
+                    continue;
+                }
                 assert_eq!(
                     cell.style.background,
                     Color::Red,
@@ -847,13 +911,10 @@ mod tests {
         root.color = Some(Color::White);
         root.padding = (1, 1).into();
 
-        document.insert_with(
-            Element::Span(Cow::Borrowed("Hello")),
-            |node| {
-                node.background = Some(Color::None);
-                node.font_weight = Some(FontWeight::Bold);
-            },
-        );
+        document.insert_with(Element::Span(Cow::Borrowed("Hello")), |node| {
+            node.background = Some(Color::None);
+            node.font_weight = Some(FontWeight::Bold);
+        });
 
         let abc = document.insert_with(Element::Div(), |node| {
             node.border = Border::Bold;
@@ -881,11 +942,13 @@ mod tests {
         // Root's padding row (top/bottom) is filled with red.
         for x in 0..w {
             assert_eq!(
-                context.buffer[(0, x)].style.background, Color::Red,
+                context.buffer[(0, x)].style.background,
+                Color::Red,
                 "top padding row should be red at col {x}",
             );
             assert_eq!(
-                context.buffer[(h - 1, x)].style.background, Color::Red,
+                context.buffer[(h - 1, x)].style.background,
+                Color::Red,
                 "bottom padding row should be red at col {x}",
             );
         }
@@ -893,11 +956,13 @@ mod tests {
         // Root's padding column (left/right) is filled with red.
         for y in 0..h {
             assert_eq!(
-                context.buffer[(y, 0)].style.background, Color::Red,
+                context.buffer[(y, 0)].style.background,
+                Color::Red,
                 "left padding col should be red at row {y}",
             );
             assert_eq!(
-                context.buffer[(y, w - 1)].style.background, Color::Red,
+                context.buffer[(y, w - 1)].style.background,
+                Color::Red,
                 "right padding col should be red at row {y}",
             );
         }
@@ -912,10 +977,22 @@ mod tests {
         let bottom = abc_bounds.max.y as usize - 1;
         let left = abc_bounds.min.x as usize;
         let right = abc_bounds.max.x as usize - 1;
-        assert_eq!(context.buffer[(top, left)].grapheme(), Grapheme::inline('┏'));
-        assert_eq!(context.buffer[(top, right)].grapheme(), Grapheme::inline('┓'));
-        assert_eq!(context.buffer[(bottom, left)].grapheme(), Grapheme::inline('┗'));
-        assert_eq!(context.buffer[(bottom, right)].grapheme(), Grapheme::inline('┛'));
+        assert_eq!(
+            context.buffer[(top, left)].grapheme(),
+            Grapheme::inline('┏')
+        );
+        assert_eq!(
+            context.buffer[(top, right)].grapheme(),
+            Grapheme::inline('┓')
+        );
+        assert_eq!(
+            context.buffer[(bottom, left)].grapheme(),
+            Grapheme::inline('┗')
+        );
+        assert_eq!(
+            context.buffer[(bottom, right)].grapheme(),
+            Grapheme::inline('┛')
+        );
     }
 
     #[test]
@@ -929,14 +1006,12 @@ mod tests {
         root.display = crate::Display::Flex;
         root.flex_direction = FlexDirection::Row;
 
-        let child_a = document.insert_with(
-            Element::Span(Cow::Borrowed("L")),
-            |node| { node.color = Some(Color::Blue); },
-        );
-        let child_b = document.insert_with(
-            Element::Span(Cow::Borrowed("R")),
-            |node| { node.color = Some(Color::Green); },
-        );
+        let child_a = document.insert_with(Element::Span(Cow::Borrowed("L")), |node| {
+            node.color = Some(Color::Blue);
+        });
+        let child_b = document.insert_with(Element::Span(Cow::Borrowed("R")), |node| {
+            node.color = Some(Color::Green);
+        });
 
         document.compute_layout(Space::new(30u32, 5u32));
 
@@ -946,8 +1021,14 @@ mod tests {
         BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Side by side in row layout
-        assert_eq!(context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(), Grapheme::inline('L'));
+        assert_eq!(
+            context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(),
+            Grapheme::inline('L')
+        );
         assert!(b_bounds.min.x > a_bounds.min.x, "R should be right of L");
-        assert_eq!(context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(), Grapheme::inline('R'));
+        assert_eq!(
+            context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(),
+            Grapheme::inline('R')
+        );
     }
 }

@@ -22,17 +22,19 @@ use crate::AsOffset;
 /// # Encoding (little-endian byte interpretation of the `u32`)
 ///
 /// ```text
-/// bytes[0..=3] with bytes[3] != 0x01  →  inline UTF-8 (up to 4 bytes)
-/// bytes[3] == 0x01                     →  extended; bytes[0..=2] = arena offset
-/// all zeros                            →  empty (no grapheme)
+/// bytes[3] == 0x00 and lower bytes zero → empty (no grapheme)
+/// bytes[3] == 0x01                      → extended; bytes[0..=2] = arena offset
+/// bytes[3] == 0x02 and lower bytes zero → continuation (wide-char placeholder)
+/// otherwise                             → inline UTF-8 (up to 4 bytes)
 /// ```
 ///
-/// The marker byte `0x01` (SOH) can never appear as the *high* byte of an
-/// inline grapheme's little-endian representation. For multi-byte UTF-8: byte
-/// position 3 holds either a continuation byte (`0x80..=0xBF`) or a 4-byte
-/// leading byte (`0xF0..=0xF7`). For single-byte values like SOH itself
-/// (`0x01`), only byte 0 is non-zero while byte 3 remains `0x00`. The encoding
-/// is therefore unambiguous — unlike notcurses, SOH *can* be stored inline.
+/// The marker bytes `0x01` (SOH) and `0x02` (STX) can never appear as the
+/// *high* byte of an inline grapheme's little-endian representation. For
+/// multi-byte UTF-8: byte position 3 holds either a continuation byte
+/// (`0x80..=0xBF`) or padding (`0x00`). For single-byte values like SOH/STX
+/// themselves, only byte 0 is non-zero while byte 3 remains `0x00`. The
+/// encoding is therefore unambiguous — unlike notcurses, SOH *can* be stored
+/// inline.
 ///
 /// # NUL handling
 ///
@@ -63,12 +65,16 @@ pub struct Grapheme {
 }
 
 impl Grapheme {
-    /// A grapheme representing an empty character.
+    /// Empty cell content (no character).
     pub const EMPTY: Self = Self { value: 0 };
+    /// Placeholder for the trailing cells of a wide grapheme.
+    ///
+    /// Distinct from [`EMPTY`](Self::EMPTY): continuation cells carry no
+    /// content of their own but mark that the previous cell spans into this
+    /// column. Tagged with byte 3 = `0x02` so it is neither inline nor extended.
+    pub const CONTINUATION: Self = Self { value: (Self::CONTINUATION_TAG as u32) << 24 };
     /// A grapheme representing a replacement character ().
     pub const REPLACEMENT: Self = Self::inline(char::REPLACEMENT_CHARACTER);
-    /// A grapheme representing a space (U+0020). This is the default for blank cells.
-    pub const SPACE: Self = Self::inline(' ');
 
     /// Create a grapheme from a string slice.
     ///
@@ -94,7 +100,7 @@ impl Grapheme {
     /// Create an inline grapheme.
     ///
     /// Note:
-    /// - `'\0'` produces [`SPACE`](Self::SPACE) since NUL is
+    /// - `'\0'` produces [`SPACE`](Self::EMPTY) since NUL is
     ///   indistinguishable from padding in the inline encoding.
     /// - Performs manual UTF-8 encoding since `char::encode_utf8` is not
     ///   available in `const fn`. Every Unicode scalar value fits in ≤4
@@ -117,6 +123,9 @@ impl Grapheme {
 
     /// The sentinel tag value marking an extended (arena-stored) grapheme.
     const EXTENDED_TAG: u8 = 0x01;
+
+    /// The sentinel tag value marking a wide-character continuation cell.
+    const CONTINUATION_TAG: u8 = 0x02;
 
 
     /// Create an extended grapheme from an arena offset.
@@ -142,15 +151,25 @@ impl Grapheme {
     }
 
     /// Returns `true` if this grapheme is stored inline (≤4 UTF-8 bytes).
+    ///
+    /// Both [`EMPTY`](Self::EMPTY) and any real inline UTF-8 encoding count as
+    /// inline; the sentinel tags (extended, continuation) do not.
     #[inline]
     pub const fn is_inline(self) -> bool {
-        !self.is_extended()
+        let tag = (self.value >> 24) as u8;
+        tag != Self::EXTENDED_TAG && tag != Self::CONTINUATION_TAG
     }
 
     /// Returns `true` if this grapheme is stored in a [`Arena`].
     #[inline]
     pub const fn is_extended(self) -> bool {
         (self.value >> 24) as u8 == Self::EXTENDED_TAG
+    }
+
+    /// Returns `true` if this grapheme is a wide-character continuation marker.
+    #[inline]
+    pub const fn is_continuation(self) -> bool {
+        (self.value >> 24) as u8 == Self::CONTINUATION_TAG
     }
 
     /// Resolve this grapheme to a `&str`.
@@ -172,7 +191,7 @@ impl Grapheme {
     /// ```
     #[cfg(target_endian = "little")]
     pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &str {
-        if self.is_empty() {
+        if self.is_empty() || self.is_continuation() {
             ""
         } else if self.is_inline() {
             self.as_inline_str()
@@ -251,6 +270,9 @@ impl fmt::Debug for Grapheme {
         if self.is_empty() {
             return f.write_str("Grapheme::EMPTY");
         }
+        if self.is_continuation() {
+            return f.write_str("Grapheme::CONTINUATION");
+        }
 
         if self.is_inline() {
             f.debug_tuple("Grapheme::Inline").field(&self.as_inline_str()).finish()
@@ -273,7 +295,7 @@ impl Encode for &str {
         let len = bytes.len();
 
         match len {
-            0 => Ok(Grapheme::SPACE),
+            0 => Ok(Grapheme::EMPTY),
             ..=char::MAX_LEN_UTF8 => Ok(unsafe { Grapheme::from_bytes(bytes) }),
             _ => Err(GraphemeError::ArenaRequired {
                 len,
@@ -287,7 +309,7 @@ impl Encode for &str {
         let len = bytes.len();
 
         match len {
-            0 => Ok(Grapheme::SPACE),
+            0 => Ok(Grapheme::EMPTY),
             ..=char::MAX_LEN_UTF8 => Ok(unsafe { Grapheme::from_bytes(bytes) }),
             _ => arena.try_insert(self),
         }
@@ -349,7 +371,7 @@ mod tests {
     fn space_is_not_empty() {
         let g = Grapheme::inline(' ');
         assert!(!g.is_empty());
-        assert_eq!(g, Grapheme::SPACE);
+        assert_eq!(g, Grapheme::EMPTY);
     }
 
     #[test]
@@ -440,7 +462,7 @@ mod tests {
         let g2 = Grapheme::extended(family, &mut arena);
         assert_eq!(g2.as_str(&arena), family);
 
-        assert_eq!(Grapheme::SPACE.as_str(&arena), " ");
+        assert_eq!(Grapheme::EMPTY.as_str(&arena), " ");
     }
 
     #[test]
@@ -473,6 +495,19 @@ mod tests {
 
         let arena = Arena::new();
         assert_eq!(g.as_str(&arena), "\x01");
+    }
+
+    #[test]
+    fn continuation_is_its_own_tag() {
+        let g = Grapheme::CONTINUATION;
+        assert!(g.is_continuation());
+        assert!(!g.is_empty());
+        assert!(!g.is_inline());
+        assert!(!g.is_extended());
+
+        let arena = Arena::new();
+        assert_eq!(g.as_str(&arena), "");
+        assert!(format!("{g:?}").contains("CONTINUATION"));
     }
 
     #[test]

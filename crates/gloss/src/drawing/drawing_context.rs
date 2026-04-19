@@ -1,8 +1,8 @@
-use std::io;
+use crate::{Border, Document, ElementId, ElementKind, Layout};
 use bon::Builder;
 use geometry::{Bound, Point, Rect, Size};
 use maybe::Maybe;
-use crate::{Border, Document, ElementId, ElementKind, Layout};
+use std::io;
 
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]
@@ -64,15 +64,26 @@ pub trait DrawingContext {
     ///
     /// The `pos` parameter specifies the upper-left corner of the text
     fn text(&mut self, position: Point, str: impl AsRef<str>) -> usize;
-    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options) -> usize;
+    fn text_with(&mut self, position: Point, str: impl AsRef<str>, options: Self::Options)
+    -> usize;
 
     /// Draw a horizontal line.
     fn horizontal_line(&mut self, position: Point, length: u16) -> &mut Self;
-    fn horizontal_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self;
+    fn horizontal_line_with(
+        &mut self,
+        position: Point,
+        length: u16,
+        options: Self::Options,
+    ) -> &mut Self;
 
     /// Draw a vertical line.
     fn vertical_line(&mut self, position: Point, length: u16) -> &mut Self;
-    fn vertical_line_with(&mut self, position: Point, length: u16, options: Self::Options) -> &mut Self;
+    fn vertical_line_with(
+        &mut self,
+        position: Point,
+        length: u16,
+        options: Self::Options,
+    ) -> &mut Self;
 
     /// Clear an area.
     fn clear(&mut self, rect: Rect) -> &mut Self;
@@ -82,7 +93,7 @@ pub trait DrawingContext {
     /// Push a new context state onto the stack. See [`pop`] for details.
     ///
     /// [`pop`]: DrawingContext::restore
-    fn save(&mut self) ->  &mut Self;
+    fn save(&mut self) -> &mut Self;
 
     /// Restore the context state.
     ///
@@ -99,13 +110,10 @@ pub trait DrawingContext {
     ///
     /// [`restore`]: DrawingContext::restore
     /// [`save`]: DrawingContext::save
-    fn with(
-        &mut self,
-        f: impl FnOnce(&mut Self),
-    ) -> &mut Self;
+    fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self;
 
     /// Do graphics operations within a sub-region.
-    /// 
+    ///
     /// Equivalent to:
     /// ```ignore
     /// self.save();
@@ -127,7 +135,6 @@ pub trait DrawingContext {
     /// Resizes to fit the document's root, traverses the element tree
     /// applying styles/borders/content, then flushes any pending work.
     fn paint(&mut self, document: &Document<'_>) {
-        self.resize(document.border_bounds(document.root_id));
         paint_node(self, document, document.root_id, Layout::DEFAULT);
         self.finish();
     }
@@ -153,7 +160,7 @@ fn paint_node<B: DrawingContext + ?Sized>(
 
     // Everything below is in node-local coordinates (relative to border-box origin).
     let local_bounds = Rect::from(border_bounds.size());
-    
+
     // Children's taffy locations are border-box relative, so clip/bg use
     // content bounds normalized into the node's own origin.
     let normalized_bounds = content_bounds - border_bounds.min;
@@ -161,7 +168,9 @@ fn paint_node<B: DrawingContext + ?Sized>(
     // Background fills the border-box (CSS `background-clip: border-box`)
     // so padding participates in the backdrop. Only a real color paints —
     // `Color::None` means "no fill", leaving the parent's backdrop visible.
-    if let Some(bg) = style.background && bg != ansi::Color::None {
+    if let Some(bg) = style.background
+        && bg != ansi::Color::None
+    {
         ctx.rect(local_bounds);
     }
 

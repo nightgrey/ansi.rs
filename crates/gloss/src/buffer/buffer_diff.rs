@@ -52,6 +52,10 @@ impl<'prev, 'next> BufferDiff<'prev, 'next> {
             pos: 0,
         }
     }
+    
+    pub fn len(&self) -> usize {
+        self.len
+    }
 }
 
 impl<'next> Iterator for BufferDiff<'_, 'next> {
@@ -240,7 +244,7 @@ mod tests {
         next.set_string(0..2, "中", &mut arena);
         // Mutate the continuation's style so it no longer equals Cell::CONTINUATION
         // exactly — the diff should still treat it as zero-width.
-        next[1].set_style(Style::default().foreground(Color::Red));
+        next[1] = next[1].with_style(Style::default().foreground(Color::Red));
         assert_eq!(next[1].width(), 0);
 
         let diff: Vec<_> = BufferDiff::new(&prev, &next).collect();

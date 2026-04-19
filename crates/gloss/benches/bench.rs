@@ -1,20 +1,85 @@
 use ansi::{Color, Style};
+
+use criterion::*;
 use criterion::{Criterion, criterion_group, criterion_main};
 use derive_more::{Deref, DerefMut};
-use gloss::{Arena, Buffer, Cell};
+use geometry::Bound;
 use gloss::Rasterer;
+use gloss::presenter::buffer_diff::diff;
+use gloss::*;
+use gloss::{Arena, Buffer, Cell};
 use std::hint::black_box;
 use terminal::Capabilities;
+use tree::At;
+
+fn diff_buffers(c: &mut Criterion) {
+    fn init(width: usize, height: usize) -> (Buffer, Buffer) {
+        let mut engine = Engine::new(width, height);
+
+        let root = engine.root_mut();
+        root.background = Some(Color::Red);
+        root.color = Some(Color::White);
+        root.padding = 1.into();
+        root.display = Display::Flex;
+        root.flex_direction = FlexDirection::Column;
+        root.align_items = AlignItems::Center.into();
+        root.justify_content = JustifyContent::Center.into();
+
+        engine.insert_with(Element::Span("👨🏿👨🏿 Hello"), |node| {
+            node.background = Some(Color::None);
+            node.border = Border::Bold;
+            node.font_weight = Some(FontWeight::Bold);
+        });
+
+        let abc = engine.insert_with(Element::Div(), |node| {
+            node.border = Border::Bold;
+        });
+
+        let a = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Green);
+        });
+
+        let b = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Yellow);
+        });
+
+        let c = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
+            node.background = Some(Color::Blue);
+        });
+
+        engine.insert_at(Element::Span("A"), At::Child(a));
+        engine.insert_at(Element::Span("B"), At::Child(b));
+        engine.insert_at(Element::Span("C"), At::Child(c));
+
+        engine.layout();
+        engine.paint();
+        dbg!(engine.back_buffer().size());
+        (engine.back_buffer().clone(), engine.front_buffer().clone())
+    }
+
+    let mut arena = Arena::new();
+    let (back, front) = init(100, 100);
+
+    dbg!(back.size());
+    dbg!(front.size());
+    c.bench_function("diff", |b| {
+        b.iter(|| {
+            while let Some(run) = diff(&back, &front).next() {
+                black_box(run);
+            }
+        });
+    });
+}
 
 #[derive(Clone, Debug, Deref, DerefMut)]
-struct Bench {
+struct Terminal {
     #[deref]
     #[deref_mut]
     rasterer: Rasterer,
     arena: Arena,
     buffer: Buffer,
 }
-impl Bench {
+impl Terminal {
     /// Create a fullscreen rasterizer with the given dimensions.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
@@ -43,7 +108,9 @@ impl Bench {
             self.buffer.resize(buffer.width, buffer.height);
             self.buffer.clear();
         }
-        self.rasterer.present(&self.buffer, buffer, &self.arena).unwrap();
+        self.rasterer
+            .present(&self.buffer, buffer, &self.arena)
+            .unwrap();
         self.buffer.copy_from_slice(buffer.as_ref());
     }
 }
@@ -241,7 +308,7 @@ fn terminal_rerender(c: &mut Criterion) {
     let mut buf2 = buf1.clone();
     buf2[(H / 2, W / 2)] = Cell::inline('!', style);
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -267,7 +334,7 @@ fn terminal_frame_fill_1(c: &mut Criterion) {
         buf2[(20, x)] = changed;
     }
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -289,7 +356,7 @@ fn terminal_frame_fill_40(c: &mut Criterion) {
     let buf_a = filled_buffer(W, H, 'A', style_a);
     let buf_b = filled_buffer(W, H, 'B', style_b);
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf_a);
     r.clear_output();
 
@@ -318,7 +385,7 @@ fn terminal_screen_transition(c: &mut Criterion) {
     let buf_a = filled_buffer(W, H, '#', style_a);
     let buf_b = filled_buffer(W, H, '.', style_b);
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf_a);
     r.clear_output();
 
@@ -344,7 +411,7 @@ fn terminal_full_ui(c: &mut Criterion) {
         buf2[(15, x)] = Cell::inline('!', update_style);
     }
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -372,7 +439,7 @@ fn terminal_strict_ui(c: &mut Criterion) {
         }
     }
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -392,7 +459,7 @@ fn terminal_virtual_list(c: &mut Criterion) {
     let buf1 = virtual_list_buffer(0);
     let buf2 = virtual_list_buffer(1); // Scroll by 1 item.
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -418,7 +485,7 @@ fn terminal_table(c: &mut Criterion) {
         buf2[(row, col)] = Cell::inline('!', upd);
     }
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -465,7 +532,7 @@ fn terminal_fps_stream(c: &mut Criterion) {
         }
     }
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buf1);
     r.clear_output();
 
@@ -491,7 +558,7 @@ fn first_render(c: &mut Criterion) {
 
     c.bench_function("first-render", |b| {
         b.iter(|| {
-            let mut r = Bench::new(W, H);
+            let mut r = Terminal::new(W, H);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });
@@ -503,7 +570,7 @@ fn identical_frame(c: &mut Criterion) {
     let style = Style::default().foreground(Color::Index(2));
     let buffer = filled_buffer(W, H, 'A', style);
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buffer);
     r.clear_output();
 
@@ -544,7 +611,7 @@ fn scroll_up(c: &mut Criterion) {
         .collect();
     let buf2 = Buffer::from_chars(W, H, &chars2);
 
-    let mut r = Bench::new(W, H).with_capabilities(caps);
+    let mut r = Terminal::new(W, H).with_capabilities(caps);
     r.render(&buf1);
     r.clear_output();
 
@@ -564,7 +631,7 @@ fn invalidate_rerender(c: &mut Criterion) {
     let style = Style::default().foreground(Color::Index(5));
     let buffer = filled_buffer(W, H, 'R', style);
 
-    let mut r = Bench::new(W, H);
+    let mut r = Terminal::new(W, H);
     r.render(&buffer);
     r.clear_output();
 
@@ -585,7 +652,7 @@ fn inline_first_render(c: &mut Criterion) {
 
     c.bench_function("inline-first-render", |b| {
         b.iter(|| {
-            let mut r = Bench::inline(W, 10);
+            let mut r = Terminal::inline(W, 10);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });
@@ -603,7 +670,7 @@ fn inline_rerender(c: &mut Criterion) {
         buf2[(5, x)] = changed;
     }
 
-    let mut r = Bench::inline(W, 10);
+    let mut r = Terminal::inline(W, 10);
     r.render(&buf1);
     r.clear_output();
 
@@ -626,7 +693,7 @@ fn rep_long_run(c: &mut Criterion) {
 
     c.bench_function("rep-long-run", |b| {
         b.iter(|| {
-            let mut r = Bench::new(200, 1).with_capabilities(caps);
+            let mut r = Terminal::new(200, 1).with_capabilities(caps);
             r.render(black_box(&buffer));
             black_box(r.as_bytes());
         });
@@ -651,12 +718,14 @@ criterion_group!(
 criterion_group!(
     sigil,
     first_render,
-    // identical_frame,
-    // scroll_up,
-    // invalidate_rerender,
-    // inline_first_render,
-    // inline_rerender,
-    // rep_long_run,
+    identical_frame,
+    scroll_up,
+    invalidate_rerender,
+    inline_first_render,
+    inline_rerender,
+    rep_long_run,
 );
 
-criterion_main!(terminal, sigil);
+criterion_group!(diffing, diff_buffers,);
+
+criterion_main!(diffing);

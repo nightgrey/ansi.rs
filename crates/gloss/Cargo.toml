@@ -8,12 +8,11 @@ utils = { workspace = true }
 ansi = { workspace = true }
 terminal = { workspace = true }
 number = { workspace = true }
-
 geometry = { workspace = true }
 tree = { workspace = true }
 maybe = { workspace = true }
 tagged = { workspace = true }
-taffy = {  workspace = true, features = ["default"] }
+taffy = { workspace = true }
 bitflags = { workspace = true }
 unicode-width = { workspace = true }
 unicode-segmentation = { workspace = true }
@@ -23,14 +22,12 @@ rustix = { workspace = true }
 bilge = { workspace = true }
 thiserror = { workspace = true }
 smallvec = { workspace = true }
+paste = { workspace = true }
+slotmap = { workspace = true }
+compact_str = { workspace = true }
+bon = { workspace = true }
+memchr = { workspace = true }
 
-paste = "1.0.15"
-slotmap = "1.1.1"
-compact_str = "0.9.0"
-derive_builder = "0.20.2"
-typed-builder = "0.23.2"
-bon = "3.9.1"
-memchr = "2.8.0"
 packed_struct = "0.10.1"
 fast-strip-ansi = "0.13.1"
 vt-push-parser = "0.13.1"
@@ -42,5 +39,5 @@ criterion = "0.8.2"
 name = "main"
 
 [[bench]]
-name = "main"
+name = "bench"
 harness = false

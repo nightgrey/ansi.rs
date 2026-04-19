@@ -1,8 +1,8 @@
-use crate::{Dirty, LayoutContext, Computation, Element, ElementId};
 use crate::measure;
-use crate::{Available, Length, Space, Layout};
-use geometry::{Rect};
-use tree::{At, Secondary, Tree,};
+use crate::{Available, Layout, Length, Space};
+use crate::{Computation, Dirty, Element, ElementId, LayoutContext};
+use geometry::Rect;
+use tree::{At, Secondary, Tree};
 
 #[derive(Debug)]
 pub struct Document<'a> {
@@ -25,27 +25,36 @@ impl<'a> Document<'a> {
             layouts,
         }
     }
-    
+
     /// Inserts a node as the last child of the root.
     pub fn insert(&mut self, node: Element<'a>) -> ElementId {
         self.insert_at(node, At::Child(self.root_id))
     }
 
     /// Inserts a node as the last child of the root.
-    pub fn insert_with(&mut self, node: Element<'a>, f: impl FnOnce(&mut Element<'a>)) -> ElementId {
+    pub fn insert_with(
+        &mut self,
+        node: Element<'a>,
+        f: impl FnOnce(&mut Element<'a>),
+    ) -> ElementId {
         let id = self.insert(node);
         f(&mut self.elements[id]);
         id
     }
-    
+
     /// Inserts a node at the given position.
     pub fn insert_at(&mut self, node: Element<'a>, at: At<ElementId>) -> ElementId {
         let id = self.elements.insert_at(node, at);
         self.layouts.insert(id, Computation::default());
         id
     }
-    
-    pub fn insert_at_with(&mut self, node: Element<'a>, at: At<ElementId>, f: impl FnOnce(&mut Element<'a>)) -> ElementId {
+
+    pub fn insert_at_with(
+        &mut self,
+        node: Element<'a>,
+        at: At<ElementId>,
+        f: impl FnOnce(&mut Element<'a>),
+    ) -> ElementId {
         let id = self.insert_at(node, at);
         f(&mut self.elements[id]);
         id
@@ -82,7 +91,7 @@ impl<'a> Document<'a> {
         &mut self.layouts[id]
     }
 
-    pub fn children(&self, id: ElementId) -> impl Iterator<Item =ElementId> + '_ {
+    pub fn children(&self, id: ElementId) -> impl Iterator<Item = ElementId> + '_ {
         self.elements.children(id)
     }
 
@@ -106,24 +115,19 @@ impl<'a> Document<'a> {
         self.computation(id).content_bounds()
     }
 
-
     pub fn set_layout(&mut self, id: ElementId, style: Layout) {
         self.elements[id].layout = style;
         self.mark(id, Dirty::all());
     }
 
     pub fn compute_layout(&mut self, space: impl Into<Space>) {
-
         let mut context = LayoutContext::new(
             &mut self.elements,
             &mut self.layouts,
             |known, available, id, style| measure(known, available, style),
         );
 
-        context.compute_layout(
-            self.root_id,
-            space.into()
-        );
+        context.compute_layout(self.root_id, space.into());
 
         self.clear_layout(self.root_id);
     }
@@ -133,7 +137,8 @@ impl<'a> Document<'a> {
             &mut self.elements,
             &mut self.layouts,
             |known, available, id, style| measure(known, available, style),
-        ).print_tree(self.root_id)
+        )
+        .print_tree(self.root_id)
     }
 
     fn clear_layout(&mut self, id: ElementId) {
@@ -146,7 +151,6 @@ impl<'a> Document<'a> {
             }
         }
     }
-
 }
 
 impl<'a> Default for Document<'a> {

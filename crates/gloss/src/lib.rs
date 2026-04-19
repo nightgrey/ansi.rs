@@ -30,4 +30,6 @@ mod engine;
 pub use engine::*;
 
 mod document;
+pub mod presenter;
+
 pub use document::*;

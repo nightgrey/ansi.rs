@@ -100,4 +100,11 @@ impl<'a> Engine<'a> {
             self.rasterer.resize(width, height);
         }
     }
+
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.rasterer.clear();
+        self.document.clear();
+        self.buffer.clear();
+    }
 }

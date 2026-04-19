@@ -1,5 +1,5 @@
 use crate::Resolve;
-use crate::{Bound, Location, Point, Rect};
+use crate::{Bound, Coordinate, Point, Rect};
 use std::iter::FusedIterator;
 
 pub trait Step<T> {
@@ -50,7 +50,7 @@ pub trait Step<T> {
         self.backward(start, count)
     }
 }
-impl<B: Bound<Point = P>, P: Location> Step<P> for B {
+impl<B: Bound<Point = P>, P: Coordinate> Step<P> for B {
     fn steps_between(&self, start: P, end: P) -> (usize, Option<usize>) {
         if start > end {
             return (0, None);
@@ -109,13 +109,13 @@ impl<B: Bound<Point = P>, P: Location> Step<P> for B {
 
 /// Double-ended iterator over steppable coordinates in bounded geometry.
 #[derive(Copy, Debug, Clone)]
-pub struct Steps<P: Location, B: Bound<Point = P> + Step<P>> {
+pub struct Steps<P: Coordinate, B: Bound<Point = P> + Step<P>> {
     pub(crate) bounds: B,
     pub(crate) front: P,
     pub(crate) back: P,
 }
 
-impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Steps<P, B> {
+impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Steps<P, B> {
     pub fn new(context: B) -> Self {
         let front = if context.is_empty() {
             context.max()
@@ -131,7 +131,7 @@ impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Steps<P, B>
         }
     }
 }
-impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator for Steps<P, B> {
+impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator for Steps<P, B> {
     type Item = P;
 
     #[inline]
@@ -243,7 +243,7 @@ impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator fo
         true
     }
 }
-impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> DoubleEndedIterator
+impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> DoubleEndedIterator
     for Steps<P, B>
 {
     #[inline]
@@ -283,13 +283,13 @@ impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> DoubleEnded
         None
     }
 }
-impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> ExactSizeIterator
+impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> ExactSizeIterator
     for Steps<P, B>
 where
     Self: Iterator,
 {
 }
-impl<P: Location, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> FusedIterator for Steps<P, B> where
+impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> FusedIterator for Steps<P, B> where
     Self: Iterator
 {
 }

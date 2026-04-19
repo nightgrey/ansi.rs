@@ -1,4 +1,4 @@
-use crate::{Bound, Location, Point, Rect};
+use crate::{Bound, Coordinate, Point, Rect};
 use number::Zero;
 pub trait Intersect<Rhs = Self> {
     type Output;

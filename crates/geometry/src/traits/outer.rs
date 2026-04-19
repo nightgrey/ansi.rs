@@ -1,4 +1,4 @@
-use crate::{Bound, Location};
+use crate::{Bound, Coordinate};
 use std::ops::Range;
 
 pub trait Outer: Bound {
@@ -35,7 +35,7 @@ pub trait Outer: Bound {
     }
 }
 
-impl<B: Bound<Point = P>, P: Location> Outer for B {
+impl<B: Bound<Point = P>, P: Coordinate> Outer for B {
     fn top_left(&self) -> Self::Point {
         self.min()
     }

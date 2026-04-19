@@ -5,22 +5,27 @@ use std::ops::Deref;
 ///
 /// - `x` => left to right (column)
 /// - `y` => top to bottom (row)
-pub trait Location: Copy + PartialEq + Eq + PartialOrd + Ord {
+pub trait Coordinate: Copy + PartialEq + Eq + PartialOrd + Ord {
     fn new(x: u16, y: u16) -> Self;
 
+    #[inline]
     fn x(&self) -> u16;
+    #[inline]
     fn y(&self) -> u16;
 
+    #[inline]
     fn set_x(&mut self, x: u16);
+    #[inline]
     fn set_y(&mut self, y: u16);
 
+    #[inline]
     fn set(&mut self, x: u16, y: u16) {
         self.set_x(x);
         self.set_y(y);
     }
 }
 
-impl Location for Point {
+impl Coordinate for Point {
     fn new(x: u16, y: u16) -> Self {
         Point::new(x, y)
     }
@@ -38,7 +43,7 @@ impl Location for Point {
     }
 }
 
-impl Location for PointLike {
+impl Coordinate for PointLike {
     fn new(x: u16, y: u16) -> Self {
         (x, y)
     }
@@ -56,7 +61,7 @@ impl Location for PointLike {
     }
 }
 
-impl Location for Position {
+impl Coordinate for Position {
     fn new(x: u16, y: u16) -> Self {
         Position::new(y as usize, x as usize)
     }
@@ -74,7 +79,7 @@ impl Location for Position {
     }
 }
 
-impl Location for PositionLike {
+impl Coordinate for PositionLike {
     fn new(x: u16, y: u16) -> Self {
         (y as usize, x as usize)
     }

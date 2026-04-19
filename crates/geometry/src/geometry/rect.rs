@@ -1,4 +1,4 @@
-use crate::{Bound, Edges, Location, Point, Resolve, Size, Step, Steps};
+use crate::{Bound, Coordinate, Edges, Point, Resolve, Size, Step, Steps};
 use number::{Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, Sub};

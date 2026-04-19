@@ -1,9 +1,9 @@
-use crate::{Location, Point, Rect, Resolve, Size, Steps};
+use crate::{Coordinate, Point, Rect, Resolve, Size, Steps};
 
 /// A geometry with an axis-aligned min/max bounding rectangle in half-open
 /// `[min, max)` coordinates.
 pub trait Bound {
-    type Point: Location;
+    type Point: Coordinate;
 
     fn min_x(&self) -> u16;
     fn min_y(&self) -> u16;
@@ -11,11 +11,11 @@ pub trait Bound {
     fn max_y(&self) -> u16;
 
     fn min(&self) -> Self::Point {
-        Location::new(self.min_x(), self.min_y())
+        Coordinate::new(self.min_x(), self.min_y())
     }
 
     fn max(&self) -> Self::Point {
-        Location::new(self.max_x(), self.max_y())
+        Coordinate::new(self.max_x(), self.max_y())
     }
 
     #[inline]
@@ -59,7 +59,7 @@ pub trait Bound {
     }
 }
 
-impl<P: Location> Bound for Rect<P> {
+impl<P: Coordinate> Bound for Rect<P> {
     type Point = P;
 
     fn min_x(&self) -> u16 {
@@ -87,20 +87,20 @@ impl<P: Location> Bound for Rect<P> {
     }
 }
 
-impl<P: Location> Bound for P {
+impl<P: Coordinate> Bound for P {
     type Point = Self;
 
     fn min_x(&self) -> u16 {
-        Location::x(self)
+        Coordinate::x(self)
     }
     fn min_y(&self) -> u16 {
-        Location::y(self)
+        Coordinate::y(self)
     }
     fn max_x(&self) -> u16 {
-        Location::x(self) + 1
+        Coordinate::x(self) + 1
     }
     fn max_y(&self) -> u16 {
-        Location::y(self) + 1
+        Coordinate::y(self) + 1
     }
 }
 

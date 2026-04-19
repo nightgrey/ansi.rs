@@ -10,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 ///
 /// The node dereferences to `V` via [`Deref`] / [`DerefMut`], so you can
 /// access the inner value directly through `*node`.
-#[derive(Debug, Deref, DerefMut, AsRef, AsMut)]
+#[derive(Debug, Deref, DerefMut, AsRef, AsMut, Clone)]
 pub struct Node<K: Id, V> {
     pub(crate) parent: K,
     pub(crate) first_child: K,

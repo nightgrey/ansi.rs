@@ -101,6 +101,20 @@ impl<K: Id, V> Secondary<K, V> {
     }
 }
 
+impl<K: Id, V> Clone for Secondary<K, V>
+where
+    V: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.inner.clone_from(&source.inner);
+    }
+}
 impl<K: Id, V> Default for Secondary<K, V> {
     fn default() -> Self {
         Self::new()

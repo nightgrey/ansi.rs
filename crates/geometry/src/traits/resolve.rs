@@ -1,4 +1,4 @@
-use crate::{Bound, Column, Location, Point, PointLike, Position, PositionLike, Row};
+use crate::{Bound, Column, Coordinate, Point, PointLike, Position, PositionLike, Row};
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 
 /// Resolve a context-dependent value.
@@ -88,27 +88,27 @@ where
 }
 
 // ── Point -> * ────────────────────────────────────────────────────────
-impl<B: Bound, P: Location> Resolve<P, usize> for B {
+impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
     fn resolve(&self, value: P) -> usize {
         (value.y() - self.min_y()) as usize * self.width() as usize
             + (value.x() - self.min_x()) as usize
     }
 }
 
-impl<B: Bound, P: Location> Resolve<P, Row> for B {
+impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
     fn resolve(&self, value: P) -> Row {
         Row((value.y() - self.min_y()) as usize)
     }
 }
 
-impl<B: Bound, P: Location> Resolve<P, Column> for B {
+impl<B: Bound, P: Coordinate> Resolve<P, Column> for B {
     fn resolve(&self, value: P) -> Column {
         Column((value.x() - self.min_x()) as usize)
     }
 }
 
 // ── Row -> * ──────────────────────────────────────────────────────────
-impl<B: Bound, P: Location> Resolve<Row, P> for B {
+impl<B: Bound, P: Coordinate> Resolve<Row, P> for B {
     fn resolve(&self, value: Row) -> P {
         P::new(self.min_x(), value.into_inner() as u16)
     }
@@ -139,7 +139,7 @@ impl<B: Bound> Resolve<Row, Range<usize>> for B {
 }
 
 // ── Column -> * ───────────────────────────────────────────────────────
-impl<B: Bound, P: Location> Resolve<Column, P> for B {
+impl<B: Bound, P: Coordinate> Resolve<Column, P> for B {
     fn resolve(&self, value: Column) -> P {
         P::new(value.into_inner() as u16, 0)
     }
@@ -158,7 +158,7 @@ impl<B: Bound> Resolve<Column, Row> for B {
 }
 
 // ── Index -> * ────────────────────────────────────────────────────────
-impl<B: Bound, P: Location> Resolve<usize, P> for B {
+impl<B: Bound, P: Coordinate> Resolve<usize, P> for B {
     fn resolve(&self, value: usize) -> P {
         let w = self.width() as usize;
 

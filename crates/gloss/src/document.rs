@@ -1,10 +1,10 @@
-use crate::measure;
 use crate::{Available, Layout, Length, Space};
 use crate::{Computation, Dirty, Element, ElementId, LayoutContext};
+use crate::{document, measure};
 use geometry::Rect;
 use tree::{At, Secondary, Tree};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Document<'a> {
     pub root_id: ElementId,
     elements: Tree<ElementId, Element<'a>>,
@@ -13,15 +13,15 @@ pub struct Document<'a> {
 
 impl<'a> Document<'a> {
     pub fn new() -> Self {
-        let mut inner = Tree::default();
+        let mut elements = Tree::default();
         let mut layouts = Secondary::default();
 
-        let root_id = inner.insert(Element::Div());
+        let root_id = elements.insert(Element::Div());
         layouts.insert(root_id, Computation::default());
 
         Self {
             root_id,
-            elements: inner,
+            elements,
             layouts,
         }
     }
@@ -151,6 +151,14 @@ impl<'a> Document<'a> {
             }
         }
     }
+
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.layouts.clear();
+
+        self.root_id = self.elements.insert(Element::Div());
+        self.layouts.insert(self.root_id, Computation::default());
+    }
 }
 
 impl<'a> Default for Document<'a> {
@@ -158,4 +166,3 @@ impl<'a> Default for Document<'a> {
         Self::new()
     }
 }
-

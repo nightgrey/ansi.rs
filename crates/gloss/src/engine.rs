@@ -55,12 +55,12 @@ impl<'a> Engine<'a> {
     }
 
     pub fn paint(&mut self) {
-        let buffer = &mut self.buffer.back;
+        let back = &mut self.buffer.back;
         let arena = &mut self.arena;
         let document = &self.document;
 
-        buffer.clear();
-        BufferDrawingContext::new(buffer, arena).paint(document);
+        back.clear();
+        BufferDrawingContext::new(back, arena).paint(document);
     }
 
     pub fn layout_and_paint(&mut self) {
@@ -73,7 +73,7 @@ impl<'a> Engine<'a> {
         let front = &mut self.buffer.front;
         let arena = &mut self.arena;
 
-        self.rasterer.present(back, front, arena)?;
+        self.rasterer.present(front, back, arena)?;
         self.rasterer.flush(w)
     }
 

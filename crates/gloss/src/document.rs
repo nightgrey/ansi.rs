@@ -1,5 +1,5 @@
 use crate::{Available, Layout, Length, Space};
-use crate::{Computation, Dirty, Element, ElementId, LayoutContext};
+use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
 use crate::{document, measure};
 use geometry::Rect;
 use tree::{At, Secondary, Tree};
@@ -8,7 +8,7 @@ use tree::{At, Secondary, Tree};
 pub struct Document<'a> {
     pub root_id: ElementId,
     elements: Tree<ElementId, Element<'a>>,
-    layouts: Secondary<ElementId, Computation>,
+    layouts: Secondary<ElementId, ComputedLayout>,
 }
 
 impl<'a> Document<'a> {
@@ -17,13 +17,31 @@ impl<'a> Document<'a> {
         let mut layouts = Secondary::default();
 
         let root_id = elements.insert(Element::Div());
-        layouts.insert(root_id, Computation::default());
+        layouts.insert(root_id, ComputedLayout::default());
 
         Self {
             root_id,
             elements,
             layouts,
         }
+    }
+
+    pub fn root(&self) -> &Element<'a> {
+        &self.elements[self.root_id]
+    }
+
+    pub fn root_mut(&mut self) -> &mut Element<'a> {
+        self.mark(self.root_id, Dirty::all());
+        &mut self.elements[self.root_id]
+    }
+
+    pub fn element(&self, id: ElementId) -> &Element<'a> {
+        &self.elements[id]
+    }
+
+    pub fn element_mut(&mut self, id: ElementId) -> &mut Element<'a> {
+        self.mark(id, Dirty::all());
+        &mut self.elements[id]
     }
 
     /// Inserts a node as the last child of the root.
@@ -45,7 +63,7 @@ impl<'a> Document<'a> {
     /// Inserts a node at the given position.
     pub fn insert_at(&mut self, node: Element<'a>, at: At<ElementId>) -> ElementId {
         let id = self.elements.insert_at(node, at);
-        self.layouts.insert(id, Computation::default());
+        self.layouts.insert(id, ComputedLayout::default());
         id
     }
 
@@ -65,54 +83,36 @@ impl<'a> Document<'a> {
         self.mark(id, Dirty::all());
     }
 
-    pub fn root(&self) -> &Element<'a> {
-        &self.elements[self.root_id]
-    }
-
-    pub fn root_mut(&mut self) -> &mut Element<'a> {
-        self.mark(self.root_id, Dirty::all());
-        &mut self.elements[self.root_id]
-    }
-
-    pub fn element(&self, id: ElementId) -> &Element<'a> {
-        &self.elements[id]
-    }
-
-    pub fn element_mut(&mut self, id: ElementId) -> &mut Element<'a> {
-        self.mark(id, Dirty::all());
-        &mut self.elements[id]
-    }
-
-    pub fn computation(&self, id: ElementId) -> &Computation {
-        &self.layouts[id]
-    }
-
-    pub fn computation_mut(&mut self, id: ElementId) -> &mut Computation {
-        &mut self.layouts[id]
-    }
-
     pub fn children(&self, id: ElementId) -> impl Iterator<Item = ElementId> + '_ {
         self.elements.children(id)
     }
 
     pub fn mark(&mut self, id: ElementId, flags: Dirty) {
-        self.computation_mut(id).mark(flags);
+        self.computed_layout_mut(id).mark(flags);
     }
 
     pub fn unmark(&mut self, id: ElementId, flags: Dirty) {
-        self.computation_mut(id).unmark(flags);
+        self.computed_layout_mut(id).unmark(flags);
+    }
+
+    pub fn computed_layout(&self, id: ElementId) -> &ComputedLayout {
+        &self.layouts[id]
+    }
+
+    pub fn computed_layout_mut(&mut self, id: ElementId) -> &mut ComputedLayout {
+        &mut self.layouts[id]
     }
 
     pub fn is_dirty(&self, id: ElementId) -> bool {
-        self.computation(id).is_dirty()
+        self.computed_layout(id).is_dirty()
     }
 
     pub fn border_bounds(&self, id: ElementId) -> Rect {
-        self.computation(id).border_bounds()
+        self.computed_layout(id).border_bounds()
     }
 
     pub fn content_bounds(&self, id: ElementId) -> Rect {
-        self.computation(id).content_bounds()
+        self.computed_layout(id).content_bounds()
     }
 
     pub fn set_layout(&mut self, id: ElementId, style: Layout) {
@@ -142,10 +142,7 @@ impl<'a> Document<'a> {
     }
 
     fn clear_layout(&mut self, id: ElementId) {
-        let ids: Vec<ElementId> = std::iter::once(id)
-            .chain(self.elements.descendants(id))
-            .collect();
-        for id in ids {
+        for id in std::iter::once(id).chain(self.elements.descendants(id)) {
             if let Some(layout) = self.layouts.get_mut(id) {
                 layout.unmark(Dirty::Computation | Dirty::Measure);
             }
@@ -157,7 +154,7 @@ impl<'a> Document<'a> {
         self.layouts.clear();
 
         self.root_id = self.elements.insert(Element::Div());
-        self.layouts.insert(self.root_id, Computation::default());
+        self.layouts.insert(self.root_id, ComputedLayout::default());
     }
 }
 

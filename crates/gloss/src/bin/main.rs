@@ -5,7 +5,7 @@ use std::io::{self, stdout};
 use tree::At;
 
 fn main() -> io::Result<()> {
-    let mut ui = Engine::new(1200, 20);
+    let mut ui = Engine::new(80, 24);
 
     chess_board(&mut ui);
 

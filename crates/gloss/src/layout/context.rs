@@ -1,4 +1,6 @@
-use crate::{Computation, Display, Element, ElementId, ElementKind, FlexDirection, Layout, Space};
+use crate::{
+    ComputedLayout, Display, Element, ElementId, ElementKind, FlexDirection, Layout, Space,
+};
 use compact_str::CompactString;
 use slotmap::Key;
 use taffy::{BlockContext, LayoutInput, LayoutOutput, TraversePartialTree};
@@ -9,14 +11,14 @@ use tree::{Id, Secondary, Tree};
 #[derive(Debug)]
 pub struct LayoutContext<'d, 'n, M: MeasureFunction<'n>> {
     pub tree: &'d mut Tree<ElementId, Element<'n>>,
-    pub layouts: &'d mut Secondary<ElementId, Computation>,
+    pub layouts: &'d mut Secondary<ElementId, ComputedLayout>,
     pub measure_function: M,
 }
 
 impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
     pub fn new(
         tree: &'d mut Tree<ElementId, Element<'n>>,
-        layouts: &'d mut Secondary<ElementId, Computation>,
+        layouts: &'d mut Secondary<ElementId, ComputedLayout>,
         measure_function: M,
     ) -> Self {
         Self {
@@ -51,12 +53,12 @@ impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
     }
 
     #[inline]
-    fn layout_node(&self, node_id: taffy::NodeId) -> &Computation {
+    fn layout_node(&self, node_id: taffy::NodeId) -> &ComputedLayout {
         &self.layouts[Self::tree_id(node_id)]
     }
 
     #[inline]
-    fn layout_node_mut(&mut self, node_id: taffy::NodeId) -> &mut Computation {
+    fn layout_node_mut(&mut self, node_id: taffy::NodeId) -> &mut ComputedLayout {
         &mut self.layouts[Self::tree_id(node_id)]
     }
 

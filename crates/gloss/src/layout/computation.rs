@@ -11,14 +11,14 @@ bitflags! {
 }
 
 #[derive(Debug, Clone)]
-pub struct Computation {
+pub struct ComputedLayout {
     pub(crate) cache: taffy::Cache,
     pub(crate) unrounded_layout: taffy::Layout,
     pub(crate) final_layout: taffy::Layout,
     pub(crate) dirty: Dirty,
 }
 
-impl Computation {
+impl ComputedLayout {
     pub fn border(&self) -> Edges {
         Edges::new(
             self.final_layout.border.left.max(0.0) as u16,
@@ -80,7 +80,7 @@ impl Computation {
     }
 }
 
-impl Bound for Computation {
+impl Bound for ComputedLayout {
     type Point = Point;
 
     fn min_x(&self) -> u16 {
@@ -100,7 +100,7 @@ impl Bound for Computation {
     }
 }
 
-impl Default for Computation {
+impl Default for ComputedLayout {
     fn default() -> Self {
         Self {
             cache: taffy::Cache::default(),

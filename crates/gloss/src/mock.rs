@@ -54,6 +54,8 @@ pub fn chess_board(engine: &mut Engine) {
             engine.insert_at_with(Element::Span(piece), At::Child(row), |node| {
                 node.background = Some(bg);
                 node.color = Some(fg);
+                node.padding = (1, 2).into();
+                node.font_weight = Some(FontWeight::Bold);
             });
         }
     }

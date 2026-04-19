@@ -114,19 +114,19 @@ impl Escape for Background {
             Magenta => w.write_all(b"45"),
             Cyan => w.write_all(b"46"),
             White => w.write_all(b"47"),
-            BrightBlack => w.write_all(b"90"),
-            BrightRed => w.write_all(b"91"),
-            BrightGreen => w.write_all(b"92"),
-            BrightYellow => w.write_all(b"93"),
-            BrightBlue => w.write_all(b"94"),
-            BrightMagenta => w.write_all(b"95"),
-            BrightCyan => w.write_all(b"96"),
-            BrightWhite => w.write_all(b"97"),
+            BrightBlack => w.write_all(b"100"),
+            BrightRed => w.write_all(b"101"),
+            BrightGreen => w.write_all(b"102"),
+            BrightYellow => w.write_all(b"103"),
+            BrightBlue => w.write_all(b"104"),
+            BrightMagenta => w.write_all(b"105"),
+            BrightCyan => w.write_all(b"106"),
+            BrightWhite => w.write_all(b"107"),
             Index(index) => {
-                write!(w, "38;5;{}", index)
+                write!(w, "48;5;{}", index)
             }
             Rgb(r, g, b) => {
-                write!(w, "38;2;{};{};{}", r, g, b)
+                write!(w, "48;2;{};{};{}", r, g, b)
             }
         }
     }

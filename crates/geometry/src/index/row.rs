@@ -1,5 +1,5 @@
-use std::ops::{Add, Div, Mul, Rem, Sub};
 use derive_more::{Deref, DerefMut};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 use synonym::Synonym;
 
 /// A row in index coordinates.
@@ -8,7 +8,7 @@ use synonym::Synonym;
 #[repr(transparent)]
 pub struct Row(pub usize);
 
-impl const Row {
+const impl Row {
     pub fn into_inner(self) -> usize {
         self.0
     }

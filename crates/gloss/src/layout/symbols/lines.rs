@@ -378,7 +378,7 @@ impl LineSymbols {
 
 impl LineSymbols {
     pub const fn top(&self) -> char {
-       self.horizontal.inner
+        self.horizontal.inner
     }
 
     pub const fn right(&self) -> char {
@@ -588,8 +588,12 @@ impl LineStyle {
             LineStyle::DashedQuadrupleBold => LineSymbols::DASHED_QUADRUPLE_BOLD,
             LineStyle::LightHorizontalBoldVertical => LineSymbols::LIGHT_HORIZONTAL_BOLD_VERTICAL,
             LineStyle::BoldHorizontalLightVertical => LineSymbols::BOLD_HORIZONTAL_LIGHT_VERTICAL,
-            LineStyle::SingleHorizontalDoubleVertical => LineSymbols::SINGLE_HORIZONTAL_DOUBLE_VERTICAL,
-            LineStyle::DoubleHorizontalSingleVertical => LineSymbols::DOUBLE_HORIZONTAL_SINGLE_VERTICAL,
+            LineStyle::SingleHorizontalDoubleVertical => {
+                LineSymbols::SINGLE_HORIZONTAL_DOUBLE_VERTICAL
+            }
+            LineStyle::DoubleHorizontalSingleVertical => {
+                LineSymbols::DOUBLE_HORIZONTAL_SINGLE_VERTICAL
+            }
         }
     }
 }

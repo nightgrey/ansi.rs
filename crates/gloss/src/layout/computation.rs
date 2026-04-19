@@ -106,7 +106,7 @@ impl Default for Computation {
             cache: taffy::Cache::default(),
             unrounded_layout: taffy::Layout::default(),
             final_layout: taffy::Layout::default(),
-            dirty: Dirty::all()
+            dirty: Dirty::all(),
         }
     }
 }

@@ -1,7 +1,7 @@
+use crate::{Bound, Edges, Location, Point, Resolve, Size, Step, Steps};
+use number::{Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, Sub};
-use number::{Ops , SaturatingOps, Zero, SaturatingAdd, SaturatingSub};
-use crate::{Location, Bound, Edges, Point, Resolve, Size, Step, Steps};
 
 /// An axis-aligned rectangle for screen-space coordinates.
 ///
@@ -33,10 +33,9 @@ impl<T> Rect<T> {
     pub const fn bounds(min: T, max: T) -> Self {
         Self { min, max }
     }
-
 }
 
-impl const Rect {
+const impl Rect {
     pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
         Self {
             min: Point::new(x, y),
@@ -99,7 +98,6 @@ impl<T: SaturatingOps> SaturatingSub<Rect<T>> for Rect<T> {
     }
 }
 
-
 impl<T: Ops + Copy> Add<Point<T>> for Rect<Point<T>> {
     type Output = Self;
 
@@ -156,6 +154,9 @@ impl<T: Ops + Copy> Sub<Edges<T>> for Rect<Point<T>> {
 
 impl<T: Debug> Debug for Rect<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Rect").field(&self.min).field(&self.max).finish()
+        f.debug_tuple("Rect")
+            .field(&self.min)
+            .field(&self.max)
+            .finish()
     }
 }

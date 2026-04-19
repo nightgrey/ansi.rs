@@ -4,7 +4,7 @@ use crate::{Location, Point, Rect, Resolve, Size, Steps};
 /// `[min, max)` coordinates.
 pub trait Bound {
     type Point: Location;
-  
+
     fn min_x(&self) -> u16;
     fn min_y(&self) -> u16;
     fn max_x(&self) -> u16;
@@ -17,7 +17,7 @@ pub trait Bound {
     fn max(&self) -> Self::Point {
         Location::new(self.max_x(), self.max_y())
     }
- 
+
     #[inline]
     fn width(&self) -> u16 {
         self.max_x().saturating_sub(self.min_x())
@@ -51,7 +51,9 @@ pub trait Bound {
         }
     }
 
-    fn steps(self) -> Steps<Self::Point, Self> where Self: Resolve<Self::Point, usize> + Resolve<usize, Self::Point> + Sized
+    fn steps(self) -> Steps<Self::Point, Self>
+    where
+        Self: Resolve<Self::Point, usize> + Resolve<usize, Self::Point> + Sized,
     {
         Steps::new(self)
     }
@@ -60,13 +62,25 @@ pub trait Bound {
 impl<P: Location> Bound for Rect<P> {
     type Point = P;
 
-    fn min_x(&self) -> u16 { self.min.x() }
-    fn min_y(&self) -> u16 { self.min.y() }
-    fn max_x(&self) -> u16 { self.max.x() }
-    fn max_y(&self) -> u16 { self.max.y() }
+    fn min_x(&self) -> u16 {
+        self.min.x()
+    }
+    fn min_y(&self) -> u16 {
+        self.min.y()
+    }
+    fn max_x(&self) -> u16 {
+        self.max.x()
+    }
+    fn max_y(&self) -> u16 {
+        self.max.y()
+    }
 
-    fn min(&self) -> Self::Point { self.min }
-    fn max(&self) -> Self::Point { self.max }
+    fn min(&self) -> Self::Point {
+        self.min
+    }
+    fn max(&self) -> Self::Point {
+        self.max
+    }
 
     fn bounds(&self) -> Rect<Self::Point> {
         *self
@@ -76,20 +90,40 @@ impl<P: Location> Bound for Rect<P> {
 impl<P: Location> Bound for P {
     type Point = Self;
 
-    fn min_x(&self) -> u16 { Location::x(self) }
-    fn min_y(&self) -> u16 { Location::y(self) }
-    fn max_x(&self) -> u16 { Location::x(self) + 1 }
-    fn max_y(&self) -> u16 { Location::y(self) + 1 }
+    fn min_x(&self) -> u16 {
+        Location::x(self)
+    }
+    fn min_y(&self) -> u16 {
+        Location::y(self)
+    }
+    fn max_x(&self) -> u16 {
+        Location::x(self) + 1
+    }
+    fn max_y(&self) -> u16 {
+        Location::y(self) + 1
+    }
 }
 
 impl Bound for Size {
     type Point = Point;
 
-    fn min_x(&self) -> u16 { 0 }
-    fn min_y(&self) -> u16 { 0 }
-    fn max_x(&self) -> u16 { self.width }
-    fn max_y(&self) -> u16 { self.height }
+    fn min_x(&self) -> u16 {
+        0
+    }
+    fn min_y(&self) -> u16 {
+        0
+    }
+    fn max_x(&self) -> u16 {
+        self.width
+    }
+    fn max_y(&self) -> u16 {
+        self.height
+    }
 
-    fn width(&self) -> u16 { self.width }
-    fn height(&self) -> u16 { self.height }
+    fn width(&self) -> u16 {
+        self.width
+    }
+    fn height(&self) -> u16 {
+        self.height
+    }
 }

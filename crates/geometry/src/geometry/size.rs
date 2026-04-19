@@ -1,5 +1,5 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
 use crate::{Bound, Rect};
+use std::ops::{Add, AddAssign, Div, DivAssign, Sub};
 
 /// A 2D size representing width and height.
 ///
@@ -36,13 +36,15 @@ impl<T> Size<T> {
     pub const fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
-    
+
     /// Create a size with equal width and height.
-    pub const fn both(value: T) -> Self where T: Copy {
+    pub const fn both(value: T) -> Self
+    where
+        T: Copy,
+    {
         Self::new(value, value)
     }
 }
-
 
 impl<T: Add<T, Output = T>> Add<Size<T>> for Size<T> {
     type Output = Size<T>;

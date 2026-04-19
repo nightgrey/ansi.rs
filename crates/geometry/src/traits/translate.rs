@@ -1,5 +1,5 @@
-use std::ops::Add;
 use crate::{Point, Rect};
+use std::ops::Add;
 
 pub trait Translate<T = Self> {
     type Output;

@@ -1,6 +1,6 @@
-use std::io::{self};
-use ansi::{Color};
+use ansi::Color;
 use gloss::*;
+use std::io::{self};
 use tree::At;
 
 fn main() -> io::Result<()> {
@@ -11,14 +11,11 @@ fn main() -> io::Result<()> {
     root.color = Some(Color::White);
     root.padding = 1.into();
 
-    ui.insert_with(
-        Element::Span("👨🏿👨🏿 Hello"),
-        |node| {
-            node.background = Some(Color::None);
-            node.border = Border::Bold;
-            node.font_weight = Some(FontWeight::Bold);
-        },
-    );
+    ui.insert_with(Element::Span("👨🏿👨🏿 Hello"), |node| {
+        node.background = Some(Color::None);
+        node.border = Border::Bold;
+        node.font_weight = Some(FontWeight::Bold);
+    });
 
     let abc = ui.insert_with(Element::Div(), |node| {
         node.border = Border::Bold;
@@ -41,7 +38,6 @@ fn main() -> io::Result<()> {
     ui.insert_at(Element::Span("C"), At::Child(c));
 
     ui.render(&mut io::stdout())?;
-
 
     Ok(())
 }

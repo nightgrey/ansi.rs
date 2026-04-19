@@ -100,11 +100,11 @@
 //! - OSC queries for capabilities
 //! - Must be bounded with timeouts
 
-use std::env;
-use std::str::FromStr;
-use bon::{bon, Builder};
+use bon::{Builder, bon};
 use compact_str::CompactString;
 use derive_more::Display;
+use std::env;
+use std::str::FromStr;
 
 /// Known modern terminal programs that support advanced features.
 const MODERN_TERMINALS: &[&str] = &[
@@ -137,7 +137,6 @@ const KITTY_KEYBOARD_TERMINALS: &[&str] = &[
 /// NOTE: WezTerm is intentionally excluded as a safety fallback due to observed
 /// mux/terminal instability around DEC ?2026 h/l in real-world setups.
 const SYNC_OUTPUT_TERMINALS: &[&str] = &["Alacritty", "Ghostty", "kitty", "Contour"];
-
 
 /// Terminal capability model.
 ///
@@ -632,9 +631,9 @@ impl Capabilities {
         let true_color = !inputs.no_color
             && !is_dumb
             && (colorterm_lower.contains("truecolor")
-            || colorterm_lower.contains("24bit")
-            || is_modern_terminal
-            || is_kitty);
+                || colorterm_lower.contains("24bit")
+                || is_modern_terminal
+                || is_kitty);
 
         // 256-color detection
         let colors_256 = !inputs.no_color
@@ -649,10 +648,10 @@ impl Capabilities {
         let sync_output = !is_dumb
             && !is_wezterm
             && (is_kitty
-            || SYNC_OUTPUT_TERMINALS.iter().any(|t| {
-            let t_lower = t.to_ascii_lowercase();
-            term_program_lower.contains(&t_lower)
-        }));
+                || SYNC_OUTPUT_TERMINALS.iter().any(|t| {
+                    let t_lower = t.to_ascii_lowercase();
+                    term_program_lower.contains(&t_lower)
+                }));
 
         // OSC 8 hyperlinks detection
         let hyperlinks = !inputs.no_color && !is_dumb && is_modern_terminal;
@@ -663,9 +662,9 @@ impl Capabilities {
         // Kitty keyboard protocol (kitty + other compatible terminals)
         let kitty_keyboard = is_kitty
             || KITTY_KEYBOARD_TERMINALS.iter().any(|t| {
-            let t_lower = t.to_ascii_lowercase();
-            term_program_lower.contains(&t_lower) || term_lower.contains(&t_lower)
-        });
+                let t_lower = t.to_ascii_lowercase();
+                term_program_lower.contains(&t_lower) || term_lower.contains(&t_lower)
+            });
 
         // Focus events (available in most modern terminals)
         let focus_events = !is_dumb && (is_modern_terminal || is_kitty);
@@ -837,7 +836,6 @@ impl Default for Capabilities {
         Self::basic()
     }
 }
-
 
 #[derive(Debug, Clone)]
 struct Inputs {
@@ -1119,10 +1117,7 @@ mod tests {
         let caps = Capabilities::from_inputs(&env);
         assert!(!caps.true_color, "NO_COLOR must disable true color");
         assert!(!caps.colors_256, "NO_COLOR must disable 256-color");
-        assert!(
-            !caps.hyperlinks,
-            "NO_COLOR must disable OSC 8 hyperlinks"
-        );
+        assert!(!caps.hyperlinks, "NO_COLOR must disable OSC 8 hyperlinks");
     }
 
     // --- Mux-aware policy tests ---
@@ -1859,10 +1854,7 @@ mod tests {
     #[test]
     fn profile_enum_from_str() {
         use std::str::FromStr;
-        assert_eq!(
-            Profile::from_str("modern"),
-            Ok(Profile::Modern)
-        );
+        assert_eq!(Profile::from_str("modern"), Ok(Profile::Modern));
         assert_eq!(
             Profile::from_str("xterm-256color"),
             Ok(Profile::Xterm256Color)
@@ -2202,7 +2194,6 @@ mod tests {
             }
         }
     }
-
 }
 
 // ==========================================================================

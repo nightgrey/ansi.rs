@@ -131,12 +131,12 @@ impl Attribute {
         if self.is_none() {
             return Cow::Borrowed("");
         }
-        SGR_UNSET.iter()
+        SGR_UNSET
+            .iter()
             .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
             .intersperse(SEP)
             .collect()
     }
-
 
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
@@ -147,8 +147,8 @@ impl Attribute {
     }
 
     pub fn iter_sgr_unset(self) -> impl Iterator<Item = (&'static str, Attribute)> {
-
-        SGR_UNSET.iter()
+        SGR_UNSET
+            .iter()
             .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
     }
 

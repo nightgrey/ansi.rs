@@ -11,8 +11,7 @@ macro_rules! separate_by {
                 needs_separator = true;
 
                 $action
-
-            }
+            };
         }
-    }
+    };
 }

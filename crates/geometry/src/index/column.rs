@@ -1,5 +1,5 @@
-use std::ops::{Add, Div, Mul, Rem, RemAssign, Sub, SubAssign};
 use derive_more::{Deref, DerefMut};
+use std::ops::{Add, Div, Mul, Rem, RemAssign, Sub, SubAssign};
 use synonym::Synonym;
 
 /// A column in index coordinates.
@@ -8,7 +8,7 @@ use synonym::Synonym;
 #[repr(transparent)]
 pub struct Column(pub usize);
 
-impl const Column {
+const impl Column {
     pub fn into_inner(self) -> usize {
         self.0
     }

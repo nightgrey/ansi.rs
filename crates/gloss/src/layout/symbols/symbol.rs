@@ -1,5 +1,5 @@
-use std::ops::Deref;
 use derive_more::{AsMut, AsRef, Deref};
+use std::ops::Deref;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Debug, Clone, Copy, Deref, AsRef, AsMut, Hash)]
@@ -18,7 +18,10 @@ impl<T> Symbol<T> {
     }
 
     #[inline]
-    pub const fn symbol(&self) -> T where T: Copy {
+    pub const fn symbol(&self) -> T
+    where
+        T: Copy,
+    {
         self.inner
     }
 
@@ -29,10 +32,19 @@ impl<T> Symbol<T> {
 }
 
 impl Symbol<char> {
-    pub const MIN: Self = Self { inner: char::MIN, width: 0 };
-    pub const SPACE: Self = Self { inner: ' ', width: 1 };
+    pub const MIN: Self = Self {
+        inner: char::MIN,
+        width: 0,
+    };
+    pub const SPACE: Self = Self {
+        inner: ' ',
+        width: 1,
+    };
     pub fn measured(inner: char) -> Self {
-        Self { inner, width: inner.width().unwrap_or(1) }
+        Self {
+            inner,
+            width: inner.width().unwrap_or(1),
+        }
     }
 }
 impl From<Symbol<char>> for char {

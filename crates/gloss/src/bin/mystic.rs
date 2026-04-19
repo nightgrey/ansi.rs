@@ -1,6 +1,6 @@
-use std::io::{self, Write as _};
-use ansi::{Color};
+use ansi::Color;
 use gloss::*;
+use std::io::{self, Write as _};
 
 fn main() -> io::Result<()> {
     let mut engine = Engine::new(40, 10);
@@ -15,22 +15,15 @@ fn main() -> io::Result<()> {
     root.border = Border::Bold;
     root.color = Some(Color::White);
 
-    engine.insert_with(
-        Element::Span("~ 肏 ~"),
-        |node| {
-            node.font_weight = Some(FontWeight::Bold);
-        },
-    );
+    engine.insert_with(Element::Span("~ 肏 ~"), |node| {
+        node.font_weight = Some(FontWeight::Bold);
+    });
 
-
-    engine.insert_with(
-        Element::Span("Mystical"),
-        |node| {
-            node.margin.top = 1.into();
-            node.color = Some(Color::Rgb(255, 0, 0));
-            node.font_weight = Some(FontWeight::Bold);
-        },
-    );
+    engine.insert_with(Element::Span("Mystical"), |node| {
+        node.margin.top = 1.into();
+        node.color = Some(Color::Rgb(255, 0, 0));
+        node.font_weight = Some(FontWeight::Bold);
+    });
 
     engine.render(&mut io::stdout())?;
 

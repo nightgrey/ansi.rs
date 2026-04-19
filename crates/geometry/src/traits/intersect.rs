@@ -32,7 +32,10 @@ impl<B: Bound, U: Bound> Intersect<U> for B {
 
         Rect {
             min: Point { x: x1, y: y1 },
-            max: Point { x: x1 + w, y: y1 + h },
+            max: Point {
+                x: x1 + w,
+                y: y1 + h,
+            },
         }
     }
 }

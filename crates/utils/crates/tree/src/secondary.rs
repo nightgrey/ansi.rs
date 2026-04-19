@@ -1,5 +1,5 @@
-use crate::{Id};
-use derive_more::{ Index, IndexMut};
+use crate::Id;
+use derive_more::{Index, IndexMut};
 use std::fmt::Debug;
 
 /// A secondary map for associating auxiliary data with tree nodes.
@@ -111,7 +111,6 @@ impl<K: Id, V: Debug> Debug for Secondary<K, V> {
         f.debug_map().entries(self.iter()).finish()
     }
 }
-
 
 impl<K: Id, V> Extend<(K, V)> for Secondary<K, V> {
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {

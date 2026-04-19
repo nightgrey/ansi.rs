@@ -1,5 +1,5 @@
-use crate::{Size};
-use number::{AssignOps, Number, One, Ops,SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
+use crate::Size;
+use number::{AssignOps, Number, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -55,13 +55,18 @@ impl<T> Point<T> {
 }
 
 impl<T: One> Point<T> {
-    pub const ONE: Self = Point { x: T::ONE, y: T::ONE };
+    pub const ONE: Self = Point {
+        x: T::ONE,
+        y: T::ONE,
+    };
 }
 
 impl<T: Zero> Point<T> {
-    pub const ZERO: Self = Point { x: T::ZERO, y: T::ZERO };
+    pub const ZERO: Self = Point {
+        x: T::ZERO,
+        y: T::ZERO,
+    };
 }
-
 
 impl<T: Ops> Add for Point<T> {
     type Output = Self;

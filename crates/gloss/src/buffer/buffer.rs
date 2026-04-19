@@ -1,17 +1,18 @@
+use crate::{Arena, Buf, BufMut, BufferDiff, BufferIndex, Cell};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
+use geometry::Resolve;
+use geometry::Row;
 use geometry::{Bound, Intersect, Outer, Point, Rect};
-use number::{Zero};
+use number::Zero;
 use std::fmt::Debug;
 use std::iter::StepBy;
-use std::ops::{Index};
+use std::ops::Index;
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use geometry::Resolve;
-use crate::{Cell, Arena, BufferIndex, Buf, BufMut, BufferDiff};
 
 #[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
 pub struct Buffer {
@@ -34,7 +35,7 @@ impl Buffer {
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            inner: vec![Cell::SPACE; width * height],
+            inner: vec![Cell::EMPTY; width as usize * height as usize],
             width,
             height,
         }
@@ -51,18 +52,19 @@ impl Buffer {
         buffer
     }
 
-
-
     /// Create a buffer from a slice of fixed elements.
     #[must_use]
-    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Arena) -> Self
-    {
+    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Arena) -> Self {
         let lines = lines.into_iter().collect::<Vec<_>>();
         let height = lines.len();
-        let width = lines.iter().map(|line| line.width()).max().unwrap_or_default();
+        let width = lines
+            .iter()
+            .map(|line| line.width())
+            .max()
+            .unwrap_or_default();
         let mut buffer = Self::new(width, height);
         for (y, line) in lines.iter().enumerate() {
-            buffer.set_line((0u16, y as u16), line, arena);
+            buffer.set_line(Point { x: 0, y: y as u16 }, line, arena);
         }
         buffer
     }
@@ -122,8 +124,12 @@ impl Buffer {
     }
 
     /// Print the given string until the end of the given index.
-    /// Skips zero-width graphemes and control characters.
-    pub fn set_string(&mut self, index: impl BufferIndex<Output = [Cell]>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
+    pub fn set_string(
+        &mut self,
+        index: impl BufferIndex<Output = [Cell]>,
+        string: impl AsRef<str>,
+        arena: &mut Arena,
+    ) -> Option<usize> {
         if let Some(slice) = self.get_mut(index) {
             let mut remaining = slice.len();
             let mut i = 0;
@@ -134,39 +140,55 @@ impl Buffer {
                 .map_while(|(symbol, width)| {
                     remaining = remaining.checked_sub(width)?;
                     Some((symbol, width))
-                }) {
+                })
+            {
                 slice[i].set_str_measured(grapheme, width, arena);
 
                 let next_symbol = i + width;
                 i += 1;
                 // Reset following cells if multi-width (they would be hidden by the grapheme),
                 while i < next_symbol {
-                    slice[i].set_continuation(arena);
+                    slice[i] = Cell::CONTINUATION;
                     i += 1;
                 }
             }
             Some(i)
-        }
-        else {
+        } else {
             None
         }
     }
 
     /// Print the given string until the end of the line.
-    /// Skips zero-width graphemes and control characters.
-    pub fn set_line(&mut self, point: impl Into<Point>, string: impl AsRef<str>, arena: &mut Arena) -> Option<usize> {
-        let point = point.into();
-        self.set_string(point..Point { x: self.width as u16, y: point.y }, string, arena)
+    pub fn set_line(
+        &mut self,
+        start: Point,
+        string: impl AsRef<str>,
+        arena: &mut Arena,
+    ) -> Option<usize> {
+        self.set_string(
+            start..Point {
+                x: self.width as u16,
+                y: start.y,
+            },
+            string,
+            arena,
+        )
     }
 
-    pub fn index_of<T>(&self, value: T) -> usize where Self: Resolve<T, usize> {
+    pub fn index_of<T>(&self, value: T) -> usize
+    where
+        Self: Resolve<T, usize>,
+    {
         self.resolve(value)
     }
 
-    pub fn point_of<T>(&self, value: T) -> Point where Self: Resolve<T, Point> {
+    pub fn point_of<T>(&self, value: T) -> Point
+    where
+        Self: Resolve<T, Point>,
+    {
         self.resolve(value)
     }
-    
+
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
@@ -421,16 +443,16 @@ impl Buffer {
 
             if width > cur_w {
                 // Growing: extend first, then shift rows back-to-front
-                self.inner.resize(width * cur_h, Cell::SPACE);
+                self.inner.resize(width * cur_h, Cell::EMPTY);
                 for y in (1..cur_h).rev() {
                     let src = y * cur_w;
                     let dst = y * width;
                     self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::SPACE);
+                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::EMPTY);
                 }
                 // Row 0: just fill the tail
-                &mut self.inner[copy_w..width].fill(Cell::SPACE);
+                &mut self.inner[copy_w..width].fill(Cell::EMPTY);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
                 for y in 1..cur_h {
@@ -445,7 +467,7 @@ impl Buffer {
         }
 
         if height > cur_h {
-            self.inner.resize(width * height, Cell::SPACE);
+            self.inner.resize(width * height, Cell::EMPTY);
         } else if height < cur_h {
             self.inner.truncate(width * height);
         }
@@ -500,7 +522,7 @@ impl Buffer {
     }
 
     pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item = &Cell> {
-       rect.steps().map(|point| &self[point])
+        rect.steps().map(|point| &self[point])
     }
 
     pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &Cell)> {
@@ -581,7 +603,6 @@ impl Bound for Buffer {
     fn max(&self) -> Self::Point {
         Point::new(self.max_x(), self.max_y())
     }
-
 }
 
 impl PartialEq for Buffer {

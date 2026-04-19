@@ -10,15 +10,14 @@
 #![feature(const_option_ops)]
 #![feature(new_range_api)]
 
-
 pub mod consts;
-pub mod ops;
-pub mod integer;
 pub mod float;
+pub mod integer;
 pub mod number;
+pub mod ops;
 
 pub use consts::*;
-pub use ops::*;
-pub use integer::*;
 pub use float::*;
+pub use integer::*;
 pub use number::*;
+pub use ops::*;

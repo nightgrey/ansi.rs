@@ -1,15 +1,16 @@
-use ansi::Escape;
-use std::io::Write as _;
-use ansi::escape;
-use ansi::io::Write;
-use ansi::sequences::*;
-use std::io;
-use ansi::fmt::Fmt;
-use geometry::{Resolve, Row};
-use terminal::Capabilities;
 use super::pen::Pen;
 use crate::Cell;
-use crate::{Buffer, Arena};
+use crate::{Arena, Buffer};
+use ansi::Escape;
+use ansi::escape;
+use ansi::fmt::Fmt;
+use ansi::io::Write;
+use ansi::sequences::*;
+use bilge::prelude::u1;
+use geometry::{Resolve, Row};
+use std::io;
+use std::io::Write as _;
+use terminal::Capabilities;
 
 /// Emits escape sequences to apply a frame to the terminal.
 ///
@@ -39,7 +40,7 @@ impl Rasterer {
     /// [`present`](Self::present).
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            output: Vec::with_capacity(width * height * 4),
+            output: Vec::with_capacity((width * height * 4)),
             pen: Pen::new(),
             capabilities: Capabilities::default(),
             invalidated: true,
@@ -102,9 +103,13 @@ impl Rasterer {
 
         self.output.escape(TextCursorEnable::Reset)?;
 
-        for y in 0..height {
+        for y in 0..height as usize {
             Self::row(
-                if invalidated { None } else { Some(&prev[Row(y)]) },
+                if invalidated {
+                    None
+                } else {
+                    Some(&prev[Row(y)])
+                },
                 &next[Row(y)],
                 arena,
                 y,
@@ -159,7 +164,12 @@ impl Rasterer {
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        escape!(self.output, SelectGraphicRendition::RESET, AlternateScreen::Reset, SelectGraphicRendition::RESET);
+        escape!(
+            self.output,
+            SelectGraphicRendition::RESET,
+            AlternateScreen::Reset,
+            SelectGraphicRendition::RESET
+        );
         self.pen.clear();
         self.invalidated = true;
     }
@@ -213,7 +223,7 @@ impl Rasterer {
                 }
 
                 let row = &next[Row(y)];
-                let last_content = (0..width).rev().find(|&x| !row[x].is_default());
+                let last_content = (0..width).rev().find(|&x| !row[x].is_empty());
 
                 if let Some(end) = last_content {
                     for col in 0..=end {
@@ -227,7 +237,7 @@ impl Rasterer {
 
             self.pen.row = height - 1;
             let last_row = &next[Row(height - 1)];
-            self.pen.col = match (0..width).rev().find(|&x| !last_row[x].is_default()) {
+            self.pen.col = match (0..width).rev().find(|&x| !last_row[x].is_empty()) {
                 Some(end) => end + 1,
                 None => 0,
             };
@@ -250,7 +260,11 @@ impl Rasterer {
             self.pen.clear_position();
 
             for y in 0..height {
-                let prev_row = if invalidated { None } else { Some(&prev[Row(y)]) };
+                let prev_row = if invalidated {
+                    None
+                } else {
+                    Some(&prev[Row(y)])
+                };
                 Self::row(
                     prev_row,
                     &next[Row(y)],
@@ -265,7 +279,8 @@ impl Rasterer {
 
             if height < prev_height {
                 for _ in height..prev_height {
-                    self.pen.move_to_relative(self.pen.row + 1, 0, &mut self.output)?;
+                    self.pen
+                        .move_to_relative(self.pen.row + 1, 0, &mut self.output)?;
                     self.output.escape(EraseLineToEnd)?;
                 }
                 if self.pen.row > height - 1 {
@@ -306,7 +321,7 @@ impl Rasterer {
     ) -> io::Result<()> {
         let diff = |x: usize| match prev {
             Some(prev) => next[x] != prev[x],
-            None => !next[x].is_default(),
+            None => !next[x].is_empty(),
         };
 
         let first = match (0..width).find(|&x| diff(x)) {
@@ -316,7 +331,7 @@ impl Rasterer {
 
         let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
 
-        let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_default());
+        let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_empty());
 
         match cursor_mode {
             CursorMode::Absolute => cursor.move_to(y, first, output),
@@ -350,7 +365,12 @@ impl Rasterer {
 
     /// Write a single cell's content, updating the pen first.
     #[inline]
-    fn present_cell(cell: &Cell, output: &mut Vec<u8>, cursor: &mut Pen, arena: &Arena) -> io::Result<()> {
+    fn present_cell(
+        cell: &Cell,
+        output: &mut Vec<u8>,
+        cursor: &mut Pen,
+        arena: &Arena,
+    ) -> io::Result<()> {
         cursor.transition(cell.style, output)?;
         output.extend_from_slice(cell.as_bytes(arena));
 
@@ -394,11 +414,17 @@ mod tests {
 
     impl Shadowed {
         fn new(width: usize, height: usize) -> Self {
-            Self { inner: Rasterer::new(width, height), prev: Buffer::new(width, height) }
+            Self {
+                inner: Rasterer::new(width, height),
+                prev: Buffer::new(width, height),
+            }
         }
 
         fn inline(width: usize, height: usize) -> Self {
-            Self { inner: Rasterer::inline(width, height), prev: Buffer::new(width, height) }
+            Self {
+                inner: Rasterer::inline(width, height),
+                prev: Buffer::new(width, height),
+            }
         }
 
         fn with_capabilities(mut self, caps: Capabilities) -> Self {
@@ -419,11 +445,15 @@ mod tests {
 
     impl std::ops::Deref for Shadowed {
         type Target = Rasterer;
-        fn deref(&self) -> &Rasterer { &self.inner }
+        fn deref(&self) -> &Rasterer {
+            &self.inner
+        }
     }
 
     impl std::ops::DerefMut for Shadowed {
-        fn deref_mut(&mut self) -> &mut Rasterer { &mut self.inner }
+        fn deref_mut(&mut self) -> &mut Rasterer {
+            &mut self.inner
+        }
     }
 
     // ── Fullscreen: Basic Rendering ─────────────────────────────────
@@ -432,10 +462,10 @@ mod tests {
     fn render_styled_cells_emits_sgr() {
         let style = Style::default().bold().foreground(Color::Rgb(255, 0, 0));
 
-        let mut buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
+        let buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Shadowed::new(5, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(output.contains("\x1B["), "expected SGR sequence: {output}");
@@ -453,10 +483,10 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
         r.clear_output();
 
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -483,7 +513,7 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -492,7 +522,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'X', style), (0, 2, 'C', style)],
         );
 
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(output_str.contains('X'), "should emit 'X': {output_str}");
@@ -511,11 +541,11 @@ mod tests {
         let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
 
         let mut r = Shadowed::new(2, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
         r.clear_output();
 
         r.invalidate();
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -531,12 +561,12 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         r.resize(5, 2);
         let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'B', style)]);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -565,11 +595,11 @@ mod tests {
         );
 
         let mut r = Shadowed::new(5, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -588,11 +618,11 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::new(3, 1);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -612,11 +642,11 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -632,7 +662,7 @@ mod tests {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -649,7 +679,7 @@ mod tests {
     fn no_sync_without_cap() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -671,7 +701,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         let sgr_count = output_str.matches("\x1B[38;2;").count();
@@ -685,11 +715,11 @@ mod tests {
 
         let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -704,7 +734,7 @@ mod tests {
     fn render_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
 
@@ -756,7 +786,7 @@ mod tests {
     fn flush_writes_and_clears() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         assert!(
             !r.as_bytes().is_empty(),
@@ -767,7 +797,10 @@ mod tests {
         r.flush(&mut sink).unwrap();
 
         assert!(!sink.is_empty(), "sink should receive output");
-        assert!(r.as_bytes().is_empty(), "output should be empty after flush");
+        assert!(
+            r.as_bytes().is_empty(),
+            "output should be empty after flush"
+        );
     }
 
     // ── Constructor API ────────────────────────────────────────────────
@@ -813,7 +846,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_bytes();
         let has_cup = output.windows(2).enumerate().any(|(i, w)| {
@@ -822,8 +855,8 @@ mod tests {
                 rest.iter().position(|&b| b == b'H').map_or(false, |h_pos| {
                     rest[..h_pos].contains(&b';')
                         && rest[..h_pos]
-                        .iter()
-                        .all(|b| b.is_ascii_digit() || *b == b';')
+                            .iter()
+                            .all(|b| b.is_ascii_digit() || *b == b';')
                 })
             }
         });
@@ -840,7 +873,7 @@ mod tests {
         let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
         let mut r = Shadowed::inline(10, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_bytes();
         // Count space characters — should NOT have 8 trailing spaces.
@@ -861,7 +894,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 3);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -870,7 +903,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'X', style), (2, 0, 'c', style)],
         );
 
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -885,7 +918,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Shadowed::inline(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -904,7 +937,7 @@ mod tests {
         let buffer = Buffer::from_chars(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
         let mut r = Shadowed::inline(3, 2);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -932,7 +965,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -945,7 +978,7 @@ mod tests {
                 (1, 1, 'd', style),
             ],
         );
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -981,10 +1014,10 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
         r.clear_output();
 
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -1003,7 +1036,7 @@ mod tests {
         let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
         let mut r = Shadowed::inline(3, 2);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(
@@ -1011,7 +1044,7 @@ mod tests {
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output = r.as_bytes();
         assert!(output.contains(&b'\n'), "should emit newline for growth");
@@ -1032,11 +1065,11 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(3, 3);
-        r.raster(&buf1, &Arena::new());
+        r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', style)]);
-        r.raster(&buf2, &Arena::new());
+        r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -1049,7 +1082,7 @@ mod tests {
     fn inline_hides_then_shows_cursor() {
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
         let hide = "\x1B[?25l";
@@ -1075,7 +1108,7 @@ mod tests {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &Arena::new());
+        r.raster(&buffer, &Arena::new()).unwrap();
 
         let output = r.as_str();
         assert!(

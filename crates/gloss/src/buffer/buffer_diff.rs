@@ -52,7 +52,7 @@ impl<'prev, 'next> BufferDiff<'prev, 'next> {
             pos: 0,
         }
     }
-    
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -230,7 +230,9 @@ mod tests {
         let next = Buffer::from_lines(["hallo"], &mut arena);
 
         let via_method: Vec<_> = Buffer::diff(&prev, &next).map(|(x, y, _)| (x, y)).collect();
-        let via_ctor: Vec<_> = BufferDiff::new(&prev, &next).map(|(x, y, _)| (x, y)).collect();
+        let via_ctor: Vec<_> = BufferDiff::new(&prev, &next)
+            .map(|(x, y, _)| (x, y))
+            .collect();
         assert_eq!(via_method, via_ctor);
     }
 

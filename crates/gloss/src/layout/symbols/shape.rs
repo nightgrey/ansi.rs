@@ -1,6 +1,6 @@
+use crate::symbols::Symbol;
 use derive_more::Deref;
 use std::ops::Deref;
-use crate::symbols::Symbol;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deref)]
 pub struct Circle(Symbol);

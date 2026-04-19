@@ -1,5 +1,5 @@
+use crate::{Bound, Column, Location, Point, PointLike, Position, PositionLike, Row};
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
-use crate::{Point, Row, Column, Bound, PointLike, Position, PositionLike, Location};
 
 /// Resolve a context-dependent value.
 ///
@@ -42,35 +42,46 @@ pub trait Resolve<T, U> {
 // (e.g. `Row`, `Point`, `Position`), the resulting `Range<U>` is the
 // half-open span between the resolved endpoints.
 
-impl<B, T, U> Resolve<Range<T>, Range<U>> for B where B: Resolve<T, U> {
+impl<B, T, U> Resolve<Range<T>, Range<U>> for B
+where
+    B: Resolve<T, U>,
+{
     fn resolve(&self, value: Range<T>) -> Range<U> {
         self.resolve(value.start)..self.resolve(value.end)
     }
 }
 
 impl<B, T: Clone, U> Resolve<RangeInclusive<T>, RangeInclusive<U>> for B
-where B: Resolve<T, U> {
+where
+    B: Resolve<T, U>,
+{
     fn resolve(&self, value: RangeInclusive<T>) -> RangeInclusive<U> {
         self.resolve(value.start().clone())..=self.resolve(value.end().clone())
     }
 }
 
 impl<B, T, U> Resolve<RangeTo<T>, RangeTo<U>> for B
-where B: Resolve<T, U> {
+where
+    B: Resolve<T, U>,
+{
     fn resolve(&self, value: RangeTo<T>) -> RangeTo<U> {
         ..self.resolve(value.end)
     }
 }
 
 impl<B, T, U> Resolve<RangeToInclusive<T>, RangeToInclusive<U>> for B
-where B: Resolve<T, U> {
+where
+    B: Resolve<T, U>,
+{
     fn resolve(&self, value: RangeToInclusive<T>) -> RangeToInclusive<U> {
         ..=self.resolve(value.end)
     }
 }
 
 impl<B, T, U> Resolve<RangeFrom<T>, RangeFrom<U>> for B
-where B: Resolve<T, U> {
+where
+    B: Resolve<T, U>,
+{
     fn resolve(&self, value: RangeFrom<T>) -> RangeFrom<U> {
         self.resolve(value.start)..
     }

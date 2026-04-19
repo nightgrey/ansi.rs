@@ -5,38 +5,24 @@ use bon::builder;
 pub use element::*;
 pub use kind::*;
 
-
 use crate::layout::*;
 use ansi::Color;
 
 #[builder]
 pub fn div<'a>(
-    #[builder(default)]
-    display: Display,
-    #[builder(default)]
-    min_size: Size,
-    #[builder(default)]
-    size: Size,
-    #[builder(default)]
-    max_size: Size,
-    #[builder(default)]
-    padding: Edges,
-    #[builder(default)]
-    margin: Edges,
-    #[builder(default)]
-    gap: Gap,
-    #[builder(default)]
-    flex_direction: FlexDirection,
-    #[builder(default)]
-    flex_wrap: FlexWrap,
-    #[builder(default)]
-    flex_basis: Length,
-    #[builder(default)]
-    flex_grow: f32,
-    #[builder(default)]
-    flex_shrink: f32,
-    #[builder(default)]
-    border: Border,
+    #[builder(default)] display: Display,
+    #[builder(default)] min_size: Size,
+    #[builder(default)] size: Size,
+    #[builder(default)] max_size: Size,
+    #[builder(default)] padding: Edges,
+    #[builder(default)] margin: Edges,
+    #[builder(default)] gap: Gap,
+    #[builder(default)] flex_direction: FlexDirection,
+    #[builder(default)] flex_wrap: FlexWrap,
+    #[builder(default)] flex_basis: Length,
+    #[builder(default)] flex_grow: f32,
+    #[builder(default)] flex_shrink: f32,
+    #[builder(default)] border: Border,
 
     align_items: Option<AlignItems>,
     align_self: Option<AlignSelf>,
@@ -49,7 +35,6 @@ pub fn div<'a>(
     text_decoration: Option<TextDecoration>,
     font_weight: Option<FontWeight>,
     font_style: Option<FontStyle>,
-
 ) -> Element<'a> {
     Element {
         kind: ElementKind::Div,
@@ -78,7 +63,7 @@ pub fn div<'a>(
             font_weight,
             font_style,
             display,
-        }
+        },
     }
 }
 

@@ -1,8 +1,7 @@
 mod column;
-mod row;
 mod position;
+mod row;
 
 pub use column::*;
-pub use row::*;
 pub use position::*;
-
+pub use row::*;

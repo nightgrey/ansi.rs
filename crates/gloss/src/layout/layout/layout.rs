@@ -1,7 +1,7 @@
+use super::*;
+use ansi::Color;
 use bon::Builder;
 use compact_str::CompactString;
-use ansi::Color;
-use super::*;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Layout {
@@ -11,7 +11,6 @@ pub struct Layout {
     pub min_size: Size,
     pub max_size: Size,
     // Inline
-
 
     // This
     pub padding: Edges,
@@ -89,7 +88,6 @@ impl Layout {
 
         next
     }
-
 
     pub fn is_default(&self) -> bool {
         self == &Self::DEFAULT
@@ -178,7 +176,9 @@ impl From<ansi::Style> for Layout {
 
 impl From<Layout> for ansi::Style {
     fn from(style: Layout) -> Self {
-        if style.is_default() { return ansi::Style::default() }
+        if style.is_default() {
+            return ansi::Style::default();
+        }
         let mut attributes = ansi::Attribute::empty();
 
         match style.font_weight {
@@ -188,7 +188,9 @@ impl From<Layout> for ansi::Style {
 
         match style.text_decoration {
             Some(TextDecoration::Underline) => attributes.insert(ansi::Attribute::Underline),
-            Some(TextDecoration::Strikethrough) => attributes.insert(ansi::Attribute::Strikethrough),
+            Some(TextDecoration::Strikethrough) => {
+                attributes.insert(ansi::Attribute::Strikethrough)
+            }
             _ => (),
         };
 

@@ -59,7 +59,10 @@ impl<'a> BufMut<'a> {
 
     /// Re-borrow as an immutable [`Buf`] for read-only operations.
     pub fn as_buf(&self) -> Buf<'_> {
-        Buf { buffer: self.buffer, arena: self.arena }
+        Buf {
+            buffer: self.buffer,
+            arena: self.arena,
+        }
     }
 }
 

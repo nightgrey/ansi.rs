@@ -1,8 +1,8 @@
-use std::fmt::Debug;
-use bitflags::Flags;
 use crate::{Color, Escape, Style};
+use bitflags::Flags;
 use derive_more::{Deref, DerefMut};
 use maybe::Maybe;
+use std::fmt::Debug;
 use utils::separate_by;
 
 /// [SGR] - Select Graphic Rendition
@@ -76,12 +76,7 @@ pub type SGR = SelectGraphicRendition;
 ///
 /// [`SGR`]: https://vt100.net/docs/vt510-rm/SGR.html
 #[derive(
-    Copy,
-    Clone,
-    PartialEq,
-    derive_more::Constructor,
-    derive_more::From,
-    derive_more::Into,
+    Copy, Clone, PartialEq, derive_more::Constructor, derive_more::From, derive_more::Into,
 )]
 pub struct SelectGraphicRenditionTransition {
     pub from: Style,
@@ -112,28 +107,28 @@ impl Escape for SelectGraphicRenditionTransition {
         separate_by!(w.write_all(b";")?);
 
         match (from.background, to.background) {
-            (Color::None, Color::None) => {},
+            (Color::None, Color::None) => {}
             (from, Color::None) => {
                 separate!(w.write_all(b"49")?);
-            },
+            }
             (Color::None, to) => {
                 separate!(w.escape(to.as_background())?);
-            },
+            }
             (_, to) => {
                 separate!(w.escape(to.as_background())?);
-            },
+            }
         };
         match (from.foreground, to.foreground) {
-            (Color::None, Color::None) => {},
+            (Color::None, Color::None) => {}
             (from, Color::None) => {
                 separate!(w.write_all(b"39")?);
-            },
+            }
             (Color::None, to) => {
                 separate!(w.escape(to.as_foreground())?);
-            },
+            }
             (_, to) => {
                 separate!(w.escape(to.as_foreground())?);
-            },
+            }
         };
 
         // Attributes (bold, underline, etc.)
@@ -142,10 +137,10 @@ impl Escape for SelectGraphicRenditionTransition {
                 (true, true) | (false, false) => continue,
                 (true, false) => {
                     separate!(w.write_all(attr.sgr_unset().as_bytes())?);
-                },
+                }
                 (false, true) => {
                     separate!(w.write_all(attr.sgr().as_bytes())?);
-                },
+                }
             }
         }
 
@@ -165,25 +160,23 @@ impl Debug for SelectGraphicRenditionTransition {
         }
 
         match (from.background, to.background) {
-            (Color::None, Color::None) => {
-            }
+            (Color::None, Color::None) => {}
             (_, Color::None) => {
                 debug.field(&"Background Reset");
-            },
+            }
             (_, to) => {
                 debug.field(&format!("Background ({:?})", to));
-            },
+            }
         };
 
         match (from.foreground, to.foreground) {
-            (Color::None, Color::None) => {
-            },
+            (Color::None, Color::None) => {}
             (from, Color::None) => {
                 debug.field(&"Foreground Reset");
-            },
+            }
             (_, to) => {
                 debug.field(&format!("Foreground ({:?})", to));
-            },
+            }
         };
 
         // Attributes (bold, underline, etc.)
@@ -192,10 +185,10 @@ impl Debug for SelectGraphicRenditionTransition {
                 (true, true) | (false, false) => continue,
                 (true, false) => {
                     debug.field(&format!("Unset ({:?})", attr.to_string()));
-                },
+                }
                 (false, true) => {
                     debug.field(&format!("Set ({:?})", attr.to_string()));
-                },
+                }
             }
         }
 
@@ -203,7 +196,6 @@ impl Debug for SelectGraphicRenditionTransition {
     }
 }
 pub type SGRDiff = SelectGraphicRenditionTransition;
-
 
 /// [SGR] - Select Graphic Rendition Reset
 ///

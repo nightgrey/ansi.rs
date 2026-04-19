@@ -1,17 +1,24 @@
+use super::ops::*;
+use crate::number::Number;
 use std::num::ParseIntError;
 use std::ops::Not;
-use crate::number::Number;
 use std::ops::*;
-use super::ops::*;
 
 pub trait Unsigned: Integer {}
 pub trait Signed: Integer {}
 
-
-pub trait Integer: Number
-+ Eq + Ord
-+ Not<Output = Self> + BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self> + Shl<usize, Output = Self> + Shr<usize, Output = Self>
-+ ConditionalOps {
+pub trait Integer:
+    Number
+    + Eq
+    + Ord
+    + Not<Output = Self>
+    + BitAnd<Output = Self>
+    + BitOr<Output = Self>
+    + BitXor<Output = Self>
+    + Shl<usize, Output = Self>
+    + Shr<usize, Output = Self>
+    + ConditionalOps
+{
     /// Convert from a string and radix (typically `2..=36`).
     ///
     /// # Examples

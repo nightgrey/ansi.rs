@@ -1,26 +1,13 @@
 use crate::{Attribute, Color, Escape};
 use bitflags::Flags;
-use derive_more::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign,
-};
+use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use maybe::Maybe;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
 use std::ops::{BitAnd, BitOr, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use utils::separate_by;
 
-#[derive(
-    Copy,
-    Clone,
-    Eq,
-    PartialEq,
-    BitOr,
-    BitOrAssign,
-    BitAnd,
-    BitAndAssign,
-    Sub,
-    SubAssign,
-)]
+#[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, Sub, SubAssign)]
 pub struct Style {
     pub attributes: Attribute,
     pub foreground: Color,
@@ -383,8 +370,6 @@ impl Not for Style {
         }
     }
 }
-
-
 
 impl Default for Style {
     fn default() -> Self {

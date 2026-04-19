@@ -1,8 +1,8 @@
 use super::{Arena, GraphemeError};
+use crate::AsOffset;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use crate::AsOffset;
 
 /// A compact grapheme-cluster handle stored in 4 bytes.
 ///
@@ -72,7 +72,9 @@ impl Grapheme {
     /// Distinct from [`EMPTY`](Self::EMPTY): continuation cells carry no
     /// content of their own but mark that the previous cell spans into this
     /// column. Tagged with byte 3 = `0x02` so it is neither inline nor extended.
-    pub const CONTINUATION: Self = Self { value: (Self::CONTINUATION_TAG as u32) << 24 };
+    pub const CONTINUATION: Self = Self {
+        value: (Self::CONTINUATION_TAG as u32) << 24,
+    };
     /// A grapheme representing a replacement character ().
     pub const REPLACEMENT: Self = Self::inline(char::REPLACEMENT_CHARACTER);
 
@@ -117,7 +119,6 @@ impl Grapheme {
         value.try_inline()
     }
 
-
     /// Bitmask covering the low 24 payload bits.
     const PAYLOAD_MASK: u32 = 0x00FF_FFFF;
 
@@ -126,7 +127,6 @@ impl Grapheme {
 
     /// The sentinel tag value marking a wide-character continuation cell.
     const CONTINUATION_TAG: u8 = 0x02;
-
 
     /// Create an extended grapheme from an arena offset.
     ///
@@ -138,7 +138,10 @@ impl Grapheme {
     pub fn offset(offset: impl AsOffset) -> Self {
         let offset = offset.as_offset();
         /// Maximum addressable offset in the arena (24-bit, = 16 MiB − 1).
-        debug_assert!(offset <= Grapheme::PAYLOAD_MASK as usize, "offset exceeds 24-bit range");
+        debug_assert!(
+            offset <= Grapheme::PAYLOAD_MASK as usize,
+            "offset exceeds 24-bit range"
+        );
         Self {
             value: (offset as u32) | ((Self::EXTENDED_TAG as u32) << 24),
         }
@@ -223,7 +226,9 @@ impl Grapheme {
             buf[i] = bytes[i];
             i += 1;
         }
-        Self { value: u32::from_le_bytes(buf) }
+        Self {
+            value: u32::from_le_bytes(buf),
+        }
     }
 
     // ── Internal helpers ───────────────────────────────────────────────
@@ -275,7 +280,9 @@ impl fmt::Debug for Grapheme {
         }
 
         if self.is_inline() {
-            f.debug_tuple("Grapheme::Inline").field(&self.as_inline_str()).finish()
+            f.debug_tuple("Grapheme::Inline")
+                .field(&self.as_inline_str())
+                .finish()
         } else {
             f.debug_tuple("Grapheme::Extended")
                 .field(&self.as_offset())

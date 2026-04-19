@@ -32,7 +32,6 @@ pub enum Color {
 
     Index(u8),
     Rgb(u8, u8, u8),
-
 }
 impl Color {
     #[inline]
@@ -49,7 +48,7 @@ impl Color {
     #[must_use]
     pub const fn difference(self, rhs: Self) -> Self {
         match (self, rhs) {
-            (Color::None, _)  => Color::None,
+            (Color::None, _) => Color::None,
             (x, Color::None) => x,
             (a, b) => Color::None,
         }
@@ -62,7 +61,7 @@ impl Color {
             (_, x) => x,
         }
     }
-    
+
     // pub fn convert(self, target: ColorSpace) -> Color {
     //     match target {
     //         ColorSpace::Ansi => Basic::from(self).into(),
@@ -114,7 +113,11 @@ impl Color {
 
 impl From<u32> for Color {
     fn from(value: u32) -> Self {
-        Color::Rgb(((value >> 16) & 0xFF) as u8, ((value >> 8) & 0xFF) as u8, (value & 0xFF) as u8)
+        Color::Rgb(
+            ((value >> 16) & 0xFF) as u8,
+            ((value >> 8) & 0xFF) as u8,
+            (value & 0xFF) as u8,
+        )
     }
 }
 
@@ -233,7 +236,13 @@ mod tests {
             (Color::Black, Color::None, Color::None),
             (Color::Black, Color::Black, Color::Black),
         ] {
-            assert_eq!(lhs.intersection(rhs), expected, "{:?}.intersection({:?})", lhs, rhs);
+            assert_eq!(
+                lhs.intersection(rhs),
+                expected,
+                "{:?}.intersection({:?})",
+                lhs,
+                rhs
+            );
         }
     }
 
@@ -257,8 +266,13 @@ mod tests {
             (Color::Black, Color::None, Color::Black),
             (Color::Black, Color::Blue, Color::None),
         ] {
-            assert_eq!(lhs.difference(rhs), expected, "{:?}.difference({:?})", lhs, rhs);
+            assert_eq!(
+                lhs.difference(rhs),
+                expected,
+                "{:?}.difference({:?})",
+                lhs,
+                rhs
+            );
         }
     }
-
 }

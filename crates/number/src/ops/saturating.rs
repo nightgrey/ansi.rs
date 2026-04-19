@@ -1,24 +1,31 @@
 use std::ops::*;
 
-pub trait SaturatingOps<Rhs = Self>: SaturatingAdd<Rhs> + SaturatingSub<Rhs> + SaturatingMul<Rhs> + SaturatingDiv<Rhs> + SaturatingRem<Rhs>  { }
+pub trait SaturatingOps<Rhs = Self>:
+    SaturatingAdd<Rhs>
+    + SaturatingSub<Rhs>
+    + SaturatingMul<Rhs>
+    + SaturatingDiv<Rhs>
+    + SaturatingRem<Rhs>
+{
+}
 
-pub trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output=Self> {
+pub trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
     fn saturating_add(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingSub<Rhs = Self>: Sized + Sub<Self, Output=Self> {
+pub trait SaturatingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
     fn saturating_sub(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output=Self> {
+pub trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
     fn saturating_mul(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingDiv <Rhs = Self>: Sized + Div<Self, Output=Self> {
+pub trait SaturatingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
     fn saturating_div(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output=Self> {
+pub trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
     fn saturating_rem(self, other: Rhs) -> Self;
 }
 
@@ -55,8 +62,7 @@ macro_rules! saturating_impl {
                 Self::saturating_div(self, rhs)
             }
         }
-
-    }
+    };
 }
 
 saturating_impl!(u8);

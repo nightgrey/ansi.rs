@@ -32,13 +32,13 @@
 #![feature(const_option_ops)]
 #![feature(new_range_api)]
 
-mod traits;
-pub mod prelude;
-mod index;
 mod geometry;
+mod index;
 mod macros;
+pub mod prelude;
+mod traits;
 
 pub use geometry::*;
-pub use traits::*;
 pub use index::*;
 pub use macros::*;
+pub use traits::*;

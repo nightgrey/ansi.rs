@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::iter::FusedIterator;
 use std::ops::Deref;
 
-
 /// An arena-allocated tree with O(1) node access and linked-list child ordering.
 ///
 /// Nodes are stored in a [`slotmap::SlotMap`] keyed by `K` (any type
@@ -89,7 +88,7 @@ impl<K: Id, V> Tree<K, V> {
     /// Panics if the position references a missing node or would create a cycle.
     /// Use [`try_insert_at`](Self::try_insert_at) for a fallible version.
     pub fn insert_at(&mut self, value: V, at: At<K>) -> K {
-       self.try_insert_at(value, at).unwrap()
+        self.try_insert_at(value, at).unwrap()
     }
 
     /// Inserts a node at the specified position, returning an error on failure.
@@ -150,7 +149,6 @@ impl<K: Id, V> Tree<K, V> {
         Ok(id)
     }
 
-
     /// Inserts a node at the specified position.
     ///
     /// # Panics
@@ -167,7 +165,6 @@ impl<K: Id, V> Tree<K, V> {
         let id = self.try_insert_at(value, at)?;
         Ok(Insertion::new(self, id))
     }
-
 
     // --- Mutation ----------------------------------------------------------
 
@@ -452,7 +449,11 @@ impl<K: Id, V> Tree<K, V> {
     // --- internals ---------------------------------------------------------
 
     fn ensure_exists(&self, k: K) -> Result<(), Error<K>> {
-        if self.contains(k) { Ok(()) } else { Err(Error::Missing(k)) }
+        if self.contains(k) {
+            Ok(())
+        } else {
+            Err(Error::Missing(k))
+        }
     }
 
     fn ensure_no_cycle(&self, node: K, target_parent: K) -> Result<(), Error<K>> {
@@ -556,7 +557,6 @@ impl<K: Id, V: Debug> Debug for Tree<K, V> {
         f.debug_map().entries(self.iter()).finish()
     }
 }
-
 
 /// A handle returned by [`Tree::insert`] / [`Tree::insert_at`] for
 /// chaining `.with()` and `.with_children()` calls.
@@ -803,7 +803,9 @@ mod tests {
             mut tree,
         } = Test::default();
 
-        let insertion = tree.insertion_at("root", At::Child(root)).and_from([a, b, c]);
+        let insertion = tree
+            .insertion_at("root", At::Child(root))
+            .and_from([a, b, c]);
         let id = insertion.id;
         let kids: Vec<_> = tree.children(id).collect();
         assert_eq!(kids, vec![a, b, c]);

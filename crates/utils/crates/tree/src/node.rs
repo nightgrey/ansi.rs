@@ -84,4 +84,3 @@ impl<K: Id, V: PartialEq> PartialEq<&V> for Node<K, V> {
         &&self.inner == other
     }
 }
-

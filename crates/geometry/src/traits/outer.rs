@@ -30,22 +30,35 @@ pub trait Outer: Bound {
     }
 
     fn ranges(&self) -> impl Iterator<Item = (u16, u16)> {
-        self.range_x().flat_map(move |x| self.range_y().map(move |y| (x, y)))
+        self.range_x()
+            .flat_map(move |x| self.range_y().map(move |y| (x, y)))
     }
 }
 
-impl<B: Bound<Point=P>, P: Location> Outer for B {
-    fn top_left(&self) -> Self::Point { self.min() }
+impl<B: Bound<Point = P>, P: Location> Outer for B {
+    fn top_left(&self) -> Self::Point {
+        self.min()
+    }
     fn top_right(&self) -> Self::Point {
         Self::Point::new(self.max_x(), self.min_y())
     }
-    fn bottom_right(&self) -> Self::Point { self.max() }
+    fn bottom_right(&self) -> Self::Point {
+        self.max()
+    }
     fn bottom_left(&self) -> Self::Point {
         Self::Point::new(self.min_x(), self.max_y())
     }
 
-    fn top(&self) -> u16 { self.min_y() }
-    fn left(&self) -> u16 { self.min_x() }
-    fn bottom(&self) -> u16 { self.max_y() }
-    fn right(&self) -> u16 { self.max_x() }
+    fn top(&self) -> u16 {
+        self.min_y()
+    }
+    fn left(&self) -> u16 {
+        self.min_x()
+    }
+    fn bottom(&self) -> u16 {
+        self.max_y()
+    }
+    fn right(&self) -> u16 {
+        self.max_x()
+    }
 }

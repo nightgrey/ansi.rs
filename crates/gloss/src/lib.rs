@@ -5,7 +5,6 @@
 #![feature(const_option_ops)]
 #![feature(slice_index_methods)]
 #![feature(iter_intersperse)]
-
 #![feature(const_index)]
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]

@@ -1,6 +1,9 @@
 use std::ops::*;
 
-pub trait CheckedOps<Rhs = Self>: CheckedAdd<Rhs> + CheckedSub<Rhs> + CheckedMul<Rhs> + CheckedDiv<Rhs> + CheckedNeg<Rhs> { }
+pub trait CheckedOps<Rhs = Self>:
+    CheckedAdd<Rhs> + CheckedSub<Rhs> + CheckedMul<Rhs> + CheckedDiv<Rhs> + CheckedNeg<Rhs>
+{
+}
 
 pub trait CheckedAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
     /// Checked integer addition. Computes `self + rhs`, returning `None`
@@ -83,7 +86,6 @@ macro_rules! checked_impl {
             }
         }
 
-
         impl CheckedDiv for $T {
             fn checked_div(self, rhs: Self) -> Option<Self> {
                 Self::checked_div(self, rhs)
@@ -113,7 +115,7 @@ macro_rules! checked_impl {
                 Self::checked_shr(self, rhs)
             }
         }
-    }
+    };
 }
 
 checked_impl!(u8);

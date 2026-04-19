@@ -283,7 +283,7 @@ impl Arena {
 
     /// Ensure the backing vec has capacity for at least `min_capacity` bytes,
     /// using a doubling growth strategy clamped to `MAX_POOL_SIZE`.
-     fn ensure(&mut self, min_capacity: usize) {
+    fn ensure(&mut self, min_capacity: usize) {
         if self.inner.capacity() >= min_capacity {
             return;
         }
@@ -348,7 +348,6 @@ impl AsOffset for &mut Grapheme {
     }
 }
 
-
 use packed_struct::prelude::bits::ByteArray;
 // ── GraphemePoolError ───────────────────────────────────────────────────────
 use crate::Grapheme;
@@ -406,7 +405,10 @@ mod tests {
             "👨\u{200D}👩\u{200D}👧\u{200D}👦",
         ];
 
-        let offsets: Vec<_> = entries.iter().map(|s| arena.try_insert(s).unwrap()).collect();
+        let offsets: Vec<_> = entries
+            .iter()
+            .map(|s| arena.try_insert(s).unwrap())
+            .collect();
 
         for (offset, expected) in offsets.iter().zip(entries.iter()) {
             assert_eq!(arena.get(*offset), *expected);
@@ -546,7 +548,9 @@ mod tests {
         // Subsequent allocations shouldn't cause capacity to grow linearly.
         let cap_after_first = arena.capacity();
         for i in 0..10 {
-            arena.try_insert(&format!("entry-{i:04}-some-padding")).unwrap();
+            arena
+                .try_insert(&format!("entry-{i:04}-some-padding"))
+                .unwrap();
         }
         assert!(arena.capacity() <= cap_after_first * 4);
     }
@@ -560,10 +564,7 @@ mod tests {
         // error path with a mock check.)
         let long = "x".repeat(MAX_ENTRY_LEN + 1);
         let result = arena.try_insert(&long);
-        assert!(matches!(
-            result,
-            Err(GraphemeError::TooLong { .. })
-        ));
+        assert!(matches!(result, Err(GraphemeError::TooLong { .. })));
     }
 
     #[test]

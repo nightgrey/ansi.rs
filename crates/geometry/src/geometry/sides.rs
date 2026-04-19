@@ -14,7 +14,10 @@ impl<T> Sides<T> {
         }
     }
 
-    pub const fn both(value: T) -> Self where T: Copy {
+    pub const fn both(value: T) -> Self
+    where
+        T: Copy,
+    {
         Self {
             horizontal: value,
             vertical: value,

@@ -100,7 +100,7 @@ impl Cell {
     pub fn style(&self) -> &Style {
         &self.style
     }
-    
+
     #[inline]
     pub const fn is_none(&self) -> bool {
         self.grapheme == Grapheme::EMPTY || self.grapheme == Grapheme::CONTINUATION

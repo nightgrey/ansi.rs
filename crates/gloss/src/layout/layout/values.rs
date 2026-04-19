@@ -16,15 +16,35 @@ impl Edges {
     }
 
     pub const fn length(value: u32) -> Self {
-        Self::new(Length::Value(value), Length::Value(value), Length::Value(value), Length::Value(value))
+        Self::new(
+            Length::Value(value),
+            Length::Value(value),
+            Length::Value(value),
+            Length::Value(value),
+        )
     }
 
     pub const fn percent(value: f32) -> Self {
-        Self::new(Length::Percent(value), Length::Percent(value), Length::Percent(value), Length::Percent(value))
+        Self::new(
+            Length::Percent(value),
+            Length::Percent(value),
+            Length::Percent(value),
+            Length::Percent(value),
+        )
     }
 
-    pub const fn new(top: impl [const] Into<Length>, right: impl [const] Into<Length>, bottom: impl [const] Into<Length>, left: impl [const] Into<Length>) -> Self {
-        Self(geometry::Edges::new(top.into(), right.into(), bottom.into(), left.into()))
+    pub const fn new(
+        top: impl [const] Into<Length>,
+        right: impl [const] Into<Length>,
+        bottom: impl [const] Into<Length>,
+        left: impl [const] Into<Length>,
+    ) -> Self {
+        Self(geometry::Edges::new(
+            top.into(),
+            right.into(),
+            bottom.into(),
+            left.into(),
+        ))
     }
 
     pub const fn all(value: impl [const] Into<Length> + Copy) -> Self {
@@ -81,11 +101,17 @@ impl<T: From<Length>> From<Edges> for taffy::Rect<T> {
 pub struct Space(geometry::Size<Available>);
 
 impl Space {
-    pub const ZERO: Self = Self(geometry::Size::new(Available::Pixel(0), Available::Pixel(0)));
+    pub const ZERO: Self = Self(geometry::Size::new(
+        Available::Pixel(0),
+        Available::Pixel(0),
+    ));
     pub const MIN: Self = Self(geometry::Size::new(Available::Min, Available::Min));
     pub const MAX: Self = Self(geometry::Size::new(Available::Max, Available::Max));
 
-    pub const fn new(width: impl [const] Into<Available>, height: impl [const] Into<Available>) -> Self {
+    pub const fn new(
+        width: impl [const] Into<Available>,
+        height: impl [const] Into<Available>,
+    ) -> Self {
         Self(geometry::Size::new(width.into(), height.into()))
     }
 
@@ -104,7 +130,10 @@ impl Space {
 
 impl From<geometry::Size> for Space {
     fn from(value: geometry::Size) -> Self {
-        Self::new(Available::Pixel(value.width as u32), Available::Pixel(value.height as u32))
+        Self::new(
+            Available::Pixel(value.width as u32),
+            Available::Pixel(value.height as u32),
+        )
     }
 }
 
@@ -137,7 +166,10 @@ impl Gap {
         Self::new(Length::Percent(value), Length::Percent(value))
     }
 
-    pub const fn new(horizontal: impl [const] Into<Length>, vertical: impl [const] Into<Length>) -> Self {
+    pub const fn new(
+        horizontal: impl [const] Into<Length>,
+        vertical: impl [const] Into<Length>,
+    ) -> Self {
         Self(geometry::Sides::new(horizontal.into(), vertical.into()))
     }
 
@@ -152,7 +184,6 @@ impl Gap {
     pub const fn both(value: impl [const] Into<Length> + Copy) -> Self {
         Self(geometry::Sides::both(value.into()))
     }
-
 }
 
 impl<T: From<Length>> From<Gap> for taffy::Size<T> {

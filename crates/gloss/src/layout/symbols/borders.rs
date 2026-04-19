@@ -1,6 +1,6 @@
 use super::{Block, LineSymbols, Symbol};
-use maybe::Maybe;
 use geometry::Edges;
+use maybe::Maybe;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BorderSymbols {
@@ -257,7 +257,8 @@ impl BorderSymbols {
     ///  ┋       ┋
     ///  ┗┉┉┉┉┉┉┉┛
     /// ```
-    pub const DASHED_QUADRUPLE_BOLD: Self = BorderSymbols::from_line(LineSymbols::DASHED_QUADRUPLE_BOLD);
+    pub const DASHED_QUADRUPLE_BOLD: Self =
+        BorderSymbols::from_line(LineSymbols::DASHED_QUADRUPLE_BOLD);
 
     /// A thick border using bold block characters pointing outward
     ///

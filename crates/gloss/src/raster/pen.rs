@@ -1,8 +1,8 @@
-use std::io;
 use ansi::io::Write;
-use ansi::{Escape, Style,sequences::*};
-use std::ops::Sub;
+use ansi::{Escape, Style, sequences::*};
 use maybe::Maybe;
+use std::io;
+use std::ops::Sub;
 
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Copy, Debug)]
@@ -111,9 +111,14 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(&mut self, row: usize, col: usize, w: &mut impl Write) -> io::Result<()> {
+    pub fn move_to_relative(
+        &mut self,
+        row: usize,
+        col: usize,
+        w: &mut impl Write,
+    ) -> io::Result<()> {
         if self.row == row && self.col == col {
-            return Ok(())
+            return Ok(());
         }
 
         let dr = row as isize - self.row as isize;
@@ -167,7 +172,6 @@ impl Pen {
         self.style = to;
 
         Ok(())
-
     }
 
     pub fn clear_position(&mut self) {
@@ -190,7 +194,6 @@ impl Pen {
         self.col = 0;
         self.style = Style::None;
     }
-
 }
 
 impl Default for Pen {
@@ -248,7 +251,9 @@ mod tests {
         let mut cursor = Pen::new();
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor.transition(Style::default().bold(), &mut buf).unwrap();
+        cursor
+            .transition(Style::default().bold(), &mut buf)
+            .unwrap();
         assert!(buf.is_empty());
     }
 

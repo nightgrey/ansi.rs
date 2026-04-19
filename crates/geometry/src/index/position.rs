@@ -1,5 +1,5 @@
-use crate::{Sides, Column, Edges, Point, PointLike, Rect, Row, Size};
-use number::{Zero, One, Min, Max, Ops, AssignOps, SaturatingOps, SaturatingAdd, SaturatingSub};
+use crate::{Column, Edges, Point, PointLike, Rect, Row, Sides, Size};
+use number::{AssignOps, Max, Min, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
@@ -78,11 +78,17 @@ impl<T> Position<T> {
 }
 
 impl<T: One> Position<T> {
-    pub const ONE: Self = Position { row: T::ONE, col: T::ONE };
+    pub const ONE: Self = Position {
+        row: T::ONE,
+        col: T::ONE,
+    };
 }
 
 impl<T: Zero> Position<T> {
-    pub const ZERO: Self = Position { row: T::ZERO, col: T::ZERO };
+    pub const ZERO: Self = Position {
+        row: T::ZERO,
+        col: T::ZERO,
+    };
 }
 
 impl<T: Ops> Add for Position<T> {
@@ -195,4 +201,3 @@ impl From<Column> for Position {
 /// Areas are represented as half-open ranges: `[min, max)`.
 /// The `min` position is inclusive, the `max` position is exclusive.
 pub type Area = Rect<Position>;
-

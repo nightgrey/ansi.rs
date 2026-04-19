@@ -1,9 +1,9 @@
-use std::borrow::Cow;
+use crate::{Display, ElementKind, Layout};
 use bon::{bon, builder};
 use derive_more::{Deref, DerefMut};
 use geometry::{Bound, Step};
-use crate::{Display, ElementKind, Layout};
-use tree::{id};
+use std::borrow::Cow;
+use tree::id;
 
 id!(pub struct ElementId);
 

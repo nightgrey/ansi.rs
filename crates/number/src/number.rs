@@ -1,8 +1,11 @@
 use super::ops::*;
+use crate::{One, Zero};
 use std::str::FromStr;
-use crate::{Zero, One};
 
-pub trait Number: Sized + Copy + PartialEq + PartialOrd + Zero + One + Ops + AssignOps + FromStr {}
+pub trait Number:
+    Sized + Copy + PartialEq + PartialOrd + Zero + One + Ops + AssignOps + FromStr
+{
+}
 
 impl Number for u8 {}
 impl Number for u16 {}

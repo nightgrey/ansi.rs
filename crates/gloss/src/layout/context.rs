@@ -1,8 +1,8 @@
-use crate::{Display, FlexDirection, Computation, Element, ElementId, ElementKind, Space, Layout};
-use tree::{Id, Secondary, Tree};
+use crate::{Computation, Display, Element, ElementId, ElementKind, FlexDirection, Layout, Space};
 use compact_str::CompactString;
 use slotmap::Key;
 use taffy::{BlockContext, LayoutInput, LayoutOutput, TraversePartialTree};
+use tree::{Id, Secondary, Tree};
 
 /// Layout context that holds the tree itself along with a reference to the context.
 /// It implements taffy's layout traits and allows for layout computation.
@@ -26,11 +26,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> LayoutContext<'d, 'n, M> {
         }
     }
 
-    pub fn compute_layout(
-        &mut self,
-        id: ElementId,
-        available_space: Space,
-    ) {
+    pub fn compute_layout(&mut self, id: ElementId, available_space: Space) {
         let taffy_id = Self::taffy_id(id);
         taffy::compute_root_layout(self, taffy_id, available_space.into());
         taffy::round_layout(self, taffy_id);
@@ -86,9 +82,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::TraversePartialTree for LayoutContex
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {
-        self.tree
-            .children(Self::tree_id(parent_node_id))
-            .count()
+        self.tree.children(Self::tree_id(parent_node_id)).count()
     }
 
     fn get_child_id(&self, parent_node_id: taffy::NodeId, child_index: usize) -> taffy::NodeId {
@@ -151,12 +145,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutPartialTree for LayoutContext<
                     layout,
                     |_, _| 0.0,
                     |known_dimensions, available_space| {
-                        (ctx.measure_function)(
-                            known_dimensions,
-                            available_space,
-                            node_key,
-                            node,
-                        )
+                        (ctx.measure_function)(known_dimensions, available_space, node_key, node)
                     },
                 ),
             }
@@ -179,7 +168,9 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::CacheTree for LayoutContext<'d, 'n, 
         input: &taffy::LayoutInput,
         layout_output: taffy::LayoutOutput,
     ) {
-        self.layout_node_mut(node_id).cache.store(input, layout_output);
+        self.layout_node_mut(node_id)
+            .cache
+            .store(input, layout_output);
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
@@ -295,7 +286,6 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::PrintTree for LayoutContext<'d, 'n, 
     }
 }
 
-
 /// Iterates over the children of a node, returning the [`taffy::NodeId`] of each.
 pub struct LayoutChildren<'a>(tree::iter::Children<'a, ElementId, Element<'a>>);
 
@@ -303,10 +293,11 @@ impl<'a> Iterator for LayoutChildren<'a> {
     type Item = taffy::NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|id| taffy::NodeId::new(id.data().as_ffi()))
+        self.0
+            .next()
+            .map(|id| taffy::NodeId::new(id.data().as_ffi()))
     }
 }
-
 
 /// Measures the intrinsic size of a leaf (inline / no-children) node.
 ///
@@ -314,7 +305,7 @@ impl<'a> Iterator for LayoutChildren<'a> {
 /// exists solely to collapse an otherwise 7-fold-repeated where-clause on
 /// [`LayoutContext`] and its taffy trait impls.
 pub trait MeasureFunction<'n>:
-FnMut(
+    FnMut(
     taffy::Size<Option<f32>>,
     taffy::Size<taffy::AvailableSpace>,
     ElementId,

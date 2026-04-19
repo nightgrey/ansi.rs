@@ -3,8 +3,8 @@ pub mod symbols;
 mod context;
 pub use context::*;
 
-mod computation;
-pub use computation::*;
+mod computed;
+pub use computed::*;
 
 mod layout;
 pub use layout::*;

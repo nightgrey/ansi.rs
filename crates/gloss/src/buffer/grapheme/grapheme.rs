@@ -147,10 +147,21 @@ impl Grapheme {
         }
     }
 
+    /// Returns `true` if this grapheme is empty (no character) or a continuation.
+    pub const fn is_none(&self) -> bool {
+        self.is_empty() || self.is_continuation()
+    }
+
     /// Returns `true` if this grapheme is empty (no character).
     #[inline]
     pub const fn is_empty(&self) -> bool {
         self == &Self::EMPTY
+    }
+
+    /// Returns `true` if this grapheme is a wide-character continuation marker.
+    #[inline]
+    pub const fn is_continuation(self) -> bool {
+        (self.value >> 24) as u8 == Self::CONTINUATION_TAG
     }
 
     /// Returns `true` if this grapheme is stored inline (≤4 UTF-8 bytes).
@@ -169,10 +180,37 @@ impl Grapheme {
         (self.value >> 24) as u8 == Self::EXTENDED_TAG
     }
 
-    /// Returns `true` if this grapheme is a wide-character continuation marker.
-    #[inline]
-    pub const fn is_continuation(self) -> bool {
-        (self.value >> 24) as u8 == Self::CONTINUATION_TAG
+    /// Resolve this grapheme to a `char`.
+    pub fn try_as_char(&self) -> Option<char> {
+        let bytes = self.value.to_le_bytes();
+
+        let code_point: u32 = match bytes[0] {
+            0x00..=0x7F => bytes[0] as u32,
+
+            0xC0..=0xDF => ((bytes[0] & 0x1F) as u32) << 6 | (bytes[1] & 0x3F) as u32,
+
+            0xE0..=0xEF => {
+                ((bytes[0] & 0x0F) as u32) << 12
+                    | ((bytes[1] & 0x3F) as u32) << 6
+                    | (bytes[2] & 0x3F) as u32
+            }
+
+            0xF0..=0xF7 => {
+                ((bytes[0] & 0x07) as u32) << 18
+                    | ((bytes[1] & 0x3F) as u32) << 12
+                    | ((bytes[2] & 0x3F) as u32) << 6
+                    | (bytes[3] & 0x3F) as u32
+            }
+
+            _ => return None,
+        };
+
+        // Validates: not a surrogate (0xD800–0xDFFF), not > 0x10FFFF
+        char::from_u32(code_point)
+    }
+
+    fn as_char(&self) -> char {
+        self.try_as_char().unwrap()
     }
 
     /// Resolve this grapheme to a `&str`.
@@ -325,27 +363,22 @@ impl Encode for &str {
 
 impl const Encode for char {
     fn try_inline(self) -> Result<Grapheme, GraphemeError> {
-        let char = self as u32;
+        let u32 = self as u32;
         Ok(Grapheme {
-            value: u32::from_le_bytes(match char {
-                0x00..=0x7F => [char as u8, 0, 0, 0],
-                0x80..=0x7FF => [
-                    (0xC0 | (char >> 6)) as u8,
-                    (0x80 | (char & 0x3F)) as u8,
-                    0,
-                    0,
-                ],
+            value: u32::from_le_bytes(match u32 {
+                0x00..=0x7F => [u32 as u8, 0, 0, 0],
+                0x80..=0x7FF => [(0xC0 | (u32 >> 6)) as u8, (0x80 | (u32 & 0x3F)) as u8, 0, 0],
                 0x800..=0xFFFF => [
-                    (0xE0 | (char >> 12)) as u8,
-                    (0x80 | ((char >> 6) & 0x3F)) as u8,
-                    (0x80 | (char & 0x3F)) as u8,
+                    (0xE0 | (u32 >> 12)) as u8,
+                    (0x80 | ((u32 >> 6) & 0x3F)) as u8,
+                    (0x80 | (u32 & 0x3F)) as u8,
                     0,
                 ],
                 _ => [
-                    (0xF0 | (char >> 18)) as u8,
-                    (0x80 | ((char >> 12) & 0x3F)) as u8,
-                    (0x80 | ((char >> 6) & 0x3F)) as u8,
-                    (0x80 | (char & 0x3F)) as u8,
+                    (0xF0 | (u32 >> 18)) as u8,
+                    (0x80 | ((u32 >> 12) & 0x3F)) as u8,
+                    (0x80 | ((u32 >> 6) & 0x3F)) as u8,
+                    (0x80 | (u32 & 0x3F)) as u8,
                 ],
             }),
         })

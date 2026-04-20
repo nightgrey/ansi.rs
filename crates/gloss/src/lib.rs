@@ -8,6 +8,7 @@
 #![feature(const_index)]
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]
+#![feature(once_cell_get_mut)]
 extern crate core;
 
 pub mod drawing;

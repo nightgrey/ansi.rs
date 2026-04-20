@@ -39,5 +39,9 @@ criterion = "0.8.2"
 name = "main"
 
 [[bench]]
-name = "bench"
+name = "terminal"
+harness = false
+
+[[bench]]
+name = "cell"
 harness = false

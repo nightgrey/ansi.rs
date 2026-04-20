@@ -47,7 +47,7 @@ impl Buffer {
     pub fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
-            buffer[(row, col)] = Cell::inline(ch, style);
+            buffer[(row, col)] = Cell::inline(ch).with_style(style);
         }
         buffer
     }

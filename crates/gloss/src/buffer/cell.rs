@@ -5,6 +5,9 @@ use maybe::Maybe;
 use std::fmt::Debug;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+// Compile-time size check
+const _: () = assert!(core::mem::size_of::<Cell>() == 16);
+
 /// A single terminal cell — the fundamental unit of the framebuffer.
 ///
 /// Each cell holds a grapheme cluster (the visible character), its display
@@ -26,6 +29,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
 #[derive(Clone, Copy, Eq, PartialEq)]
+#[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
@@ -74,11 +78,22 @@ impl Cell {
     ///
     /// The character is always stored inline (every Unicode scalar value fits
     /// in 4 UTF-8 bytes).
-    pub fn inline(char: char, style: Style) -> Self {
+    pub fn inline(char: char) -> Self {
         Self {
             grapheme: Grapheme::inline(char),
             width: char.width().unwrap_or(0) as u8,
-            style,
+            style: Style::None,
+        }
+    }
+
+    pub fn extended(str: &str, arena: &mut Arena) -> Self {
+        let width = str.width() as u8;
+        let grapheme = Grapheme::extended(str, arena);
+
+        Self {
+            grapheme,
+            width,
+            style: Style::None,
         }
     }
 
@@ -248,7 +263,7 @@ impl Cell {
         self.grapheme.as_bytes(arena)
     }
 
-    pub fn eq_bit(&self, other: &Self) -> bool {
+    pub fn eq_bitwise(&self, other: &Self) -> bool {
         (self.grapheme == other.grapheme)
             & (self.style.foreground == other.style.foreground)
             & (self.style.background == other.style.background)
@@ -305,11 +320,9 @@ mod tests {
 
     #[test]
     fn cell_from_char() {
-        let style = Style::default()
-            .with(Attribute::Bold)
-            .foreground(Color::Rgb(255, 0, 0));
-
-        let cell = Cell::inline('A', style);
+        let cell = Cell::inline('A')
+            .with_attributes(Attribute::Bold)
+            .with_foreground(Color::Rgb(255, 0, 0));
         assert!(!cell.is_empty());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
@@ -321,7 +334,7 @@ mod tests {
 
     #[test]
     fn cell_with_wide_char() {
-        let cell = Cell::inline('中', Style::None);
+        let cell = Cell::inline('中');
         assert_eq!(cell.width(), 2);
     }
 
@@ -343,7 +356,7 @@ mod tests {
 
     #[test]
     fn cell_clear() {
-        let cell_before = Cell::inline('Z', Style::default().foreground(Color::Index(1)));
+        let cell_before = Cell::inline('Z').with_foreground(Color::Index(1));
         let mut cell = cell_before;
         cell.clear();
         assert!(cell.is_empty());

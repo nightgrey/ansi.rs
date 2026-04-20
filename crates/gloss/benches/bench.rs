@@ -2,12 +2,10 @@ use ansi::{Color, Style};
 
 use criterion::*;
 use criterion::{Criterion, criterion_group, criterion_main};
-use derive_more::{Deref, DerefMut};
 use geometry::{Bound, Point, Position, p};
 use gloss::*;
 use std::hint::black_box;
 use std::io;
-use terminal::Capabilities;
 use tree::At;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -31,27 +29,28 @@ fn setup<'a>(width: usize, height: usize) -> Engine<'a> {
     root.align_items = AlignItems::Center.into();
     root.justify_content = JustifyContent::Center.into();
 
-    engine.insert_with(Element::Span("👨🏿👨🏿 Hello"), |node| {
-        node.background = Some(Color::None);
-        node.border = Border::Bold;
-        node.font_weight = Some(FontWeight::Bold);
-    });
+    engine.set_root(
+        Element::Div()
+            .background(Color::Red)
+            .color(Color::White)
+            .padding(1)
+            .flex()
+            .flex_col()
+            .items_center()
+            .content_center(),
+    );
 
-    let abc = engine.insert_with(Element::Div(), |node| {
-        node.border = Border::Bold;
-    });
+    engine.insert(
+        Element::Span("👨🏿👨🏿 Hello")
+            .background(Color::None)
+            .border(Border::Bold)
+            .bold(),
+    );
 
-    let a = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
-        node.background = Some(Color::Green);
-    });
-
-    let b = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
-        node.background = Some(Color::Yellow);
-    });
-
-    let c = engine.insert_at_with(Element::Div(), At::Child(abc), |node| {
-        node.background = Some(Color::Blue);
-    });
+    let abc = engine.insert(Element::Div().border(Border::Bold));
+    let a = engine.insert_at(Element::Div().background(Color::Green), At::Child(abc));
+    let b = engine.insert_at(Element::Div().background(Color::Yellow), At::Child(abc));
+    let c = engine.insert_at(Element::Div().background(Color::Blue), At::Child(abc));
 
     engine.insert_at(Element::Span("A"), At::Child(a));
     engine.insert_at(Element::Span("B"), At::Child(b));
@@ -64,7 +63,7 @@ fn setup<'a>(width: usize, height: usize) -> Engine<'a> {
 fn terminal_rerender(c: &mut Criterion) {
     let mut engine = Engine::new(W, H);
     engine.layout_and_paint();
-    engine.draw(|ctx| {
+    engine.paint_with(|ctx| {
         ctx.char(p!(W / 2, H / 2), 'A');
     });
     let mut output = io::Cursor::new(Vec::<u8>::new());

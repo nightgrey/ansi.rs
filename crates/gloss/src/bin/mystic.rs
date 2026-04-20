@@ -1,29 +1,30 @@
 use ansi::Color;
 use gloss::*;
 use std::io::{self, Write as _};
+use taffy::FlexboxContainerStyle;
 
 fn main() -> io::Result<()> {
     let mut engine = Engine::new(40, 10);
 
-    let root = engine.root_mut();
-    root.display = Display::Flex;
-    root.flex_direction = FlexDirection::Column;
-    root.align_items = Some(AlignItems::Center);
-    root.align_content = Some(AlignContent::Center);
-    root.justify_content = Some(ContentAlignment::Center);
-    root.background = Some(Color::Rgb(0, 0, 255));
-    root.border = Border::Bold;
-    root.color = Some(Color::White);
+    engine.set_root(
+        Element::Div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .background(Color::Rgb(0, 0, 255))
+            .border(Border::Solid)
+            .color(Color::White),
+    );
 
-    engine.insert_with(Element::Span("~ 肏 ~"), |node| {
-        node.font_weight = Some(FontWeight::Bold);
-    });
+    engine.insert(Element::Span("~ 肏 ~").bold());
 
-    engine.insert_with(Element::Span("Mystical"), |node| {
-        node.margin.top = 1.into();
-        node.color = Some(Color::Rgb(255, 0, 0));
-        node.font_weight = Some(FontWeight::Bold);
-    });
+    engine.insert(
+        Element::Span("Mystical")
+            .margin((1, 1))
+            .color(Color::Red)
+            .bold(),
+    );
 
     engine.render(&mut io::stdout())?;
 

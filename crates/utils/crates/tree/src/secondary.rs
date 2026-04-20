@@ -1,4 +1,4 @@
-use crate::Id;
+use crate::{Error, Id};
 use derive_more::{Index, IndexMut};
 use std::fmt::Debug;
 
@@ -43,6 +43,20 @@ impl<K: Id, V> Secondary<K, V> {
     /// Returns a mutable reference to the value associated with `id`, or `None`.
     pub fn get_mut(&mut self, id: K) -> Option<&mut V> {
         self.inner.get_mut(id)
+    }
+
+    pub fn set(&mut self, key: K, value: V) {
+        self.try_set(key, value).unwrap()
+    }
+
+    pub fn try_set(&mut self, key: K, value: V) -> Result<(), Error<K>> {
+        if !self.contains(key) {
+            return Err(Error::Missing(key));
+        }
+
+        self.inner[key] = value;
+
+        Ok(())
     }
 
     /// Inserts a value at the given id, returning the previous value if any.

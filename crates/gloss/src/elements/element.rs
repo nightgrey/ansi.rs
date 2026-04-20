@@ -1,3 +1,4 @@
+use crate::layouted::Layouted;
 use crate::{Display, ElementKind, Layout};
 use bon::{bon, builder};
 use derive_more::{Deref, DerefMut};
@@ -35,5 +36,11 @@ impl<'a> Element<'a> {
                 ..Default::default()
             },
         }
+    }
+}
+
+impl Layouted for Element<'_> {
+    fn layout(&mut self) -> &mut Layout {
+        &mut self.layout
     }
 }

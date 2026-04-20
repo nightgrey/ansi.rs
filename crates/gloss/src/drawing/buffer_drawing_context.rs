@@ -471,8 +471,8 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Grapheme;
     use crate::{Document, Element, FlexDirection, FontWeight, TextDecoration};
+    use crate::{Grapheme, Layouted};
     use ansi::Color;
     use geometry::pos;
     use std::borrow::Cow;
@@ -493,26 +493,20 @@ mod tests {
         root.margin = (2, 2).into();
         root.padding = (1, 1).into();
 
-        let heading = document.insert_with(Element::Span(Cow::Borrowed("Title")), |node| {
-            node.color = Some(Color::Red);
-            node.text_decoration = Some(TextDecoration::Underline);
-            node.font_weight = Some(FontWeight::Bold);
-        });
+        let heading = document.insert(
+            Element::Span(Cow::Borrowed("Title"))
+                .color(Color::Red)
+                .underline()
+                .bold(),
+        );
 
-        let footer = document.insert_with(Element::Div(), |node| {
-            node.background = Some(Color::BrightBlack);
-            node.flex_direction = FlexDirection::Row;
-        });
+        let footer = document.insert(Element::Div().background(Color::BrightBlack).flex_row());
 
-        let footer_left = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
-            node.padding = (1, 1).into();
-        });
+        let footer_left = document.insert_at(Element::Div().padding(1), At::Child(footer));
         let footer_left_content =
             document.insert_at(Element::Span("Gloss Rendering"), At::Child(footer_left));
 
-        let footer_right = document.insert_at_with(Element::Div(), At::Child(footer), |node| {
-            node.padding = (1, 1).into();
-        });
+        let footer_right = document.insert_at(Element::Div().padding(1), At::Child(footer));
         let footer_right_content =
             document.insert_at(Element::Span("Test Consortium"), At::Child(footer_right));
     }
@@ -938,24 +932,17 @@ mod tests {
         root.color = Some(Color::White);
         root.padding = (1, 1).into();
 
-        document.insert_with(Element::Span(Cow::Borrowed("Hello")), |node| {
-            node.background = Some(Color::None);
-            node.font_weight = Some(FontWeight::Bold);
-        });
+        document.insert(
+            Element::Span(Cow::Borrowed("Hello"))
+                .background(Color::None)
+                .font_weight(FontWeight::Bold),
+        );
 
-        let abc = document.insert_with(Element::Div(), |node| {
-            node.border = Border::Bold;
-        });
+        let abc = document.insert(Element::Div().border(Border::Bold));
+        let a = document.insert_at(Element::Div().background(Color::Green), At::Child(abc));
+        let b = document.insert_at(Element::Div().background(Color::Yellow), At::Child(abc));
+        let c = document.insert_at(Element::Div().background(Color::Blue), At::Child(abc));
 
-        let a = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
-            node.background = Some(Color::Green);
-        });
-        let b = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
-            node.background = Some(Color::Yellow);
-        });
-        let c = document.insert_at_with(Element::Div(), At::Child(abc), |node| {
-            node.background = Some(Color::Blue);
-        });
         document.insert_at(Element::Span("A"), At::Child(a));
         document.insert_at(Element::Span("B"), At::Child(b));
         document.insert_at(Element::Span("C"), At::Child(c));

@@ -71,6 +71,20 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.get_mut(key)
     }
 
+    pub fn set(&mut self, key: K, value: V) {
+        self.try_set(key, value).unwrap()
+    }
+
+    pub fn try_set(&mut self, key: K, value: V) -> Result<(), Error<K>> {
+        if !self.contains(key) {
+            return Err(Error::Missing(key));
+        }
+
+        self.inner[key].inner = value;
+
+        Ok(())
+    }
+
     /// Inserts a new detached node and returns its key.
     pub fn insert(&mut self, value: V) -> K {
         self.inner.insert(Node::new(value))

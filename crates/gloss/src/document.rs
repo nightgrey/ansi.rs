@@ -1,4 +1,4 @@
-use crate::{Available, Layout, Length, Space};
+use crate::{Available, Layout, Length, Space, element};
 use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
 use crate::{document, measure};
 use geometry::Rect;
@@ -26,6 +26,10 @@ impl<'a> Document<'a> {
         }
     }
 
+    pub fn root_id(&self) -> ElementId {
+        self.root_id
+    }
+
     pub fn root(&self) -> &Element<'a> {
         &self.elements[self.root_id]
     }
@@ -44,12 +48,24 @@ impl<'a> Document<'a> {
         &mut self.elements[id]
     }
 
+    /// Sets the node at the given id.
+    pub fn set(&mut self, id: ElementId, node: Element<'a>) {
+        self.elements.set(id, node);
+        self.mark(id, Dirty::all());
+    }
+
+    /// Sets the root node.
+    pub fn set_root(&mut self, node: Element<'a>) {
+        self.elements.set(self.root_id, node);
+    }
+
     /// Inserts a node as the last child of the root.
     pub fn insert(&mut self, node: Element<'a>) -> ElementId {
         self.insert_at(node, At::Child(self.root_id))
     }
 
     /// Inserts a node as the last child of the root.
+    #[deprecated = "use insert() instead"]
     pub fn insert_with(
         &mut self,
         node: Element<'a>,
@@ -67,6 +83,7 @@ impl<'a> Document<'a> {
         id
     }
 
+    #[deprecated = "use insert() instead"]
     pub fn insert_at_with(
         &mut self,
         node: Element<'a>,

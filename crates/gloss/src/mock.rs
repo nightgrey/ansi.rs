@@ -51,12 +51,14 @@ pub fn chess_board(engine: &mut Engine) {
                 Color::None // empty squares
             };
 
-            engine.insert_at_with(Element::Span(piece), At::Child(row), |node| {
-                node.background = Some(bg);
-                node.color = Some(fg);
-                node.padding = (1, 2).into();
-                node.font_weight = Some(FontWeight::Bold);
-            });
+            engine.insert_at(
+                Element::Span(piece)
+                    .background(bg)
+                    .color(fg)
+                    .padding((1, 2))
+                    .bold(),
+                At::Child(row),
+            );
         }
     }
 }

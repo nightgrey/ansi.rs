@@ -56,11 +56,48 @@ impl Engine {
     }
 
     fn action(&mut self, handler: &mut dyn Handler, action: Action, byte: u8) {
+        println!("[{:?}] {:?} @ 0x{:2x}", self.state, action, byte);
+
         match action {
             Action::None | Action::Ignore | Action::Prefix => {}
 
             Action::Print => {
-                handler.utf8(byte as char);
+                match self.state {
+                    State::Utf8 => {
+                        if !self.utf8.is_full() {
+                            self.utf8.push(byte);
+                        }
+
+                        // utf8[0] is guaranteed by the table to be a lead byte in
+                        // 0xC2..=0xF4 — pick the expected length from it.
+                        let expected = match self.utf8[0] {
+                            0xC2..=0xDF => 2,
+                            0xE0..=0xEF => 3,
+                            0xF0..=0xF4 => 4,
+                            _ => {
+                                self.utf8.clear();
+                                self.state = State::Ground;
+                                return;
+                            }
+                        };
+
+                        if self.utf8.len() >= expected {
+                            if let Ok(s) = str::from_utf8(&self.utf8) {
+                                if let Some(ch) = s.chars().next() {
+                                    handler.utf8(ch);
+                                }
+                            }
+                            self.utf8.clear();
+                            // Complete — back to Ground. The transition is manual
+                            // because the table's continuation rule keeps us in
+                            // Utf8 (same-state, so no entry/exit fires).
+                            self.state = State::Ground;
+                        }
+                    }
+                    _ => {
+                        handler.utf8(byte as char);
+                    }
+                }
             }
 
             Action::Execute => {
@@ -72,7 +109,7 @@ impl Engine {
             }
 
             Action::Collect => {
-                let _ = self.intermediates.try_push(byte);
+                self.intermediates.push(byte);
             }
 
             Action::Param => match byte {
@@ -85,37 +122,11 @@ impl Engine {
             },
 
             Action::Record => {
-                let _ = self.data.try_push(byte);
+                self.data.push(byte);
             }
 
-            Action::Utf8Collect => {
-                if !self.utf8.is_full() {
-                    self.utf8.push(byte);
-                }
-                // utf8[0] is guaranteed by the table to be a lead byte in
-                // 0xC2..=0xF4 — pick the expected length from it.
-                let expected = match self.utf8[0] {
-                    0xC2..=0xDF => 2,
-                    0xE0..=0xEF => 3,
-                    0xF0..=0xF4 => 4,
-                    _ => {
-                        self.utf8.clear();
-                        self.state = State::Ground;
-                        return;
-                    }
-                };
-                if self.utf8.len() >= expected {
-                    if let Ok(s) = str::from_utf8(&self.utf8) {
-                        if let Some(ch) = s.chars().next() {
-                            handler.utf8(ch);
-                        }
-                    }
-                    self.utf8.clear();
-                    // Complete — back to Ground. The transition is manual
-                    // because the table's continuation rule keeps us in
-                    // Utf8 (same-state, so no entry/exit fires).
-                    self.state = State::Ground;
-                }
+            Action::Collect => {
+                self.intermediates.push(byte);
             }
 
             Action::DataStart => {

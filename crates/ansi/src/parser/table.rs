@@ -109,14 +109,15 @@ impl Table {
         table.add(0x19, State::Ground, Action::Execute, State::Ground);
         table.add(0x1C..=0x1F, State::Ground, Action::Execute, State::Ground);
         table.add(0x20..=0x7F, State::Ground, Action::Print, State::Ground);
-        table.add(0xC2..=0xF4, State::Ground, Action::Utf8Collect, State::Utf8);
+        table.add(0xC2..=0xF4, State::Ground, Action::None, State::Utf8);
 
         // State::Utf8 — accumulate continuation bytes. `Utf8Collect` manually
         // resets to Ground once the codepoint is complete (same-state
         // transition, so no exit/entry fires). The exit action is Clear so
         // that an abort via anywhere rules (ESC, CAN, SUB, …) drops the
         // half-decoded bytes instead of leaving them in `self.utf8`.
-        table.add(0x80..=0xBF, State::Utf8, Action::Utf8Collect, State::Utf8);
+        table.add_entry(State::Utf8, Action::Print);
+        table.add(0x80..=0xBF, State::Utf8, Action::Print, State::Utf8);
         table.add_exit(State::Utf8, Action::Clear);
 
         // State::Escape
@@ -621,18 +622,26 @@ pub enum Action {
     /// Store the private marker or intermediate character for use when the final
     /// character arrives.
     Collect,
+
     /// The final character of an escape, CSI or DCS sequence has arrived; dispatch
     /// the corresponding control function.
     Dispatch,
+
     /// Execute a C0 or C1 control function.
     Execute,
+
     /// Drop the byte; no observable change to terminal state.
     Ignore,
+
     /// Collect parameter digits / separators (`0`-`9`, `;`, `:`).
     Param,
+
     /// Collect a private prefix of a control sequence.
     Prefix,
+
     /// In `Ground`, map the code to a glyph and display it.
+    /// Accumulate a UTF-8 byte into `self.utf8`. Emits the codepoint and
+    /// returns to `Ground` once enough continuation bytes have arrived.
     Print,
 
     /// A string-type data phase (DCS / OSC / SOS / PM / APC) has begun.
@@ -644,16 +653,11 @@ pub enum Action {
     /// `self.state` is updated, so it still reads as `prev_state`).
     DataEnd,
 
-    /// Append the current byte to the data buffer.
     Record,
-
-    /// Accumulate a UTF-8 byte into `self.utf8`. Emits the codepoint and
-    /// returns to `Ground` once enough continuation bytes have arrived.
-    Utf8Collect,
 }
 
 impl Action {
-    pub const COUNT: usize = Self::Utf8Collect as usize + 1;
+    pub const COUNT: usize = Self::Print as usize + 1;
 }
 
 impl From<u8> for Action {
@@ -679,8 +683,9 @@ impl Debug for Action {
             Action::Print => f.write_str("Action::Print"),
             Action::DataStart => f.write_str("Action::DataStart"),
             Action::DataEnd => f.write_str("Action::DataEnd"),
+            Action::Collect => f.write_str("Action::Record"),
+            Action::Collect => f.write_str("Action::Collect"),
             Action::Record => f.write_str("Action::Record"),
-            Action::Utf8Collect => f.write_str("Action::Utf8Collect"),
         }
     }
 }

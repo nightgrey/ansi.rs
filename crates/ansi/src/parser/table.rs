@@ -657,7 +657,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const COUNT: usize = Self::Print as usize + 1;
+    pub const COUNT: usize = Self::Record as usize + 1;
 }
 
 impl From<u8> for Action {
@@ -683,7 +683,6 @@ impl Debug for Action {
             Action::Print => f.write_str("Action::Print"),
             Action::DataStart => f.write_str("Action::DataStart"),
             Action::DataEnd => f.write_str("Action::DataEnd"),
-            Action::Collect => f.write_str("Action::Record"),
             Action::Collect => f.write_str("Action::Collect"),
             Action::Record => f.write_str("Action::Record"),
         }

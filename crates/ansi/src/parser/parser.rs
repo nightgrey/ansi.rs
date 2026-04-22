@@ -108,10 +108,6 @@ impl Engine {
                 self.clear();
             }
 
-            Action::Collect => {
-                self.intermediates.push(byte);
-            }
-
             Action::Param => match byte {
                 b'0'..=b'9' => self.params.push_digit(byte),
                 // sub-parameter separator — keep accumulating within the group.

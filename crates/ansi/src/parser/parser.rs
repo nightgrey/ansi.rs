@@ -23,6 +23,14 @@ impl Engine {
         for &byte in chars.as_ref().iter() {
             match self.state {
                 State::Utf8 => self.advance_utf8(handler, byte),
+                // A UTF-8 lead byte in Ground kicks the decoder in. The state
+                // table itself stays ASCII-only — escape sequences are 7-bit
+                // per ECMA-48, so high bytes only matter for printable text
+                // (here) and for data-string passthrough (handled in table).
+                State::Ground if matches!(byte, 0xC2..=0xF4) => {
+                    self.state = State::Utf8;
+                    self.advance_utf8(handler, byte);
+                }
                 _ => self.step(handler, byte),
             }
         }
@@ -122,27 +130,31 @@ impl Engine {
                 let _ = self.data.try_push(byte);
             }
 
-            Action::OscStart | Action::DcsStart => {
+            Action::DataStart => {
                 self.data.clear();
             }
 
-            Action::OscEnd => {
+            Action::DataEnd => {
                 if self.params.has_unfinished() {
                     self.params.finish_param();
                 }
-                handler.handle_osc(self.params.as_slice(), &self.intermediates, &self.data);
-            }
-
-            Action::DcsEnd => {
-                if self.params.has_unfinished() {
-                    self.params.finish_param();
+                // Exit actions fire before `self.state` is updated, so it
+                // still reflects the state we're leaving.
+                match self.state {
+                    State::DcsData => handler.handle_dcs(
+                        self.params.as_slice(),
+                        &self.intermediates,
+                        self.dcs_final as char,
+                        &self.data,
+                    ),
+                    State::OscData => {
+                        handler.handle_osc(self.params.as_slice(), &self.intermediates, &self.data)
+                    }
+                    State::SosData => handler.handle_sos(&self.data),
+                    State::PmData => handler.handle_pm(&self.data),
+                    State::ApcData => handler.handle_apc(&self.data),
+                    _ => (),
                 }
-                handler.handle_dcs(
-                    self.params.as_slice(),
-                    &self.intermediates,
-                    self.dcs_final as char,
-                    &self.data,
-                );
             }
 
             Action::Dispatch => {
@@ -410,10 +422,7 @@ mod tests {
         let mut h = Harness::new();
         // ESC # 8 — DECALN (screen alignment)
         let events: Vec<_> = h.advance(b"\x1B#8").collect();
-        assert_eq!(
-            events,
-            vec![Value::Esc(Intermediates::from(&b"#"[..]), b'8')]
-        );
+        assert_eq!(events, vec![Value::Esc(Intermediates::from(b"#"), b'8')]);
     }
 
     // ---- CSI ------------------------------------------------------------
@@ -555,5 +564,12 @@ mod tests {
         // ESC then CAN (0x18) — CAN returns to Ground without dispatch.
         let events: Vec<_> = h.advance(b"\x1B\x18").collect();
         assert_eq!(events, vec![Value::Control(0x18)]);
+    }
+
+    #[test]
+    fn utf8() {
+        let mut h = Harness::new();
+
+        dbg!(h.advance("\x1B[1m🦀🦀💔👨🏿".as_bytes()).collect::<Vec<_>>());
     }
 }

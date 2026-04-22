@@ -1,14 +1,19 @@
-use derive_more::{Deref, DerefMut, Index, IndexMut};
 use std::fmt::Debug;
-use std::ops;
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 
-// Table values are generated like this:
+// Table values are encoded as:
 //
-// Index:  State << IndexStateShift | Byte
-// Value:  Action << TransitionActionShift | NextState
+//   inner index:   (state << INDEX_STATE_SHIFT) | byte
+//   inner value:   (action << TRANSITION_ACTION_SHIFT) | next_state
+//
+// Both `State` and `Action` fit into 4 bits (15 states, 14 actions).
+//
+// "No transition" is encoded as `next_state == current_state`, so each row
+// is initialised to point back at itself with `Action::None`. Real
+// transitions are detected with `next_state != prev_state`, mirroring the
+// `if(new_state)` check in the C reference.
 const TRANSITION_ACTION_SHIFT: usize = 4;
-const TRANSITION_STATE_MASK: usize = State::COUNT as usize - 1;
+const TRANSITION_STATE_MASK: usize = 0x0F;
 const INDEX_STATE_SHIFT: usize = 8;
 const DEFAULT_TABLE_SIZE: usize = State::COUNT * 256;
 
@@ -18,38 +23,35 @@ const DEFAULT_TABLE_SIZE: usize = State::COUNT * 256;
 #[derive(Clone, Debug)]
 pub struct Table {
     inner: [usize; DEFAULT_TABLE_SIZE],
+    // Step 2: collapse to `[Action; State::COUNT]` — only index 0 of each
+    // row is ever written/read, so the per-byte storage is wasted.
     entry: [usize; DEFAULT_TABLE_SIZE],
     exit: [usize; DEFAULT_TABLE_SIZE],
 }
 
 impl Table {
-    pub fn fill(&mut self, action: Action, state: State) {
-        let value = (action as usize) << TRANSITION_ACTION_SHIFT | (state as usize);
-        self.inner.fill(value);
-    }
-
-    pub fn add_entry(&mut self, state: State, action: Action) {
-        let idx = ((state as usize) << INDEX_STATE_SHIFT) | 0 as usize;
-        let value = (action as usize) << TRANSITION_ACTION_SHIFT | (state as usize);
-        self.entry[idx as usize] = value;
-    }
-
     pub fn add(&mut self, value: impl TransitionValue, state: State, action: Action, next: State) {
         value.add(self, state, action, next);
     }
 
-    pub fn add_exit(&mut self, state: State, action: Action) {
-        let idx = ((state as usize) << INDEX_STATE_SHIFT) | 0 as usize;
+    pub fn add_entry(&mut self, state: State, action: Action) {
+        let idx = (state as usize) << INDEX_STATE_SHIFT;
         let value = (action as usize) << TRANSITION_ACTION_SHIFT | (state as usize);
-        self.exit[idx as usize] = value;
+        self.entry[idx] = value;
+    }
+
+    pub fn add_exit(&mut self, state: State, action: Action) {
+        let idx = (state as usize) << INDEX_STATE_SHIFT;
+        let value = (action as usize) << TRANSITION_ACTION_SHIFT | (state as usize);
+        self.exit[idx] = value;
     }
 
     pub fn ignore(&mut self, value: impl TransitionValue, state: State) {
         value.add(self, state, Action::Ignore, state);
     }
 
-    pub fn transition(&self, state: State, char: u8) -> (State, Action) {
-        let index = ((state as usize) << INDEX_STATE_SHIFT) | (char as usize);
+    pub fn transition(&self, state: State, byte: u8) -> (State, Action) {
+        let index = ((state as usize) << INDEX_STATE_SHIFT) | (byte as usize);
         let value = self.inner[index];
         (
             State::from((value & TRANSITION_STATE_MASK) as u8),
@@ -57,17 +59,15 @@ impl Table {
         )
     }
 
-    pub fn entry(&self, state: State, char: u8) -> Action {
-        let index = ((state as usize) << INDEX_STATE_SHIFT) | (0 as usize);
+    pub fn entry(&self, state: State) -> Action {
+        let index = (state as usize) << INDEX_STATE_SHIFT;
         let value = self.entry[index];
-
         Action::from((value >> TRANSITION_ACTION_SHIFT) as u8)
     }
 
-    pub fn exit(&self, state: State, char: u8) -> Action {
-        let index = ((state as usize) << INDEX_STATE_SHIFT) | (0 as usize);
+    pub fn exit(&self, state: State) -> Action {
+        let index = (state as usize) << INDEX_STATE_SHIFT;
         let value = self.exit[index];
-
         Action::from((value >> TRANSITION_ACTION_SHIFT) as u8)
     }
 
@@ -84,16 +84,24 @@ impl Table {
             exit: [0; DEFAULT_TABLE_SIZE],
         };
 
-        table.fill(Action::None, State::Ground);
+        // Initialise every row so unset bytes mean "stay in current state,
+        // no action". This makes `next_state != prev_state` a faithful
+        // proxy for the C reference's `if(new_state)` check.
+        for state in Table::range(State::Ground..=State::Utf8) {
+            for byte in 0u32..=255 {
+                table.add(byte as u8, state, Action::None, state);
+            }
+        }
 
+        // "Anywhere" transitions — apply to every state.
         for state in Table::range(State::Ground..=State::Utf8) {
             table.add(0x18, state, Action::Execute, State::Ground);
-            table.add(0x18, state, Action::Execute, State::Ground);
-            table.add(0x80..=0x8f, state, Action::Execute, State::Ground);
+            table.add(0x1A, state, Action::Execute, State::Ground);
+            table.add(0x80..=0x8F, state, Action::Execute, State::Ground);
             table.add(0x91..=0x97, state, Action::Execute, State::Ground);
             table.add(0x99, state, Action::Execute, State::Ground);
-            table.add(0x9a, state, Action::Execute, State::Ground);
-            table.add(0x9c, state, Action::None, State::Ground);
+            table.add(0x9A, state, Action::Execute, State::Ground);
+            table.add(0x9C, state, Action::None, State::Ground);
 
             table.add(0x1B, state, Action::None, State::Escape);
 
@@ -104,11 +112,6 @@ impl Table {
             table.add(0x90, state, Action::None, State::DcsEntry);
             table.add(0x9D, state, Action::None, State::OscData);
             table.add(0x9B, state, Action::None, State::CsiEntry);
-
-            // Utf8
-            // table.add(0xC2..=0xDF, state, Action::Collect, State::Utf8); // UTF8 2 byte sequence
-            // table.add(0xE0..=0xEF, state, Action::Collect, State::Utf8); // UTF8 3 byte sequence
-            // table.add(0xF0..=0xF4, state, Action::Collect, State::Utf8); // UTF8 4 byte sequence
         }
 
         // State::Ground
@@ -135,12 +138,12 @@ impl Table {
         table.add(0x5A, State::Escape, Action::Dispatch, State::Ground);
         table.add(0x5C, State::Escape, Action::Dispatch, State::Ground);
         table.add(0x60..=0x7E, State::Escape, Action::Dispatch, State::Ground);
-        table.add(0x5b, State::Escape, Action::None, State::CsiEntry);
-        table.add(0x5d, State::Escape, Action::None, State::OscData);
+        table.add(0x5B, State::Escape, Action::None, State::CsiEntry);
+        table.add(0x5D, State::Escape, Action::None, State::OscData);
         table.add(0x50, State::Escape, Action::None, State::DcsEntry);
-        table.add(0x58, State::Escape, Action::Record, State::Data); // SOS
-        table.add(0x5e, State::Escape, Action::Record, State::Data); // PM
-        table.add(0x5f, State::Escape, Action::Record, State::Data); // APC
+        table.add(0x58, State::Escape, Action::None, State::Data); // SOS
+        table.add(0x5E, State::Escape, Action::None, State::Data); // PM
+        table.add(0x5F, State::Escape, Action::None, State::Data); // APC
 
         // State::EscapeIntermediate
         table.add(
@@ -202,7 +205,7 @@ impl Table {
             Action::Collect,
             State::CsiIntermediate,
         );
-        table.add(0x3A, State::CsiEntry, Action::Param, State::CsiParam);
+        table.add(0x3A, State::CsiEntry, Action::None, State::CsiIgnore);
         table.add(0x30..=0x39, State::CsiEntry, Action::Param, State::CsiParam);
         table.add(0x3B, State::CsiEntry, Action::Param, State::CsiParam);
         table.add(
@@ -223,16 +226,23 @@ impl Table {
             0x00..=0x17,
             State::CsiIgnore,
             Action::Execute,
-            State::CsiEntry,
+            State::CsiIgnore,
         );
-        table.add(0x19, State::CsiIgnore, Action::Execute, State::CsiEntry);
+        table.add(0x19, State::CsiIgnore, Action::Execute, State::CsiIgnore);
         table.add(
             0x1C..=0x1F,
             State::CsiIgnore,
             Action::Execute,
-            State::CsiEntry,
+            State::CsiIgnore,
         );
-        table.add(0x7F, State::CsiIgnore, Action::Ignore, State::CsiEntry);
+        table.add(
+            0x20..=0x3F,
+            State::CsiIgnore,
+            Action::Ignore,
+            State::CsiIgnore,
+        );
+        table.add(0x7F, State::CsiIgnore, Action::Ignore, State::CsiIgnore);
+        table.add(0x40..=0x7E, State::CsiIgnore, Action::None, State::Ground);
 
         // State::CsiParam
         table.add(
@@ -252,12 +262,7 @@ impl Table {
         table.add(0x3A, State::CsiParam, Action::Param, State::CsiParam);
         table.add(0x3B, State::CsiParam, Action::Param, State::CsiParam);
         table.add(0x7F, State::CsiParam, Action::Ignore, State::CsiParam);
-        table.add(
-            0x3C..=0x3F,
-            State::CsiParam,
-            Action::Ignore,
-            State::CsiParam,
-        );
+        table.add(0x3C..=0x3F, State::CsiParam, Action::None, State::CsiIgnore);
         table.add(
             0x20..=0x2F,
             State::CsiParam,
@@ -300,7 +305,7 @@ impl Table {
         table.add(
             0x30..=0x3F,
             State::CsiIntermediate,
-            Action::Ignore,
+            Action::None,
             State::CsiIgnore,
         );
         table.add(
@@ -311,7 +316,7 @@ impl Table {
         );
 
         // State::DcsEntry
-        table.add_entry(State::DcsEntry, Action::DcsStart);
+        table.add_entry(State::DcsEntry, Action::Clear);
         table.add(
             0x00..=0x17,
             State::DcsEntry,
@@ -326,7 +331,7 @@ impl Table {
             State::DcsEntry,
         );
         table.add(0x7F, State::DcsEntry, Action::Ignore, State::DcsEntry);
-        table.add(0x3A, State::DcsEntry, Action::Ignore, State::DcsIgnore);
+        table.add(0x3A, State::DcsEntry, Action::None, State::DcsIgnore);
         table.add(
             0x20..=0x2F,
             State::DcsEntry,
@@ -343,7 +348,7 @@ impl Table {
         );
         table.add(0x40..=0x7E, State::DcsEntry, Action::None, State::DcsData);
 
-        // Dcs_intermediate
+        // State::DcsIntermediate
         table.add(
             0x00..=0x17,
             State::DcsIntermediate,
@@ -372,17 +377,17 @@ impl Table {
         table.add(
             0x30..=0x3F,
             State::DcsIntermediate,
-            Action::Record,
+            Action::None,
             State::DcsIgnore,
         );
         table.add(
             0x40..=0x7E,
             State::DcsIntermediate,
-            Action::Record,
+            Action::None,
             State::DcsData,
         );
 
-        // Dcs_ignore
+        // State::DcsIgnore
         table.add(
             0x00..=0x17,
             State::DcsIgnore,
@@ -397,7 +402,7 @@ impl Table {
             State::DcsIgnore,
         );
         table.add(
-            0x20..=0x2F,
+            0x20..=0x7F,
             State::DcsIgnore,
             Action::Ignore,
             State::DcsIgnore,
@@ -418,53 +423,46 @@ impl Table {
             State::DcsParam,
         );
         table.add(0x30..=0x39, State::DcsParam, Action::Param, State::DcsParam);
-        table.add(0x3b, State::DcsParam, Action::Param, State::DcsParam);
+        table.add(0x3B, State::DcsParam, Action::Param, State::DcsParam);
         table.add(0x7F, State::DcsParam, Action::Ignore, State::DcsParam);
-        table.add(0x3a, State::DcsParam, Action::Param, State::DcsIgnore);
-        table.add(
-            0x3C..=0x3F,
-            State::DcsParam,
-            Action::Ignore,
-            State::DcsIgnore,
-        );
+        table.add(0x3A, State::DcsParam, Action::None, State::DcsIgnore);
+        table.add(0x3C..=0x3F, State::DcsParam, Action::None, State::DcsIgnore);
         table.add(
             0x20..=0x2F,
             State::DcsParam,
             Action::Collect,
             State::DcsIntermediate,
         );
-        table.add(0x40..=0x7E, State::DcsParam, Action::Ignore, State::DcsData);
+        table.add(0x40..=0x7E, State::DcsParam, Action::None, State::DcsData);
 
-        // State::DcsData
+        // State::DcsData (DCS_PASSTHROUGH)
         table.add_entry(State::DcsData, Action::DcsStart);
         table.add(0x00..=0x17, State::DcsData, Action::Record, State::DcsData);
         table.add(0x19, State::DcsData, Action::Record, State::DcsData);
         table.add(0x1C..=0x1F, State::DcsData, Action::Record, State::DcsData);
         table.add(0x20..=0x7E, State::DcsData, Action::Record, State::DcsData);
-        table.add(0x7F, State::DcsData, Action::Record, State::DcsData);
+        table.add(0x7F, State::DcsData, Action::Ignore, State::DcsData);
         table.add_exit(State::DcsData, Action::DcsEnd);
 
-        // Data
+        // State::Data (SOS / PM / APC)
         table.add(0x00..=0x17, State::Data, Action::Ignore, State::Data);
         table.add(0x19, State::Data, Action::Ignore, State::Data);
         table.add(0x1C..=0x1F, State::Data, Action::Ignore, State::Data);
         table.add(0x20..=0x7F, State::Data, Action::Ignore, State::Data);
 
-        // Osc_string
+        // State::OscData
         table.add_entry(State::OscData, Action::OscStart);
         table.add(0x00..=0x17, State::OscData, Action::Ignore, State::OscData);
         table.add(0x19, State::OscData, Action::Ignore, State::OscData);
         table.add(0x1C..=0x1F, State::OscData, Action::Ignore, State::OscData);
         table.add(0x20..=0x7F, State::OscData, Action::Record, State::OscData);
-        table.add_exit(State::OscData, Action::OcsEnd);
+        table.add_exit(State::OscData, Action::OscEnd);
 
         table
     }
 
-    pub fn global_transition(state: State, char: u8) -> (State, Action) {
-        let table = Self::global();
-
-        table.transition(state, char)
+    pub fn global_transition(state: State, byte: u8) -> (State, Action) {
+        Self::global().transition(state, byte)
     }
 
     pub fn global() -> &'static Table {
@@ -480,8 +478,7 @@ impl Default for Table {
     }
 }
 
-trait TransitionValue {
-    #[inline]
+pub trait TransitionValue {
     fn add(self, table: &mut Table, state: State, action: Action, next: State);
 }
 
@@ -489,7 +486,7 @@ impl TransitionValue for u8 {
     fn add(self, table: &mut Table, state: State, action: Action, next: State) {
         let idx = ((state as usize) << INDEX_STATE_SHIFT) | (self as usize);
         let value = (action as usize) << TRANSITION_ACTION_SHIFT | (next as usize);
-        table.inner[idx as usize] = value;
+        table.inner[idx] = value;
     }
 }
 
@@ -542,7 +539,7 @@ pub enum State {
     /// by ST, CAN, SUB or ESC that cancels the string.
     DcsData,
 
-    /// Data string phase of an OCS; input is handed to a separate handler until termination
+    /// Data string phase of an OSC; input is handed to a separate handler until termination
     OscData,
 
     /// SOS (Start-of-String), PM (Private-Message) or APC (Application Program Command) string data
@@ -558,8 +555,8 @@ impl State {
 
 impl From<u8> for State {
     fn from(value: u8) -> Self {
-        if value > Self::COUNT as u8 {
-            panic!("Value is too large")
+        if value as usize >= Self::COUNT {
+            panic!("State value {value} out of range")
         }
         unsafe { std::mem::transmute(value) }
     }
@@ -581,7 +578,6 @@ impl Debug for State {
             State::DcsParam => f.write_str("State::DcsParam"),
             State::DcsData => f.write_str("State::DcsData"),
             State::OscData => f.write_str("State::OscData"),
-            State::OscData => f.write_str("State::OscData"),
             State::Data => f.write_str("State::Data"),
             State::Utf8 => f.write_str("State::Utf8"),
         }
@@ -593,35 +589,37 @@ impl Debug for State {
 pub enum Action {
     #[default]
     None,
-    /// This action causes the current private flag, intermediate characters, final character and parameters to be forgotten. This occurs on entry to the escape, csi entry and dcs entry states, so that erroneous sequences like CSI 3 ; 1 CSI 2 J are handled correctly.
+    /// Forget the current private flag, intermediate characters, final character and
+    /// parameters. Fired on entry to `Escape`, `CsiEntry` and `DcsEntry`.
     Clear,
-    /// The private marker or intermediate character should be stored for later use in selecting a control function to be executed when a final character arrives. X3.64 doesn’t place any limit on the number of intermediate characters allowed before a final character, although it doesn’t define any control sequences with more than one. Digital defined escape sequences with two intermediate characters, and control sequences and device control strings with one. If more than two intermediate characters arrive, the parser can just flag this so that the dispatch can be turned into a null operation.
+    /// Store the private marker or intermediate character for use when the final
+    /// character arrives.
     Collect,
-    /// The final character of an escape or CSI sequence has arrived, so determined the control function to be executed from the intermediate character(s) and final character, and execute it. The intermediate characters are available because collect stored them as they arrived.
+    /// The final character of an escape, CSI or DCS sequence has arrived; dispatch
+    /// the corresponding control function.
     Dispatch,
-    /// The C0 or C1 control function should be executed, which may have any one of a variety of effects, including changing the cursor position, suspending or resuming communications or changing the shift states in effect. There are no parameters to this action.
+    /// Execute a C0 or C1 control function.
     Execute,
-    /// The character or control is not processed. No observable difference in the terminal’s state would occur if the character that caused this action was not present in the input stream. (Therefore, this action can only occur within a state.)
+    /// Drop the byte; no observable change to terminal state.
     Ignore,
-    /// This action collects the characters of a parameter string for a control sequence or device control sequence and builds a list of parameters. The characters processed by this action are the digits 0-9 (codes 30-39) and the semicolon (code 3B). The semicolon separates parameters. There is no limit to the number of characters in a parameter string, although a maximum of 16 parameters need be stored. If more than 16 parameters arrive, all the extra parameters are silently ignored.
-    ///
-    /// The VT500 Programmer Information is inconsistent regarding the maximum value that a parameter can take. In section 4.3.3.2 of EK-VT520-RM it says that “any parameter greater than 9999 (decimal) is set to 9999 (decimal)”. However, in the description of DECSR (Secure Reset), its parameter is allowed to range from 0 to 16383. Because individual control functions need to make sure that numeric parameters are within specific limits, the supported maximum is not critical, but it must be at least 16383.
-    ///
-    /// Most control functions support default values for their parameters. The default value for a parameter is given by either leaving the parameter blank, or specifying a value of zero. Judging by previous threads on the newsgroup comp.terminals, this causes some confusion, with the occasional assertion that zero is the default parameter value for control functions. This is not the case: many control functions have a default value of 1, one (GSM) has a default value of 100, and some have no default. However, in all cases the default value is represented by either zero or a blank value.
-    ///
-    /// In the standard ECMA-48, which can be considered X3.64’s successor², there is a distinction between a parameter with an empty value (representing the default value), and one that has the value zero. There used to be a mode, ZDM (Zero Default Mode), in which the two cases were treated identically, but that is now deprecated in the fifth edition (1991). Although a VT500 parser needs to treat both empty and zero parameters as representing the default, it is worth considering future extensions by distinguishing them internally.
+    /// Collect parameter digits / separators (`0`-`9`, `;`, `:`).
     Param,
-    /// This action collects the private prefix of a control sequence.
+    /// Collect a private prefix of a control sequence.
     Prefix,
-    /// This action only occurs in ground state. The current code should be mapped to a glyph according to the character set mappings and shift states in effect, and that glyph should be displayed. 20 (SP) and 7F (DEL) have special behaviour in later VT series, as described in ground.
+    /// In `Ground`, map the code to a glyph and display it.
     Print,
 
+    /// DCS data string entered (hook).
     DcsStart,
+    /// DCS data string finished (unhook).
     DcsEnd,
 
+    /// OSC data string entered.
     OscStart,
-    OcsEnd,
+    /// OSC data string finished.
+    OscEnd,
 
+    /// Append the current byte to the data buffer (DCS / OSC payload).
     Record,
 }
 
@@ -631,8 +629,8 @@ impl Action {
 
 impl From<u8> for Action {
     fn from(value: u8) -> Self {
-        if value > Self::COUNT as u8 {
-            panic!("Value is too large")
+        if value as usize >= Self::COUNT {
+            panic!("Action value {value} out of range")
         }
         unsafe { std::mem::transmute(value) }
     }
@@ -641,7 +639,7 @@ impl From<u8> for Action {
 impl Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Action::None => f.write_str("Action::Action::None"),
+            Action::None => f.write_str("Action::None"),
             Action::Clear => f.write_str("Action::Clear"),
             Action::Collect => f.write_str("Action::Collect"),
             Action::Dispatch => f.write_str("Action::Dispatch"),
@@ -652,7 +650,7 @@ impl Debug for Action {
             Action::Print => f.write_str("Action::Print"),
             Action::OscStart => f.write_str("Action::OscStart"),
             Action::DcsStart => f.write_str("Action::DcsStart"),
-            Action::OcsEnd => f.write_str("Action::OcsEnd"),
+            Action::OscEnd => f.write_str("Action::OscEnd"),
             Action::DcsEnd => f.write_str("Action::DcsEnd"),
             Action::Record => f.write_str("Action::Record"),
         }

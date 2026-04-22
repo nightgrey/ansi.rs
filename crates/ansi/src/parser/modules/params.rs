@@ -43,8 +43,8 @@ pub use utils::{NestedIter, NestedSlice, NestedVec};
 /// [`push_group`]: Parameter::push_group
 /// [`extend`]: Parameter::extend
 /// [`separate`]: Parameter::separate
-pub type Params<const N: usize = 16> = NestedVec<u8, N>;
+pub type Params<const N: usize = 16> = NestedVec<u16, N>;
 
 /// A borrowed, nested ANSI parameter structure - an immutable view into the parameters.
-pub type Paras<'a> = NestedSlice<'a, u8>;
-pub type ParamIter<'a> = NestedIter<'a, u8>;
+pub type Paras<'a> = NestedSlice<'a, u16>;
+pub type ParamIter<'a> = NestedIter<'a, u16>;

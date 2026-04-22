@@ -9,7 +9,9 @@
 #![feature(const_clone)]
 #![feature(const_default)]
 #![feature(const_cmp)]
+#![feature(extend_one)]
 mod color;
+mod parser;
 mod style;
 
 #[macro_use]

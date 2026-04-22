@@ -30,13 +30,17 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "ansi"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "bilge",
  "bitflags",
+ "compact_str",
  "criterion",
  "derive_more",
  "geometry",
  "maybe",
  "maybe-derive",
+ "segmented-vec",
+ "smallvec 2.0.0-alpha.12",
  "utils",
 ]
 
@@ -1356,6 +1360,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "segmented-vec"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "263e8661f129d37aa66d3a0f238fbdfaf6ba43586d286557502f9d4fbeb5e546"
+
+[[package]]
 name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1418,6 +1428,18 @@ checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
 dependencies = [
  "libc",
  "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook-async-std"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7664259344334ea4cc3efdf3ec03315f896fba5b921755dd4f28ebc75379df79"
+dependencies = [
+ "async-io",
+ "futures-lite",
+ "libc",
+ "signal-hook",
 ]
 
 [[package]]
@@ -1588,6 +1610,7 @@ dependencies = [
  "async-broadcast",
  "async-channel",
  "async-executor",
+ "async-process",
  "bon",
  "compact_str",
  "crossbeam",
@@ -1598,6 +1621,7 @@ dependencies = [
  "proptest",
  "rustix",
  "signal-hook",
+ "signal-hook-async-std",
  "smol",
  "utils",
 ]

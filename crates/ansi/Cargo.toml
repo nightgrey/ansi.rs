@@ -11,6 +11,10 @@ maybe = { workspace = true }
 maybe-derive = { workspace = true }
 derive_more = { workspace = true }
 bilge = { workspace = true }
+arrayvec = { workspace = true }
+compact_str = { workspace = true }
+segmented-vec = "0.2.3"
+smallvec = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.8.2"

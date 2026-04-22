@@ -19,3 +19,5 @@ utils = { workspace = true }
 event-listener = "5.4.1"
 async-broadcast = "0.7.2"
 async-executor = "1.14.0"
+signal-hook-async-std = "0.4.0"
+async-process = "2.5.0"

@@ -136,7 +136,7 @@ impl Escape for SelectGraphicRenditionTransition {
             match (from.contains(attr), to.contains(attr)) {
                 (true, true) | (false, false) => continue,
                 (true, false) => {
-                    separate!(w.write_all(attr.sgr_unset().as_bytes())?);
+                    separate!(w.write_all(attr.sgr_reset().as_bytes())?);
                 }
                 (false, true) => {
                     separate!(w.write_all(attr.sgr().as_bytes())?);

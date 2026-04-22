@@ -52,12 +52,12 @@ impl Style {
     };
 
     pub const Reverse: Self = Style {
-        attributes: Attribute::Reverse,
+        attributes: Attribute::Inverse,
         ..Self::None
     };
 
     pub const Conceal: Self = Style {
-        attributes: Attribute::Conceal,
+        attributes: Attribute::Invisible,
         ..Self::None
     };
 
@@ -178,17 +178,17 @@ impl Style {
         self
     }
 
-    /// Sets [`Attribute::Reverse`].
+    /// Sets [`Attribute::Inverse`].
     #[inline]
     pub fn reverse(mut self) -> Self {
-        self.insert(Attribute::Reverse);
+        self.insert(Attribute::Inverse);
         self
     }
 
-    /// Sets [`Attribute::Conceal`].
+    /// Sets [`Attribute::Invisible`].
     #[inline]
     pub fn conceal(mut self) -> Self {
-        self.insert(Attribute::Conceal);
+        self.insert(Attribute::Invisible);
         self
     }
 
@@ -257,17 +257,17 @@ impl Style {
         self
     }
 
-    /// Unsets: [`Attribute::Reverse`]
+    /// Unsets: [`Attribute::Inverse`]
     #[inline]
     pub fn no_reverse(mut self) -> Self {
-        self.remove(Attribute::Reverse);
+        self.remove(Attribute::Inverse);
         self
     }
 
-    /// Unsets: [`Attribute::Conceal`]
+    /// Unsets: [`Attribute::Invisible`]
     #[inline]
     pub fn no_conceal(mut self) -> Self {
-        self.remove(Attribute::Conceal);
+        self.remove(Attribute::Invisible);
         self
     }
 

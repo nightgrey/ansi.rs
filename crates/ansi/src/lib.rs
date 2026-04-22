@@ -1,5 +1,8 @@
 #![feature(ascii_char)]
 #![feature(bstr)]
+#![feature(const_range)]
+#![feature(const_range_bounds)]
+#![feature(const_iter)]
 #![feature(const_trait_impl)]
 #![feature(const_destruct)]
 #![feature(iter_intersperse)]
@@ -10,6 +13,7 @@
 #![feature(const_default)]
 #![feature(const_cmp)]
 #![feature(extend_one)]
+#![feature(ascii_char_variants)]
 mod color;
 mod parser;
 mod style;

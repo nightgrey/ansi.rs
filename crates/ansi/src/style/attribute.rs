@@ -20,25 +20,29 @@ bitflags! {
         const Faint = 1 << 2;
         /// Emphasises the text.
         const Italic = 1 << 3;
-        /// Underlines the text.
+        /// Underlines the text with a single line.
         const Underline = 1 << 4;
+        /// Underlines the text with a double line.
+        const UnderlineDouble = 1 << 13;
+        /// Underlines the text with a curly line.
+        const UnderlineCurly = 1 << 14;
         /// Makes the text blink.
         const Blink = 1 << 5;
         /// Makes the text blink rapidly.
         const RapidBlink = 1 << 6;
         /// Swaps the foreground and background colors.
-        const Reverse = 1 << 7;
+        const Inverse = 1 << 7;
         /// Hides the text.
-        const Conceal = 1 << 8;
+        const Invisible = 1 << 8;
         /// Crosses the text out.
         const Strikethrough = 1 << 9;
-
         /// Frames the text.
         const Frame = 1 << 10;
         /// Encircles the text.
         const Encircle = 1 << 11;
         /// Draws a line at the top of the text.
         const Overline = 1 << 12;
+
     }
 }
 
@@ -47,29 +51,46 @@ static SGR: &[(Attribute, &str)] = &[
     (Attribute::Faint, "2"),
     (Attribute::Italic, "3"),
     (Attribute::Underline, "4"),
+    (Attribute::UnderlineDouble, "21"),
+    (Attribute::UnderlineCurly, "24"),
     (Attribute::Blink, "5"),
     (Attribute::RapidBlink, "6"),
-    (Attribute::Reverse, "7"),
-    (Attribute::Conceal, "8"),
+    (Attribute::Inverse, "7"),
+    (Attribute::Invisible, "8"),
     (Attribute::Strikethrough, "9"),
     (Attribute::Frame, "51"),
     (Attribute::Encircle, "52"),
     (Attribute::Overline, "53"),
 ];
-static SGR_UNSET: &'static [(Attribute, &'static str)] = &[
+
+static SGR_UNSET: &[(Attribute, &str)] = &[
     (Attribute::Bold, "22"),
     (Attribute::Faint, "22"),
     (Attribute::Italic, "23"),
-    (Attribute::Underline, "24"),
-    (Attribute::Blink, "25"),
-    (Attribute::Reverse, "27"),
-    (Attribute::Conceal, "28"),
+    (
+        Attribute::new(
+            Attribute::Underline.bits()
+                | Attribute::UnderlineDouble.bits()
+                | Attribute::UnderlineDouble.bits(),
+        ),
+        "24",
+    ),
+    (
+        Attribute::new(Attribute::Blink.bits() | Attribute::RapidBlink.bits()),
+        "25",
+    ),
+    (Attribute::Inverse, "27"),
+    (Attribute::Invisible, "28"),
     (Attribute::Strikethrough, "29"),
     (Attribute::Frame, "54"),
     (Attribute::Encircle, "54"),
     (Attribute::Overline, "55"),
 ];
+
 static SEP: &str = ";";
+
+const _: () = assert!(SGR.len() == Attribute::COUNT);
+const _: () = assert!(SGR_UNSET.len() == Attribute::COUNT - 3); // Some attributes are merged.
 
 impl Attribute {
     #[allow(non_upper_case_globals)]
@@ -108,13 +129,14 @@ impl Attribute {
         if self.is_none() {
             return Cow::Borrowed("");
         }
+
         SGR.iter()
-            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
+            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some(sgr))
             .intersperse(SEP)
             .collect()
     }
 
-    /// Returns the semicolon-separated SGR parameters to unset attributes.
+    /// Returns the semicolon-separated SGR parameters to reset attributes.
     ///
     /// # Example
     ///
@@ -127,13 +149,14 @@ impl Attribute {
     /// ```
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn sgr_unset(self) -> Cow<'static, str> {
+    pub fn sgr_reset(self) -> Cow<'static, str> {
         if self.is_none() {
             return Cow::Borrowed("");
         }
+
         SGR_UNSET
             .iter()
-            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
+            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some(sgr))
             .intersperse(SEP)
             .collect()
     }
@@ -143,7 +166,7 @@ impl Attribute {
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn iter_sgr(self) -> impl Iterator<Item = (&'static str, Attribute)> {
         SGR.iter()
-            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
+            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some((sgr, attr)))
     }
 
     pub fn iter_sgr_unset(self) -> impl Iterator<Item = (&'static str, Attribute)> {

@@ -1,11 +1,7 @@
-mod handler;
-mod intermediates;
-mod params;
+mod modules;
 mod parser;
-mod transition;
+mod table;
 
-pub use handler::*;
-pub use intermediates::*;
-pub use params::*;
+pub use modules::*;
 pub use parser::*;
-pub use transition::*;
+pub use table::*;

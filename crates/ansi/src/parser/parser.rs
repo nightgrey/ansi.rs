@@ -391,6 +391,23 @@ mod tests {
     }
 
     #[test]
+    fn prints_utf8() {
+        let mut h = Harness::new();
+        let events: Vec<_> = h.advance("\x1B[1m🦀🦀💔👨🏿").collect();
+        assert_eq!(
+            events,
+            vec![
+                Value::Csi(params_from([&[1]]), Intermediates::new(), 'm'),
+                Value::Utf8('🦀'),
+                Value::Utf8('🦀'),
+                Value::Utf8('💔'),
+                Value::Utf8('👨'),
+                Value::Utf8('🏿'),
+            ]
+        );
+        let mut h = Harness::new();
+    }
+    #[test]
     fn executes_c0_controls() {
         let mut h = Harness::new();
         // BEL, BS, TAB, LF, CR
@@ -564,12 +581,5 @@ mod tests {
         // ESC then CAN (0x18) — CAN returns to Ground without dispatch.
         let events: Vec<_> = h.advance(b"\x1B\x18").collect();
         assert_eq!(events, vec![Value::Control(0x18)]);
-    }
-
-    #[test]
-    fn utf8() {
-        let mut h = Harness::new();
-
-        dbg!(h.advance("\x1B[1m🦀🦀💔👨🏿".as_bytes()).collect::<Vec<_>>());
     }
 }

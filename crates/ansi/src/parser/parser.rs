@@ -56,7 +56,6 @@ impl Engine {
     }
 
     fn action(&mut self, handler: &mut dyn Handler, action: Action, byte: u8) {
-        println!("[{:?}] {:?} @ 0x{:2x}", self.state, action, byte);
 
         match action {
             Action::None | Action::Ignore | Action::Prefix => {}
@@ -299,6 +298,7 @@ mod tests {
                 final_char,
             ));
         }
+
         fn handle_esc(&mut self, intermediates: &[u8], final_byte: u8) {
             self.push_back(Value::Esc(Intermediates::from(intermediates), final_byte));
         }

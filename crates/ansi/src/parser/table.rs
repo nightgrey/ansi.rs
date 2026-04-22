@@ -526,8 +526,10 @@ impl TransitionValue for RangeInclusive<u8> {
     }
 }
 
+use strum::EnumCount;
+
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Default, EnumCount)]
 pub enum State {
     /// Initial state used to consume characters until an escape-style sequence begins;
     /// GL bytes 0x20-0x7F are printed, C0/C1 controls are executed immediately.
@@ -574,10 +576,6 @@ pub enum State {
     Utf8,
 }
 
-impl State {
-    pub const COUNT: usize = Self::Utf8 as usize + 1;
-}
-
 impl From<u8> for State {
     fn from(value: u8) -> Self {
         if value as usize >= Self::COUNT {
@@ -612,7 +610,7 @@ impl Debug for State {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Default, EnumCount)]
 pub enum Action {
     #[default]
     None,
@@ -656,10 +654,6 @@ pub enum Action {
     Record,
 }
 
-impl Action {
-    pub const COUNT: usize = Self::Record as usize + 1;
-}
-
 impl From<u8> for Action {
     fn from(value: u8) -> Self {
         if value as usize >= Self::COUNT {
@@ -683,7 +677,6 @@ impl Debug for Action {
             Action::Print => f.write_str("Action::Print"),
             Action::DataStart => f.write_str("Action::DataStart"),
             Action::DataEnd => f.write_str("Action::DataEnd"),
-            Action::Collect => f.write_str("Action::Collect"),
             Action::Record => f.write_str("Action::Record"),
         }
     }

@@ -17,6 +17,7 @@ segmented-vec = "0.2.3"
 smallvec = { workspace = true }
 synonym = "0.1.6"
 nutype = "0.6.2"
+strum = { version = "0.28", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.8.2"

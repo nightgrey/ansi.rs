@@ -21,50 +21,8 @@ pub struct Engine {
 impl Engine {
     pub fn advance(&mut self, handler: &mut dyn Handler, chars: impl AsRef<[u8]>) {
         for &byte in chars.as_ref().iter() {
-            match self.state {
-                State::Utf8 => self.advance_utf8(handler, byte),
-                // A UTF-8 lead byte in Ground kicks the decoder in. The state
-                // table itself stays ASCII-only — escape sequences are 7-bit
-                // per ECMA-48, so high bytes only matter for printable text
-                // (here) and for data-string passthrough (handled in table).
-                State::Ground if matches!(byte, 0xC2..=0xF4) => {
-                    self.state = State::Utf8;
-                    self.advance_utf8(handler, byte);
-                }
-                _ => self.step(handler, byte),
-            }
+            self.step(handler, byte);
         }
-    }
-
-    fn advance_utf8(&mut self, handler: &mut dyn Handler, byte: u8) {
-        if !self.utf8.is_full() {
-            self.utf8.push(byte);
-        }
-
-        let expected_len = match self.utf8[0] {
-            0x00..=0x7F => 1,
-            0xC0..=0xDF => 2,
-            0xE0..=0xEF => 3,
-            0xF0..=0xF7 => 4,
-            _ => {
-                self.utf8.clear();
-                self.state = State::Ground;
-                return;
-            }
-        };
-
-        if self.utf8.len() < expected_len {
-            return;
-        }
-
-        if let Ok(s) = str::from_utf8(&self.utf8) {
-            if let Some(ch) = s.chars().next() {
-                handler.utf8(ch);
-            }
-        }
-
-        self.utf8.clear();
-        self.state = State::Ground;
     }
 
     fn step(&mut self, handler: &mut dyn Handler, byte: u8) {
@@ -128,6 +86,36 @@ impl Engine {
 
             Action::Record => {
                 let _ = self.data.try_push(byte);
+            }
+
+            Action::Utf8Collect => {
+                if !self.utf8.is_full() {
+                    self.utf8.push(byte);
+                }
+                // utf8[0] is guaranteed by the table to be a lead byte in
+                // 0xC2..=0xF4 — pick the expected length from it.
+                let expected = match self.utf8[0] {
+                    0xC2..=0xDF => 2,
+                    0xE0..=0xEF => 3,
+                    0xF0..=0xF4 => 4,
+                    _ => {
+                        self.utf8.clear();
+                        self.state = State::Ground;
+                        return;
+                    }
+                };
+                if self.utf8.len() >= expected {
+                    if let Ok(s) = str::from_utf8(&self.utf8) {
+                        if let Some(ch) = s.chars().next() {
+                            handler.utf8(ch);
+                        }
+                    }
+                    self.utf8.clear();
+                    // Complete — back to Ground. The transition is manual
+                    // because the table's continuation rule keeps us in
+                    // Utf8 (same-state, so no entry/exit fires).
+                    self.state = State::Ground;
+                }
             }
 
             Action::DataStart => {

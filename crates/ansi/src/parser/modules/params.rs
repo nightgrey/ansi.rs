@@ -48,3 +48,17 @@ pub type Params<const N: usize = 16> = NestedVec<u16, N>;
 /// A borrowed, nested ANSI parameter structure - an immutable view into the parameters.
 pub type Paras<'a> = NestedSlice<'a, u16>;
 pub type ParamIter<'a> = NestedIter<'a, u16>;
+
+#[macro_export]
+macro_rules! params {
+    // One or more inner groups — trailing commas allowed at both levels
+    () => {
+        $crate::Params::empty()
+    };
+    ($([$($elem:expr),* $(,)?]),+ $(,)?) => (
+        Params::from_iter_nested([$([$($elem),*],)+])
+    );
+    ($($elem:expr),+ $(,)?) => (
+        Params::from_iter([$($elem),*])
+    );
+}

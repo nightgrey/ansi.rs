@@ -94,7 +94,7 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// assert!(nested.is_empty());
     /// ```
     #[inline]
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self::DEFAULT
     }
 
@@ -469,7 +469,7 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// ```
     /// # use nested_vec::NestedVec;
     /// let groups = vec![vec![1, 2, 3], vec![4, 5], vec![6]];
-    /// let nested = NestedVec::from_group_iter(groups);
+    /// let nested = NestedVec::from_iter_nested(groups);
     ///
     /// assert_eq!(nested.len(), 3);
     /// assert_eq!(nested.get(0), Some(&[1, 2, 3][..]));
@@ -498,7 +498,7 @@ impl<T, const N: usize> NestedVec<T, N> {
 
 impl<T, const N: usize> Default for NestedVec<T, N> {
     fn default() -> Self {
-        Self::new()
+        Self::empty()
     }
 }
 

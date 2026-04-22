@@ -232,6 +232,8 @@ impl<'a, const N: usize> From<&'a ParamsBuilder<N>> for Paras<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::params;
+
     use super::*;
     use derive_more::{Deref, DerefMut};
     use std::collections::VecDeque;
@@ -350,14 +352,6 @@ mod tests {
         }
     }
 
-    fn params_from<const G: usize>(groups: [&[u16]; G]) -> Params {
-        let mut p = Params::new();
-        for g in groups {
-            p.push_group(g.iter().copied());
-        }
-        p
-    }
-
     // ---- Ground / print / execute ---------------------------------------
 
     #[test]
@@ -430,7 +424,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(params_from([&[1]]), Intermediates::new(), 'm')]
+            vec![Value::Csi(params![[1]], Intermediates::new(), 'm')]
         );
     }
 
@@ -441,7 +435,7 @@ mod tests {
         assert_eq!(
             events,
             vec![Value::Csi(
-                params_from([&[1], &[2], &[3]]),
+                params![[1], [2], [3]],
                 Intermediates::new(),
                 'm'
             )]
@@ -456,7 +450,7 @@ mod tests {
         assert_eq!(
             events,
             vec![Value::Csi(
-                params_from([&[38, 2, 255, 128, 0]]),
+                params![[38, 2, 255, 128, 0]],
                 Intermediates::new(),
                 'm'
             )]
@@ -467,14 +461,13 @@ mod tests {
     fn csi_mixed_subparams_and_params() {
         let mut h = Harness::new();
         let events: Vec<_> = h.advance(b"\x1B[1;2:3:4;5m").collect();
-        assert_eq!(
-            events,
-            vec![Value::Csi(
-                params_from([&[1], &[2, 3, 4], &[5]]),
-                Intermediates::new(),
-                'm'
-            )]
-        );
+        let slice = [&[1], &[2, 3, 4], &[5]] as [&[_]; _];
+
+        let mut params = Params::empty();
+        params.push_group([1u16]);
+        params.push_group([2u16, 3u16, 4u16]);
+        params.push_group([5u16]);
+        assert_eq!(events, vec![Value::Csi(params, Intermediates::new(), 'm')]);
     }
 
     #[test]
@@ -485,7 +478,7 @@ mod tests {
         assert_eq!(
             events,
             vec![Value::Csi(
-                params_from([&[25]]),
+                params![[25]],
                 Intermediates::from(&b"?"[..]),
                 'h'
             )]
@@ -500,7 +493,7 @@ mod tests {
         assert_eq!(
             events,
             vec![Value::Csi(
-                params_from([&[2]]),
+                params![[2]],
                 Intermediates::from(&b" "[..]),
                 'q'
             )]
@@ -513,7 +506,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(Params::new(), Intermediates::new(), 'm')]
+            vec![Value::Csi(Params::empty(), Intermediates::new(), 'm')]
         );
     }
 
@@ -524,11 +517,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[;1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(
-                params_from([&[0], &[1]]),
-                Intermediates::new(),
-                'm'
-            )]
+            vec![Value::Csi(params![0, 1], Intermediates::new(), 'm')]
         );
     }
 
@@ -546,7 +535,7 @@ mod tests {
             events,
             vec![
                 Value::Osc(
-                    Params::new(),
+                    Params::empty(),
                     Intermediates::new(),
                     Data::from(&b"0;title"[..])
                 ),

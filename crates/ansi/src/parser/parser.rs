@@ -1,16 +1,16 @@
-use crate::parser::{Action, Handler, Params, Paras, State, Table};
-
+use super::{Action, DataString, FinalChar, Handler, Intermediates, Parameter, Params, State, Table};
 use arrayvec::ArrayVec;
+use bilge::prelude::Integer;
 use smallvec::SmallVec;
 
 #[derive(Debug, Default)]
 pub struct Engine {
     pub state: State,
 
-    pub params: ParamsBuilder,
-    pub intermediates: ArrayVec<u8, 16>,
+    pub params: ParameterState,
+    pub intermediates: Intermediates,
 
-    pub data: ArrayVec<u8, 1024>,
+    pub data: DataString,
     pub utf8: ArrayVec<u8, 4>,
 
     /// Final byte of the DCS prefix — captured on entry to `DcsData` so
@@ -95,10 +95,6 @@ impl Engine {
                                 }
                             }
                             self.utf8.clear();
-                            // Complete — back to Ground. The transition is manual
-                            // because the table's continuation rule keeps us in
-                            // Utf8 (same-state, so no entry/exit fires).
-                            self.state = State::Ground;
                         }
                     }
                     _ => {
@@ -115,6 +111,10 @@ impl Engine {
                 self.clear();
             }
 
+            Action::Collect => {
+                self.intermediates.push(byte);
+            }
+
             Action::Param => match byte {
                 b'0'..=b'9' => self.params.push_digit(byte),
                 // sub-parameter separator — keep accumulating within the group.
@@ -128,15 +128,18 @@ impl Engine {
                 self.data.push(byte);
             }
 
-            Action::Collect => {
-                self.intermediates.push(byte);
-            }
-
             Action::Dispatch => {
                 if self.params.has_unfinished() {
                     self.params.finish_param();
                 }
                 match self.state {
+                    State::CsiEntry | State::CsiParam | State::CsiIntermediate => {
+                        handler.handle_csi(
+                            self.params.borrow(),
+                            self.intermediates.as_ref(),
+                            byte as char,
+                        );
+                    }
                     State::DcsData => handler.handle_dcs(
                         self.params.as_slice(),
                         &self.intermediates,
@@ -150,7 +153,7 @@ impl Engine {
                     State::PmData => handler.handle_pm(&self.data),
                     State::ApcData => handler.handle_apc(&self.data),
                     State::Escape | State::EscapeIntermediate => {
-                        handler.handle_esc(&self.intermediates, byte);
+                        handler.handle_esc(self.intermediates.as_ref(), byte);
                     }
                     _ => {}
                 }
@@ -168,21 +171,21 @@ impl Engine {
     }
 }
 
-/// Incremental builder for a nested [`Params`] structure.
+/// Incremental builder for a nested [`Parameter`] structure.
 ///
 /// ANSI parameters are two-level: `;` separates main parameters and `:`
 /// separates sub-parameters within a main parameter. `1;2:3:4;5` parses to
 /// three groups: `[[1], [2, 3, 4], [5]]`.
 #[derive(Default, Debug)]
-pub struct ParamsBuilder<const N: usize = 16> {
-    inner: Params<N>,
+pub struct ParameterState<const N: usize = 16> {
+    inner: Parameter<N>,
     /// Sub-parameters accumulated for the current (unfinished) main parameter.
     current_group: SmallVec<u16, 4>,
     /// Digit-accumulating value of the current sub-parameter.
     current_param: Option<u16>,
 }
 
-impl<const N: usize> ParamsBuilder<N> {
+impl<const N: usize> ParameterState<N> {
     /// ECMA-48 allows parameters up to 16383 — clamp to that.
     const MAX: u16 = 16383;
 
@@ -219,14 +222,14 @@ impl<const N: usize> ParamsBuilder<N> {
         self.current_param = None;
     }
 
-    pub fn as_slice(&self) -> Paras<'_> {
-        self.inner.as_slice()
+    pub fn borrow(&self) -> Params<'_> {
+        self.inner.borrow()
     }
 }
 
-impl<'a, const N: usize> From<&'a ParamsBuilder<N>> for Paras<'a> {
-    fn from(value: &'a ParamsBuilder<N>) -> Self {
-        value.inner.as_slice()
+impl<'a, const N: usize> From<&'a ParameterState<N>> for Params<'a> {
+    fn from(value: &'a ParameterState<N>) -> Self {
+        value.inner.borrow()
     }
 }
 
@@ -237,23 +240,19 @@ mod tests {
     use super::*;
     use derive_more::{Deref, DerefMut};
     use std::collections::VecDeque;
-    use utils::SmallByteString;
-
-    type Params = crate::parser::Params<16>;
-    type Intermediates = crate::parser::Intermediates<16>;
-    type Data = SmallByteString<1024>;
+    use crate::parser::{DataStr, Inter};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum Value {
         Utf8(char),
         Control(u8),
-        Csi(Params, Intermediates, char),
+        Csi(Parameter, Intermediates, FinalChar),
         Esc(Intermediates, u8),
-        Dcs(Params, Intermediates, char, Data),
-        Osc(Params, Intermediates, Data),
-        Sos(Data),
-        Pm(Data),
-        Apc(Data),
+        Dcs(Parameter, Intermediates, FinalChar, DataString),
+        Osc(Parameter, Intermediates, DataString),
+        Sos(DataString),
+        Pm(DataString),
+        Apc(DataString),
     }
 
     #[derive(Default, Debug, DerefMut, Deref)]
@@ -278,51 +277,51 @@ mod tests {
             self.0.push_back(Value::Control(byte));
         }
 
-        fn handle_csi(&mut self, params: Paras, intermediates: &[u8], final_char: char) {
+        fn handle_csi(&mut self, params: Params, intermediates: &Inter, final_char: FinalChar) {
             self.0.push_back(Value::Csi(
-                params.to_params(),
+                params.to_owned(),
                 Intermediates::from(intermediates),
                 final_char,
             ));
         }
-
-        fn handle_esc(&mut self, intermediates: &[u8], final_byte: u8) {
+        
+        fn handle_esc(&mut self, intermediates: &Inter, final_byte: u8) {
             self.push_back(Value::Esc(Intermediates::from(intermediates), final_byte));
         }
 
         fn handle_dcs(
             &mut self,
-            params: Paras,
-            intermediates: &[u8],
-            final_char: char,
-            data: &[u8],
+            params: Params,
+            intermediates: &Inter,
+            final_char: FinalChar,
+            data: &DataStr,
         ) {
             self.0.push_back(Value::Dcs(
-                params.to_params(),
+                params.to_owned(),
                 Intermediates::from(intermediates),
                 final_char,
-                Data::from(data),
+                data.to_owned() as DataString
             ));
         }
 
-        fn handle_osc(&mut self, params: Paras, intermediates: &[u8], data: &[u8]) {
+        fn handle_osc(&mut self, params: Params, intermediates: &Inter, data: &DataStr) {
             self.0.push_back(Value::Osc(
-                params.to_params(),
+                params.to_owned(),
                 Intermediates::from(intermediates),
-                Data::from(data),
+                DataString::from(data),
             ));
         }
 
-        fn handle_sos(&mut self, data: &[u8]) {
-            self.0.push_back(Value::Sos(Data::from(data)));
+        fn handle_sos(&mut self, data: &DataStr) {
+            self.0.push_back(Value::Sos(data.to_owned()));
         }
 
-        fn handle_pm(&mut self, data: &[u8]) {
-            self.0.push_back(Value::Pm(Data::from(data)));
+        fn handle_pm(&mut self, data: &DataStr) {
+            self.0.push_back(Value::Pm(data.to_owned()));
         }
 
-        fn handle_apc(&mut self, data: &[u8]) {
-            self.0.push_back(Value::Apc(Data::from(data)));
+        fn handle_apc(&mut self, data: &DataStr) {
+            self.0.push_back(Value::Apc(data.to_owned()));
         }
     }
 
@@ -405,7 +404,7 @@ mod tests {
         let mut h = Harness::new();
         // ESC 7 — DECSC
         let events: Vec<_> = h.advance(b"\x1B7").collect();
-        assert_eq!(events, vec![Value::Esc(Intermediates::new(), b'7')]);
+        assert_eq!(events, vec![Value::Esc(Intermediates::empty(), b'7')]);
     }
 
     #[test]
@@ -424,7 +423,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(params![[1]], Intermediates::new(), 'm')]
+            vec![Value::Csi(params![[1]], Intermediates::empty(), 'm')]
         );
     }
 
@@ -436,7 +435,7 @@ mod tests {
             events,
             vec![Value::Csi(
                 params![[1], [2], [3]],
-                Intermediates::new(),
+                Intermediates::empty(),
                 'm'
             )]
         );
@@ -451,7 +450,7 @@ mod tests {
             events,
             vec![Value::Csi(
                 params![[38, 2, 255, 128, 0]],
-                Intermediates::new(),
+                Intermediates::empty(),
                 'm'
             )]
         );
@@ -463,11 +462,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1;2:3:4;5m").collect();
         let slice = [&[1], &[2, 3, 4], &[5]] as [&[_]; _];
 
-        let mut params = Params::empty();
+        let mut params = Parameter::empty();
         params.push_group([1u16]);
         params.push_group([2u16, 3u16, 4u16]);
         params.push_group([5u16]);
-        assert_eq!(events, vec![Value::Csi(params, Intermediates::new(), 'm')]);
+        assert_eq!(events, vec![Value::Csi(params, Intermediates::empty(), 'm')]);
     }
 
     #[test]
@@ -479,7 +478,7 @@ mod tests {
             events,
             vec![Value::Csi(
                 params![[25]],
-                Intermediates::from(&b"?"[..]),
+                Intermediates::from(b"?"),
                 'h'
             )]
         );
@@ -506,7 +505,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(Params::empty(), Intermediates::new(), 'm')]
+            vec![Value::Csi(Parameter::empty(), Intermediates::empty(), 'm')]
         );
     }
 
@@ -517,7 +516,7 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[;1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(params![0, 1], Intermediates::new(), 'm')]
+            vec![Value::Csi(params![0, 1], Intermediates::empty(), 'm')]
         );
     }
 
@@ -529,17 +528,15 @@ mod tests {
         // OSC 0 ; title ST  (ST = ESC \)
         let events: Vec<_> = h.advance(b"\x1B]0;title\x1B\\").collect();
         // Expect an Osc event, followed by an empty ESC \ dispatch.
-
-        dbg!(&events);
         assert_eq!(
             events,
             vec![
                 Value::Osc(
-                    Params::empty(),
-                    Intermediates::new(),
-                    Data::from(&b"0;title"[..])
+                    Parameter::empty(),
+                    Intermediates::empty(),
+                    DataString::from(b"0;title"[..])
                 ),
-                Value::Esc(Intermediates::new(), b'\\'),
+                Value::Esc(Intermediates::empty(), b'\\'),
             ]
         );
     }

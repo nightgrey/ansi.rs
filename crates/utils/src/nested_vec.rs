@@ -1,13 +1,9 @@
 use smallvec::SmallVec;
 use std::borrow::Borrow;
 use std::fmt::Debug;
-use std::ops::{self, Deref, Index, IndexMut, Sub};
+use std::ops::{Deref, Index, IndexMut, Sub};
 use std::slice::Iter;
-use std::usize;
-
-trait AsNestedRef<'a, T> {
-    fn as_ref(self) -> NestedSlice<'a, T>;
-}
+use crate::AsRefd;
 
 /// An owned, growable container for a sequence of element slices ("groups").
 ///
@@ -59,7 +55,7 @@ trait AsNestedRef<'a, T> {
 /// assert_eq!(nested.get(1), Some(&[4, 5][..]));
 /// ```
 ///
-/// # Type Parameters
+/// # Type NestedSlicemeters
 ///
 /// - `T`: The element type stored in groups.
 /// - `N`: The number of elements/indices to store inline before spilling to
@@ -67,7 +63,7 @@ trait AsNestedRef<'a, T> {
 ///
 /// # See Also
 ///
-/// - [`NestedSlice`] for borrowed views into nested data.
+/// - [`as_slice`] for borrowed views into nested data.
 ///
 /// [`push_group`]: NestedVec::push_group
 /// [`extend`]: NestedVec::extend
@@ -423,7 +419,7 @@ impl<T, const N: usize> NestedVec<T, N> {
         self.indices.push(0);
     }
 
-    /// Returns a borrowed [`NestedSlice`] view of this container.
+    /// Returns a borrowed view of this container.
     ///
     /// # Examples
     ///
@@ -436,7 +432,7 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// assert_eq!(slice.get(0), Some(&[1, 2, 3][..]));
     /// ```
     #[inline]
-    pub fn as_slice(&self) -> NestedSlice<'_, T> {
+    pub fn borrow(&self) -> NestedSlice<'_, T> {
         NestedSlice {
             indices: &self.indices,
             elements: &self.elements,
@@ -542,15 +538,24 @@ impl<T, const N: usize> FromIterator<T> for NestedVec<T, N> {
     }
 }
 
-impl<'a, T, const N: usize> AsNestedRef<'a, T> for &'a NestedVec<T, N> {
-    fn as_ref(self) -> NestedSlice<'a, T> {
-        self.as_slice()
+impl<'a, T, const N: usize> AsRefd<NestedSlice<'a, T>> for &'a NestedVec<T, N> {
+    fn as_refd(self) -> NestedSlice<'a, T> {
+        self.borrow()
     }
 }
 
 impl<T, const N: usize> AsRef<[T]> for NestedVec<T, N> {
     fn as_ref(&self) -> &[T] {
         &self.elements
+    }
+}
+
+impl<T, const N: usize> From<Vec<T>> for NestedVec<T, N> {
+    fn from(value: Vec<T>) -> Self {
+        Self {
+            indices: SmallVec::from_buf([0]),
+            elements: SmallVec::from(value),
+        }
     }
 }
 
@@ -566,7 +571,6 @@ pub struct NestedSlice<'a, T> {
     indices: &'a [usize],
     elements: &'a [T],
 }
-
 impl<'a, T> NestedSlice<'a, T> {
     /// Creates a new `NestedSlice` from indices and values.
     ///
@@ -663,7 +667,7 @@ impl<'a, T: Clone> NestedSlice<'a, T> {
     /// Converts this `NestedSlice` into an owned `NestedVec`.
     ///
     /// This performs a deep copy of the data.
-    pub fn to_params<const N: usize>(&self) -> NestedVec<T, N> {
+    pub fn to_owned<const N: usize>(&self) -> NestedVec<T, N> {
         NestedVec {
             indices: SmallVec::from_iter(self.indices.iter().copied()),
             elements: SmallVec::from_iter(self.elements.iter().cloned()),
@@ -686,8 +690,8 @@ impl<'a, T> AsRef<[T]> for NestedSlice<'a, T> {
     }
 }
 
-impl<'a, T> AsNestedRef<'a, T> for NestedSlice<'a, T> {
-    fn as_ref(self) -> NestedSlice<'a, T> {
+impl<'a, T> AsRefd<NestedSlice<'a, T>> for NestedSlice<'a, T> {
+    fn as_refd(self) -> NestedSlice<'a, T> {
         self
     }
 }
@@ -703,8 +707,8 @@ pub struct NestedIter<'a, T: 'a> {
 
 impl<'a, T> NestedIter<'a, T> {
     /// Creates a new iterator over the given `NestedVec`.
-    pub fn new(nested: impl AsNestedRef<'a, T>) -> Self {
-        let nested = nested.as_ref();
+    pub fn new(nested: impl AsRefd<NestedSlice<'a, T>>) -> Self {
+        let nested = nested.as_refd();
 
         Self {
             windows: nested.indices.windows(2),

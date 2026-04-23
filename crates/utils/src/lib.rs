@@ -2,7 +2,8 @@
 #![feature(const_range)]
 #![feature(slice_range)]
 #![feature(extend_one)]
-
+#![feature(const_trait_impl)]
+#![feature(const_convert)]
 extern crate core;
 
 #[macro_use]
@@ -19,3 +20,10 @@ mod nested_vec;
 pub use nested_vec::*;
 mod small_byte_string;
 pub use small_byte_string::*;
+
+
+mod as_refd;
+pub use as_refd::*;
+
+pub mod byte_string;
+pub use byte_string::*;

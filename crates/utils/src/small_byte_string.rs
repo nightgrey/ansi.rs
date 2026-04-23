@@ -81,11 +81,6 @@ impl<const N: usize, const M: usize> From<[char; M]> for SmallByteString<N> {
         Self(SmallVec::from_iter(value.iter().copied().map(|c| c as u8)))
     }
 }
-// impl<const N: usize> From<Vec<u8>> for Intermediates<N> {
-//     fn from(value: Vec<u8>) -> Self {
-//         Self(SmallVec::from_vec(value))
-//     }
-// }
 
 impl<const N: usize> From<&str> for SmallByteString<N> {
     #[inline]

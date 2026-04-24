@@ -1,3 +1,4 @@
+use std::marker::Destruct;
 use crate::parser::{Action, State, Table};
 
 pub const trait Transition<T> {
@@ -42,6 +43,18 @@ impl const Transition<std::ops::RangeInclusive<u8>> for Table {
         while byte <= end && byte < 255 {
             self.add(byte, state, action, next);
             byte += 1;
+        }
+    }
+}
+
+
+impl<T: [const] Clone + [const] Destruct, const N: usize> const Transition<[T; N]> for Table where Table: [const] Transition<T> {
+    fn add(&mut self, value: [T; N], state: State, action: Action, next: State) {
+        let mut i = 0;
+
+        while i < N {
+            self.add(value[i].clone(), state, action, next);
+            i += 1;
         }
     }
 }

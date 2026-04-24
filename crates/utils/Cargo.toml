@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 smallvec = { workspace = true }
 derive_more = { workspace = true }
+compact_bytes = "0.2.1"

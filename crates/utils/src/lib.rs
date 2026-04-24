@@ -4,6 +4,13 @@
 #![feature(extend_one)]
 #![feature(const_trait_impl)]
 #![feature(const_convert)]
+#![feature(bstr)]
+#![feature(ptr_cast_array)]
+#![feature(iter_collect_into)]
+#![feature(const_cmp)]
+#![feature(iter_order_by)]
+#![feature(iter_intersperse)]
+#![feature(iter_advance_by)]
 extern crate core;
 
 #[macro_use]
@@ -26,4 +33,7 @@ mod as_refd;
 pub use as_refd::*;
 
 pub mod byte_string;
+
 pub use byte_string::*;
+pub mod ansi;
+pub use ansi::*;

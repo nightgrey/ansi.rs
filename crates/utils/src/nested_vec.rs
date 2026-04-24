@@ -1,6 +1,6 @@
 use smallvec::SmallVec;
 use std::borrow::Borrow;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, Index, IndexMut, Sub};
 use std::slice::Iter;
 use crate::AsRefd;
@@ -65,10 +65,10 @@ use crate::AsRefd;
 ///
 /// - [`as_slice`] for borrowed views into nested data.
 ///
-/// [`push_group`]: NestedVec::push_group
+/// [`push_group`]: NestedVec::push
 /// [`extend`]: NestedVec::extend
 /// [`separate`]: NestedVec::separate
-#[derive(Debug, Clone, PartialEq, Hash, PartialOrd, Eq)]
+#[derive(Clone, PartialEq, Hash, PartialOrd, Eq)]
 pub struct NestedVec<T, const N: usize = 8> {
     indices: SmallVec<usize, N>,
     elements: SmallVec<T, N>,
@@ -109,11 +109,7 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            indices: {
-                let mut indices = SmallVec::with_capacity(capacity.max(1));
-                indices.push(0);
-                indices
-            },
+            indices: SmallVec::from_buf([0; 1]),
             elements: SmallVec::with_capacity(capacity),
         }
     }
@@ -135,9 +131,9 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// assert_eq!(nested.get(0), Some(&[1, 2, 3]));
     /// assert_eq!(nested.get(1), Some(&[4, 5]));
     /// ```
-    pub fn push_group(&mut self, group: impl IntoIterator<Item = T>) {
-        self.elements.extend(group);
-        self.indices.push(self.elements.len());
+    pub fn push(&mut self, group: impl IntoIterator<Item = T>) {
+            self.elements.extend(group);
+            self.separate();
     }
 
     /// Extends the current group with elements from an iterator.
@@ -161,10 +157,12 @@ impl<T, const N: usize> NestedVec<T, N> {
         self.elements.extend(elements);
     }
 
-    /// Pushes a single element to the last group.
-    ///
-    /// If the [`NestedVec`] is empty, this implicitly starts the first group.
-    /// Call [`finish`] to mark the end of the group.
+    /// Extends the current group with an element.
+    pub fn extend_one(&mut self, element: T) {
+        self.elements.push(element);
+    }
+
+    /// Pushes a single element.
     ///
     /// # Examples
     ///
@@ -175,12 +173,13 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// nested.push_element(2);
     /// nested.finish();
     ///
-    /// assert_eq!(nested.get(0), Some(&[1, 2][..]));
+    /// assert_eq!(nested.get(0), Some(&[1, 2]));
     /// ```
     ///
     /// [`finish`]: NestedVec::finish
     pub fn push_one(&mut self, element: T) {
         self.elements.push(element);
+        self.separate();
     }
 
     /// Marks the end of the current group.
@@ -206,10 +205,14 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// [`extend`]: NestedVec::extend
     /// [`push_one`]: NestedVec::push_one
     pub fn separate(&mut self) {
-        if self.elements.len() == self.indices.len() - 1 {
+        let groups = self.len();
+        let next = self.elements.len();
+
+        if groups >= next {
             return;
         }
-        self.indices.push(self.elements.len());
+
+        self.indices.push(next);
     }
 
     /// Returns the group at `index`, or `None` if out of bounds.
@@ -439,10 +442,7 @@ impl<T, const N: usize> NestedVec<T, N> {
         }
     }
 
-    /// Returns the raw indices slice.
-    ///
-    /// The returned slice has length `len() + 1`, where `indices[i]` to
-    /// `indices[i + 1]` defines the range of elements in group `i`.
+    /// Returns the groups' indices.
     #[inline]
     pub fn as_indices(&self) -> &[usize] {
         &self.indices
@@ -472,9 +472,8 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// assert_eq!(nested.get(1), Some(&[4, 5][..]));
     /// assert_eq!(nested.get(2), Some(&[6][..]));
     /// ```
-    pub fn from_iter_nested<I, Group>(iter: I) -> Self
+    pub fn from_nested<I, Group>(iter: impl IntoIterator<Item = Group>) -> Self
     where
-        I: IntoIterator<Item = Group>,
         Group: IntoIterator<Item = T>,
     {
         let iter = iter.into_iter();
@@ -485,7 +484,7 @@ impl<T, const N: usize> NestedVec<T, N> {
         let mut nested = Self::with_capacity(estimated_capacity);
 
         for group in iter {
-            nested.push_group(group);
+            nested.push(group);
         }
 
         nested
@@ -517,7 +516,7 @@ impl<T, const N: usize> Extend<T> for NestedVec<T, N> {
     }
 
     fn extend_one(&mut self, item: T) {
-        Self::push_one(self, item);
+        Self::extend_one(self, item);
     }
 
     fn extend_reserve(&mut self, additional: usize) {
@@ -533,7 +532,51 @@ impl<T, const N: usize> FromIterator<T> for NestedVec<T, N> {
             (_, Some(l)) | (l, None) => NestedVec::<T, N>::with_capacity(l),
         };
 
-        nested.extend(iter);
+        for item in iter {
+            nested.push_one(item);
+        }
+        nested
+    }
+}
+
+impl<'a, T: Clone, const N: usize> FromIterator<&'a T> for NestedVec<T, N> {
+    fn from_iter<I: IntoIterator<Item = &'a T>>(iter: I) -> Self {
+        FromIterator::from_iter(iter.into_iter().cloned())
+    }
+}
+
+impl<T, const N: usize, const M: usize> FromIterator<[T; M]> for NestedVec<T, N> {
+    fn from_iter<I: IntoIterator<Item = [T; M]>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let mut nested = match iter.size_hint() {
+            (0, None) => NestedVec::default(),
+            (_, Some(l)) | (l, None) => NestedVec::<T, N>::with_capacity(l),
+        };
+
+        for item in iter {
+            nested.push(item);
+        }
+        nested
+    }
+}
+
+impl<'a, T: Clone, const N: usize, const M: usize> FromIterator<&'a [T; M]> for NestedVec<T, N> {
+    fn from_iter<I: IntoIterator<Item = &'a [T; M]>>(iter: I) -> Self {
+        FromIterator::from_iter(iter.into_iter().cloned())
+    }
+}
+
+impl<'a, T: Clone, const N: usize> FromIterator<&'a [T]> for NestedVec<T, N> {
+    fn from_iter<I: IntoIterator<Item = &'a [T]>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let mut nested = match iter.size_hint() {
+            (0, None) => NestedVec::default(),
+            (_, Some(l)) | (l, None) => NestedVec::<T, N>::with_capacity(l),
+        };
+
+        for group in iter {
+            nested.push(group.iter().cloned())
+        }
         nested
     }
 }
@@ -558,6 +601,19 @@ impl<T, const N: usize> From<Vec<T>> for NestedVec<T, N> {
         }
     }
 }
+impl<const N: usize, T: PartialEq> PartialEq<[&[T]]> for NestedVec<T, N> {
+    fn eq(&self, other: &[&[T]]) -> bool {
+        self.iter().eq_by(other.iter(), |a, b| {
+            a == *b
+        })
+    }
+}
+
+impl<const N: usize, T: Debug> Debug for NestedVec<T, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
 
 /// A borrowed nested structure - immutable view into nested data.
 ///
@@ -579,12 +635,12 @@ impl<'a, T> NestedSlice<'a, T> {
     /// Panics in debug mode if invariants are violated:
     /// - indices must not be empty
     /// - first index must be 0
-    /// - last index must equal values.len()
+    /// - last index must <= values.len()
     #[inline]
     pub const fn new(indices: &'a [usize], values: &'a [T]) -> Self {
-        if indices[0] != 0 {
-            panic!("first index must be 0");
-        }
+        debug_assert!(!indices.is_empty());
+        debug_assert!(indices[0] == 0);
+        debug_assert!(indices.last() <= Some(&values.len()));
         NestedSlice {
             indices,
             elements: values,
@@ -594,7 +650,7 @@ impl<'a, T> NestedSlice<'a, T> {
     /// Returns the number of groups in this nested structure.
     #[inline]
     pub fn len(&self) -> usize {
-        self.indices.len().saturating_sub(1)
+        self.as_indices().len()
     }
 
     /// Returns the total number of elements across all groups.
@@ -653,7 +709,7 @@ impl<'a, T> NestedSlice<'a, T> {
     /// Returns the indices slice.
     #[inline]
     pub fn as_indices(&self) -> &[usize] {
-        self.indices
+        &self.indices
     }
 
     /// Returns the underlying values as a slice.
@@ -696,6 +752,15 @@ impl<'a, T> AsRefd<NestedSlice<'a, T>> for NestedSlice<'a, T> {
     }
 }
 
+
+impl<'a, T: PartialEq> PartialEq<[&[T]]> for NestedSlice<'a, T> {
+    fn eq(&self, other: &[&[T]]) -> bool {
+        self.iter().eq_by(other.iter(), |a, b| {
+            a == *b
+        })
+    }
+}
+
 /// An iterator over the nested slices of a `NestedVec`.
 ///
 /// This iterator yields references to the slices defined by the structure.
@@ -709,7 +774,6 @@ impl<'a, T> NestedIter<'a, T> {
     /// Creates a new iterator over the given `NestedVec`.
     pub fn new(nested: impl AsRefd<NestedSlice<'a, T>>) -> Self {
         let nested = nested.as_refd();
-
         Self {
             windows: nested.indices.windows(2),
             values: nested.elements,
@@ -768,10 +832,10 @@ mod tests {
     #[test]
     fn test_iter() {
         let mut nested = NestedVec::<u8, 4>::default();
-        nested.extend([5]);
-        nested.extend([6]);
-        nested.extend([7]);
-        nested.extend([8, 9, 10, 12]);
+        nested.push([5]);
+        nested.push([6]);
+        nested.push([7]);
+        nested.push([8, 9, 10, 12]);
 
         let mut iter = nested.iter();
 
@@ -785,12 +849,12 @@ mod tests {
     #[test]
     fn from_iter() {
         let from_iter_nested: NestedVec<i32> =
-            NestedVec::from_iter_nested(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]);
+            NestedVec::from_iter([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
 
         assert_eq!(from_iter_nested.len(), 3);
         assert_eq!(from_iter_nested.count(), 9);
 
-        let from_iter: NestedVec<i32> = NestedVec::from_iter(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let from_iter: NestedVec<i32> = NestedVec::from_iter([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         assert_eq!(from_iter.len(), 1);
         assert_eq!(from_iter.count(), 9);

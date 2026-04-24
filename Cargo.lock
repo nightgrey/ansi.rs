@@ -38,6 +38,7 @@ dependencies = [
  "criterion",
  "derive_more",
  "geometry",
+ "log",
  "maybe",
  "maybe-derive",
  "nutype",
@@ -408,6 +409,16 @@ name = "clap_lex"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
+
+[[package]]
+name = "compact_bytes"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82959e433fa8e7e456e9f26b25946e3381821bf91dab6da778ff32b0bf548857"
+dependencies = [
+ "serde",
+ "static_assertions",
+]
 
 [[package]]
 name = "compact_str"
@@ -1817,6 +1828,7 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 name = "utils"
 version = "0.1.0"
 dependencies = [
+ "compact_bytes",
  "derive_more",
  "smallvec 2.0.0-alpha.12",
 ]

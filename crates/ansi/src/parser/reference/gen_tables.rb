@@ -1,5 +1,5 @@
 
-require 'lib_tables'
+require_relative 'lib_tables.rb'
 
 class String
     def pad(len)

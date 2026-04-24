@@ -1,14 +1,11 @@
 use std::fmt::Debug;
-use bitfield_struct::*;
 use strum::{EnumCount, IntoStaticStr};
 
-#[bitenum]
 #[repr(u8)]
 #[derive_const(Clone, PartialEq, PartialOrd, Ord, Eq, Default, EnumCount, IntoStaticStr)]
 #[derive(Copy)]
 pub enum Action {
     #[default]
-    #[fallback]
     None,
     /// Forget the current private flag, intermediate characters, final character and
     /// parameters. Fired on entry to `Escape`, `CsiEntry` and `DcsEntry`.
@@ -34,8 +31,6 @@ pub enum Action {
     /// Accumulate a UTF-8 byte into `self.utf8`. Emits the codepoint and
     /// returns to `Ground` once enough continuation bytes have arrived.
     Print,
-
-    Record,
 }
 
 impl const From<u8> for Action {

@@ -1,9 +1,6 @@
 use std::fmt::Debug;
-use bilge::prelude::*;
 use strum::{EnumCount, IntoStaticStr};
-use bitfield_struct::*;
 
-#[bitenum]
 #[repr(u8)]
 #[derive_const(Clone, PartialEq, PartialOrd, Ord, Eq, Default, EnumCount, IntoStaticStr)]
 #[derive(Copy)]
@@ -11,7 +8,6 @@ pub enum State {
     /// Initial state used to consume characters until an escape-style sequence begins;
     /// GL bytes 0x20-0x7F are printed, C0/C1 controls are executed immediately.
     #[default]
-    #[fallback]
     Ground,
 
     /// Entered on ESC; cancels any unfinished sequence and starts parsing the next one.
@@ -38,7 +34,7 @@ pub enum State {
     /// Data string phase of a DCS; input is handed to a separate handler until termination
     /// by ST, CAN, SUB or ESC that cancels the string.
     DcsData,
-
+    
     /// Data string phase of an OSC; input is handed to a separate handler until termination
     OscData,
     /// SOS (Start-of-String) string data.

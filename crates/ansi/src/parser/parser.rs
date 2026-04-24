@@ -1,10 +1,53 @@
+use std::fmt::{from_fn, Debug, Formatter, Pointer};
 use super::{Action, DataString, FinalChar, Handler, Intermediates, Parameter, Params, State, Table};
 use arrayvec::ArrayVec;
 use bilge::prelude::Integer;
 use smallvec::SmallVec;
+use log::debug;
+use utils::debug;
+
+enum Part {
+    Action(Action),
+    State(State)
+}
+
+impl Part {
+    fn is_none(&self) -> bool {
+        match self {
+            Self::Action(action) => action == &Action::None,
+            Self::State(state) => state == &State::Ground,
+        }
+    }
+}
+
+impl Debug for Part {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Action(action) => action.fmt(f),
+            Self::State(state) => state.fmt(f),
+        }
+    }
+}
+
+fn step(byte: u8, exit: Action, prev_state: State, action: Action, next_state: State, entry: Action) {
+    let transition = |state: State, action: Action| {
+        if action != Action::None {
+            format!("[{:?}, {:?}]", state, action)
+        } else {
+            format!("{:?}", state)
+        }
+    };
+    println!("-- {} --", debug(byte));
+    if action == Action::None {
+        println!("{} ---> {}", transition(prev_state, exit), transition(next_state, entry));
+
+    } else {
+        println!("{} --> {:?} --> {}", transition(prev_state, exit), action, transition(next_state, entry));
+    }
+}
 
 #[derive(Debug, Default)]
-pub struct Engine {
+pub struct Parser {
     pub state: State,
 
     pub params: ParameterState,
@@ -12,22 +55,11 @@ pub struct Engine {
 
     pub data: DataString,
     pub utf8: ArrayVec<u8, 4>,
-
-    /// Final byte of the DCS prefix — captured on entry to `DcsData` so
-    /// `handle_dcs` can be invoked with it when the string terminates.
-    dcs_final: u8,
 }
 
-impl Engine {
-    pub fn advance(&mut self, handler: &mut dyn Handler, chars: impl AsRef<[u8]>) {
-        for &byte in chars.as_ref().iter() {
-            // Fast path: Ground + printable ASCII (0x20..=0x7E).
-            // ESC (0x1B) and DEL (0x7F) are outside this range, so the only
-            // transitions we skip are the no-op "stay in Ground" ones.
-            if self.state == State::Ground && (0x20..=0x7E).contains(&byte) {
-                handler.utf8(byte as char);
-                continue;
-            }
+impl Parser {
+    pub fn advance(&mut self, handler: &mut dyn Handler, bytes: impl AsRef<[u8]>) {
+        for &byte in bytes.as_ref() {
             self.step(handler, byte);
         }
     }
@@ -36,29 +68,41 @@ impl Engine {
     fn step(&mut self, handler: &mut dyn Handler, byte: u8) {
         let prev_state = self.state;
         let (next_state, action) = Table::GLOBAL.transition(prev_state, byte);
-
         if next_state != prev_state {
             let exit_action = Table::GLOBAL.on_exit(prev_state);
             let entry_action = Table::GLOBAL.on_enter(next_state);
 
+            step(byte,
+                 exit_action,
+                prev_state,
+                action,
+                next_state,
+                 entry_action,
+            );
+
             if exit_action != Action::None {
                 self.action(handler, exit_action, byte);
             }
+
             if action != Action::None {
                 self.action(handler, action, byte);
             }
 
-            self.state = next_state;
-
-            // Capture the DCS final byte on entry into the passthrough state.
-            if next_state == State::DcsData {
-                self.dcs_final = byte;
-            }
 
             if entry_action != Action::None {
                 self.action(handler, entry_action, byte);
             }
-        } else if action != Action::None {
+
+            self.state = next_state;
+
+            } else {
+            step(byte,
+                 Action::None,
+                 prev_state,
+                 action,
+                 next_state,
+                 Action::None,
+            );
             self.action(handler, action, byte);
         }
     }
@@ -69,38 +113,7 @@ impl Engine {
             Action::None | Action::Ignore => {}
 
             Action::Print => {
-                match self.state {
-                    State::Utf8 => {
-                        if !self.utf8.is_full() {
-                            self.utf8.push(byte);
-                        }
-
-                        // utf8[0] is guaranteed by the table to be a lead byte in
-                        // 0xC2..=0xF4 — pick the expected length from it.
-                        let expected = match self.utf8[0] {
-                            0xC2..=0xDF => 2,
-                            0xE0..=0xEF => 3,
-                            0xF0..=0xF4 => 4,
-                            _ => {
-                                self.utf8.clear();
-                                self.state = State::Ground;
-                                return;
-                            }
-                        };
-
-                        if self.utf8.len() >= expected {
-                            if let Ok(s) = str::from_utf8(&self.utf8) {
-                                if let Some(ch) = s.chars().next() {
-                                    handler.utf8(ch);
-                                }
-                            }
-                            self.utf8.clear();
-                        }
-                    }
-                    _ => {
-                        handler.utf8(byte as char);
-                    }
-                }
+            handler.print(byte as char);
             }
 
             Action::Execute => {
@@ -112,7 +125,15 @@ impl Engine {
             }
 
             Action::Collect => {
-                self.intermediates.push(byte);
+                match self.state {
+                    State::Utf8 | State::Ground => self.push_utf8(handler, byte),
+                    State::DcsData | State::OscData | State::SosData | State::PmData | State::ApcData => {
+                        self.data.push(byte);
+                    }
+                    _ => {
+                        self.intermediates.push(byte);
+                    }
+                }
             }
 
             Action::Param => match byte {
@@ -124,40 +145,57 @@ impl Engine {
                 _ => {}
             },
 
-            Action::Record => {
-                self.data.push(byte);
-            }
-
-            Action::Dispatch => {
-                if self.params.has_unfinished() {
-                    self.params.finish_param();
-                }
-                match self.state {
-                    State::CsiEntry | State::CsiParam | State::CsiIntermediate => {
-                        handler.handle_csi(
-                            self.params.borrow(),
-                            self.intermediates.as_ref(),
-                            byte as char,
-                        );
+            Action::Dispatch => match self.state {
+                State::Escape => handler.handle_esc(self.intermediates.as_ref(), byte),
+                State::DcsData => handler.handle_dcs(
+                    self.params.borrow(),
+                    self.intermediates.as_ref(),
+                    self.data.as_ref(),
+                ),
+                State::OscData => handler.handle_osc(self.params.borrow(), self.intermediates.as_ref(), self.data.as_ref()),
+                State::SosData => handler.handle_sos(self.data.as_ref()),
+                State::PmData => handler.handle_pm(self.data.as_ref()),
+                State::ApcData => handler.handle_apc(self.data.as_ref()),
+                State::CsiEntry | State::CsiParam | State::CsiIntermediate => {
+                    if self.params.has_unfinished() {
+                        self.params.finish_param();
                     }
-                    State::DcsData => handler.handle_dcs(
+                    handler.handle_csi(
                         self.params.borrow(),
                         self.intermediates.as_ref(),
-                        self.dcs_final as char,
-                        self.data.as_ref(),
-                    ),
-                    State::OscData => {
-                        handler.handle_osc(self.params.borrow(), self.intermediates.as_ref(), self.data.as_ref())
-                    }
-                    State::SosData => handler.handle_sos(self.data.as_ref()),
-                    State::PmData => handler.handle_pm(self.data.as_ref()),
-                    State::ApcData => handler.handle_apc(self.data.as_ref()),
-                    State::Escape | State::EscapeIntermediate => {
-                        handler.handle_esc(self.intermediates.as_ref(), byte);
-                    }
-                    _ => {}
+                        byte as char,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn push_utf8(&mut self, handler: &mut dyn Handler, byte: u8) {
+        if !self.utf8.is_full() {
+            self.utf8.push(byte);
+        }
+
+        let expected = match self.utf8[0] {
+            0x00..=0x7F => 1,
+            0xC0..=0xDF => 2,
+            0xE0..=0xEF => 3,
+            0xF0..=0xF7 => 4,
+            _ =>  {
+                self.utf8.clear();
+                self.state = State::Ground;
+                return;
+            }
+        };
+
+        if self.utf8.len() >= expected {
+            if let Ok(s) = str::from_utf8(&self.utf8) {
+                if let Some(ch) = s.chars().next() {
+                    handler.print(ch);
                 }
             }
+            self.utf8.clear();
+            self.state = State::Ground;
         }
     }
 
@@ -167,7 +205,6 @@ impl Engine {
         self.intermediates.clear();
         self.data.clear();
         self.utf8.clear();
-        self.dcs_final = 0;
     }
 }
 
@@ -213,7 +250,7 @@ impl<const N: usize> ParameterState<N> {
     /// Close the current main parameter (`;` separator, or end of sequence).
     pub fn finish_param(&mut self) {
         self.push_subparam();
-        self.inner.push_group(self.current_group.drain(..));
+        self.inner.push(self.current_group.drain(..));
     }
 
     pub fn clear(&mut self) {
@@ -240,20 +277,84 @@ mod tests {
     use super::*;
     use derive_more::{Deref, DerefMut};
     use std::collections::VecDeque;
-    use crate::parser::{DataStr, Inter};
+    use crate::parser::{Apc, Csi, DataStr, Dcs, Esc, Inter, Osc, Pm, Sos};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum Value {
-        Utf8(char),
+        Print(char),
         Control(u8),
-        Csi(Parameter, Intermediates, FinalChar),
-        Esc(Intermediates, u8),
-        Dcs(Parameter, Intermediates, FinalChar, DataString),
-        Osc(Parameter, Intermediates, DataString),
-        Sos(DataString),
-        Pm(DataString),
-        Apc(DataString),
+        Csi(Csi),
+        Esc(Esc),
+        Dcs(Dcs),
+        Osc(Osc),
+        Sos(Sos),
+        Pm(Pm),
+        Apc(Apc),
     }
+
+    impl PartialEq<Csi> for Value {
+        fn eq(&self, other: &Csi) -> bool {
+            match self {
+                Value::Csi(csi) => csi == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Esc> for Value {
+        fn eq(&self, other: &Esc) -> bool {
+            match self {
+                Value::Esc(esc) => esc == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Dcs> for Value {
+        fn eq(&self, other: &Dcs) -> bool {
+            match self {
+                Value::Dcs(dcs) => dcs == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Osc> for Value {
+        fn eq(&self, other: &Osc) -> bool {
+            match self {
+                Value::Osc(osc) => osc == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Sos> for Value {
+        fn eq(&self, other: &Sos) -> bool {
+            match self {
+                Value::Sos(sos) => sos == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Pm> for Value {
+        fn eq(&self, other: &Pm) -> bool {
+            match self {
+                Value::Pm(pm) => pm == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq<Apc> for Value {
+        fn eq(&self, other: &Apc) -> bool {
+            match self {
+                Value::Apc(apc) => apc == other,
+                _ => false,
+            }
+        }
+    }
+
 
     #[derive(Default, Debug, DerefMut, Deref)]
     struct Recorder(VecDeque<Value>);
@@ -269,8 +370,8 @@ mod tests {
     }
 
     impl Handler for Recorder {
-        fn utf8(&mut self, ch: char) {
-            self.0.push_back(Value::Utf8(ch));
+        fn print(&mut self, ch: char) {
+            self.0.push_back(Value::Print(ch));
         }
 
         fn control(&mut self, byte: u8) {
@@ -278,50 +379,51 @@ mod tests {
         }
 
         fn handle_csi(&mut self, params: Params, intermediates: &Inter, final_char: FinalChar) {
-            self.0.push_back(Value::Csi(
-                params.to_owned(),
-                Intermediates::from(intermediates),
+            self.0.push_back(Value::Csi(Csi {
+                params: params.to_owned(),
+                intermediates: Intermediates::from(intermediates),
                 final_char,
-            ));
+            }));
         }
-        
+
         fn handle_esc(&mut self, intermediates: &Inter, final_byte: u8) {
-            self.push_back(Value::Esc(Intermediates::from(intermediates), final_byte));
+            self.push_back(Value::Esc(Esc {
+                intermediates: Intermediates::from(intermediates),
+                final_byte,
+            }));
         }
 
         fn handle_dcs(
             &mut self,
             params: Params,
             intermediates: &Inter,
-            final_char: FinalChar,
             data: &DataStr,
         ) {
-            self.0.push_back(Value::Dcs(
-                params.to_owned(),
-                Intermediates::from(intermediates),
-                final_char,
-                data.to_owned() as DataString
-            ));
+            self.0.push_back(Value::Dcs(Dcs {
+                params: params.to_owned(),
+                intermediates: Intermediates::from(intermediates),
+                data: data.to_owned(),
+            }));
         }
 
         fn handle_osc(&mut self, params: Params, intermediates: &Inter, data: &DataStr) {
-            self.0.push_back(Value::Osc(
-                params.to_owned(),
-                Intermediates::from(intermediates),
-                DataString::from(data),
-            ));
+            self.0.push_back(Value::Osc(Osc {
+                params: params.to_owned(),
+                intermediates: Intermediates::from(intermediates),
+                data: DataString::from(data),
+            }));
         }
 
         fn handle_sos(&mut self, data: &DataStr) {
-            self.0.push_back(Value::Sos(data.to_owned()));
+            self.0.push_back(Value::Sos(Sos(data.to_owned())));
         }
 
         fn handle_pm(&mut self, data: &DataStr) {
-            self.0.push_back(Value::Pm(data.to_owned()));
+            self.0.push_back(Value::Pm(Pm(data.to_owned())));
         }
 
         fn handle_apc(&mut self, data: &DataStr) {
-            self.0.push_back(Value::Apc(data.to_owned()));
+            self.0.push_back(Value::Apc(Apc(data.to_owned())));
         }
     }
 
@@ -334,14 +436,14 @@ mod tests {
 
     struct Harness {
         handler: Recorder,
-        engine: Engine,
+        engine: Parser,
     }
 
     impl Harness {
         fn new() -> Self {
             Self {
                 handler: Recorder::new(),
-                engine: Engine::default(),
+                engine: Parser::default(),
             }
         }
 
@@ -359,27 +461,31 @@ mod tests {
         let events: Vec<_> = h.advance("abc").collect();
         assert_eq!(
             events,
-            vec![Value::Utf8('a'), Value::Utf8('b'), Value::Utf8('c')]
+            vec![Value::Print('a'), Value::Print('b'), Value::Print('c')]
         );
     }
 
     #[test]
     fn prints_utf8() {
         let mut h = Harness::new();
-        let events: Vec<_> = h.advance("\x1B[1m🦀🦀💔👨🏿").collect();
+        let events: Vec<_> = h.advance("\x1B[?1049h🦀🦀💔👨🏿").collect();
         assert_eq!(
             events,
             vec![
-                Value::Csi(params![[1]], Intermediates::empty(), 'm'),
-                Value::Utf8('🦀'),
-                Value::Utf8('🦀'),
-                Value::Utf8('💔'),
-                Value::Utf8('👨'),
-                Value::Utf8('🏿'),
+                Value::Csi(Csi {
+                    params: Parameter::from_iter([1049]),
+                    intermediates: Intermediates::from(b"?"),
+                    final_char: 'h',
+                }),
+                Value::Print('🦀'),
+                Value::Print('🦀'),
+                Value::Print('💔'),
+                Value::Print('👨'),
+                Value::Print('🏿'),
             ]
         );
-        let mut h = Harness::new();
     }
+
     #[test]
     fn executes_c0_controls() {
         let mut h = Harness::new();
@@ -404,7 +510,10 @@ mod tests {
         let mut h = Harness::new();
         // ESC 7 — DECSC
         let events: Vec<_> = h.advance(b"\x1B7").collect();
-        assert_eq!(events, vec![Value::Esc(Intermediates::empty(), b'7')]);
+        assert_eq!(events, vec![Value::Esc(Esc {
+            intermediates: Intermediates::empty(),
+            final_byte: b'7',
+        })]);
     }
 
     #[test]
@@ -412,7 +521,10 @@ mod tests {
         let mut h = Harness::new();
         // ESC # 8 — DECALN (screen alignment)
         let events: Vec<_> = h.advance(b"\x1B#8").collect();
-        assert_eq!(events, vec![Value::Esc(Intermediates::from(b"#"), b'8')]);
+        assert_eq!(events, vec![Value::Esc(Esc {
+            intermediates: Intermediates::from(b"#"),
+            final_byte: b'8',
+        })]);
     }
 
     // ---- CSI ------------------------------------------------------------
@@ -423,7 +535,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(params![[1]], Intermediates::empty(), 'm')]
+            vec![Value::Csi(Csi {
+                params: params![[1]],
+                intermediates: Intermediates::empty(),
+                final_char: 'm',
+            })]
         );
     }
 
@@ -433,11 +549,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1;2;3m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(
-                params![[1], [2], [3]],
-                Intermediates::empty(),
-                'm'
-            )]
+            vec![Value::Csi(Csi {
+                params: params![[1], [2], [3]],
+                intermediates: Intermediates::empty(),
+                final_char: 'm',
+            })]
         );
     }
 
@@ -448,11 +564,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[38:2:255:128:0m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(
-                params![[38, 2, 255, 128, 0]],
-                Intermediates::empty(),
-                'm'
-            )]
+            vec![Value::Csi(Csi {
+                params: params![[38, 2, 255, 128, 0]],
+                intermediates: Intermediates::empty(),
+                final_char: 'm',
+            })]
         );
     }
 
@@ -462,11 +578,12 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[1;2:3:4;5m").collect();
         let slice = [&[1], &[2, 3, 4], &[5]] as [&[_]; _];
 
-        let mut params = Parameter::empty();
-        params.push_group([1u16]);
-        params.push_group([2u16, 3u16, 4u16]);
-        params.push_group([5u16]);
-        assert_eq!(events, vec![Value::Csi(params, Intermediates::empty(), 'm')]);
+
+        assert_eq!(events, vec![Value::Csi(Csi {
+            params: params![[1], [2, 3, 4], [5]],
+            intermediates: Intermediates::empty(),
+            final_char: 'm',
+        })]);
     }
 
     #[test]
@@ -476,11 +593,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[?25h").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(
-                params![[25]],
-                Intermediates::from(b"?"),
-                'h'
-            )]
+            vec![Value::Csi(Csi {
+                params: params![[25]],
+                intermediates: Intermediates::from(b"?"),
+                final_char: 'h',
+            })]
         );
     }
 
@@ -491,11 +608,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[2 q").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(
-                params![[2]],
-                Intermediates::from(&b" "[..]),
-                'q'
-            )]
+            vec![Csi {
+                params: params![[2]],
+                intermediates: Intermediates::from(&b" "[..]),
+                final_char: 'q',
+            }]
         );
     }
 
@@ -505,7 +622,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(Parameter::empty(), Intermediates::empty(), 'm')]
+            vec![Csi {
+                params: Parameter::empty(),
+                intermediates: Intermediates::empty(),
+                final_char: 'm',
+            }]
         );
     }
 
@@ -516,7 +637,11 @@ mod tests {
         let events: Vec<_> = h.advance(b"\x1B[;1m").collect();
         assert_eq!(
             events,
-            vec![Value::Csi(params![0, 1], Intermediates::empty(), 'm')]
+            vec![Csi {
+                params: params![0, 1],
+                intermediates: Intermediates::empty(),
+                final_char: 'm',
+            }]
         );
     }
 
@@ -531,12 +656,15 @@ mod tests {
         assert_eq!(
             events,
             vec![
-                Value::Osc(
-                    Parameter::empty(),
-                    Intermediates::empty(),
-                    DataString::from(b"0;title")
-                ),
-                Value::Esc(Intermediates::empty(), b'\\'),
+               Value::Osc(Osc {
+                    params: Parameter::empty(),
+                    intermediates: Intermediates::empty(),
+                    data: DataString::from(b"0;title"),
+                }),
+                Value::Esc(Esc {
+                    intermediates: Intermediates::empty(),
+                    final_byte: b'\\',
+                })
             ]
         );
     }
@@ -545,17 +673,19 @@ mod tests {
     fn dcs() {
         let mut h = Harness::new();
         // DCS P $ q $| ESC \
-        let events: Vec<_> = h.advance(b"\x1B$q\x1B\x1B\\").collect();
+        let events: Vec<_> = h.advance(b"\x1BP$q q\x1B\\").collect();
         assert_eq!(
             events,
             vec![
-                Value::Dcs(
-                    Parameter::empty(),
-                    Intermediates::from(&b"$"[..]),
-                    'q',
-                    DataString::from(b"")
-                ),
-                Value::Esc(Intermediates::empty(), b'\\'),
+                Value::Dcs(Dcs {
+                    params: Parameter::empty(),
+                    intermediates: Intermediates::from(b"$q"),
+                    data: DataString::from(b" q")
+                }),
+                Value::Esc(Esc {
+                    intermediates: Intermediates::empty(),
+                    final_byte: b'\\'
+                })
             ]
         );
 
@@ -569,5 +699,16 @@ mod tests {
         // ESC then CAN (0x18) — CAN returns to Ground without dispatch.
         let events: Vec<_> = h.advance(b"\x1B\x18").collect();
         assert_eq!(events, vec![Value::Control(0x18)]);
+    }
+
+
+    #[test]
+    fn t() {
+
+        let mut p = Parameter::<16>::empty();
+        p.extend([1]);
+
+        dbg!(&p);
+        dbg!(p.iter().collect::<Vec<_>>());
     }
 }

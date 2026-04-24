@@ -19,6 +19,7 @@ synonym = "0.1.6"
 nutype = "0.6.2"
 strum = { version = "0.28", features = ["derive"] }
 bitfield-struct = "0.13.0"
+log = "0.4.29"
 
 [dev-dependencies]
 criterion = "0.8.2"

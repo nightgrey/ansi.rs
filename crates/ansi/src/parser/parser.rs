@@ -141,17 +141,17 @@ impl Engine {
                         );
                     }
                     State::DcsData => handler.handle_dcs(
-                        self.params.as_slice(),
-                        &self.intermediates,
+                        self.params.borrow(),
+                        self.intermediates.as_ref(),
                         self.dcs_final as char,
-                        &self.data,
+                        self.data.as_ref(),
                     ),
                     State::OscData => {
-                        handler.handle_osc(self.params.as_slice(), &self.intermediates, &self.data)
+                        handler.handle_osc(self.params.borrow(), self.intermediates.as_ref(), self.data.as_ref())
                     }
-                    State::SosData => handler.handle_sos(&self.data),
-                    State::PmData => handler.handle_pm(&self.data),
-                    State::ApcData => handler.handle_apc(&self.data),
+                    State::SosData => handler.handle_sos(self.data.as_ref()),
+                    State::PmData => handler.handle_pm(self.data.as_ref()),
+                    State::ApcData => handler.handle_apc(self.data.as_ref()),
                     State::Escape | State::EscapeIntermediate => {
                         handler.handle_esc(self.intermediates.as_ref(), byte);
                     }
@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(
             events,
             vec![
-                Value::Csi(params_from([&[1]]), Intermediates::new(), 'm'),
+                Value::Csi(params![[1]], Intermediates::empty(), 'm'),
                 Value::Utf8('🦀'),
                 Value::Utf8('🦀'),
                 Value::Utf8('💔'),
@@ -534,7 +534,7 @@ mod tests {
                 Value::Osc(
                     Parameter::empty(),
                     Intermediates::empty(),
-                    DataString::from(b"0;title"[..])
+                    DataString::from(b"0;title")
                 ),
                 Value::Esc(Intermediates::empty(), b'\\'),
             ]
@@ -550,12 +550,12 @@ mod tests {
             events,
             vec![
                 Value::Dcs(
-                    Params::new(),
+                    Parameter::empty(),
                     Intermediates::from(&b"$"[..]),
                     'q',
-                    Data::from(&b""[..])
+                    DataString::from(b"")
                 ),
-                Value::Esc(Intermediates::new(), b'\\'),
+                Value::Esc(Intermediates::empty(), b'\\'),
             ]
         );
 

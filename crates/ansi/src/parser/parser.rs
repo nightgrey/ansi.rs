@@ -21,17 +21,25 @@ pub struct Engine {
 impl Engine {
     pub fn advance(&mut self, handler: &mut dyn Handler, chars: impl AsRef<[u8]>) {
         for &byte in chars.as_ref().iter() {
+            // Fast path: Ground + printable ASCII (0x20..=0x7E).
+            // ESC (0x1B) and DEL (0x7F) are outside this range, so the only
+            // transitions we skip are the no-op "stay in Ground" ones.
+            if self.state == State::Ground && (0x20..=0x7E).contains(&byte) {
+                handler.utf8(byte as char);
+                continue;
+            }
             self.step(handler, byte);
         }
     }
 
+    #[inline]
     fn step(&mut self, handler: &mut dyn Handler, byte: u8) {
         let prev_state = self.state;
-        let (next_state, action) = Table::global_transition(prev_state, byte);
+        let (next_state, action) = Table::GLOBAL.transition(prev_state, byte);
 
         if next_state != prev_state {
-            let exit_action = Table::global().exit(prev_state);
-            let entry_action = Table::global().entry(next_state);
+            let exit_action = Table::GLOBAL.on_exit(prev_state);
+            let entry_action = Table::GLOBAL.on_enter(next_state);
 
             if exit_action != Action::None {
                 self.action(handler, exit_action, byte);
@@ -55,10 +63,10 @@ impl Engine {
         }
     }
 
+    #[inline]
     fn action(&mut self, handler: &mut dyn Handler, action: Action, byte: u8) {
-
         match action {
-            Action::None | Action::Ignore | Action::Prefix => {}
+            Action::None | Action::Ignore => {}
 
             Action::Print => {
                 match self.state {
@@ -124,16 +132,10 @@ impl Engine {
                 self.intermediates.push(byte);
             }
 
-            Action::DataStart => {
-                self.data.clear();
-            }
-
-            Action::DataEnd => {
+            Action::Dispatch => {
                 if self.params.has_unfinished() {
                     self.params.finish_param();
                 }
-                // Exit actions fire before `self.state` is updated, so it
-                // still reflects the state we're leaving.
                 match self.state {
                     State::DcsData => handler.handle_dcs(
                         self.params.as_slice(),
@@ -147,27 +149,10 @@ impl Engine {
                     State::SosData => handler.handle_sos(&self.data),
                     State::PmData => handler.handle_pm(&self.data),
                     State::ApcData => handler.handle_apc(&self.data),
-                    _ => (),
-                }
-            }
-
-            Action::Dispatch => {
-                if self.params.has_unfinished() {
-                    self.params.finish_param();
-                }
-
-                match self.state {
-                    State::CsiEntry | State::CsiParam | State::CsiIntermediate => {
-                        handler.handle_csi(
-                            self.params.as_slice(),
-                            &self.intermediates,
-                            byte as char,
-                        );
-                    }
                     State::Escape | State::EscapeIntermediate => {
                         handler.handle_esc(&self.intermediates, byte);
                     }
-                    _ => (),
+                    _ => {}
                 }
             }
         }
@@ -555,6 +540,8 @@ mod tests {
         // OSC 0 ; title ST  (ST = ESC \)
         let events: Vec<_> = h.advance(b"\x1B]0;title\x1B\\").collect();
         // Expect an Osc event, followed by an empty ESC \ dispatch.
+
+        dbg!(&events);
         assert_eq!(
             events,
             vec![
@@ -566,6 +553,26 @@ mod tests {
                 Value::Esc(Intermediates::new(), b'\\'),
             ]
         );
+    }
+
+    #[test]
+    fn dcs() {
+        let mut h = Harness::new();
+        // DCS P $ q $| ESC \
+        let events: Vec<_> = h.advance(b"\x1B$q\x1B\x1B\\").collect();
+        assert_eq!(
+            events,
+            vec![
+                Value::Dcs(
+                    Params::new(),
+                    Intermediates::from(&b"$"[..]),
+                    'q',
+                    Data::from(&b""[..])
+                ),
+                Value::Esc(Intermediates::new(), b'\\'),
+            ]
+        );
+
     }
 
     // ---- Cancellation ---------------------------------------------------

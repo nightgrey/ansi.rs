@@ -1,19 +1,24 @@
 #![feature(ascii_char)]
 #![feature(bstr)]
+#![feature(const_convert)]
 #![feature(const_range)]
 #![feature(const_range_bounds)]
-#![feature(const_iter)]
 #![feature(const_trait_impl)]
 #![feature(const_destruct)]
 #![feature(iter_intersperse)]
 #![feature(const_ops)]
 #![feature(formatting_options)]
+#![feature(const_index)]
 #![feature(derive_const)]
 #![feature(const_clone)]
 #![feature(const_default)]
 #![feature(const_cmp)]
 #![feature(extend_one)]
 #![feature(ascii_char_variants)]
+#![feature(step_trait)]
+#![feature(range_into_bounds)]
+
+#![feature(const_slice_make_iter)]
 mod color;
 mod parser;
 mod style;

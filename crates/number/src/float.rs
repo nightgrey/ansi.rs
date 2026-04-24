@@ -1,5 +1,5 @@
 use crate::number::Number;
-use std::num::{FpCategory, ParseIntError};
+use std::num::{FpCategory};
 use std::ops::Neg;
 
 pub trait Float: Number + Neg<Output = Self> {
@@ -35,10 +35,12 @@ pub trait Float: Number + Neg<Output = Self> {
     /// 1/π
     const FRAC_1_PI: Self;
 
-    /// 1/sqrt(π)
+
+    #[feature(more_float_constants)]
     const FRAC_1_SQRT_PI: Self;
 
     /// 1/sqrt(2π)
+    #[feature(more_float_constants)]
     const FRAC_1_SQRT_2PI: Self;
 
     /// 2/π
@@ -54,16 +56,12 @@ pub trait Float: Number + Neg<Output = Self> {
     const FRAC_1_SQRT_2: Self;
 
     /// sqrt(3)
+    #[feature(more_float_constants)]
     const SQRT_3: Self;
 
     /// 1/sqrt(3)
+    #[feature(more_float_constants)]
     const FRAC_1_SQRT_3: Self;
-
-    /// sqrt(5)
-    const SQRT_5: Self;
-
-    /// 1/sqrt(5)
-    const FRAC_1_SQRT_5: Self;
 
     /// Euler's number (e)
     const E: Self;
@@ -964,8 +962,10 @@ macro_rules! impl_float {
 
             const FRAC_1_PI: Self = std::$T::consts::FRAC_1_PI;
 
+    #[feature(more_float_constants)]
             const FRAC_1_SQRT_PI: Self = std::$T::consts::FRAC_1_SQRT_PI;
 
+    #[feature(more_float_constants)]
             const FRAC_1_SQRT_2PI: Self = std::$T::consts::FRAC_1_SQRT_2PI;
 
             const FRAC_2_PI: Self = std::$T::consts::FRAC_2_PI;
@@ -976,13 +976,11 @@ macro_rules! impl_float {
 
             const FRAC_1_SQRT_2: Self = std::$T::consts::FRAC_1_SQRT_2;
 
+    #[feature(more_float_constants)]
             const SQRT_3: Self = std::$T::consts::SQRT_3;
 
+            #[feature(more_float_constants)]
             const FRAC_1_SQRT_3: Self = std::$T::consts::FRAC_1_SQRT_3;
-
-            const SQRT_5: Self = std::$T::consts::SQRT_5;
-
-            const FRAC_1_SQRT_5: Self = std::$T::consts::FRAC_1_SQRT_5;
 
             const E: Self = std::$T::consts::E;
 
@@ -1214,6 +1212,5 @@ macro_rules! impl_float {
         }
     };
 }
-
 impl_float!(f32);
 impl_float!(f64);

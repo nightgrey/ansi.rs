@@ -20,6 +20,9 @@ nutype = "0.6.2"
 strum = { version = "0.28", features = ["derive"] }
 bitfield-struct = "0.13.0"
 log = "0.4.29"
+memchr = "2.8.0"
+utils-derive = { workspace = true }
+vte_generate_state_changes = "0.2.0"
 
 [dev-dependencies]
 criterion = "0.8.2"

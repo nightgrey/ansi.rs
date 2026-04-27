@@ -84,7 +84,7 @@ impl DerefMut for ByteString {
 impl fmt::Debug for ByteString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.as_byte_str(), f)
+        fmt::Debug::fmt(std::bstr::ByteStr::new(&self), f)
     }
 }
 

@@ -260,13 +260,13 @@ impl<const N: usize> ParameterState<N> {
     }
 
     pub fn borrow(&self) -> Params<'_> {
-        self.inner.borrow()
+        self.inner.as_slice()
     }
 }
 
 impl<'a, const N: usize> From<&'a ParameterState<N>> for Params<'a> {
     fn from(value: &'a ParameterState<N>) -> Self {
-        value.inner.borrow()
+        value.inner.as_slice()
     }
 }
 
@@ -380,7 +380,7 @@ mod tests {
 
         fn handle_csi(&mut self, params: Params, intermediates: &Inter, final_char: FinalChar) {
             self.0.push_back(Value::Csi(Csi {
-                params: params.to_owned(),
+                params: params.to_vec(),
                 intermediates: Intermediates::from(intermediates),
                 final_char,
             }));
@@ -400,7 +400,7 @@ mod tests {
             data: &DataStr,
         ) {
             self.0.push_back(Value::Dcs(Dcs {
-                params: params.to_owned(),
+                params: params.to_vec(),
                 intermediates: Intermediates::from(intermediates),
                 data: data.to_owned(),
             }));
@@ -408,7 +408,7 @@ mod tests {
 
         fn handle_osc(&mut self, params: Params, intermediates: &Inter, data: &DataStr) {
             self.0.push_back(Value::Osc(Osc {
-                params: params.to_owned(),
+                params: params.to_vec(),
                 intermediates: Intermediates::from(intermediates),
                 data: DataString::from(data),
             }));

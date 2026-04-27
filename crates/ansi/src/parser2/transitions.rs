@@ -2,6 +2,19 @@ use core::mem;
 use strum::{EnumCount, IntoStaticStr};
 use utils_derive::transitions;
 
+
+pub const fn transition(state: State, byte: u8) -> (Action, State) {
+    unpack(TRANSITIONS[state as usize][byte as usize])
+}
+
+pub const fn entry(state: State) -> Action{
+    ENTRY_ACTIONS[state as usize]
+}
+
+pub const fn exit(state: State) -> Action{
+    EXIT_ACTIONS[state as usize]
+}
+
 // NOTE: Removing the unused actions prefixed with `_` will reduce performance.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Default, EnumCount, IntoStaticStr, Debug)]
@@ -25,11 +38,14 @@ pub enum Action {
     OscDispatch,
     OscByte,
     OscTermination,
-    _Unused
+    _Unused,
 }
 
+
+
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, EnumCount, IntoStaticStr, Debug)]
+#[derive(Copy, EnumCount, IntoStaticStr, Debug)]
+#[derive_const(Clone, PartialEq, Eq, Default)]
 pub enum State {
     None = 0,
     #[default]
@@ -54,7 +70,6 @@ pub enum State {
 
     SosPmApcString,
 }
-
 transitions!(0, {
     Anywhere {
         0x18       => (Execute, Ground),
@@ -73,14 +88,24 @@ transitions!(0, {
         0x9b       => (None, OscString),
     },
 
+    None {
+
+    },
+
+
     Ground {
         0x00..=0x17 => Execute,
         0x19       => Execute,
         0x1c..=0x1f => Execute,
-        0x20..=0x7f => Print,
+        0x20..=0x7f => (Collect, Utf8),
+        0xC2..=0xDF => (Collect, Utf8), // UTF8 2 byte sequence
+        0xE0..=0xEF => (Collect, Utf8), // UTF8 3 byte sequence
+        0xF0..=0xF4 => (Collect, Utf8), // UTF8 4 byte sequence
     }
-    
-    Utf8 {}
+
+    Utf8 {
+        0x80..=0xBF => (Collect, Utf8), // Continuation byte
+    }
 
     Escape {
         on_entry  => Clear,
@@ -134,7 +159,7 @@ transitions!(0, {
         0x3b       => Param,
         0x7f       => Ignore,
         0x3c..=0x3f => (None, CsiIgnore),
-        0x3a        => (None, CsiIgnore),
+        0x3a        => Param,
         0x20..=0x2f => (Collect, CsiIntermediate),
         0x40..=0x7e => (CsiDispatch, Ground)
     },
@@ -229,7 +254,6 @@ transitions!(0, {
         0x1c..=0x1f => Ignore,
         0x20..=0x7f => Ignore,
     },
-
 });
 
 /// Unpack a u8 into a State and Action
@@ -240,7 +264,7 @@ transitions!(0, {
 ///
 /// Bad things will happen if those invariants are violated.
 #[inline(always)]
-pub fn unpack(byte: u8) -> (Action, State) {
+pub const  fn unpack(byte: u8) -> (Action, State) {
     unsafe {
         (
             // Action is stored in top 4 bits

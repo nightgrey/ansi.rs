@@ -3,7 +3,8 @@ use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, Index, IndexMut, Sub};
 use std::slice::Iter;
-use crate::AsRefd;
+use compact_bytes::CompactBytes;
+use crate::{AsRefd, ByteStr, ByteString};
 
 /// An owned, growable container for a sequence of element slices ("groups").
 ///
@@ -435,7 +436,7 @@ impl<T, const N: usize> NestedVec<T, N> {
     /// assert_eq!(slice.get(0), Some(&[1, 2, 3][..]));
     /// ```
     #[inline]
-    pub fn borrow(&self) -> NestedSlice<'_, T> {
+    pub fn as_slice(&self) -> NestedSlice<'_, T> {
         NestedSlice {
             indices: &self.indices,
             elements: &self.elements,
@@ -583,7 +584,7 @@ impl<'a, T: Clone, const N: usize> FromIterator<&'a [T]> for NestedVec<T, N> {
 
 impl<'a, T, const N: usize> AsRefd<NestedSlice<'a, T>> for &'a NestedVec<T, N> {
     fn as_refd(self) -> NestedSlice<'a, T> {
-        self.borrow()
+        self.as_slice()
     }
 }
 
@@ -611,7 +612,7 @@ impl<const N: usize, T: PartialEq> PartialEq<[&[T]]> for NestedVec<T, N> {
 
 impl<const N: usize, T: Debug> Debug for NestedVec<T, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Ok(())
+        f.debug_list().entries(self.iter()).finish()
     }
 }
 
@@ -723,10 +724,10 @@ impl<'a, T: Clone> NestedSlice<'a, T> {
     /// Converts this `NestedSlice` into an owned `NestedVec`.
     ///
     /// This performs a deep copy of the data.
-    pub fn to_owned<const N: usize>(&self) -> NestedVec<T, N> {
+    pub fn to_vec<const N: usize>(&self) -> NestedVec<T, N> {
         NestedVec {
-            indices: SmallVec::from_iter(self.indices.iter().copied()),
-            elements: SmallVec::from_iter(self.elements.iter().cloned()),
+            indices: SmallVec::from(self.indices.clone()),
+            elements: SmallVec::from(self.elements.clone()),
         }
     }
 }

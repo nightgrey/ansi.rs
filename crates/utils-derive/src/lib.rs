@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+use std::fmt::format;
 use std::iter::Peekable;
 use proc_macro2::{token_stream, Span, Ident, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
@@ -17,25 +18,27 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let mut states_iter = next_group(&mut iter).into_iter().peekable();
 
-    let mut state_names: Vec<TokenTree> = Vec::new();
-    let mut state_cells: Vec<[Cell; 256]> = Vec::new();
+    let mut states: Vec<Ident> = Vec::new();
+    let mut transitions: Vec<[Cell; 256]> = Vec::new();
     let mut entry_actions: Vec<Option<TokenTree>> = Vec::new();
     let mut exit_actions: Vec<Option<TokenTree>> = Vec::new();
     let mut anywhere: [Cell; 256] = [const { None }; 256];
 
-    while states_iter.peek().is_some() {
-        let state_name = states_iter.next().unwrap();
-        let is_anywhere = matches!(
-            &state_name,
-            TokenTree::Ident(i) if i.to_string() == "Anywhere"
-        );
-
-        if matches!(
-            &state_name,
-            TokenTree::Ident(i) if i.to_string() == "None"
-        ) {
-            continue;
+    // Merge Anywhere into every state. per-state > Anywhere.
+    for (idx, state_transitions) in transitions.iter_mut().enumerate() {
+        for (byte, anywhere_transition) in anywhere.iter().enumerate() {
+            if let Some(anywhere) = anywhere_transition {
+                state_transitions[byte] = Some(anywhere.clone());
+            }
         }
+    }
+
+    while states_iter.peek().is_some() {
+        let ident = match states_iter.next() {
+            Some(TokenTree::Ident(i)) => i,
+            token => panic!("Expected ident, but got {:?}", token),
+        };
+        let is_anywhere = &ident == "Anywhere";
 
         let mut body = next_group(&mut states_iter).into_iter().peekable();
         let mut cells: [Cell; 256] = [const { None }; 256];
@@ -66,7 +69,45 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     panic!("Unexpected identifier `{}` in state body", other);
                 },
                 None => {
-                    parse_transition(&mut body, is_anywhere, &mut cells);
+                    let body = &mut body;
+                    let start = next_usize(body);
+                    let end = if optional_punct(body, '.') {
+                        expect_punct(body, '.');
+                        expect_punct(body, '=');
+                        next_usize(body)
+                    } else {
+                        start
+                    };
+
+                    expect_punct(body, '=');
+                    expect_punct(body, '>');
+
+                    let (action, target) = match body.next() {
+                        Some(TokenTree::Group(group)) => {
+                            let mut t = group.stream().into_iter().peekable();
+                            let action = t.next().unwrap();
+                            expect_punct(&mut t, ',');
+                            let target = t.next().unwrap();
+                            (action, target)
+                        },
+                        Some(TokenTree::Ident(ident)) => {
+                            if is_anywhere {
+                                panic!(
+                                    "`Anywhere` transitions must specify a target state; \
+                     `0x{:x}..=0x{:x} => {}` is action-only",
+                                    start, end, ident,
+                                );
+                            }
+                            let action = TokenTree::Ident(ident);
+                            let target = TokenTree::Ident(Ident::new("None", Span::call_site()));
+                            (action, target)
+                        },
+                        token => panic!("Expected group or ident, but got {:?}", token),
+                    };
+
+                    for byte in start..=end {
+                        cells[byte] = Some((action.clone(), target.clone()));
+                    }
                 },
             }
             optional_punct(&mut body, ',');
@@ -79,8 +120,8 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
         } else {
-            state_names.push(state_name);
-            state_cells.push(cells);
+            states.push(ident);
+            transitions.push(cells);
             entry_actions.push(entry);
             exit_actions.push(exit);
         }
@@ -88,38 +129,18 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         optional_punct(&mut states_iter, ',');
     }
 
-    // Merge Anywhere into every state. Per Ruby semantics: per-state wins,
-    // and a collision is an error (matches the original `raise`).
-    for (idx, cells) in state_cells.iter_mut().enumerate() {
-        for (byte, ac) in anywhere.iter().enumerate() {
-            if let Some(ac) = ac {
-                if cells[byte].is_some() {
-                    let name = match &state_names[idx] {
-                        TokenTree::Ident(i) => i.to_string(),
-                        t => format!("{:?}", t),
-                    };
-                    panic!(
-                        "State `{}` already defines transition for 0x{:02x}, \
-                         but Anywhere also defines one",
-                        name, byte,
-                    );
-                }
-                cells[byte] = Some(ac.clone());
-            }
-        }
-    }
-
-    // Emit literal rows.
-    let rows: Vec<TokenStream> = state_cells
+    // Emit literalt transition table.
+    let transitions: Vec<_> = transitions
         .iter()
         .map(|cells| {
-            let exprs = cells.iter().map(|c| match c {
-                Some((action, target)) => quote!(
-                    Action::#action as u8 | ((State::#target as u8) << 4)
-                ),
-                None => quote!(0u8),
+            let lines = cells.iter().map(|c| match c {
+                Some((action, target)) => {
+                    quote!(pack(Action::#action, State::#target))
+                },
+                None => 0u8.into_token_stream(),
             });
-            quote!([#(#exprs),*])
+            
+            quote!([#(#lines),*])
         })
         .collect();
 
@@ -127,71 +148,36 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Some(a) => quote!(Action::#a),
         None => quote!(Action::None),
     });
+    
     let exits = exit_actions.iter().map(|e| match e {
         Some(a) => quote!(Action::#a),
         None => quote!(Action::None),
     });
 
+    let asserts = states.iter().enumerate().map(|(i, state)|  {
+        let i = i as u8;
+        let str = format!("State::{} does not match index {}.", state.to_string(), i);
+        quote!(assert!(State::#state as u8 == #i, #str))
+    });
+
     quote!(
-        pub const TRANSITIONS: [[u8; 256]; State::COUNT - 1] = [
-            #(#rows),*
+        const _: () = {
+            assert!(State::None as u8 == 0, "State::None does not match index 0.");
+            #(#asserts);*
+        };
+
+        pub const TRANSITIONS: [[u8; 256]; State::COUNT] = [
+            #(#transitions),*
         ];
 
-        pub const ENTRY_ACTIONS: [Action; State::COUNT - 1] = [
+        pub const ENTRY_ACTIONS: [Action; State::COUNT] = [
             #(#entries),*
         ];
 
-        pub const EXIT_ACTIONS: [Action; State::COUNT - 1] = [
+        pub const EXIT_ACTIONS: [Action; State::COUNT] = [
             #(#exits),*
         ];
-    )
-        .into()
-}
-
-
-fn parse_transition(
-    iter: &mut Peekable<token_stream::IntoIter>,
-    is_anywhere: bool,
-    cells: &mut [Cell; 256],
-) {
-    let start = next_usize(iter);
-    let end = if optional_punct(iter, '.') {
-        expect_punct(iter, '.');
-        expect_punct(iter, '=');
-        next_usize(iter)
-    } else {
-        start
-    };
-
-    expect_punct(iter, '=');
-    expect_punct(iter, '>');
-
-    let (action, target) = match iter.next() {
-        Some(TokenTree::Group(group)) => {
-            let mut t = group.stream().into_iter().peekable();
-            let action = t.next().unwrap();
-            expect_punct(&mut t, ',');
-            let target = t.next().unwrap();
-            (action, target)
-        },
-        Some(TokenTree::Ident(ident)) => {
-            if is_anywhere {
-                panic!(
-                    "`Anywhere` transitions must specify a target state; \
-                     `0x{:x}..=0x{:x} => {}` is action-only",
-                    start, end, ident,
-                );
-            }
-            let action = TokenTree::Ident(ident);
-            let target = TokenTree::Ident(Ident::new("None", Span::call_site()));
-            (action, target)
-        },
-        token => panic!("Expected group or ident, but got {:?}", token),
-    };
-
-    for byte in start..=end {
-        cells[byte] = Some((action.clone(), target.clone()));
-    }
+    ).into()
 }
 
 /// Parse `=> ActionIdent` and return the action token.

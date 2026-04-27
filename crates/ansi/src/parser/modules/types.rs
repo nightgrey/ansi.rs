@@ -4,7 +4,7 @@ use utils::{ByteStr, ByteString, NestedIter, NestedSlice, NestedVec};
 pub type FinalChar = char;
 pub type FinalByte = u8;
 /// Represents ANSI intermediates parameters, a sequence of bytes.
-pub type Intermediates = ByteString;
+pub type Intermediates = ByteString<2>;
 /// Represents borrowed ANSI intermediate parameters, a sequence of bytes.
 pub type Inter = ByteStr;
 
@@ -16,9 +16,9 @@ pub type Params<'a> = NestedSlice<'a, u16>;
 pub type ParamIter<'a> = NestedIter<'a, u16>;
 
 /// Represents ANSI data, a sequence of human-readable bytes.
-pub type DataString = ByteString;
+pub type DataString = ByteString<1024>;
 /// Represents borrowed ANSI data, a sequence of human-readable bytes.
-pub type DataStr = ByteStr;
+pub type DataStr = ByteStr<1024>;
 #[macro_export]
 macro_rules! params {
     () => {

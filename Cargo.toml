@@ -11,7 +11,7 @@ members = [
     "crates/utils/crates/maybe/derive",
     "crates/gloss",
     "crates/terminal",
-    "crates/number",
+    "crates/number", "crates/utils-derive",
 ]
 
 [workspace.dependencies]
@@ -19,6 +19,7 @@ members = [
 ansi = { path = "crates/ansi" }
 geometry = { path = "crates/geometry" }
 utils = { path = "crates/utils" }
+utils-derive = { path = "crates/utils-derive" }
 tree = { path = "crates/utils/crates/tree" }
 gloss = { path = "crates/gloss" }
 terminal = { path = "crates/terminal" }

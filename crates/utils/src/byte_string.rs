@@ -737,7 +737,7 @@ impl<'a> TryFrom<&'a ByteStr> for String {
     PartialEq, Eq, PartialOrd, Ord, Hash
 )]
 #[repr(transparent)]
-pub struct ByteStr<const N: usize = 2>(pub [u8]);
+pub struct ByteStr(pub [u8]);
 
 impl ByteStr {
     /// Creates a `ByteStr` slice from anything that can be converted to a byte slice.

@@ -41,12 +41,15 @@ dependencies = [
  "log",
  "maybe",
  "maybe-derive",
+ "memchr",
  "nutype",
  "segmented-vec",
  "smallvec 2.0.0-alpha.12",
  "strum",
  "synonym",
  "utils",
+ "utils-derive",
+ "vte_generate_state_changes",
 ]
 
 [[package]]
@@ -1834,6 +1837,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "utils-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1847,6 +1859,16 @@ checksum = "cdbf39d53c5a50cad8119d9cde929ecd208764e8d8d1626486b8929cbcd5f0e7"
 dependencies = [
  "hex",
  "smallvec 1.15.1",
+]
+
+[[package]]
+name = "vte_generate_state_changes"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e658bbb246cd98d720db0b7553764f7e841e25d9ac0c9ecfbc09452dc95a8cce"
+dependencies = [
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]

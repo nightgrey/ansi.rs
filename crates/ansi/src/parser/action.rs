@@ -13,20 +13,15 @@ pub enum Action {
     /// Store the private marker or intermediate character for use when the final
     /// character arrives.
     Collect,
-
     /// The final character of an escape, CSI or DCS sequence has arrived; dispatch
     /// the corresponding control function.
     Dispatch,
-
     /// Execute a C0 or C1 control function.
     Execute,
-
     /// Drop the byte; no observable change to terminal state.
     Ignore,
-
     /// Collect parameter digits / separators (`0`-`9`, `;`, `:`).
     Param,
-
     /// In `Ground`, map the code to a glyph and display it.
     /// Accumulate a UTF-8 byte into `self.utf8`. Emits the codepoint and
     /// returns to `Ground` once enough continuation bytes have arrived.

@@ -24,15 +24,6 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut exit_actions: Vec<Option<TokenTree>> = Vec::new();
     let mut anywhere: [Cell; 256] = [const { None }; 256];
 
-    // Merge Anywhere into every state. per-state > Anywhere.
-    for (idx, state_transitions) in transitions.iter_mut().enumerate() {
-        for (byte, anywhere_transition) in anywhere.iter().enumerate() {
-            if let Some(anywhere) = anywhere_transition {
-                state_transitions[byte] = Some(anywhere.clone());
-            }
-        }
-    }
-
     while states_iter.peek().is_some() {
         let ident = match states_iter.next() {
             Some(TokenTree::Ident(i)) => i,
@@ -127,6 +118,17 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
 
         optional_punct(&mut states_iter, ',');
+    }
+
+    // Merge Anywhere into every state. per-state takes priority over Anywhere.
+    for state_transitions in transitions.iter_mut() {
+        for (byte, anywhere_transition) in anywhere.iter().enumerate() {
+            if let Some(anywhere) = anywhere_transition {
+                if state_transitions[byte].is_none() {
+                    state_transitions[byte] = Some(anywhere.clone());
+                }
+            }
+        }
     }
 
     // Emit literalt transition table.

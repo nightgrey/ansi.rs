@@ -1,11 +1,11 @@
 use std::fmt;
 use std::fmt::{write, FormattingOptions, Write};
-use crate::parser::{DataString, FinalByte, FinalChar, Intermediates, Parameter};
+use crate::parser::{DataString, Intermediates, Parameters};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Esc {
     pub intermediates: Intermediates,
-    pub final_byte: FinalByte,
+    pub final_byte: u8,
 }
 
 impl fmt::Debug for Esc {
@@ -23,9 +23,9 @@ impl fmt::Display for Esc {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Csi<const N: usize = 2> {
-    pub params: Parameter<N>,
+    pub params: Parameters<N>,
     pub intermediates: Intermediates,
-    pub final_char: FinalChar,
+    pub final_char: char,
 }
 
 impl fmt::Debug for Csi {
@@ -66,7 +66,7 @@ impl fmt::Display for Csi {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Dcs<const N: usize = 2> {
-    pub params: Parameter<N>,
+    pub params: Parameters<N>,
     pub intermediates: Intermediates,
     pub data: DataString,
 }
@@ -85,7 +85,7 @@ impl fmt::Display for Dcs {
 
 #[derive( Clone, PartialEq, Eq)]
 pub struct Osc<const N: usize = 2> {
-    pub params: Parameter<N>,
+    pub params: Parameters<N>,
     pub intermediates: Intermediates,
     pub data: DataString,
 }

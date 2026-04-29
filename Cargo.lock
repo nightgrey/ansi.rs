@@ -47,6 +47,7 @@ dependencies = [
  "smallvec 2.0.0-alpha.12",
  "strum",
  "synonym",
+ "thiserror",
  "utils",
  "utils-derive",
  "vte_generate_state_changes",
@@ -1833,7 +1834,9 @@ version = "0.1.0"
 dependencies = [
  "compact_bytes",
  "derive_more",
+ "itertools 0.14.0",
  "smallvec 2.0.0-alpha.12",
+ "thiserror",
 ]
 
 [[package]]

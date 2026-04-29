@@ -47,28 +47,37 @@ pub enum Action {
 #[derive(Copy, EnumCount, IntoStaticStr, Debug)]
 #[derive_const(Clone, PartialEq, Eq, Default)]
 pub enum State {
-    None = 0,
     #[default]
+    /// Denotes "no state transition" or "keep current state"
+    None = 0,
+    /// Initial state used to consume characters until an escape-style sequence begins.
     Ground,
-    Utf8,
+    /// UTF-8 byte sequence (`0xC2..=0xDF`, `0xE0..=0xEF`, or `0xF0..=0xF4`) or continuation byte (`0x80..=0xBF`).
+    Utf8 ,
+    /// ESC (`ESC` or 0x1B)
     Escape,
     EscapeIntermediate,
 
+    /// CSI (`ESC [` / `0x1B 0x5B` or `0x9B`)
     CsiEntry,
     CsiParam,
     CsiIntermediate,
-
     CsiIgnore,
 
+    /// DCS (`ESC P` / `0x1B 0x50` or `0x90`)
     DcsEntry,
     DcsParam,
     DcsIntermediate,
-    DcsString,
+    DcsData,
     DcsIgnore,
 
-    OscString,
+    /// OSC (`ESC ]` / `0x1B 0x5D` or `0x9B`)
+    OscData,
 
-    SosPmApcString,
+    /// - SOS (`ESC P` / `0x1B 0x50` or `0x98`)
+    /// - PM (`ESC ^` / `0x1B 0x5E` or `0x9E`)
+    /// - APC (`ESC _` / `0x1B 0x5F` or `0x9F`)
+    SosPmApcData,
 }
 transitions!(0, {
     Anywhere {
@@ -80,12 +89,12 @@ transitions!(0, {
         0x9a       => (Execute, Ground),
         0x9c       => (None, Ground),
         0x1b       => (None, Escape),
-        0x98       => (None, SosPmApcString),
-        0x9e       => (None, SosPmApcString),
-        0x9f       => (None, SosPmApcString),
+        0x98       => (None, SosPmApcData),
+        0x9e       => (None, SosPmApcData),
+        0x9f       => (None, SosPmApcData),
         0x90       => (None, DcsEntry),
-        0x9d       => (None, OscString),
-        0x9b       => (None, OscString),
+        0x9d       => (None, OscData),
+        0x9b       => (None, CsiEntry),
     },
 
     None {
@@ -121,20 +130,20 @@ transitions!(0, {
         0x5c       => (EscDispatch, Ground),
         0x60..=0x7e => (EscDispatch, Ground),
         0x5b       => (None, CsiEntry),
-        0x5d       => (None, OscString),
+        0x5d       => (None, OscData),
         0x50       => (None, DcsEntry),
-        0x58       => (None, SosPmApcString),
-        0x5e       => (None, SosPmApcString),
-        0x5f       => (None, SosPmApcString),
+        0x58       => (None, SosPmApcData),
+        0x5e       => (None, SosPmApcData),
+        0x5f       => (None, SosPmApcData),
     },
 
     EscapeIntermediate {
-    0x00..=0x17 => Execute,
-    0x19       => Execute,
-    0x1c..=0x1f => Execute,
-    0x20..=0x2f => Collect,
-    0x7f       => Ignore,
-    0x30..=0x7e => (EscDispatch, Ground)
+        0x00..=0x17 => Execute,
+        0x19       => Execute,
+        0x1c..=0x1f => Execute,
+        0x20..=0x2f => Collect,
+        0x7f       => Ignore,
+        0x30..=0x7e => (EscDispatch, Ground)
     },
 
     CsiEntry {
@@ -194,7 +203,7 @@ transitions!(0, {
         0x30..=0x39 => (Param, DcsParam),
         0x3b       => (Param, DcsParam),
         0x3c..=0x3f => (Collect, DcsParam),
-        0x40..=0x7e => (None, DcsString)
+        0x40..=0x7e => (None, DcsData)
     },
 
 
@@ -208,7 +217,7 @@ transitions!(0, {
         0x3a       => (None, DcsIgnore),
         0x3c..=0x3f => (None, DcsIgnore),
         0x20..=0x2f => (Collect, DcsIntermediate),
-        0x40..=0x7e => (None, DcsString)
+        0x40..=0x7e => (None, DcsData)
     },
 
     DcsIntermediate {
@@ -218,10 +227,10 @@ transitions!(0, {
         0x20..=0x2f => Collect,
         0x7f       => Ignore,
         0x30..=0x3f => (None, DcsIgnore),
-        0x40..=0x7e => (None, DcsString)
+        0x40..=0x7e => (None, DcsData)
     },
 
-    DcsString {
+    DcsData {
         on_entry  => DcsDispatch,
         0x00..=0x17 => DcsByte,
         0x19       => DcsByte,
@@ -238,7 +247,7 @@ transitions!(0, {
         0x20..=0x7f => Ignore,
     },
 
-    OscString {
+    OscData {
         on_entry  => OscDispatch,
         0x00..=0x17 => Ignore,
         0x19       => Ignore,
@@ -248,7 +257,7 @@ transitions!(0, {
     }
 
 
-    SosPmApcString {
+    SosPmApcData {
         0x00..=0x17 => Ignore,
         0x19       => Ignore,
         0x1c..=0x1f => Ignore,

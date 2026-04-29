@@ -3,7 +3,7 @@ use std::mem;
 use memchr::{memchr, memchr3};
 use strum::EnumCount;
 use utils_derive::transitions;
-use crate::parser2::{pack, transition, unpack, Action, State};
+use crate::parser::{pack, transition, unpack, Action, State};
 
 transitions!(0, {
     Anywhere {
@@ -15,12 +15,12 @@ transitions!(0, {
         0x9a       => (Ignore, Ground),
         0x9c       => (Ignore, Ground),
         0x1b       => (Ignore, Escape),
-        0x98       => (Ignore, SosPmApcString),
-        0x9e       => (Ignore, SosPmApcString),
-        0x9f       => (Ignore, SosPmApcString),
+        0x98       => (Ignore, SosPmApcData),
+        0x9e       => (Ignore, SosPmApcData),
+        0x9f       => (Ignore, SosPmApcData),
         0x90       => (Ignore, DcsEntry),
-        0x9d       => (Ignore, OscString),
-        0x9b       => (Ignore, OscString),
+        0x9d       => (Ignore, OscData),
+        0x9b       => (Ignore, OscData),
     },
 
     None {
@@ -56,11 +56,11 @@ transitions!(0, {
         0x5c       => (Ignore, Ground),
         0x60..=0x7e => (Ignore, Ground),
         0x5b       => (Ignore, CsiEntry),
-        0x5d       => (Ignore, OscString),
+        0x5d       => (Ignore, OscData),
         0x50       => (Ignore, DcsEntry),
-        0x58       => (Ignore, SosPmApcString),
-        0x5e       => (Ignore, SosPmApcString),
-        0x5f       => (Ignore, SosPmApcString),
+        0x58       => (Ignore, SosPmApcData),
+        0x5e       => (Ignore, SosPmApcData),
+        0x5f       => (Ignore, SosPmApcData),
     },
 
     EscapeIntermediate {
@@ -129,7 +129,7 @@ transitions!(0, {
         0x30..=0x39 => (Ignore, DcsParam),
         0x3b       => (Ignore, DcsParam),
         0x3c..=0x3f => (Ignore, DcsParam),
-        0x40..=0x7e => (Ignore, DcsString)
+        0x40..=0x7e => (Ignore, DcsData)
     },
 
 
@@ -143,7 +143,7 @@ transitions!(0, {
         0x3a       => (Ignore, DcsIgnore),
         0x3c..=0x3f => (Ignore, DcsIgnore),
         0x20..=0x2f => (Ignore, DcsIntermediate),
-        0x40..=0x7e => (Ignore, DcsString)
+        0x40..=0x7e => (Ignore, DcsData)
     },
 
     DcsIntermediate {
@@ -153,10 +153,10 @@ transitions!(0, {
         0x20..=0x2f => Ignore,
         0x7f       => Ignore,
         0x30..=0x3f => (Ignore, DcsIgnore),
-        0x40..=0x7e => (Ignore, DcsString)
+        0x40..=0x7e => (Ignore, DcsData)
     },
 
-    DcsString {
+    DcsData {
         on_entry  => Ignore,
         0x00..=0x17 => Ignore,
         0x19       => Ignore,
@@ -173,7 +173,7 @@ transitions!(0, {
         0x20..=0x7f => Ignore,
     },
 
-    OscString {
+    OscData {
         on_entry  => Ignore,
         0x00..=0x17 => Ignore,
         0x19       => Ignore,
@@ -183,7 +183,7 @@ transitions!(0, {
     }
 
 
-    SosPmApcString {
+    SosPmApcData {
         0x00..=0x17 => Ignore,
         0x19       => Ignore,
         0x1c..=0x1f => Ignore,
@@ -192,9 +192,9 @@ transitions!(0, {
 });
 #[derive(Debug, Default)]
 #[repr(transparent)]
-pub struct Strip(State);
+pub struct StrippingParser(State);
 
-impl Strip {
+impl StrippingParser {
     /// Create a new parser in the ground state.
     #[inline]
     #[must_use]
@@ -233,7 +233,7 @@ impl Strip {
     #[inline]
     #[must_use]
     pub const fn is_passthrough(&self) -> bool {
-        matches!(self.0, State::OscString | State::DcsString | State::SosPmApcString)
+        matches!(self.0, State::OscData | State::DcsData | State::SosPmApcData)
     }
 
     /// Feed a single byte through the state machine.
@@ -267,12 +267,11 @@ impl Strip {
     }
 }
 
-
 pub(crate) fn passthrough_skip(state: State, remaining: &[u8]) -> usize {
     match state {
         // OSC: terminates on BEL(07), ESC(1B), CAN(18), SUB(1A).
         // memchr3 only takes 3 needles; find min of two searches.
-        State::OscString => {
+        State::OscData => {
             let a = memchr3(0x07, 0x1B, 0x18, remaining);
             let b = memchr(0x1A, remaining);
             match (a, b) {
@@ -282,7 +281,7 @@ pub(crate) fn passthrough_skip(state: State, remaining: &[u8]) -> usize {
             }
         }
         // DCS/String: terminates on ESC(1B), CAN(18), SUB(1A).
-        State::DcsString | State::SosPmApcString => {
+        State::DcsData | State::SosPmApcData => {
             memchr3(0x1B, 0x18, 0x1A, remaining).unwrap_or(0)
         }
         _ => 0,
@@ -304,7 +303,7 @@ pub fn strip(input: &[u8]) -> Cow<'_, [u8]> {
     };
 
     // Speculative: are all bytes from first ESC onward part of escapes?
-    let mut parser = Strip::new();
+    let mut parser = StrippingParser::new();
     let mut first_emit = None;
     for (i, &b) in input[first_esc..].iter().enumerate() {
         if parser.advance(b) == Action::Print {
@@ -340,7 +339,7 @@ pub fn strip(input: &[u8]) -> Cow<'_, [u8]> {
         }
 
         // Parse the escape sequence.
-        let mut p = Strip::new();
+        let mut p = StrippingParser::new();
         let mut i = 0;
         while i < remaining.len() {
             let action = p.advance(remaining[i]);

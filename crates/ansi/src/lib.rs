@@ -31,7 +31,6 @@ mod style;
 #[macro_use]
 mod escape;
 pub mod sequences;
-mod parser2;
 
 pub use color::*;
 pub use escape::*;

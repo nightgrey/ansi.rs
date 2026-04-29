@@ -1,33 +1,31 @@
-use std::ascii;
+use smallvec::SmallVec;
 use utils::{ByteStr, ByteString, NestedIter, NestedSlice, NestedVec};
 
-pub type FinalChar = char;
-pub type FinalByte = u8;
 /// Represents ANSI intermediates parameters, a sequence of bytes.
 pub type Intermediates = ByteString;
 /// Represents borrowed ANSI intermediate parameters, a sequence of bytes.
 pub type Inter = ByteStr;
 
 /// Represents ANSI parameters, a nested sequence of parameter values.
-pub type Parameter<const N: usize = 16> = NestedVec<u16, N>;
+pub type Parameters<const N: usize = 2, const M: usize = 2> = NestedVec<u16, N, M>;
 /// Represents borrowed ANSI parameters, an immutable view into the parameters.
 pub type Params<'a> = NestedSlice<'a, u16>;
 /// An iterator over nested ANSI parameters.
-pub type ParamIter<'a> = NestedIter<'a, u16>;
+pub type ParamsIter<'a> = NestedIter<'a, u16>;
 
-/// Represents ANSI data, a sequence of human-readable bytes.
 pub type DataString = ByteString;
-/// Represents borrowed ANSI data, a sequence of human-readable bytes.
 pub type DataStr = ByteStr;
+
+
 #[macro_export]
 macro_rules! params {
     () => {
-        $crate::Params::empty()
+        Parameters::empty()
     };
 
     // Nested, same length
     ($([$($elem:literal),* $(,)?]),+ $(,)?) => (
-        Parameter::from_iter([$(&[$($elem as u16),*] as &[u16],)+])
+        Parameters::from_iter([$(&[$($elem as u16),*] as &[u16],)+])
     );
 
     // Nested, same length
@@ -35,7 +33,7 @@ macro_rules! params {
     //     Parameter::from_iter_nested([$([$($elem),*] as [_],)+])
     // );
     ($($elem:literal),+) => (
-        Parameter::from_iter([$($elem),*])
+        Parameters::from_iter([$($elem),*])
     );
         // ($($elem:expr),+ $(,)?) => (
     //     Parameter::from_iter([$($elem),*])

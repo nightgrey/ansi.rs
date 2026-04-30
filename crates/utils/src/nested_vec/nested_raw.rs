@@ -8,14 +8,14 @@ use crate::NestedSlice;
 /// `N` = max total values across all groups
 /// `M` = max number of groups
 #[derive(Clone, Copy, Debug)]
-pub struct NestedRawSlice<T, const N: usize = 8, const M: usize = 8> {
+pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
     inner: [T; N],
     starts: [usize; M],
     inner_len: usize,
     starts_len: usize,
 }
 
-impl<T, const N: usize, const M: usize> NestedRawSlice<T, N, M> {
+impl<T, const N: usize, const M: usize> NestedRaw<T, N, M> {
     #[inline]
     pub fn new() -> Self where T: Default + Copy {
         Self {
@@ -190,14 +190,14 @@ impl<T, const N: usize, const M: usize> NestedRawSlice<T, N, M> {
 
 }
 
-impl<T, const N: usize, const M: usize> Default for NestedRawSlice<T, N, M>  where T: Default + Copy  {
+impl<T, const N: usize, const M: usize> Default for NestedRaw<T, N, M>  where T: Default + Copy  {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, const N: usize, const M: usize> Index<usize> for NestedRawSlice<T, N, M> {
+impl<T, const N: usize, const M: usize> Index<usize> for NestedRaw<T, N, M> {
     type Output = [T];
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -205,14 +205,14 @@ impl<T, const N: usize, const M: usize> Index<usize> for NestedRawSlice<T, N, M>
     }
 }
 
-impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedRawSlice<T, N, M> {
+impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedRaw<T, N, M> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_unchecked_mut(index)
     }
 }
 
-impl<T, const N: usize, const M: usize> Extend<T> for NestedRawSlice<T, N, M> {
+impl<T, const N: usize, const M: usize> Extend<T> for NestedRaw<T, N, M> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         Self::extend(self, iter);
     }
@@ -221,7 +221,7 @@ impl<T, const N: usize, const M: usize> Extend<T> for NestedRawSlice<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedRawSlice<T, N, M> {
+impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedRaw<T, N, M> {
     fn as_ref(&self) -> &[T] {
         &self.inner
     }
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_extend_first() {
-        let mut p = NestedRawSlice::<u8, 16, 8>::new();
+        let mut p = NestedRaw::<u8, 16, 8>::new();
         p.push_one(2);
         p.extend_one(1);
 
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_push_first() {
-        let mut p = NestedRawSlice::<u8, 16, 8>::new();
+        let mut p = NestedRaw::<u8, 16, 8>::new();
         p.push_one(1);
         p.extend_one(2);
 

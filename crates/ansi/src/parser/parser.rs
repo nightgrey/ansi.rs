@@ -1,6 +1,7 @@
 use std::mem;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut};
+use utils::NestedRaw;
 use super::*;
 use super::raw_parameters::*;
 pub trait Handler {
@@ -323,7 +324,7 @@ impl Parser {
 pub struct ParametersBuilder {
     #[deref]
     #[deref_mut]
-    inner: RawParameters,
+    inner: NestedRaw<u16, 16, 8>,
     current: Option<u16>,
 }
 

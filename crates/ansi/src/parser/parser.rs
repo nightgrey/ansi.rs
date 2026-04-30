@@ -1,3 +1,4 @@
+use std::mem;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut};
 use super::*;
@@ -79,7 +80,7 @@ impl Parser {
     #[inline]
     fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
         let prev_state = self.state;
-        let (action, next_state) = transition(self.state, byte);
+            let (action, next_state) = transition(self.state, byte);
         println!("{:?} / 0x{:2x} | {:?} -> {:?} @ {:?}", byte as char, byte, prev_state, if next_state == State::None { prev_state } else { next_state }, action);
 
         if next_state != State::None {
@@ -315,6 +316,7 @@ impl Parser {
         self.data.clear();
         self.utf8.clear();
     }
+
 }
 
 #[derive(Deref, DerefMut, Debug, Default, Clone)]

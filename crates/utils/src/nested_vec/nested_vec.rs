@@ -11,8 +11,8 @@ use crate::{NestedIter, NestedSlice};
 /// where each group begins and ends. This avoids per-group allocations while
 /// still providing slice-based access to individual groups.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NestedVec<T, const N: usize = 8, const M: usize = N> {
-    pub(super) starts: SmallVec<usize, N>,
+pub struct NestedVec<T, const N: usize = 8, const M: usize = 8> {
+    pub starts: SmallVec<usize, N>,
     pub(super) inner: SmallVec<T, N>,
 }
 
@@ -76,61 +76,57 @@ impl<T, const N: usize, const M: usize> NestedVec<T, N, M> {
         &mut self.inner[start..end]
     }
 
-    /// Starts a **new group** and appends multiple values.
     #[inline]
     pub fn push(&mut self, items: impl IntoIterator<Item = T>) {
-        self.starts.push(self.inner.len());
-
-        self.inner.extend(items);
-
-        self.starts.push(self.inner.len());
+        // for item in items {
+        //     self.inner.push(item);
+        // }
+        //
+        // self.starts.insert(self.starts.len().saturating_sub(1), self.inner.len());
     }
 
-    /// Appends multiple values to the last group.
     #[inline]
     pub fn extend(&mut self, items: impl IntoIterator<Item = T>) {
+        // if self.starts.len() == 0 {
+        //     return self.push(items);
+        // }
+        // for item in items {
+        //     self.inner.push(item);
+        // }
+        //
+        // self.starts.insert(self.starts.len(), self.inner.len());
+    }
+
+    #[inline]
+    pub fn push_one(&mut self, val: T) {
+        self.starts.push(self.inner.len());
+
+        self.inner.push(val);
+
+        self.starts.push(self.inner.len());
+    }
+
+    #[inline]
+    pub fn extend_one(&mut self, val: T) {
         if self.starts.len() == 0 {
-            self.starts.push(0);
+            return self.push_one(val);
         }
 
-        self.inner.extend(items);
+        self.inner.push(val);
 
-        self.starts.push(self.inner.len());
-    }
-
-    /// Starts a **new group** and appends a single value to it.
-    /// Extends the `starts` boundary array.
-    #[inline]
-    pub fn push_one(&mut self, value: T) {
-        self.starts.push(self.inner.len());
-
-        self.inner.push(value);
-
-        self.starts.push(self.inner.len());
-    }
-
-    /// Appends a single value to the **current (last) group**.
-    /// Does NOT create a new boundary.
-    #[inline]
-    pub fn extend_one(&mut self, value: T) {
-        if self.starts.len() == 0 {
-            self.starts.push(0);
-        }
-
-        self.inner.push(value);
-
-        self.starts.push(self.inner.len());
+        let last = self.starts.len().saturating_sub(1);
+        self.starts[last] = self.inner.len();
     }
 
     #[inline]
-    pub fn len(&self) -> usize { self.starts.len() }
+    pub fn len(&self) -> usize { self.starts.len().saturating_sub(1) }
 
     #[inline]
     pub fn is_empty(&self) -> bool { self.starts.len() == 0 }
 
     #[inline]
     pub fn iter(&self) -> NestedIter<T> {
-        NestedIter::new(&self.as_nested_slice())
+        NestedIter::from_parts(&self.starts, &self.inner, 0, self.len())
     }
 
     #[inline]

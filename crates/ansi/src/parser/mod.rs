@@ -1,10 +1,8 @@
-mod transitions;
+mod state;
 mod parser;
-pub mod types;
-pub mod stripper;
-pub mod raw_parameters;
-pub mod sequences;
+mod raw_parameters;
+mod models;
 
-pub use transitions::*;
+pub use state::*;
 pub use parser::*;
-pub use types::*;
+pub use models::*;

@@ -8,7 +8,7 @@ use super::{NestedVec, NestedIter};
 /// elements in a single contiguous buffer, with a separate index array tracking
 /// where each group begins and ends. This avoids per-group allocations while
 /// still providing slice-based access to individual groups.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedSlice<'a, T> {
     pub(super) starts: &'a [usize],
     pub(super) inner: &'a [T],
@@ -52,14 +52,14 @@ impl<'a, T>   NestedSlice<'a, T> {
     }
 
     #[inline]
-    pub fn len(&self) -> usize { self.starts.len() }
+    pub fn len(&self) -> usize { self.starts.len().saturating_sub(1) }
 
     #[inline]
     pub fn is_empty(&self) -> bool { self.starts.len() == 0 }
 
     #[inline]
     pub fn iter(&self) -> NestedIter<T> {
-        NestedIter::new(self)
+        NestedIter::from_parts(self.starts, self.inner, 0, self.len())
     }
 
     #[inline]

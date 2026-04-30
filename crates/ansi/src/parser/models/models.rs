@@ -1,6 +1,6 @@
 use std::fmt;
-use std::fmt::{write, FormattingOptions, Write};
-use crate::parser::{DataString, Intermediates, Parameters};
+use std::fmt::{Write};
+use super::{DataString, Intermediates, Parameters};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Esc {

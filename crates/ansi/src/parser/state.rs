@@ -2,83 +2,6 @@ use core::mem;
 use strum::{EnumCount, IntoStaticStr};
 use utils_derive::transitions;
 
-
-pub const fn transition(state: State, byte: u8) -> (Action, State) {
-    unpack(TRANSITIONS[state as usize][byte as usize])
-}
-
-pub const fn entry(state: State) -> Action{
-    ENTRY_ACTIONS[state as usize]
-}
-
-pub const fn exit(state: State) -> Action{
-    EXIT_ACTIONS[state as usize]
-}
-
-// NOTE: Removing the unused actions prefixed with `_` will reduce performance.
-#[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, EnumCount, IntoStaticStr, Debug)]
-pub enum Action {
-    #[default]
-    None = 0,
-    Ignore,
-    Clear,
-
-    Print,
-    Execute,
-    Collect,
-    Param,
-    EscDispatch,
-    CsiDispatch,
-
-    DcsDispatch,
-    DcsByte,
-    DcsTermination,
-
-    OscDispatch,
-    OscByte,
-    OscTermination,
-    _Unused,
-}
-
-
-
-#[repr(u8)]
-#[derive(Copy, EnumCount, IntoStaticStr, Debug)]
-#[derive_const(Clone, PartialEq, Eq, Default)]
-pub enum State {
-    #[default]
-    /// Denotes "no state transition" or "keep current state"
-    None = 0,
-    /// Initial state used to consume characters until an escape-style sequence begins.
-    Ground,
-    /// UTF-8 byte sequence (`0xC2..=0xDF`, `0xE0..=0xEF`, or `0xF0..=0xF4`) or continuation byte (`0x80..=0xBF`).
-    Utf8 ,
-    /// ESC (`ESC` or 0x1B)
-    Escape,
-    EscapeIntermediate,
-
-    /// CSI (`ESC [` / `0x1B 0x5B` or `0x9B`)
-    CsiEntry,
-    CsiParam,
-    CsiIntermediate,
-    CsiIgnore,
-
-    /// DCS (`ESC P` / `0x1B 0x50` or `0x90`)
-    DcsEntry,
-    DcsParam,
-    DcsIntermediate,
-    DcsData,
-    DcsIgnore,
-
-    /// OSC (`ESC ]` / `0x1B 0x5D` or `0x9B`)
-    OscData,
-
-    /// - SOS (`ESC P` / `0x1B 0x50` or `0x98`)
-    /// - PM (`ESC ^` / `0x1B 0x5E` or `0x9E`)
-    /// - APC (`ESC _` / `0x1B 0x5F` or `0x9F`)
-    SosPmApcData,
-}
 transitions!(0, {
     Anywhere {
         0x18       => (Execute, Ground),
@@ -265,15 +188,76 @@ transitions!(0, {
     },
 });
 
-/// Unpack a u8 into a State and Action
-///
-/// The implementation of this assumes that there are *precisely* 16 variants
-/// for both Action and State. Furthermore, it assumes that the enums are
-/// tag-only; that is, there is no data in any variant.
-///
-/// Bad things will happen if those invariants are violated.
+// NOTE: Removing the unused actions prefixed with `_` will reduce performance.
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, EnumCount, IntoStaticStr, Debug)]
+pub enum Action {
+    #[default]
+    None = 0,
+    Ignore,
+    Clear,
+
+    Print,
+    Execute,
+    Collect,
+    Param,
+    EscDispatch,
+    CsiDispatch,
+
+    DcsDispatch,
+    DcsByte,
+    DcsTermination,
+
+    OscDispatch,
+    OscByte,
+    OscTermination,
+    _Unused,
+}
+
+#[repr(u8)]
+#[derive(Copy, EnumCount, IntoStaticStr, Debug)]
+#[derive_const(Clone, PartialEq, Eq, Default)]
+pub enum State {
+    #[default]
+    /// Denotes "no state transition" or "keep current state"
+    None = 0,
+    /// Initial state used to consume characters until an escape-style sequence begins.
+    Ground,
+    /// UTF-8 byte sequence (`0xC2..=0xDF`, `0xE0..=0xEF`, or `0xF0..=0xF4`) or continuation byte (`0x80..=0xBF`).
+    Utf8 ,
+    /// ESC (`ESC` or 0x1B)
+    Escape,
+    EscapeIntermediate,
+
+    /// CSI (`ESC [` / `0x1B 0x5B` or `0x9B`)
+    CsiEntry,
+    CsiParam,
+    CsiIntermediate,
+    CsiIgnore,
+
+    /// DCS (`ESC P` / `0x1B 0x50` or `0x90`)
+    DcsEntry,
+    DcsParam,
+    DcsIntermediate,
+    DcsData,
+    DcsIgnore,
+
+    /// OSC (`ESC ]` / `0x1B 0x5D` or `0x9B`)
+    OscData,
+
+    /// - SOS (`ESC P` / `0x1B 0x50` or `0x98`)
+    /// - PM (`ESC ^` / `0x1B 0x5E` or `0x9E`)
+    /// - APC (`ESC _` / `0x1B 0x5F` or `0x9F`)
+    SosPmApcData,
+}
+
 #[inline(always)]
-pub const  fn unpack(byte: u8) -> (Action, State) {
+pub const fn pack(action: Action, state: State) -> u8 {
+    (action as u8) << 4 | state as u8
+}
+
+#[inline(always)]
+pub const fn unpack(byte: u8) -> (Action, State) {
     unsafe {
         (
             // Action is stored in top 4 bits
@@ -284,9 +268,16 @@ pub const  fn unpack(byte: u8) -> (Action, State) {
     }
 }
 
-#[inline(always)]
-pub const fn pack(action: Action, state: State) -> u8 {
-    (action as u8) << 4 | state as u8
+pub const fn transition(state: State, byte: u8) -> (Action, State) {
+    unpack(TRANSITIONS[state as usize][byte as usize])
+}
+
+pub const fn entry(state: State) -> Action{
+    ENTRY_ACTIONS[state as usize]
+}
+
+pub const fn exit(state: State) -> Action{
+    EXIT_ACTIONS[state as usize]
 }
 
 #[cfg(test)]
@@ -318,3 +309,5 @@ mod tests {
         assert_eq!(pack(Action::OscTermination, State::CsiEntry), 0xE0);
     }
 }
+
+

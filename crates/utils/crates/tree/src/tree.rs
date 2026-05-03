@@ -1,4 +1,4 @@
-use crate::{At, Error, Id, Node, iter::*};
+use crate::{iter::*, At, Error, Id, Node};
 use derive_more::{Index, IndexMut, IntoIterator};
 use smallvec::SmallVec;
 use std::fmt::Debug;

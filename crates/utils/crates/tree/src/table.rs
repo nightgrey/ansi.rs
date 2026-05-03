@@ -1,5 +1,5 @@
 use crate::{Error, Id};
-use smallvec::{SmallVec, smallvec};
+use smallvec::{smallvec, SmallVec};
 use std::ops::{Index, IndexMut};
 
 const TABLE_REVERSE_CAPACITY: usize = 4;

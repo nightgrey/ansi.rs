@@ -1,8 +1,7 @@
+use crate::nested_vec::error::NestedError;
+use crate::{Nested, NestedConstructor, NestedIter, NestedMut, NestedSlice, TryNestedMut};
 use core::ops::Index;
-use std::iter::FusedIterator;
 use std::ops::IndexMut;
-use thiserror::Error;
-use crate::NestedSlice;
 
 /// Stack-allocated nested parameter buffer optimized for ANSI escape sequences.
 /// `N` = max total values across all groups
@@ -11,13 +10,90 @@ use crate::NestedSlice;
 pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
     inner: [T; N],
     starts: [usize; M],
-    inner_len: usize,
-    starts_len: usize,
+    pub(super) inner_len: usize,
+    pub(super) starts_len: usize,
 }
 
-impl<T, const N: usize, const M: usize> NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
     #[inline]
-    pub fn new() -> Self where T: Default + Copy {
+    fn len(&self) -> usize {
+        self.starts_len.saturating_sub(1)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.starts_len == 0
+    }
+
+    #[inline]
+    fn iter(&self) -> NestedIter<'_, T> {
+        super::NestedIter::from_parts(
+            &self.starts[..self.starts_len],
+            &self.inner[..self.inner_len],
+            0,
+            self.starts_len.saturating_sub(1),
+        )
+    }
+
+    #[inline]
+    fn iter_flat(&self) -> std::slice::Iter<'_, T> {
+        self.inner[..self.inner_len].iter()
+    }
+
+    #[inline]
+    fn first(&self) -> Option<&[T]> {
+        self.get(0)
+    }
+
+    #[inline]
+    fn last(&self) -> Option<&[T]> {
+        self.get(self.starts_len.saturating_sub(1).saturating_sub(1))
+    }
+
+    #[inline]
+    fn as_slice(&self) -> &[T] {
+        &self.inner[..self.inner_len]
+    }
+
+    fn as_slices(&self) -> (&[T], &[usize]) {
+        todo!()
+    }
+
+    fn as_ptr(&self) -> *const T {
+        todo!()
+    }
+
+    fn as_ptrs(&self) -> (*const T, *const usize) {
+        todo!()
+    }
+
+    #[inline]
+    fn as_nested_slice(&self) -> NestedSlice<'_, T> {
+        let (values, starts) = self.as_slices();
+        unsafe {
+            NestedSlice::from_parts(values, starts)
+        }
+    }
+
+    #[inline]
+    fn to_nested_vec<const N2: usize, const M2: usize>(&self) -> crate::NestedVec<T, N2, M2>
+    where
+        T: Clone,
+    {
+        (unsafe {
+            NestedSlice::from_parts(
+                &self.inner[..self.inner_len],
+                &self.starts[..self.starts_len],
+            )
+        })
+        .to_nested_vec()
+    }
+}
+impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
+    for NestedRaw<T, N, M>
+{
+    #[inline]
+    fn new() -> Self {
         Self {
             inner: [Default::default(); N],
             starts: [0; M],
@@ -25,44 +101,57 @@ impl<T, const N: usize, const M: usize> NestedRaw<T, N, M> {
             starts_len: 0,
         }
     }
-
+}
+impl<T, const N: usize, const M: usize> NestedMut<T> for NestedRaw<T, N, M> {
     #[inline]
-    pub fn get(&self, index: usize) -> Option<&[T]> {
-        if index >= self.starts_len { return None; }
-        Some(self.get_unchecked(index))
+    fn push(&mut self, items: impl IntoIterator<Item = T>) {
+        self.try_push(items).expect("could not push values");
     }
 
     #[inline]
-    pub fn get_unchecked(&self, index: usize) -> &[T] {
-        let start = self.starts[index];
-        let end = self.starts[index + 1];
-        &self.inner[start..end]
+    fn push_one(&mut self, val: T) {
+        self.try_push_one(val).expect("Capacity exceeded");
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [T] {
+        &mut self.inner[..self.inner_len]
+    }
+
+    fn as_mut_slices(&mut self) -> (&mut [T], &mut [usize]) {
+        (&mut self.inner[..self.inner_len], &mut self.starts[..self.starts_len])
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut T {
+        self.inner.as_mut_ptr()
+    }
+
+    fn as_ptrs(&mut self) -> (*mut T, *mut usize) {
+        (self.inner.as_mut_ptr(), self.starts.as_mut_ptr())
     }
 
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut [T]> {
-        if index >= self.starts_len { return None; }
-        Some(self.get_unchecked_mut(index))
+    fn clear(&mut self) {
+        self.inner_len = 0;
+        self.starts_len = 0;
     }
+}
 
+impl<T, const N: usize, const M: usize> TryNestedMut<T> for NestedRaw<T, N, M> {
     #[inline]
-    pub fn get_unchecked_mut(&mut self, index: usize) -> &mut [T] {
-        let start = self.starts[index];
-        let end = self.starts[index + 1];
-        &mut self.inner[start..end]
-    }
+    fn try_push(&mut self, items: impl IntoIterator<Item = T>) -> Result<(), NestedError> {
+        if self.inner_len >= N || self.starts_len >= M {
+            return Err(NestedError::Overflow);
+        }
 
-    #[inline]
-    pub fn try_push(&mut self, items: impl IntoIterator<Item = T>) -> Result<(), ParamsError> {
-        if self.inner_len >= N || self.starts_len >= M { return Err(ParamsError::Overflow) }
-
-        self.starts[self.starts_len] = self.inner_len;
-        self.starts_len += 1;
+        if self.starts_len == 0 {
+            self.starts[0] = 0;
+            self.starts_len = 1;
+        }
 
         for item in items {
             if self.inner_len >= N {
                 self.starts[self.starts_len] = self.inner_len;
-                return Err(ParamsError::Overflow);
+                return Err(NestedError::Overflow);
             }
             self.inner[self.inner_len] = item;
             self.inner_len += 1;
@@ -74,126 +163,76 @@ impl<T, const N: usize, const M: usize> NestedRaw<T, N, M> {
     }
 
     #[inline]
-    pub fn try_extend(&mut self, items: impl IntoIterator<Item = T>) -> Result<(), ParamsError> {
-        if self.starts_len >= M || self.inner_len >= N { return Err(ParamsError::Overflow) }
+    fn try_push_one(&mut self, val: T) -> Result<(), NestedError> {
+        if self.starts_len >= M || self.inner_len >= N {
+            return Err(NestedError::Overflow);
+        }
+
+        if self.starts_len == 0 {
+            self.starts[0] = 0;
+            self.starts_len = 1;
+        }
+
+        self.inner[self.inner_len] = val;
+        self.inner_len += 1;
+
+        self.starts[self.starts_len] = self.inner_len;
+        self.starts_len += 1;
+        Ok(())
+    }
+
+    #[inline]
+    fn try_extend<I: IntoIterator<Item = T>>(&mut self, items: I) -> Result<(), NestedError> {
+        if self.starts_len >= M || self.inner_len >= N {
+            return Err(NestedError::Overflow);
+        }
 
         if self.starts_len == 0 {
             return self.try_push(items);
         }
         for item in items {
             if self.inner_len >= N {
-                self.starts[self.starts_len] = self.inner_len;
-                return Err(ParamsError::Overflow);
+                self.starts[self.starts_len - 1] = self.inner_len;
+                return Err(NestedError::Overflow);
             }
             self.inner[self.inner_len] = item;
             self.inner_len += 1;
         }
 
-        self.starts[self.starts_len.saturating_sub(1)] = self.inner_len;
+        self.starts[self.starts_len - 1] = self.inner_len;
         Ok(())
     }
 
     #[inline]
-    pub fn try_push_one(&mut self, val: T) -> Result<(), ParamsError> {
-        if self.starts_len >= M || self.inner_len >= N { return Err(ParamsError::Overflow) }
-
-        self.starts[self.starts_len] = self.inner_len;
-        self.starts_len += 1;
-
-        self.inner[self.inner_len] = val;
-        self.inner_len += 1;
-
-        self.starts[self.starts_len] = self.inner_len;
-        self.starts_len += 1;
-        Ok(())
-    }
-
-    #[inline]
-    pub fn try_extend_one(&mut self, val: T) -> Result<(), ParamsError> {
-        if self.starts_len >= M || self.inner_len >= N { return Err(ParamsError::Overflow) }
-
-        if self.starts_len == 0 {
-            return self.try_push_one(val);
+    fn try_extend_one(&mut self, item: T) -> Result<(), NestedError> {
+        if self.starts_len >= M || self.inner_len >= N {
+            return Err(NestedError::Overflow);
         }
 
-        self.inner[self.inner_len] = val;
+        if self.starts_len == 0 {
+            return self.try_push_one(item);
+        }
+
+        self.inner[self.inner_len] = item;
         self.inner_len += 1;
 
-        self.starts[self.starts_len.saturating_sub(1)] = self.inner_len;
+        self.starts[self.starts_len - 1] = self.inner_len;
         Ok(())
     }
-
-    /// Starts a **new group** and appends multiple values.
-    #[inline]
-    pub fn push(&mut self, items: impl IntoIterator<Item = T>) {
-        self.try_push(items).expect("could not push values");
-    }
-
-    /// Appends multiple values to the last group.
-    #[inline]
-    pub fn extend(&mut self, items: impl IntoIterator<Item = T>) {
-        self.try_extend(items).expect("could not extend values");
-    }
-
-    /// Starts a **new group** and appends a single value to it.
-    /// Extends the `starts` boundary array.
-    #[inline]
-    pub fn push_one(&mut self, val: T) {
-        self.try_push_one(val).expect("Capacity exceeded");
-    }
-
-    /// Appends a single value to the **current (last) group**.
-    /// Does NOT create a new boundary.
-    #[inline]
-    pub fn extend_one(&mut self, val: T) {
-        self.try_extend_one(val).expect("could not extend value");
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize { self.starts_len.saturating_sub(1) }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool { self.starts_len == 0 }
-
-    #[inline]
-    pub fn iter(&self) -> super::NestedIter<'_, T> {
-        super::NestedIter::from_parts(&self.starts[..self.starts_len], &self.inner[..self.inner_len], 0, self.starts_len)
-    }
-
-    #[inline]
-    pub fn iter_flat(&self) -> std::slice::Iter<'_, T> {
-        self.inner[..self.inner_len].iter()
-    }
-
-    #[inline]
-    pub fn first(&self) -> Option<&[T]> { self.get(0) }
-
-    #[inline]
-    pub fn last(&self) -> Option<&[T]> { self.get(self.len().saturating_sub(1)) }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        self.inner_len = 0;
-        self.starts_len = 0;
-    }
-
-    #[inline]
-    pub fn as_params(&self) -> NestedSlice<'_, T> {
-        unsafe { NestedSlice::from_parts(&self.starts[..self.starts_len], &self.inner[..self.inner_len]) }
-    }
-
-    #[inline]
-    pub fn as_slice(&self) -> &[T] {
-        &self.inner[..self.inner_len]
-    }
-
-
 }
 
-impl<T, const N: usize, const M: usize> Default for NestedRaw<T, N, M>  where T: Default + Copy  {
+impl<T, const N: usize, const M: usize> Default for NestedRaw<T, N, M>
+where
+    T: Default + Copy,
+{
     #[inline]
     fn default() -> Self {
-        Self::new()
+        Self {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        }
     }
 }
 
@@ -201,67 +240,282 @@ impl<T, const N: usize, const M: usize> Index<usize> for NestedRaw<T, N, M> {
     type Output = [T];
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        self.get_unchecked(index)
+        self.get(index).expect("index out of bounds")
     }
 }
 
 impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedRaw<T, N, M> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.get_unchecked_mut(index)
+        self.get_mut(index).expect("index out of bounds")
     }
 }
 
 impl<T, const N: usize, const M: usize> Extend<T> for NestedRaw<T, N, M> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        Self::extend(self, iter);
+        self.try_extend(iter).expect("could not extend values");
     }
     fn extend_one(&mut self, item: T) {
-        Self::extend_one(self, item);
+        self.try_extend_one(item).expect("could not extend value");
     }
 }
 
 impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedRaw<T, N, M> {
     fn as_ref(&self) -> &[T] {
-        &self.inner
+        &self.inner[..self.inner_len]
     }
 }
 
-#[derive(Error, Debug)]
-enum ParamsError {
-    #[error("Params: Overflow")]
-    Overflow,
+impl<T, const N: usize, const M: usize> AsMut<[T]> for NestedRaw<T, N, M> {
+    fn as_mut(&mut self) -> &mut [T] {
+        &mut self.inner[..self.inner_len]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_extend_first() {
-        let mut p = NestedRaw::<u8, 16, 8>::new();
-        p.push_one(2);
-        p.extend_one(1);
+    const N: usize = 8;
+    const M: usize = 8;
 
-        assert_eq!(p.len(), 2);
-        assert_eq!(&p[0], &[1]);
-        assert_eq!(&p[1], &[2]);
-        assert_eq!(p.as_slice(), &[1, 2]);
-        assert_eq!(p.as_params().iter().collect::<Vec<_>>(), vec![&[1], &[2]]);
-        assert_eq!(p.iter().collect::<Vec<_>>(), vec![&[1], &[2]]);
+    #[test]
+    fn test_push_one_creates_single_value_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        p.try_push_one(42).expect("Capacity exceeded");
+        assert_eq!(p.starts_len.saturating_sub(1), 1);
+        assert_eq!(&p[0], &[42]);
+        assert_eq!(&p.inner[..p.inner_len], &[42]);
     }
 
     #[test]
-    fn test_push_first() {
-        let mut p = NestedRaw::<u8, 16, 8>::new();
-        p.push_one(1);
-        p.extend_one(2);
-
-        assert_eq!(p.len(), 1);
+    fn test_extend_one_appends_to_last_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        p.try_push_one(1).expect("Capacity exceeded");
+        p.try_extend_one(2).expect("could not extend value");
+        assert_eq!(p.starts_len.saturating_sub(1), 1);
         assert_eq!(&p[0], &[1, 2]);
-        assert_eq!(p.as_slice(), &[1, 2]);
-        assert_eq!(p.as_params().iter().collect::<Vec<_>>(), vec![&[1, 2]]);
-        assert_eq!(p.iter().collect::<Vec<_>>(), vec![&[1, 2]]);
+        assert_eq!(&p.inner[..p.inner_len], &[1, 2]);
+        assert_eq!(
+            super::NestedIter::from_parts(
+                &p.starts[..p.starts_len],
+                &p.inner[..p.inner_len],
+                0,
+                p.starts_len.saturating_sub(1)
+            )
+            .collect::<Vec<_>>(),
+            vec![&[1u8, 2] as &[u8]]
+        );
     }
 
+    #[test]
+    fn test_extend_one_on_empty_starts_new_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        p.try_extend_one(99).expect("could not extend value");
+        assert_eq!(p.starts_len.saturating_sub(1), 1);
+        assert_eq!(&p[0], &[99]);
+        assert_eq!(&p.inner[..p.inner_len], &[99]);
+    }
+
+    #[test]
+    fn test_push_adds_new_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [1, 2];
+        p.try_push(items).expect("could not push values");
+        let items = [3, 4, 5];
+        p.try_push(items).expect("could not push values");
+        assert_eq!(p.starts_len.saturating_sub(1), 2);
+        assert_eq!(&p[0], &[1, 2]);
+        assert_eq!(&p[1], &[3, 4, 5]);
+        assert_eq!(&p.inner[..p.inner_len], &[1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_extend_appends_to_last_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [1, 2];
+        p.try_push(items).expect("could not push values");
+        let items = [3, 4];
+        p.try_extend(items).expect("could not extend values");
+        assert_eq!(p.starts_len.saturating_sub(1), 1);
+        assert_eq!(&p[0], &[1, 2, 3, 4]);
+        assert_eq!(&p.inner[..p.inner_len], &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_extend_on_empty_starts_new_group() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [5, 6];
+        p.try_extend(items).expect("could not extend values");
+        assert_eq!(p.starts_len.saturating_sub(1), 1);
+        assert_eq!(&p[0], &[5, 6]);
+        assert_eq!(&p.inner[..p.inner_len], &[5, 6]);
+    }
+
+    #[test]
+    fn test_multiple_groups_iter() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [1];
+        p.try_push(items).expect("could not push values");
+        let items = [2, 3];
+        p.try_push(items).expect("could not push values");
+        let items = [4];
+        p.try_push(items).expect("could not push values");
+        assert_eq!(p.starts_len.saturating_sub(1), 3);
+        assert_eq!(
+            super::NestedIter::from_parts(
+                &p.starts[..p.starts_len],
+                &p.inner[..p.inner_len],
+                0,
+                p.starts_len.saturating_sub(1)
+            )
+            .collect::<Vec<_>>(),
+            vec![&[1u8] as &[u8], &[2u8, 3], &[4u8]]
+        );
+    }
+
+    #[test]
+    fn test_get_out_of_bounds() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        p.try_push_one(1).expect("Capacity exceeded");
+        assert!(p.get(0).is_some());
+        assert!(p.get(1).is_none());
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [1, 2, 3];
+        p.try_push(items).expect("could not push values");
+        p.inner_len = 0;
+        p.starts_len = 0;
+        assert!(p.starts_len == 0);
+        assert_eq!(p.starts_len.saturating_sub(1), 0);
+        assert_eq!(&p.inner[..p.inner_len], &[]);
+    }
+
+    #[test]
+    fn test_overflow_push_one() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        assert!(p.try_push([1, 2, 3, 4]).is_ok());
+        assert!(p.try_push_one(5).is_err());
+    }
+
+    #[test]
+    fn test_overflow_extend() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        assert!(p.try_push([1, 2]).is_ok());
+        assert!(p.try_extend([3, 4, 5]).is_err());
+    }
+
+    #[test]
+    fn test_first_last() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        assert!(p.get(0).is_none());
+        assert!(p
+            .get(p.starts_len.saturating_sub(1).saturating_sub(1))
+            .is_none());
+        let items = [1];
+        p.try_push(items).expect("could not push values");
+        let items = [2];
+        p.try_push(items).expect("could not push values");
+        assert_eq!(p.get(0), Some(&[1u8] as &[u8]));
+        assert_eq!(
+            p.get(p.starts_len.saturating_sub(1).saturating_sub(1)),
+            Some(&[2u8] as &[u8])
+        );
+    }
+
+    #[test]
+    fn test_as_params_roundtrip() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [10, 20];
+        p.try_push(items).expect("could not push values");
+        let items = [30];
+        p.try_push(items).expect("could not push values");
+        let ps =
+            unsafe { NestedSlice::from_parts(&p.inner[..p.inner_len], &p.starts[..p.starts_len]) };
+        assert_eq!(ps.len(), 2);
+        assert_eq!(&ps[0], &[10, 20]);
+        assert_eq!(&ps[1], &[30]);
+    }
+
+    #[test]
+    fn test_index_mut() {
+        let mut p = NestedRaw::<u8, N, M> {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        };
+        let items = [1, 2, 3];
+        p.try_push(items).expect("could not push values");
+        p[0][1] = 99;
+        assert_eq!(&p[0], &[1, 99, 3]);
+    }
 }

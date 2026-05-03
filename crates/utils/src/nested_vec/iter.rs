@@ -9,10 +9,17 @@ pub struct NestedIter<'a, T> {
     len: usize,
 }
 
-impl<'a, T> NestedIter<'a, T>{
-
+impl<'a, T> NestedIter<'a, T> {
     pub const fn from_parts(starts: &'a [usize], inner: &'a [T], start: usize, end: usize) -> Self {
-        Self { starts, inner, i: start, len: end }
+        Self {
+            starts,
+            inner,
+            i: start,
+            len: end,
+        }
+    }
+    pub const fn new(nested: NestedSlice<'a, T>) -> Self {
+        Self::from_parts(nested.starts, nested.inner, 0, nested.starts.len().saturating_sub(1))
     }
 }
 
@@ -21,7 +28,7 @@ impl<'a, T> Iterator for NestedIter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let i = self.i;
-        
+
         if i >= self.len {
             return None;
         }
@@ -33,9 +40,11 @@ impl<'a, T> Iterator for NestedIter<'a, T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.starts.len().saturating_sub(self.i);
+        let remaining = self.len.saturating_sub(self.i);
         (remaining, Some(remaining))
     }
 }
 
 impl<'a, T> ExactSizeIterator for NestedIter<'a, T> {}
+
+impl<'a, T> core::iter::FusedIterator for NestedIter<'a, T> {}

@@ -11,6 +11,7 @@
 #![feature(iter_order_by)]
 #![feature(iter_intersperse)]
 #![feature(iter_advance_by)]
+#![feature(ub_checks)]
 extern crate core;
 
 #[macro_use]
@@ -27,7 +28,6 @@ mod nested_vec;
 pub use nested_vec::*;
 mod small_byte_string;
 pub use small_byte_string::*;
-
 
 mod as_refd;
 pub use as_refd::*;

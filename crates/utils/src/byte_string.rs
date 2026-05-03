@@ -1,13 +1,13 @@
+use compact_bytes::CompactBytes;
 use core::borrow::{Borrow, BorrowMut};
 use core::cmp::Ordering;
 use core::ops::{
-    Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive,
+    Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive,
 };
 use core::str::FromStr;
 use core::{fmt, hash};
 use std::borrow::{Cow, ToOwned};
-use compact_bytes::CompactBytes;
 
 /// A wrapper for `CompactBytes` representing a human-readable string that's conventionally, but not always, UTF-8.
 ///
@@ -56,12 +56,12 @@ impl ByteString {
 
     #[inline]
     pub fn as_str(&self) -> &str {
-        unsafe  { str::from_utf8_unchecked(&self.0) }
+        unsafe { str::from_utf8_unchecked(&self.0) }
     }
 
     #[inline]
     pub fn as_str_mut(&mut self) -> &mut str {
-        unsafe  { str::from_utf8_unchecked_mut(&mut self.0) }
+        unsafe { str::from_utf8_unchecked_mut(&mut self.0) }
     }
 }
 
@@ -186,7 +186,7 @@ impl<const N: usize> From<[u8; N]> for ByteString {
         Self(CompactBytes::new(&s))
     }
 }
-impl<const N: usize> From<& [u8; N]> for ByteString {
+impl<const N: usize> From<&[u8; N]> for ByteString {
     #[inline]
     fn from(s: &[u8; N]) -> Self {
         Self(CompactBytes::new(s))
@@ -223,7 +223,9 @@ impl<'a> From<&'a ByteString> for Cow<'a, ByteStr> {
 impl FromIterator<char> for ByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
-        ByteString(CompactBytes::new(iter.into_iter().collect::<String>().as_bytes()))
+        ByteString(CompactBytes::new(
+            iter.into_iter().collect::<String>().as_bytes(),
+        ))
     }
 }
 
@@ -234,7 +236,7 @@ impl FromIterator<u8> for ByteString {
         for b in iter {
             buf.push(b);
         }
-        
+
         ByteString(buf)
     }
 }
@@ -253,7 +255,9 @@ impl<'a> FromIterator<&'a u8> for ByteString {
 impl<'a> FromIterator<&'a str> for ByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        ByteString(CompactBytes::new(iter.into_iter().collect::<String>().as_bytes()))
+        ByteString(CompactBytes::new(
+            iter.into_iter().collect::<String>().as_bytes(),
+        ))
     }
 }
 
@@ -281,8 +285,9 @@ impl<'a> FromIterator<&'a ByteStr> for ByteString {
 impl FromIterator<ByteString> for ByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = ByteString>>(iter: T) -> Self {
-
-        ByteString(CompactBytes::new(iter.into_iter().collect::<Vec<_>>().concat().as_slice()))
+        ByteString(CompactBytes::new(
+            iter.into_iter().collect::<Vec<_>>().concat().as_slice(),
+        ))
     }
 }
 
@@ -497,7 +502,7 @@ macro_rules! impl_partial_eq_ord_cow {
 #[doc(hidden)]
 macro_rules! impl_partial_eq_ord {
     ( $lhs:ty, $rhs:ty) => {
-        impl_partial_eq!( $lhs, $rhs);
+        impl_partial_eq!($lhs, $rhs);
 
         impl PartialOrd<$rhs> for $lhs {
             #[inline]
@@ -535,7 +540,6 @@ macro_rules! impl_partial_eq_ord {
             }
         }
     };
-
 }
 
 #[doc(hidden)]
@@ -693,12 +697,12 @@ impl From<Box<ByteStr>> for Box<[u8]> {
 }
 
 // PartialOrd with `Vec<u8>` omitted to avoid inference failures
-impl_partial_eq!( ByteStr, Vec<u8>);
+impl_partial_eq!(ByteStr, Vec<u8>);
 // PartialOrd with `String` omitted to avoid inference failures
-impl_partial_eq!( ByteStr, String);
-impl_partial_eq_ord_cow!( &ByteStr, Cow<'_, ByteStr>);
-impl_partial_eq_ord_cow!( &ByteStr, Cow<'_, str>);
-impl_partial_eq_ord_cow!( &ByteStr, Cow<'_, [u8]>);
+impl_partial_eq!(ByteStr, String);
+impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, ByteStr>);
+impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, str>);
+impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, [u8]>);
 
 impl<'a> TryFrom<&'a ByteStr> for String {
     type Error = core::str::Utf8Error;
@@ -708,7 +712,6 @@ impl<'a> TryFrom<&'a ByteStr> for String {
         Ok(core::str::from_utf8(&s.0)?.into())
     }
 }
-
 
 /// A wrapper for `&[u8]` representing a human-readable string that's conventionally, but not always, UTF-8.
 ///
@@ -733,9 +736,7 @@ impl<'a> TryFrom<&'a ByteStr> for String {
 ///
 /// The `Display` implementation behaves as if the `ByteStr` were first lossily converted to a
 /// `str`, with invalid UTF-8 presented as the Unicode replacement character (�).
-#[derive(
-    PartialEq, Eq, PartialOrd, Ord, Hash
-)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ByteStr(pub [u8]);
 
@@ -809,15 +810,14 @@ impl ByteStr {
 
     #[inline]
     pub const fn as_str(&self) -> &str {
-        unsafe  { str::from_utf8_unchecked(&self.0) }
+        unsafe { str::from_utf8_unchecked(&self.0) }
     }
 
     #[inline]
     pub const fn as_str_mut(&mut self) -> &mut str {
-        unsafe  { str::from_utf8_unchecked_mut(&mut self.0) }
+        unsafe { str::from_utf8_unchecked_mut(&mut self.0) }
     }
 }
-
 
 impl const Deref for ByteStr {
     type Target = [u8];
@@ -835,7 +835,6 @@ impl const DerefMut for ByteStr {
     }
 }
 
-
 impl fmt::Display for ByteStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(std::bstr::ByteStr::new(&self), f)
@@ -845,7 +844,6 @@ impl fmt::Display for ByteStr {
 impl fmt::Debug for ByteStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(std::bstr::ByteStr::new(&self), f)
-
     }
 }
 
@@ -933,7 +931,7 @@ impl<'a> const TryFrom<&'a mut ByteStr> for &'a mut str {
 
 #[test]
 fn wqe() {
-    let i = std::bstr::ByteString(Vec::from([0,0 ]));
+    let i = std::bstr::ByteString(Vec::from([0, 0]));
     dbg!(i);
 
     let i = ByteString::empty();

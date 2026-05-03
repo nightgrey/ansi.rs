@@ -1,49 +1,8 @@
 use std::mem;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut};
-use utils::NestedRaw;
+use utils::{Nested, NestedMut, NestedRaw, TryNestedMut};
 use super::*;
-use super::raw_parameters::*;
-pub trait Handler {
-    /// Draw a character to the screen and update states.
-    fn print(&mut self, byte: char) {}
-
-    /// Execute a C0 or C1 control function.
-    fn execute(&mut self, byte: u8) {}
-
-    /// The final character of an escape sequence has arrived.
-    fn esc(&mut self, intermediates: &Inter, final_byte: u8) {}
-
-    /// A final character has arrived for a CSI sequence.
-    fn csi(
-        &mut self,
-        params: Params<'_>,
-        intermediates: &Inter,
-        final_byte: char,
-    ) {
-    }
-
-    /// Invoked when a final character arrives in first part of device control
-    /// string. Subsequent bytes in the control string are delivered via
-    /// [`Handler::dcs_byte`], and termination via [`Handler::dcs_termination`].
-    fn dcs(&mut self, params: Params<'_>, intermediates: &Inter, final_char: char) {}
-
-    /// A byte of a DCS data string. C0 controls are also passed here.
-    fn dcs_byte(&mut self, byte: u8) {}
-
-    /// The DCS data string has been terminated.
-    fn dcs_termination(&mut self, byte: u8) {}
-
-    /// Begin an operating system command. Subsequent body bytes are delivered
-    /// via [`Handler::osc_byte`]; termination via [`Handler::osc_termination`].
-    fn osc(&mut self, params: Params<'_>) {}
-
-    /// A byte of OSC data.
-    fn osc_byte(&mut self, byte: u8) {}
-
-    /// The OSC string has been terminated.
-    fn osc_termination(&mut self, byte: u8) {}
-}
 
 #[derive(Debug, Default)]
 pub struct Parser {
@@ -287,7 +246,7 @@ impl Parser {
             Action::CsiDispatch => {
                 self.params.finish();
                 handler.csi(
-                    self.params.as_params(),
+                    self.params.as_nested_slice(),
                     self.intermediates.as_ref(),
                     byte as char,
                 );
@@ -296,7 +255,7 @@ impl Parser {
             Action::DcsDispatch => {
                 self.params.finish();
                 handler.dcs(
-                    self.params.as_params(),
+                    self.params.as_nested_slice(),
                     self.intermediates.as_ref(),
                     byte as char,
                 );
@@ -304,7 +263,7 @@ impl Parser {
             Action::DcsByte => handler.dcs_byte(byte),
             Action::DcsTermination => handler.dcs_termination(byte),
 
-            Action::OscDispatch => handler.osc(self.params.as_params()),
+            Action::OscDispatch => handler.osc(self.params.as_nested_slice()),
             Action::OscByte => handler.osc_byte(byte),
             Action::OscTermination => handler.osc_termination(byte),
         }
@@ -346,14 +305,16 @@ impl ParametersBuilder {
     /// Empty sub-parameters default to 0 to mirror ECMA-48 — `1::3` means `[1, 0, 3]`.
     pub fn push_sub(&mut self) {
         dbg!("sub", self.current);
-        self.inner.extend_one(self.current.take().unwrap_or(0));
+        let val = self.current.take().unwrap_or(0);
+        self.inner.try_extend_one(val).expect("could not extend value");
     }
 
     /// Append current parameter as a main parameter (`;` separator).
     /// An empty leading param defaults to 0 — `;1m` means `[[0], [1]]`.
     pub fn push_main(&mut self) {
         dbg!("main", self.current);
-        self.inner.push_one(self.current.take().unwrap_or(0));
+        let val = self.current.take().unwrap_or(0);
+        self.inner.try_push_one(val).expect("Capacity exceeded");
     }
 
     /// Finalize the in-flight param at dispatch time. Only commits if there's an unfinished value.
@@ -372,7 +333,8 @@ impl ParametersBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::{Debug, Display};
+    use utils::{NestedConstructor, NestedVec};
+use std::fmt::{Debug, Display};
     use crate::params;
     use super::*;
 
@@ -1041,14 +1003,5 @@ mod tests {
                 Value::Csi(params![[0]], inter(b""), 'm'),
             ],
         );
-    }
-
-
-
-    #[test]
-    fn qwe() {
-        let a = Parameters::<8, 8>::new();
-        dbg!(a);
-
     }
 }

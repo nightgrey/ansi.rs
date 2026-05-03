@@ -24,14 +24,16 @@ impl<'a, T> NestedSlice<'a, T> {
     }
 
     #[inline]
-    pub const unsafe fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
+    pub unsafe fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
         debug_assert!(
-            if values.len() == 0 {
-                starts.len() == 0
+            if starts.len() == 0 {
+                values.len() == 0
             } else {
                 starts.len() == values.len() + 1
             },
-            "Invalid parts for nested slice"
+            "Invalid parts for nested slice. Starts: {:?}, Values: {:?}",
+            starts,
+            values.len()
         );
         Self {
             starts,

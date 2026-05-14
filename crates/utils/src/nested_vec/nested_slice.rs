@@ -24,6 +24,12 @@ impl<'a, T> NestedSlice<'a, T> {
     }
 
     #[inline]
+    pub fn from_nested(nested: &'a impl Nested<T>) -> Self {
+        let slices = nested.as_slices();
+        unsafe { Self::from_parts(slices.0, slices.1) }
+    }
+    
+    #[inline]
     pub unsafe fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
         debug_assert!(
             if starts.len() == 0 {
@@ -40,6 +46,7 @@ impl<'a, T> NestedSlice<'a, T> {
             inner: values,
         }
     }
+
 }
 
 impl<'a, T> Nested<T> for NestedSlice<'a, T> {
@@ -131,5 +138,12 @@ impl<'a, T> Index<usize> for NestedSlice<'a, T> {
 impl<'a, T> AsRef<[T]> for NestedSlice<'a, T> {
     fn as_ref(&self) -> &[T] {
         &self.inner
+    }
+}
+
+impl<'a, T, N: Nested<T>> From<&'a N> for NestedSlice<'a, T> {
+    #[inline]
+    fn from(nested: &'a N) -> Self {
+        Self::from_nested(nested)
     }
 }

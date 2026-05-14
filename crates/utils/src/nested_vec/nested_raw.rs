@@ -432,8 +432,8 @@ mod tests {
         let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
         p.push([10, 20]);
         p.push([30]);
-        let ps =
-            unsafe { NestedSlice::from_parts(&p.inner[..p.inner_len], &p.starts[..p.starts_len]) };
+        let ps = NestedSlice::from(&p);
+        dbg!(&ps);
         assert_eq!(ps.len(), 2);
         assert_eq!(&ps[0], &[10, 20]);
         assert_eq!(&ps[1], &[30]);

@@ -34,17 +34,24 @@ impl<T> NestedIndex<T> for usize {
     }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
-        let (values, indices) = nested.as_slices();
+        unsafe {
 
-        let starts = indices.get_unchecked((indices[self]..=indices[self + 1]));
-        values.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap())
+            let starts = nested.starts();
+            let start = starts.get_unchecked(self);
+            let end = starts.get_unchecked(self + 1);
+            nested.values().get_unchecked(*start..*end)
+        }
     }
 
     #[track_caller]
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
         if self < nested.len() {
-            let (values, indices) = (*nested).as_slices();
-            &values[indices[self]..=indices[self + 1]]
+            let starts = nested.starts();
+            unsafe {
+                let start =starts.get_unchecked(self);
+                let end = starts.get_unchecked(self + 1);
+                &nested.values()[*start..*end]
+            }
         } else {
             nested_index_fail(self, self + 1, nested.len())
         }
@@ -55,32 +62,34 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
 
     fn get(self, nested: &(impl Nested<T> + ?Sized)) -> Option<Self::Output<'_>> {
         if self.end <= nested.len() {
-            let (values, indices) = nested.as_slices();
+            let starts = nested.starts();
             // need range.end+1 starts to bound the last group
-            let starts = indices.get(self.start..=(self.end + 1))?;
-            let inner = &values.get(starts.first().copied()?..starts.last().copied()?)?;
-            Some(unsafe { NestedSlice::from_parts(inner, starts) })
+            let starts = starts.get(self.start..=(self.end))?;
+            let inner = nested.values().get(starts.first().copied()?..starts.last().copied()?)?;
+            unsafe {
+                Some(NestedSlice::from_parts(inner, starts))
+            }
         } else {
             None
         }
     }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
-        let (values, indices) = (nested).as_slices();
-
-        let starts = indices.get_unchecked((self.start..=(self.end + 1)));
-        let inner = (values)
-            .get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
-        unsafe { NestedSlice::from_parts(inner, starts) }
+        unsafe {
+            let starts = nested.starts();
+            let inner = nested.values();
+            let starts = starts.get_unchecked(self.start..=self.end);
+            let inner = inner.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());;
+            NestedSlice::from_parts(inner, starts)
+        }
     }
 
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
         if self.end <= nested.len() {
-            let (values, indices) = (nested).as_slices();
 
             unsafe {
-                let starts = (indices).get_unchecked(self.start..=(self.end + 1));
-                let inner = (values).get_unchecked(
+                let starts = nested.starts().get_unchecked(self.start..=self.end);
+                let inner = nested.values().get_unchecked(
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
 
@@ -96,9 +105,10 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
 
     fn get(self, nested: &(impl Nested<T> + ?Sized)) -> Option<Self::Output<'_>> {
         if *self.end() <= nested.len() {
-            let (values, indices) = nested.as_slices();
+            let starts = nested.starts();
+            let values = nested.values();
             // need range.end+1 starts to bound the last group
-            let starts = indices.get(*self.start()..=*self.end() + 1)?;
+            let starts = starts.get(*self.start()..=*self.end())?;
             let inner = &values.get(starts.first().copied()?..starts.last().copied()?)?;
             Some(unsafe { NestedSlice::from_parts(inner, starts) })
         } else {
@@ -107,21 +117,23 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
     }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
-        let (values, indices) = (nested).as_slices();
+        unsafe {
+            let starts = nested.starts();
+            let values = nested.values();
 
-        let starts = indices.get_unchecked((*(self.start())..=((*self.end()) + 1)));
-        let inner = (values)
-            .get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
-        unsafe { NestedSlice::from_parts(inner, starts) }
+            let starts = starts.get_unchecked(*self.start()..=*self.end());
+            let inner = values.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
+            NestedSlice::from_parts(inner, starts)
+        }
     }
 
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_>  {
         if *self.end() <= nested.len() {
-            let (values, indices) = (nested).as_slices();
-
+            let starts = nested.starts();
+            let values = nested.values();
             unsafe {
-                let starts = (indices.get_unchecked((*(self.start())..=(*self.end() + 1))));
-                let inner = (values).get_unchecked(
+                let starts = starts.get_unchecked(*self.start()..=*self.end());
+                let inner = values.get_unchecked(
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
 
@@ -161,24 +173,24 @@ impl<T> NestedIndexMut<T> for usize {
         if self >= nested.len() {
             return None;
         }
-        let (values, indices) = nested.as_mut_slices();
+        let starts = nested.starts_mut();
         // indices[self] and indices[self+1] are guaranteed valid because self < len
-        let range = indices[self]..=indices[self + 1];
-        values.get_mut(range)
+        let range = starts[self]..starts[self + 1];
+        nested.values_mut().get_mut(range)
     }
 
     unsafe fn get_unchecked_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Self::Output<'_> {
-        let (values, indices) = nested.as_mut_slices();
-        let range = indices[self]..=indices[self];
-        values.get_unchecked_mut(range)
+        let starts = nested.starts_mut();
+        let range = starts[self]..starts[self + 1];
+        nested.values_mut().get_unchecked_mut(range)
     }
 
     #[track_caller]
     fn index_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Self::Output<'_> {
         if self < nested.len() {
-            let (values, indices) = nested.as_mut_slices();
-            let range = indices[self]..=indices[self + 1];
-            &mut values[range]
+            let starts = nested.starts_mut();
+            let range = starts[self]..starts[self + 1];
+            &mut nested.values_mut()[range]
         } else {
             nested_index_fail(self, self + 1, nested.len())
         }

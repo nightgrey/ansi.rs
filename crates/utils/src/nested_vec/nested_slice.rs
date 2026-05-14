@@ -10,32 +10,23 @@ use smallvec::SmallVec;
 /// still providing slice-based access to individual groups.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedSlice<'a, T> {
+    pub(super) values: &'a [T],
     pub(super) starts: &'a [usize],
-    pub(super) inner: &'a [T],
 }
 
 impl<'a, T> NestedSlice<'a, T> {
     #[inline]
-    pub const fn new() -> Self {
-        Self {
-            starts: &[],
-            inner: &[],
-        }
+    pub fn from_nested(nested: &'a impl Nested<T>) -> Self {
+        unsafe { Self::from_parts(nested.values(), nested.starts()) }
     }
 
     #[inline]
-    pub fn from_nested(nested: &'a impl Nested<T>) -> Self {
-        let slices = nested.as_slices();
-        unsafe { Self::from_parts(slices.0, slices.1) }
-    }
-    
-    #[inline]
-    pub unsafe fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
+    pub fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
         debug_assert!(
             if starts.len() == 0 {
                 values.len() == 0
             } else {
-                starts.len() == values.len() + 1
+                starts.last().copied() == Some(values.len())
             },
             "Invalid parts for nested slice. Starts: {:?}, Values: {:?}",
             starts,
@@ -43,33 +34,12 @@ impl<'a, T> NestedSlice<'a, T> {
         );
         Self {
             starts,
-            inner: values,
+            values: values,
         }
     }
-
 }
 
 impl<'a, T> Nested<T> for NestedSlice<'a, T> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.starts.len().saturating_sub(1)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.starts.len() == 0
-    }
-
-    #[inline]
-    fn iter(&self) -> NestedIter<T> {
-        NestedIter::from_parts(self.starts, self.inner, 0, self.len())
-    }
-
-    #[inline]
-    fn iter_flat(&self) -> std::slice::Iter<'a, T> {
-        self.inner.iter()
-    }
-
     #[inline]
     fn first(&self) -> Option<&[T]> {
         self.get(0)
@@ -81,39 +51,21 @@ impl<'a, T> Nested<T> for NestedSlice<'a, T> {
     }
 
     #[inline]
-    fn as_slice(&self) -> &[T] {
-        self.inner
-    }
-
-    fn as_slices(&self) -> (&[T], &[usize]) {
-        (self.inner, self.starts)
-    }
-
-    fn as_ptr(&self) -> *const T {
-        self.inner.as_ptr()
-    }
-
-    fn as_ptrs(&self) -> (*const T, *const usize) {
-        (self.inner.as_ptr(), self.starts.as_ptr())
+    fn len(&self) -> usize {
+        self.starts.len().saturating_sub(1)
     }
 
     #[inline]
-    fn as_nested_slice(&self) -> NestedSlice<'_, T> {
-        NestedSlice {
-            starts: self.starts,
-            inner: self.inner,
-        }
+    fn is_empty(&self) -> bool {
+        self.starts.is_empty()
     }
 
-    #[inline]
-    fn to_nested_vec<const N: usize, const M: usize>(&self) -> NestedVec<T, N, M>
-    where
-        T: Clone,
-    {
-        NestedVec {
-            inner: SmallVec::from(self.inner),
-            starts: SmallVec::from(self.starts),
-        }
+    fn values(&self) -> &[T] {
+        self.values
+    }
+
+    fn starts(&self) -> &[usize] {
+        self.starts
     }
 }
 
@@ -121,7 +73,7 @@ impl<'a, T> Default for NestedSlice<'a, T> {
     #[inline]
     fn default() -> Self {
         Self {
-            inner: &[],
+            values: &[],
             starts: &[],
         }
     }
@@ -137,7 +89,7 @@ impl<'a, T> Index<usize> for NestedSlice<'a, T> {
 
 impl<'a, T> AsRef<[T]> for NestedSlice<'a, T> {
     fn as_ref(&self) -> &[T] {
-        &self.inner
+        &self.values
     }
 }
 

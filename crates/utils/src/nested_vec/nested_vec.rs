@@ -1,4 +1,4 @@
-use crate::{Nested, NestedConstructor, NestedFromIterator, NestedIndex, NestedIter, NestedMut, NestedSlice, TryNestedMut};
+use crate::{Nested, NestedConstructor,  NestedIter, NestedMut, NestedSlice};
 use core::ops::Index;
 use std::ops::IndexMut;
 use smallvec::SmallVec;
@@ -17,6 +17,8 @@ pub struct NestedVec<T, const N: usize, const M: usize = N> {
 
 impl<T, const N: usize, const M: usize> NestedVec<T, N, M> {
     #[inline]
+    /// Creates a `NestedVec` with the specified capacity for total elements.
+    /// The `starts` array will have `capacity + 1` entries (one more than elements).
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: SmallVec::with_capacity(capacity),
@@ -58,31 +60,6 @@ impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedVec<T, N, M> {
 
 impl<T, const N: usize, const M: usize> Nested<T> for NestedVec<T, N, M> {
     #[inline]
-    fn len(&self) -> usize {
-        self.starts.len().saturating_sub(1)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.starts.len() == 0
-    }
-
-    #[inline]
-    fn iter(&self) -> NestedIter<'_, T> {
-        NestedIter::from_parts(
-            &self.starts,
-            &self.inner,
-            0,
-            self.starts.len().saturating_sub(1),
-        )
-    }
-
-    #[inline]
-    fn iter_flat(&self) -> std::slice::Iter<'_, T> {
-        self.inner.iter()
-    }
-
-    #[inline]
     fn first(&self) -> Option<&[T]> {
         self.get(0)
     }
@@ -93,38 +70,21 @@ impl<T, const N: usize, const M: usize> Nested<T> for NestedVec<T, N, M> {
     }
 
     #[inline]
-    fn as_slice(&self) -> &[T] {
-        &self.inner
-    }
-
-    fn as_slices(&self) -> (&[T], &[usize]) {
-        (&self.inner, &self.starts)
-    }
-
-    fn as_ptr(&self) -> *const T {
-        self.inner.as_ptr()
-    }
-
-    fn as_ptrs(&self) -> (*const T, *const usize) {
-        (self.inner.as_ptr(), self.starts.as_ptr())
-    }
-
-    fn as_nested_slice(&self) -> NestedSlice<'_, T> {
-        NestedSlice {
-            starts: &self.starts,
-            inner: &self.inner,
-        }
+    fn len(&self) -> usize {
+        self.starts.len().saturating_sub(1)
     }
 
     #[inline]
-    fn to_nested_vec<const N2: usize, const M2: usize>(&self) -> NestedVec<T, N2, M2>
-    where
-        T: Clone,
-    {
-        NestedVec {
-            inner: SmallVec::from(self.inner.as_slice()),
-            starts: SmallVec::from(self.starts.as_slice()),
-        }
+    fn is_empty(&self) -> bool {
+        self.starts.is_empty()
+    }
+
+    fn values(&self) -> &[T] {
+        &self.inner
+    }
+
+    fn starts(&self) -> &[usize] {
+       &self.starts
     }
 }
 impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
@@ -146,20 +106,49 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
         self.starts.push(self.inner.len());
     }
 
+    fn extend(&mut self, iter: impl IntoIterator<Item = T>) {
+        if self.starts.is_empty() {
+            self.starts.push(0);
+        }
+
+        self.inner.extend(iter);
+
+        if self.starts.len() == 1 {
+            self.starts.push(self.inner.len());
+        } else {
+            *self.starts.last_mut().unwrap() = self.inner.len();
+        }
+
+    }
+    fn extend_one(&mut self, item: T) {
+        if self.starts.is_empty() {
+            self.starts.push(0);
+        }
+
+        self.inner.push(item);
+
+        if self.starts.len() == 1 {
+            self.starts.push(self.inner.len());
+        } else {
+            *self.starts.last_mut().unwrap() = self.inner.len();
+        }
+    }
+
+    fn values_mut(&mut self) -> &mut [T] {
+            &mut self.inner
+    }
+
+    fn starts_mut(&mut self) -> &mut [usize] {
+        &mut self.starts
+    }
+
+
     fn as_mut_slice(&mut self) -> &mut [T] {
             &mut self.inner
     }
 
-    fn as_mut_slices(&mut self) -> (&mut [T], &mut [usize]) {
-        (&mut self.inner, &mut self.starts)
-    }
-
     fn as_mut_ptr(&mut self) -> *mut T {
         self.inner.as_mut_ptr()
-    }
-
-    fn as_ptrs(&mut self) -> (*mut T, *mut usize) {
-        (self.inner.as_mut_ptr(), self.starts.as_mut_ptr())
     }
 
     #[inline]
@@ -169,19 +158,15 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize, Group: IntoIterator<Item = T>> NestedFromIterator<T, Group>
-    for NestedVec<T, N, M>
-{
-}
-impl<T, const N: usize, const M: usize, Group: IntoIterator<Item = T>> FromIterator<Group>
+impl<T, Group: IntoIterator<Item = T>, const N: usize, const M: usize> FromIterator<Group>
     for NestedVec<T, N, M>
 {
     #[inline]
     fn from_iter<I: IntoIterator<Item = Group>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let mut nested = match iter.size_hint() {
-            (0, None) => NestedVec::new(),
-            (_, Some(l)) | (l, None) => NestedVec::<T, N, M>::with_capacity(l),
+            (0, None) => Self::new(),
+            (_, Some(l)) | (l, None) => Self::with_capacity(l),
         };
 
         for group in iter {
@@ -196,26 +181,5 @@ impl<T, const N: usize, const M: usize> Default for NestedVec<T, N, M> {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<T, const N: usize, const M: usize> Extend<T> for NestedVec<T, N, M> {
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        if self.starts.len() == 0 {
-            self.starts.push(0);
-        }
-
-        self.inner.extend(iter);
-
-        self.starts.push(self.inner.len());
-    }
-    fn extend_one(&mut self, item: T) {
-        if self.starts.len() == 0 {
-            self.starts.push(0);
-        }
-
-        self.inner.push(item);
-
-        self.starts.push(self.inner.len());
     }
 }

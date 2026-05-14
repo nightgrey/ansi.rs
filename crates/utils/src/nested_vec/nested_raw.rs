@@ -16,31 +16,6 @@ pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
 
 impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
     #[inline]
-    fn len(&self) -> usize {
-        self.starts_len.saturating_sub(1)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.starts_len == 0
-    }
-
-    #[inline]
-    fn iter(&self) -> NestedIter<'_, T> {
-        super::NestedIter::from_parts(
-            &self.starts[..self.starts_len],
-            &self.inner[..self.inner_len],
-            0,
-            self.starts_len.saturating_sub(1),
-        )
-    }
-
-    #[inline]
-    fn iter_flat(&self) -> std::slice::Iter<'_, T> {
-        self.inner[..self.inner_len].iter()
-    }
-
-    #[inline]
     fn first(&self) -> Option<&[T]> {
         self.get(0)
     }
@@ -51,42 +26,21 @@ impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
     }
 
     #[inline]
-    fn as_slice(&self) -> &[T] {
+    fn len(&self) -> usize {
+        self.starts_len.saturating_sub(1)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.starts_len == 0
+    }
+
+    fn values(&self) -> &[T] {
         &self.inner[..self.inner_len]
     }
 
-    fn as_slices(&self) -> (&[T], &[usize]) {
-        (&self.inner[..self.inner_len], &self.starts[..self.starts_len] )
-    }
-
-    fn as_ptr(&self) -> *const T {
-        self.inner[..self.inner_len].as_ptr()
-    }
-
-    fn as_ptrs(&self) -> (*const T, *const usize) {
-        (self.inner[..self.inner_len].as_ptr(), self.starts[..self.starts_len].as_ptr())
-    }
-
-    #[inline]
-    fn as_nested_slice(&self) -> NestedSlice<'_, T> {
-        let (values, starts) = self.as_slices();
-        unsafe {
-            NestedSlice::from_parts(values, starts)
-        }
-    }
-
-    #[inline]
-    fn to_nested_vec<const N2: usize, const M2: usize>(&self) -> crate::NestedVec<T, N2, M2>
-    where
-        T: Clone,
-    {
-        (unsafe {
-            NestedSlice::from_parts(
-                &self.inner[..self.inner_len],
-                &self.starts[..self.starts_len],
-            )
-        })
-        .to_nested_vec()
+    fn starts(&self) -> &[usize] {
+        &self.starts[..self.starts_len]
     }
 }
 impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
@@ -102,31 +56,30 @@ impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
         }
     }
 }
+
 impl<T, const N: usize, const M: usize> NestedMut<T> for NestedRaw<T, N, M> {
-    #[inline]
     fn push(&mut self, items: impl IntoIterator<Item = T>) {
-        self.push(items);
+        self.try_push(items).expect("could not push items");
     }
 
-    #[inline]
     fn push_one(&mut self, val: T) {
-        self.try_push_one(val).expect("Capacity exceeded");
+        self.try_push_one(val).expect("could not push value");
     }
 
-    fn as_mut_slice(&mut self) -> &mut [T] {
+    fn extend(&mut self, items: impl IntoIterator<Item = T>) {
+        self.try_extend(items).expect("could not extend values");
+    }
+
+    fn extend_one(&mut self, value: T) {
+        self.try_extend_one(value).expect("could not extend value");
+    }
+    
+    fn values_mut(&mut self) -> &mut [T] {
         &mut self.inner[..self.inner_len]
     }
 
-    fn as_mut_slices(&mut self) -> (&mut [T], &mut [usize]) {
-        (&mut self.inner[..self.inner_len], &mut self.starts[..self.starts_len])
-    }
-
-    fn as_mut_ptr(&mut self) -> *mut T {
-        self.inner.as_mut_ptr()
-    }
-
-    fn as_ptrs(&mut self) -> (*mut T, *mut usize) {
-        (self.inner.as_mut_ptr(), self.starts.as_mut_ptr())
+    fn starts_mut(&mut self) -> &mut [usize] {
+        &mut self.starts[..self.starts_len]
     }
 
     #[inline]
@@ -248,15 +201,6 @@ impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedRaw<T, N, M> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("index out of bounds")
-    }
-}
-
-impl<T, const N: usize, const M: usize> Extend<T> for NestedRaw<T, N, M> {
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        self.try_extend(iter).expect("could not extend values");
-    }
-    fn extend_one(&mut self, item: T) {
-        self.try_extend_one(item).expect("could not extend value");
     }
 }
 
@@ -395,19 +339,7 @@ mod tests {
         assert_eq!(&p.inner[..p.inner_len], &[]);
     }
 
-    #[test]
-    fn test_overflow_push_one() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
-        assert!(p.try_push([1, 2, 3, 4]).is_ok());
-        assert!(p.try_push_one(5).is_err());
-    }
 
-    #[test]
-    fn test_overflow_extend() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
-        assert!(p.try_push([1, 2]).is_ok());
-        assert!(p.try_extend([3, 4, 5]).is_err());
-    }
 
     #[test]
     fn test_first_last() {

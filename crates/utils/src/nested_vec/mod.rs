@@ -24,7 +24,6 @@ pub use macros::*;
 mod index;
 pub use index::*;
 
-
 #[cfg(test)]
 mod consistency_tests {
     use super::*;

@@ -6,3 +6,6 @@ run = "cargo run sandbox"
 
 [tasks.gloss]
 run = "cargo run --bin gloss"
+
+[tasks.fix]
+run = "cargo clippy --all --all-targets -- -D warnings && cargo fmt --all"

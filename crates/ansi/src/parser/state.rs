@@ -224,7 +224,7 @@ pub enum State {
     /// Initial state used to consume characters until an escape-style sequence begins.
     Ground,
     /// UTF-8 byte sequence (`0xC2..=0xDF`, `0xE0..=0xEF`, or `0xF0..=0xF4`) or continuation byte (`0x80..=0xBF`).
-    Utf8 ,
+    Utf8,
     /// ESC (`ESC` or 0x1B)
     Escape,
     EscapeIntermediate,
@@ -272,11 +272,11 @@ pub const fn transition(state: State, byte: u8) -> (Action, State) {
     unpack(TRANSITIONS[state as usize][byte as usize])
 }
 
-pub const fn entry(state: State) -> Action{
+pub const fn entry(state: State) -> Action {
     ENTRY_ACTIONS[state as usize]
 }
 
-pub const fn exit(state: State) -> Action{
+pub const fn exit(state: State) -> Action {
     EXIT_ACTIONS[state as usize]
 }
 
@@ -309,5 +309,3 @@ mod tests {
         assert_eq!(pack(Action::OscTermination, State::CsiEntry), 0xE0);
     }
 }
-
-

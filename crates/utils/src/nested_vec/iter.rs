@@ -19,7 +19,12 @@ impl<'a, T> NestedIter<'a, T> {
         }
     }
     pub const fn new(nested: NestedSlice<'a, T>) -> Self {
-        Self::from_parts(nested.starts, nested.values, 0, nested.starts.len().saturating_sub(1))
+        Self::from_parts(
+            nested.starts,
+            nested.values,
+            0,
+            nested.starts.len().saturating_sub(1),
+        )
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::number::Number;
-use std::num::{FpCategory};
+use std::num::FpCategory;
 use std::ops::Neg;
 
 pub trait Float: Number + Neg<Output = Self> {
@@ -34,7 +34,6 @@ pub trait Float: Number + Neg<Output = Self> {
 
     /// 1/π
     const FRAC_1_PI: Self;
-
 
     #[feature(more_float_constants)]
     const FRAC_1_SQRT_PI: Self;
@@ -962,10 +961,10 @@ macro_rules! impl_float {
 
             const FRAC_1_PI: Self = std::$T::consts::FRAC_1_PI;
 
-    #[feature(more_float_constants)]
+            #[feature(more_float_constants)]
             const FRAC_1_SQRT_PI: Self = std::$T::consts::FRAC_1_SQRT_PI;
 
-    #[feature(more_float_constants)]
+            #[feature(more_float_constants)]
             const FRAC_1_SQRT_2PI: Self = std::$T::consts::FRAC_1_SQRT_2PI;
 
             const FRAC_2_PI: Self = std::$T::consts::FRAC_2_PI;
@@ -976,7 +975,7 @@ macro_rules! impl_float {
 
             const FRAC_1_SQRT_2: Self = std::$T::consts::FRAC_1_SQRT_2;
 
-    #[feature(more_float_constants)]
+            #[feature(more_float_constants)]
             const SQRT_3: Self = std::$T::consts::SQRT_3;
 
             #[feature(more_float_constants)]

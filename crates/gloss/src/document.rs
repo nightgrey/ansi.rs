@@ -1,6 +1,6 @@
-use crate::{Layout, Length, Space, element};
+use crate::measure;
 use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
-use crate::{measure};
+use crate::{Layout, Length, Space, element};
 use geometry::Rect;
 use tree::{At, Secondary, Tree};
 
@@ -38,7 +38,7 @@ impl<'a> Document<'a> {
         self.mark(self.root_id, Dirty::all());
         &mut self.elements[self.root_id]
     }
-    
+
     pub fn element(&self, id: ElementId) -> &Element<'a> {
         &self.elements[id]
     }
@@ -60,12 +60,16 @@ impl<'a> Document<'a> {
     }
 
     /// Applies a function to the root element.
-    pub fn map_root(&mut self, f: impl FnOnce(Element<'a>) -> Element<'a>) ->  &mut Element<'a> {
+    pub fn map_root(&mut self, f: impl FnOnce(Element<'a>) -> Element<'a>) -> &mut Element<'a> {
         self.map(self.root_id(), f)
     }
 
     /// Applies a function to the element with the given id.
-    pub fn map(&mut self, id: ElementId, f: impl FnOnce(Element<'a>) -> Element<'a>) -> &mut Element<'a> {
+    pub fn map(
+        &mut self,
+        id: ElementId,
+        f: impl FnOnce(Element<'a>) -> Element<'a>,
+    ) -> &mut Element<'a> {
         let element = self.element_mut(id);
         *element = f(element.clone());
         element

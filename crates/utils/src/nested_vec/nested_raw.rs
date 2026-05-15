@@ -73,7 +73,7 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedRaw<T, N, M> {
     fn extend_one(&mut self, value: T) {
         self.try_extend_one(value).expect("could not extend value");
     }
-    
+
     fn values_mut(&mut self) -> &mut [T] {
         &mut self.inner[..self.inner_len]
     }
@@ -339,15 +339,14 @@ mod tests {
         assert_eq!(&p.inner[..p.inner_len], &[]);
     }
 
-
-
     #[test]
     fn test_first_last() {
         let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
         assert!(p.get(0).is_none());
-        assert!(p
-            .get(p.starts_len.saturating_sub(1).saturating_sub(1))
-            .is_none());
+        assert!(
+            p.get(p.starts_len.saturating_sub(1).saturating_sub(1))
+                .is_none()
+        );
         let items = [1];
         p.push(items);
         let items = [2];

@@ -1,9 +1,9 @@
 extern crate proc_macro;
 
+use proc_macro2::{token_stream, Ident, Span, TokenStream, TokenTree};
+use quote::{quote, ToTokens};
 use std::fmt::format;
 use std::iter::Peekable;
-use proc_macro2::{token_stream, Span, Ident, TokenStream, TokenTree};
-use quote::{quote, ToTokens};
 
 /// A single cell in the transition table: (action, target_state) or empty.
 type Cell = Option<(TokenTree, TokenTree)>;
@@ -48,17 +48,17 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     }
                     body.next();
                     entry = Some(parse_action(&mut body));
-                },
+                }
                 Some("on_exit") => {
                     if is_anywhere {
                         panic!("`on_exit` not allowed on `Anywhere`");
                     }
                     body.next();
                     exit = Some(parse_action(&mut body));
-                },
+                }
                 Some(other) => {
                     panic!("Unexpected identifier `{}` in state body", other);
-                },
+                }
                 None => {
                     let body = &mut body;
                     let start = next_usize(body);
@@ -80,7 +80,7 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             expect_punct(&mut t, ',');
                             let target = t.next().unwrap();
                             (action, target)
-                        },
+                        }
                         Some(TokenTree::Ident(ident)) => {
                             if is_anywhere {
                                 panic!(
@@ -92,14 +92,14 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let action = TokenTree::Ident(ident);
                             let target = TokenTree::Ident(Ident::new("None", Span::call_site()));
                             (action, target)
-                        },
+                        }
                         token => panic!("Expected group or ident, but got {:?}", token),
                     };
 
                     for byte in start..=end {
                         cells[byte] = Some((action.clone(), target.clone()));
                     }
-                },
+                }
             }
             optional_punct(&mut body, ',');
         }
@@ -138,10 +138,10 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
             let lines = cells.iter().map(|c| match c {
                 Some((action, target)) => {
                     quote!(pack(Action::#action, State::#target))
-                },
+                }
                 None => 0u8.into_token_stream(),
             });
-            
+
             quote!([#(#lines),*])
         })
         .collect();
@@ -150,13 +150,13 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Some(a) => quote!(Action::#a),
         None => quote!(Action::None),
     });
-    
+
     let exits = exit_actions.iter().map(|e| match e {
         Some(a) => quote!(Action::#a),
         None => quote!(Action::None),
     });
 
-    let asserts = states.iter().enumerate().map(|(i, state)|  {
+    let asserts = states.iter().enumerate().map(|(i, state)| {
         let i = i as u8;
         let str = format!("State::{} does not match index {}.", state.to_string(), i);
         quote!(assert!(State::#state as u8 == #i, #str))
@@ -179,7 +179,8 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         pub const EXIT_ACTIONS: [Action; State::COUNT] = [
             #(#exits),*
         ];
-    ).into()
+    )
+    .into()
 }
 
 /// Parse `=> ActionIdent` and return the action token.
@@ -211,7 +212,7 @@ fn next_usize(iter: &mut impl Iterator<Item = TokenTree>) -> usize {
             } else {
                 literal.parse::<usize>().unwrap()
             }
-        },
+        }
         token => panic!("Expected literal, but got {:?}", token),
     }
 }

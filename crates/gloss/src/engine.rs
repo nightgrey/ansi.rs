@@ -1,9 +1,8 @@
 use crate::{
-    Arena, Buffer, BufferDrawingContext, Document, DoubleBuffer, DrawingContext,
-    Rasterer
+    Arena, Buffer, BufferDrawingContext, Document, DoubleBuffer, DrawingContext, Rasterer,
 };
 use derive_more::{Deref, DerefMut};
-use geometry::{ Size};
+use geometry::Size;
 use std::io;
 
 #[derive(Debug, Deref, DerefMut, Clone)]

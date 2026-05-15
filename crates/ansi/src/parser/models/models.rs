@@ -1,7 +1,7 @@
-use std::fmt;
-use std::fmt::{Write};
-use utils::{Nested, NestedIter};
 use super::{DataString, Intermediates, Parameters};
+use std::fmt;
+use std::fmt::Write;
+use utils::{Nested, NestedIter};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Esc {
@@ -11,8 +11,11 @@ pub struct Esc {
 
 impl fmt::Debug for Esc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\\x1B{:?}{:?}", self.intermediates, self.final_byte as char)
-
+        write!(
+            f,
+            "\\x1B{:?}{:?}",
+            self.intermediates, self.final_byte as char
+        )
     }
 }
 
@@ -84,7 +87,7 @@ impl fmt::Display for Dcs {
     }
 }
 
-#[derive( Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Osc<const N: usize = 2> {
     pub params: Parameters<N>,
     pub intermediates: Intermediates,
@@ -94,7 +97,6 @@ pub struct Osc<const N: usize = 2> {
 impl fmt::Debug for Osc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\\x1B]{}{}", self.intermediates, self.data)
-
     }
 }
 

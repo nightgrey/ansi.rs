@@ -11,13 +11,7 @@ pub trait Handler {
     fn esc(&mut self, intermediates: &Inter, final_byte: u8) {}
 
     /// A final character has arrived for a CSI sequence.
-    fn csi(
-        &mut self,
-        params: Params<'_>,
-        intermediates: &Inter,
-        final_byte: char,
-    ) {
-    }
+    fn csi(&mut self, params: Params<'_>, intermediates: &Inter, final_byte: char) {}
 
     /// Invoked when a final character arrives in first part of device control
     /// string. Subsequent bytes in the control string are delivered via

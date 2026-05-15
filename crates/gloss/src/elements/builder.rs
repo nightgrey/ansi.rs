@@ -1,6 +1,10 @@
-use bon::builder;
+use crate::{
+    AlignContent, AlignItems, AlignSelf, Border, Display, Edges, Element, ElementKind,
+    FlexDirection, FlexWrap, FontStyle, FontWeight, Gap, JustifyContent, JustifyItems, Layout,
+    Length, Size, TextDecoration,
+};
 use ansi::Color;
-use crate::{AlignContent, AlignItems, AlignSelf, Border, Display, Edges, Element, ElementKind, FlexDirection, FlexWrap, FontStyle, FontWeight, Gap, JustifyContent, JustifyItems, Layout, Length, Size, TextDecoration};
+use bon::builder;
 
 #[builder]
 pub fn div<'a>(

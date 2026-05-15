@@ -1,7 +1,7 @@
-use crate::{Nested, NestedConstructor,  NestedIter, NestedMut, NestedSlice};
+use crate::{Nested, NestedConstructor, NestedIter, NestedMut, NestedSlice};
 use core::ops::Index;
-use std::ops::IndexMut;
 use smallvec::SmallVec;
+use std::ops::IndexMut;
 
 /// An owned, growable container for groups of elements.
 ///
@@ -36,7 +36,6 @@ impl<T, const N: usize, const M: usize> NestedConstructor<T> for NestedVec<T, N,
         }
     }
 }
-
 
 impl<T, const N: usize, const M: usize> Index<usize> for NestedVec<T, N, M> {
     type Output = [T];
@@ -84,7 +83,7 @@ impl<T, const N: usize, const M: usize> Nested<T> for NestedVec<T, N, M> {
     }
 
     fn starts(&self) -> &[usize] {
-       &self.starts
+        &self.starts
     }
 }
 impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
@@ -118,7 +117,6 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
         } else {
             *self.starts.last_mut().unwrap() = self.inner.len();
         }
-
     }
     fn extend_one(&mut self, item: T) {
         if self.starts.is_empty() {
@@ -135,16 +133,15 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedVec<T, N, M> {
     }
 
     fn values_mut(&mut self) -> &mut [T] {
-            &mut self.inner
+        &mut self.inner
     }
 
     fn starts_mut(&mut self) -> &mut [usize] {
         &mut self.starts
     }
 
-
     fn as_mut_slice(&mut self) -> &mut [T] {
-            &mut self.inner
+        &mut self.inner
     }
 
     fn as_mut_ptr(&mut self) -> *mut T {

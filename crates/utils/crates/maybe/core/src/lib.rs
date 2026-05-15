@@ -74,11 +74,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn map<U>(self, f: impl FnOnce(Self) -> U) -> Option<U> {
-        if self.is_some() {
-            Some(f(self))
-        } else {
-            None
-        }
+        if self.is_some() { Some(f(self)) } else { None }
     }
 
     /// Returns [`Self::None`] if the value is [`Self::None`], otherwise calls `f` with the
@@ -120,11 +116,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn and_then<U>(self, f: impl FnOnce(Self) -> U) -> Option<U> {
-        if self.is_some() {
-            Some(f(self))
-        } else {
-            None
-        }
+        if self.is_some() { Some(f(self)) } else { None }
     }
 
     /// Returns the provided default result (if none),
@@ -152,11 +144,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn map_or<U>(self, default: U, f: impl FnOnce(Self) -> U) -> U {
-        if self.is_some() {
-            f(self)
-        } else {
-            default
-        }
+        if self.is_some() { f(self) } else { default }
     }
 
     /// Computes a default function result (if none), or
@@ -201,11 +189,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn map_or_else<U>(self, default: impl FnOnce() -> U, f: impl FnOnce(Self) -> U) -> U {
-        if self.is_some() {
-            f(self)
-        } else {
-            default()
-        }
+        if self.is_some() { f(self) } else { default() }
     }
 
     /// Maps a [`Self`] to a `U` by applying function `f` to the contained
@@ -273,11 +257,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn or(self, other: Self) -> Self {
-        if self.is_some() {
-            self
-        } else {
-            other
-        }
+        if self.is_some() { self } else { other }
     }
 
     /// Returns the value if it contains a value, otherwise calls `f` and
@@ -302,11 +282,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn or_else(self, f: impl FnOnce() -> Self) -> Self {
-        if self.is_some() {
-            self
-        } else {
-            f()
-        }
+        if self.is_some() { self } else { f() }
     }
 
     /// Returns [`Self::None`] if the value is [`Self::None`], otherwise returns `other`.
@@ -346,11 +322,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn and(self, other: Self) -> Self {
-        if self.is_some() {
-            other
-        } else {
-            Self::None
-        }
+        if self.is_some() { other } else { Self::None }
     }
 
     /// Returns [`Self::None`] if the value is [`Self::None`], otherwise calls `predicate`
@@ -540,11 +512,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn maybe(self) -> Option<Self> {
-        if self.is_some() {
-            Some(self)
-        } else {
-            None
-        }
+        if self.is_some() { Some(self) } else { None }
     }
 
     /// Converts [`Option<Self>`] to [`Self`].

@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! nested {
     // Empty
@@ -23,4 +22,3 @@ macro_rules! nested {
         }
     );
 }
-

@@ -1,8 +1,8 @@
-use std::mem;
+use super::*;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut};
+use std::mem;
 use utils::{Nested, NestedMut, NestedRaw, TryNestedMut};
-use super::*;
 
 #[derive(Debug, Default)]
 pub struct Parser {
@@ -32,7 +32,7 @@ impl Parser {
                     let byte = bytes[i];
                     self.advance_byte(handler, byte);
                     i += 1;
-                },
+                }
             }
         }
     }
@@ -40,8 +40,19 @@ impl Parser {
     #[inline]
     fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
         let prev_state = self.state;
-            let (action, next_state) = transition(self.state, byte);
-        println!("{:?} / 0x{:2x} | {:?} -> {:?} @ {:?}", byte as char, byte, prev_state, if next_state == State::None { prev_state } else { next_state }, action);
+        let (action, next_state) = transition(self.state, byte);
+        println!(
+            "{:?} / 0x{:2x} | {:?} -> {:?} @ {:?}",
+            byte as char,
+            byte,
+            prev_state,
+            if next_state == State::None {
+                prev_state
+            } else {
+                next_state
+            },
+            action
+        );
 
         if next_state != State::None {
             let exit_action = exit(prev_state);
@@ -72,7 +83,9 @@ impl Parser {
         // Try to fill the utf8 buffer (capacity 4) from the new input.
         let to_copy = bytes.len().min(self.utf8.capacity() - old_bytes);
         // SAFETY: bounds enforced by `to_copy` clamp above.
-        self.utf8.try_extend_from_slice(&bytes[..to_copy]).expect("utf8 buffer fit");
+        self.utf8
+            .try_extend_from_slice(&bytes[..to_copy])
+            .expect("utf8 buffer fit");
 
         match str::from_utf8(&self.utf8) {
             // Buffer is now valid utf8: dispatch the first char and clear.
@@ -83,7 +96,7 @@ impl Parser {
                 let total = c.len_utf8();
                 self.utf8.clear();
                 total - old_bytes
-            },
+            }
             Err(err) => {
                 let valid_bytes = err.valid_up_to();
                 if valid_bytes > 0 {
@@ -113,12 +126,12 @@ impl Parser {
                         let consumed = invalid_len - old_bytes;
                         self.utf8.clear();
                         consumed
-                    },
+                    }
                     // Still incomplete — keep what we have, return how many
                     // we copied from `bytes`.
                     None => to_copy,
                 }
-            },
+            }
         }
     }
 
@@ -158,7 +171,7 @@ impl Parser {
                     processed += 1;
                 }
                 processed
-            },
+            }
             Err(err) => {
                 let valid_bytes = err.valid_up_to();
                 let parsed = unsafe { str::from_utf8_unchecked(&bytes[..valid_bytes]) };
@@ -182,7 +195,7 @@ impl Parser {
                         // Otherwise the bytes are genuinely malformed.
                         handler.print('\u{FFFD}');
                         valid_bytes + len
-                    },
+                    }
                     None => {
                         if plain_chars < num_bytes {
                             // The partial codepoint is followed by ESC — drop
@@ -201,9 +214,9 @@ impl Parser {
                                 .expect("partial utf8 buffer fit");
                             num_bytes
                         }
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -276,7 +289,6 @@ impl Parser {
         self.data.clear();
         self.utf8.clear();
     }
-
 }
 
 #[derive(Deref, DerefMut, Debug, Default, Clone)]
@@ -293,12 +305,13 @@ impl ParametersBuilder {
 
     /// Accumulate an ASCII digit into the current sub-parameter value.
     pub fn push_digit(&mut self, digit: u8) {
-        self.current = Some(self
-            .current
-            .unwrap_or(0)
-            .saturating_mul(10)
-            .saturating_add((digit - b'0') as u16)
-            .min(Self::MAX));
+        self.current = Some(
+            self.current
+                .unwrap_or(0)
+                .saturating_mul(10)
+                .saturating_add((digit - b'0') as u16)
+                .min(Self::MAX),
+        );
     }
 
     /// Append current parameter as a sub-parameter (`:` separator).
@@ -306,7 +319,9 @@ impl ParametersBuilder {
     pub fn push_sub(&mut self) {
         dbg!("sub", self.current);
         let val = self.current.take().unwrap_or(0);
-        self.inner.try_extend_one(val).expect("could not extend value");
+        self.inner
+            .try_extend_one(val)
+            .expect("could not extend value");
     }
 
     /// Append current parameter as a main parameter (`;` separator).
@@ -330,14 +345,12 @@ impl ParametersBuilder {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use utils::{NestedConstructor, NestedVec};
-use std::fmt::{Debug, Display};
-    use crate::params;
     use super::*;
-
+    use crate::params;
+    use std::fmt::{Debug, Display};
+    use utils::{NestedConstructor, NestedVec};
 
     #[derive(Clone, PartialEq, Eq)]
     struct AnsiChar(pub char);
@@ -417,13 +430,22 @@ use std::fmt::{Debug, Display};
             self.values.push(Value::Execute(byte));
         }
         fn esc(&mut self, intermediates: &Inter, final_byte: u8) {
-            self.values.push(Value::Esc(Intermediates::from(intermediates), final_byte));
+            self.values
+                .push(Value::Esc(Intermediates::from(intermediates), final_byte));
         }
         fn csi(&mut self, params: Params, intermediates: &Inter, final_byte: char) {
-            self.values.push(Value::Csi(params.to_nested_vec(), intermediates.to_owned(), final_byte));
+            self.values.push(Value::Csi(
+                params.to_nested_vec(),
+                intermediates.to_owned(),
+                final_byte,
+            ));
         }
         fn dcs(&mut self, params: Params, intermediates: &Inter, final_char: char) {
-            self.values.push(Value::Dcs(params.to_nested_vec(), intermediates.to_owned(), final_char));
+            self.values.push(Value::Dcs(
+                params.to_nested_vec(),
+                intermediates.to_owned(),
+                final_char,
+            ));
         }
         fn dcs_byte(&mut self, byte: u8) {
             self.values.push(Value::DcsByte(byte));
@@ -564,19 +586,13 @@ use std::fmt::{Debug, Display};
     #[test]
     fn esc_simple_dispatch() {
         // ESC 7 — DECSC
-        assert_eq!(
-            Harness::run(b"\x1B7"),
-            vec![Value::Esc(inter(b""), b'7')],
-        );
+        assert_eq!(Harness::run(b"\x1B7"), vec![Value::Esc(inter(b""), b'7')],);
     }
 
     #[test]
     fn esc_with_intermediate() {
         // ESC # 8 — DECALN
-        assert_eq!(
-            Harness::run(b"\x1B#8"),
-            vec![Value::Esc(inter(b"#"), b'8')],
-        );
+        assert_eq!(Harness::run(b"\x1B#8"), vec![Value::Esc(inter(b"#"), b'8')],);
     }
 
     #[test]
@@ -619,11 +635,7 @@ use std::fmt::{Debug, Display};
     fn csi_multiple_params() {
         assert_eq!(
             Harness::run(b"\x1B[1;2;3m"),
-            vec![Value::Csi(
-                params!([1], [2], [3]),
-                inter(b""),
-                'm'
-            )],
+            vec![Value::Csi(params!([1], [2], [3]), inter(b""), 'm')],
         );
     }
 
@@ -632,11 +644,7 @@ use std::fmt::{Debug, Display};
         // 24-bit fg via sub-params: 38:2:255:128:0
         assert_eq!(
             Harness::run(b"\x1B[38:2:255:128:0m"),
-            vec![Value::Csi(
-                params![[38, 2, 255, 128, 0]],
-                inter(b""),
-                'm'
-            )],
+            vec![Value::Csi(params![[38, 2, 255, 128, 0]], inter(b""), 'm')],
         );
     }
 
@@ -644,11 +652,7 @@ use std::fmt::{Debug, Display};
     fn csi_mixed_subparams_and_params() {
         assert_eq!(
             Harness::run(b"\x1B[1;2:3:4;5m"),
-            vec![Value::Csi(
-                params![[1], [2, 3, 4], [5]],
-                inter(b""),
-                'm'
-            )],
+            vec![Value::Csi(params![[1], [2, 3, 4], [5]], inter(b""), 'm')],
         );
     }
 
@@ -685,11 +689,7 @@ use std::fmt::{Debug, Display};
     fn csi_double_semicolon_inserts_zero() {
         assert_eq!(
             Harness::run(b"\x1B[1;;2m"),
-            vec![Value::Csi(
-                params![[1], [0], [2]],
-                inter(b""),
-                'm'
-            )],
+            vec![Value::Csi(params![[1], [0], [2]], inter(b""), 'm')],
         );
     }
 
@@ -771,11 +771,7 @@ use std::fmt::{Debug, Display};
         // 0x9B is 8-bit CSI.
         assert_eq!(
             Harness::run([0x9B, b'1', b';', b'2', b'm']),
-            vec![Value::Csi(
-                params![[1], [2]],
-                inter(b""),
-                'm'
-            )],
+            vec![Value::Csi(params![[1], [2]], inter(b""), 'm')],
         );
     }
 
@@ -850,10 +846,7 @@ use std::fmt::{Debug, Display};
     fn osc_empty() {
         assert_eq!(
             Harness::run(b"\x1B]\x07"),
-            vec![
-                Value::Osc(Parameters::new()),
-                Value::OscTermination(0x07),
-            ],
+            vec![Value::Osc(Parameters::new()), Value::OscTermination(0x07),],
         );
     }
 
@@ -954,11 +947,7 @@ use std::fmt::{Debug, Display};
         h.advance(b"196m");
         assert_eq!(
             h.recorder.values,
-            vec![Value::Csi(
-                params![[38], [5], [196]],
-                inter(b""),
-                'm'
-            )]
+            vec![Value::Csi(params![[38], [5], [196]], inter(b""), 'm')]
         );
     }
 
@@ -992,11 +981,7 @@ use std::fmt::{Debug, Display};
         assert_eq!(
             events,
             vec![
-                Value::Csi(
-                    params![[1], [2], [3]],
-                    inter(b""),
-                    'm'
-                ),
+                Value::Csi(params![[1], [2], [3]], inter(b""), 'm'),
                 // 👨🏿 = man + dark skin tone modifier (two codepoints).
                 Value::Print('\u{1F468}'),
                 Value::Print('\u{1F3FF}'),

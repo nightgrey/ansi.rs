@@ -1,8 +1,8 @@
 use crate::{NestedError, NestedIndex, NestedIndexMut, NestedIter, NestedSlice, NestedVec};
-use std::ops::{Index, IndexMut};
 use smallvec::SmallVec;
+use std::ops::{Index, IndexMut};
 
-pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]>  {
+pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]> {
     fn get<I: NestedIndex<T>>(&self, index: I) -> Option<I::Output<'_>> {
         index.get(self)
     }
@@ -20,7 +20,7 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]>  {
     fn iter(&self) -> NestedIter<'_, T> {
         NestedIter::from_parts(self.starts(), self.values(), 0, self.len())
     }
-    
+
     fn iter_flat(&self) -> std::slice::Iter<'_, T> {
         self.values().iter()
     }
@@ -30,12 +30,12 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]>  {
 
     #[inline]
     fn starts(&self) -> &[usize];
-    
+
     #[inline]
     fn as_slice(&self) -> &[T] {
         self.values()
     }
-    
+
     #[inline]
     fn as_ptr(&self) -> *const T {
         self.values().as_ptr()
@@ -48,7 +48,8 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]>  {
     #[inline]
     fn to_nested_vec<const N: usize, const M: usize>(&self) -> NestedVec<T, N, M>
     where
-        T: Clone {
+        T: Clone,
+    {
         NestedVec {
             inner: SmallVec::from(self.values()),
             starts: SmallVec::from(self.starts()),
@@ -56,11 +57,11 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]>  {
     }
 }
 
-pub trait NestedMut<T>: Nested<T> + IndexMut<usize, Output = [T]>  {
+pub trait NestedMut<T>: Nested<T> + IndexMut<usize, Output = [T]> {
     fn get_mut<I: NestedIndexMut<T>>(&mut self, index: I) -> Option<I::Output<'_>> {
         index.get_mut(self)
     }
-    
+
     unsafe fn get_unchecked_mut<I: NestedIndexMut<T>>(&mut self, index: I) -> I::Output<'_> {
         index.get_unchecked_mut(self)
     }
@@ -105,4 +106,3 @@ pub trait TryNestedMut<T>: NestedMut<T> {
 pub trait NestedConstructor<T>: Default {
     fn new() -> Self;
 }
-

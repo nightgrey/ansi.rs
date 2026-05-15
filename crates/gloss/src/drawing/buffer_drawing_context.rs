@@ -487,7 +487,7 @@ mod tests {
 
     fn add_content(context: &mut Context) {
         let document = &mut context.document;
-        let root = document.root_mut();
+        let root = document.root_element_mut();
 
         root.border = Border::Solid;
         root.margin = (2, 2).into();
@@ -700,7 +700,7 @@ mod tests {
         let document = &mut context.document;
 
         // Root with padding — children should render inside the content area
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.padding = (2, 2).into();
         root.flex_direction = FlexDirection::Column;
 
@@ -736,7 +736,7 @@ mod tests {
         let document = &mut context.document;
 
         // Root with padding, column layout
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.padding = (1, 1).into();
         root.flex_direction = FlexDirection::Column;
 
@@ -779,7 +779,7 @@ mod tests {
         let mut context = context(30, 15);
         let document = &mut context.document;
 
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.flex_direction = FlexDirection::Column;
 
         // Two stacked children in column layout
@@ -826,7 +826,7 @@ mod tests {
         let mut context = context(10, 5);
         let document = &mut context.document;
 
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.background = Some(Color::Red);
         root.padding = (1, 1).into();
 
@@ -887,7 +887,7 @@ mod tests {
         let mut context = context(10, 3);
         let document = &mut context.document;
 
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.background = Some(Color::Red);
 
         document.insert_with(Element::Span(Cow::Borrowed("X")), |node| {
@@ -927,7 +927,7 @@ mod tests {
         let mut context = context(20, 20);
         let document = &mut context.document;
 
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.background = Some(Color::Red);
         root.color = Some(Color::White);
         root.padding = (1, 1).into();
@@ -1016,7 +1016,7 @@ mod tests {
         let mut context = context(30, 5);
         let document = &mut context.document;
 
-        let root = document.root_mut();
+        let root = document.root_element_mut();
         root.display = crate::Display::Flex;
         root.flex_direction = FlexDirection::Row;
 

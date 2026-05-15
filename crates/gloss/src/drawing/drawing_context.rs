@@ -150,7 +150,7 @@ pub trait DrawingContext {
     /// Resizes to fit the document's root, traverses the element tree
     /// applying styles/borders/content, then flushes any pending work.
     fn paint(&mut self, document: &Document<'_>) {
-        paint_node(self, document, document.root_id, Layout::DEFAULT);
+        paint_node(self, document, document.root_id(), Layout::DEFAULT);
         self.finish();
     }
 }

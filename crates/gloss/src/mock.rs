@@ -15,7 +15,7 @@ pub fn chess_board(engine: &mut Engine) {
         ["♖", "♘", "♗", "♕", "♔", "♗", "♘", "♖"], // rank 1 (white pieces)
     ];
 
-    let root = engine.root_mut();
+    let root = engine.root_element_mut();
     root.display = Display::Flex;
     root.flex_direction = FlexDirection::Column;
     root.align_items = AlignItems::Center.into();

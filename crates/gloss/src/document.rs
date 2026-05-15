@@ -1,12 +1,12 @@
-use crate::{Available, Layout, Length, Space, element};
+use crate::{Layout, Length, Space, element};
 use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
-use crate::{document, measure};
+use crate::{measure};
 use geometry::Rect;
 use tree::{At, Secondary, Tree};
 
 #[derive(Debug, Clone)]
 pub struct Document<'a> {
-    pub root_id: ElementId,
+    root_id: ElementId,
     elements: Tree<ElementId, Element<'a>>,
     layouts: Secondary<ElementId, ComputedLayout>,
 }
@@ -30,15 +30,15 @@ impl<'a> Document<'a> {
         self.root_id
     }
 
-    pub fn root(&self) -> &Element<'a> {
+    pub fn root_element(&self) -> &Element<'a> {
         &self.elements[self.root_id]
     }
 
-    pub fn root_mut(&mut self) -> &mut Element<'a> {
+    pub fn root_element_mut(&mut self) -> &mut Element<'a> {
         self.mark(self.root_id, Dirty::all());
         &mut self.elements[self.root_id]
     }
-
+    
     pub fn element(&self, id: ElementId) -> &Element<'a> {
         &self.elements[id]
     }
@@ -57,6 +57,18 @@ impl<'a> Document<'a> {
     /// Sets the root node.
     pub fn set_root(&mut self, node: Element<'a>) {
         self.elements.set(self.root_id, node);
+    }
+
+    /// Applies a function to the root element.
+    pub fn map_root(&mut self, f: impl FnOnce(Element<'a>) -> Element<'a>) ->  &mut Element<'a> {
+        self.map(self.root_id(), f)
+    }
+
+    /// Applies a function to the element with the given id.
+    pub fn map(&mut self, id: ElementId, f: impl FnOnce(Element<'a>) -> Element<'a>) -> &mut Element<'a> {
+        let element = self.element_mut(id);
+        *element = f(element.clone());
+        element
     }
 
     /// Inserts a node as the last child of the root.

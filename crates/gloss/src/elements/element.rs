@@ -1,8 +1,6 @@
 use crate::layouted::Layouted;
 use crate::{Display, ElementKind, Layout};
-use bon::{bon, builder};
 use derive_more::{Deref, DerefMut};
-use geometry::{Bound, Step};
 use std::borrow::Cow;
 use tree::id;
 

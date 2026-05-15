@@ -20,7 +20,7 @@ const H: usize = 40;
 fn setup<'a>(width: usize, height: usize) -> Engine<'a> {
     let mut engine = Engine::new(width, height);
 
-    let root = engine.root_mut();
+    let root = engine.root_element_mut();
     root.background = Some(Color::Red);
     root.color = Some(Color::White);
     root.padding = 1.into();

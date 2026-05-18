@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 /// Wraps any `Write` implementation and tracks the total number of bytes
 /// written through it. The counter can be reset between operations.
 #[derive(Debug, AsMut, AsRef)]
-pub struct CountingWriter<W: ?Sized + Write> {
+pub struct Counting<W: ?Sized + Write> {
     /// Total bytes written since last reset.
     bytes: u64,
     #[as_mut]
@@ -42,7 +42,7 @@ pub struct CountingWriter<W: ?Sized + Write> {
     inner: W,
 }
 
-impl<W: Write> CountingWriter<W> {
+impl<W: Write> Counting<W> {
     /// Create a new counting writer wrapping the given writer.
     #[inline]
     pub fn new(inner: W) -> Self {
@@ -67,7 +67,7 @@ impl<W: Write> CountingWriter<W> {
     }
 }
 
-impl<W: Write> Write for CountingWriter<W> {
+impl<W: Write> Write for Counting<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = self.inner.write(buf)?;
         self.bytes += n as u64;
@@ -85,7 +85,7 @@ impl<W: Write> Write for CountingWriter<W> {
     }
 }
 
-impl<W: Write> Borrow<W> for CountingWriter<W> {
+impl<W: Write> Borrow<W> for Counting<W> {
     fn borrow(&self) -> &W {
         &self.inner
     }
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn counting_writer_basic() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
 
         writer.write_all(b"Hello").unwrap();
         assert_eq!(writer.count(), 5);
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn counting_writer_reset() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
 
         writer.write_all(b"Hello").unwrap();
         assert_eq!(writer.count(), 5);
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn counting_writer_write() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
 
         // write() may write partial buffer
         let n = writer.write(b"Hello").unwrap();
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn counting_writer_flush() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
 
         writer.write_all(b"test").unwrap();
         writer.flush().unwrap();
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn counting_writer_into_inner() {
         let buffer: Vec<u8> = Vec::new();
-        let writer = CountingWriter::new(buffer);
+        let writer = Counting::new(buffer);
         let inner = writer.into_inner();
         assert!(inner.is_empty());
     }
@@ -158,7 +158,7 @@ mod tests {
     #[test]
     fn counting_writer_inner_ref() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
         writer.write_all(b"test").unwrap();
 
         assert_eq!(writer.into_inner().len(), 4);
@@ -169,14 +169,14 @@ mod tests {
     #[test]
     fn counting_writer_debug() {
         let buffer: Vec<u8> = Vec::new();
-        let writer = CountingWriter::new(buffer);
+        let writer = Counting::new(buffer);
         let dbg = format!("{:?}", writer);
         assert!(dbg.contains("CountingWriter"), "Debug: {dbg}");
     }
 
     #[test]
     fn counting_writer_inner_mut() {
-        let mut writer = CountingWriter::new(Vec::<u8>::new());
+        let mut writer = Counting::new(Vec::<u8>::new());
         writer.write_all(b"hello").unwrap();
         // Modify inner via inner_mut
         writer.as_mut().push(b'!');
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn counting_writer_empty_write() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
         writer.write_all(b"").unwrap();
         assert_eq!(writer.count(), 0);
         let n = writer.write(b"").unwrap();
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn counting_writer_multiple_resets() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
         writer.write_all(b"abc").unwrap();
         writer.reset();
         writer.reset();
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn counting_writer_accumulates_u64() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
         // Write enough to test u64 accumulation (though not near overflow)
         for _ in 0..1000 {
             writer.write_all(b"x").unwrap();
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn counting_writer_multiple_flushes() {
         let mut buffer = Vec::new();
-        let mut writer = CountingWriter::new(&mut buffer);
+        let mut writer = Counting::new(&mut buffer);
         writer.write_all(b"test").unwrap();
         writer.flush().unwrap();
         writer.flush().unwrap();
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn counting_writer_into_inner_preserves_data() {
-        let mut writer = CountingWriter::new(Vec::<u8>::new());
+        let mut writer = Counting::new(Vec::<u8>::new());
         writer.write_all(b"hello world").unwrap();
         let inner = writer.into_inner();
         assert_eq!(&inner, b"hello world");
@@ -242,7 +242,7 @@ mod tests {
     fn counting_writer_initial_state() {
         let a = BufWriter::new(Vec::new());
         let buffer: Vec<u8> = Vec::new();
-        let writer = CountingWriter::new(buffer);
+        let writer = Counting::new(buffer);
         assert_eq!(writer.count(), 0);
         assert!(writer.as_ref().is_empty());
     }

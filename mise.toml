@@ -1,11 +1,10 @@
 [tools]
 rust = "nightly"
 
-[tasks.sandbox] # using a ":" means we need to add quotes
-run = "cargo run sandbox"
 
-[tasks.gloss]
-run = "cargo run --bin gloss"
-
+[tasks]
+demo = "cargo run --bin demo"
+dev = "cargo run --bin dev"
+watch = "mise watch dev --shell=\"fish --no-config\" --quiet --silent --wrap-process none --raw"
 [tasks.fix]
 run = "cargo clippy --all --all-targets -- -D warnings && cargo fmt --all"

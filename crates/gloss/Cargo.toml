@@ -35,9 +35,6 @@ vt-push-parser = "0.13.1"
 [dev-dependencies]
 criterion = "0.8.2"
 
-[[bin]]
-name = "main"
-
 [[bench]]
 name = "terminal"
 harness = false

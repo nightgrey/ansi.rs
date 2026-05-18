@@ -93,7 +93,7 @@ fn buffer_diffs(c: &mut Criterion) {
 
     c.bench_function("1000x1000", |b| {
         b.iter(|| {
-            while let Some(run) = BufferDiff::new(&back, &front).next() {
+            while let Some(run) = BufferDiff::default(&back, &front).next() {
                 black_box(run);
             }
         });

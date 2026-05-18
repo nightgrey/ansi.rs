@@ -1,4 +1,4 @@
-use crate::{Arena, Buf, BufMut, BufferCells, BufferDiff, BufferIndex, BufferRuns, Cell};
+use crate::{Arena, Buf, BufMut, BufferDiff, BufferIndex,  ByCells, ByRuns, Cell};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
@@ -569,14 +569,14 @@ impl Buffer {
     
     /// Returns a [`BufferCells`] iterator.
     /// Yields a [`Changed`] for each cell that differs between `prev` and `next`.
-    pub fn diff_cells<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferCells<'a, 'b> {
-        BufferDiff::changes(prev, next)
+    pub fn diff_cells<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b, ByCells> {
+        BufferDiff::cells(prev, next)
     }
     
     /// Returns a [`BufferRuns`] iterator.
     /// Yields a [`Run`] for each run of changed cells on the same row.
-    pub fn diff_runs<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferRuns<'a, 'b> {
-        BufferRuns::runs(prev, next)
+    pub fn diff_runs<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b, ByRuns> {
+        BufferDiff::runs(prev, next)
     }
 
     pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {

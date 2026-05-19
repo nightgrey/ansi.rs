@@ -18,10 +18,7 @@
 #![feature(step_trait)]
 #![feature(range_into_bounds)]
 #![feature(const_slice_make_iter)]
-#![feature(bstr)]
-#![feature(const_convert)]
 #![feature(iter_advance_by)]
-#![feature(bstr_internals)]
 extern crate core;
 
 mod color;

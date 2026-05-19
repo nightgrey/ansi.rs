@@ -5,7 +5,7 @@ mod buffer_index;
 mod cell;
 mod double_buffer;
 mod grapheme;
-mod tracking;
+mod tracking_buffer;
 
 pub use buf::*;
 pub use buffer::*;
@@ -14,4 +14,4 @@ pub use buffer_index::*;
 pub use cell::*;
 pub use double_buffer::*;
 pub use grapheme::*;
-pub use tracking::*;
+pub use tracking_buffer::*;

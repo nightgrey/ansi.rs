@@ -1,14 +1,11 @@
-use crate::{Arena, Buf, BufMut, BufferDiff, BufferIndex,  ByCells, ByRuns, Cell};
+use crate::{Arena, Buf, BufMut, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, TrackingBuffer};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
 use geometry::Resolve;
-use geometry::Row;
-use geometry::{Bound, Intersect, Outer, Point, Rect};
-use number::Zero;
+use geometry::{Bound, Intersect, Point, Rect};
 use std::fmt::Debug;
 use std::iter::StepBy;
-use std::ops::Index;
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
@@ -35,7 +32,7 @@ impl Buffer {
 
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            inner: vec![Cell::EMPTY; width as usize * height as usize],
+            inner: vec![Cell::EMPTY; width * height],
             width,
             height,
         }
@@ -563,20 +560,50 @@ impl Buffer {
     }
 
     /// Returns a [`BufferCells`] between the cells of `prev` and `next`.
-    pub fn diff<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b> {
+    pub fn diff<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
         Self::diff_cells(prev, next)
     }
     
     /// Returns a [`BufferCells`] iterator.
     /// Yields a [`Changed`] for each cell that differs between `prev` and `next`.
-    pub fn diff_cells<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b, ByCells> {
+    pub fn diff_cells<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
         BufferDiff::cells(prev, next)
     }
     
     /// Returns a [`BufferRuns`] iterator.
     /// Yields a [`Run`] for each run of changed cells on the same row.
-    pub fn diff_runs<'a, 'b>(prev: &'a Buffer, next: &'b Buffer) -> BufferDiff<'a, 'b, ByRuns> {
+    pub fn diff_runs<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByRuns> {
         BufferDiff::runs(prev, next)
+    }
+
+    /// Create a [`TrackingBuffer`] from this buffer.
+    ///
+    /// All rows are marked dirty unless the buffer is [`Buffer::EMPTY`].
+    /// Creates a [`TrackingBuffer`] from this buffer.
+    ///
+    /// All rows are marked.
+    pub fn into_tracking(self) -> TrackingBuffer {
+        if self == Buffer::EMPTY {
+            return TrackingBuffer::EMPTY;
+        }
+
+        TrackingBuffer::from_buffer_dirty(self)
+    }
+
+    /// Create a clean [`TrackingBuffer`] from this buffer.
+    ///
+    /// All rows are unmarked.
+    pub fn into_tracking_clean(self) -> TrackingBuffer {
+        TrackingBuffer::from_buffer_clean(self)
+    }
+
+    pub fn into_tracking_scanned(self) -> TrackingBuffer {
+        TrackingBuffer::from_buffer_scanned(self)
+    }
+
+    /// Returns the slice index of the given buffer index.
+    pub fn slice_index_of<I: BufferIndex>(&self, index: I) -> I::Index {
+        index.into_slice_index(self)
     }
 
     pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {

@@ -2,11 +2,7 @@ use std::iter::FusedIterator;
 use derive_more::{AsRef, Deref};
 use geometry::Point;
 use crate::buffer::{Buffer, Cell};
-use crate::{TrackingBuffer};
-
-mod sealed {
-    pub trait Sealed {}
-}
+use crate::{Bit, BitSet, TrackingBuffer};
 
 /// A zero-allocation buffer diffing iterator
 ///
@@ -25,14 +21,14 @@ mod sealed {
 /// that case. If you target terminals with this quirk, emit an explicit clear
 /// of the trailing cell after each wide emoji update in a post-pass.
 #[derive(Debug)]
-pub struct BufferDiff<'prev, 'next, Strategy: DiffStrategy<'prev, 'next> = ByCells> {
+pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
     state: Strategy::State,
     strategy: Strategy
 }
 
-impl<'prev, 'next> BufferDiff<'prev, 'next, ByCells> {
+impl<'a> BufferDiff<'a, ByCells> {
     /// A zero-allocation diffing iterator over changed cells.
-    pub fn cells(prev: &'prev Buffer, next: &'next Buffer) -> Self {
+    pub fn cells(prev: &'a Buffer, next: &'a Buffer) -> Self {
         assert_eq!(
             prev.width, next.width,
             "buffers must have the same width: prev={}, next={}",
@@ -55,7 +51,7 @@ impl<'prev, 'next> BufferDiff<'prev, 'next, ByCells> {
         }
     }
 
-    pub fn into_runs(self) -> BufferDiff<'prev, 'next, ByRuns> {
+    pub fn into_runs(self) -> BufferDiff<'a, ByRuns> {
         BufferDiff {
             state: self.state,
             strategy: ByRuns,
@@ -63,11 +59,11 @@ impl<'prev, 'next> BufferDiff<'prev, 'next, ByCells> {
     }
 }
 
-impl<'prev, 'next> BufferDiff<'prev, 'next, ByRuns> {
+impl<'a> BufferDiff<'a, ByRuns> {
     /// A zero-allocation diffing iterator over changed runs of consecutive cells on the same row.
     ///
     /// See [`BufferDiff`] and the [`ByRuns`] [`DiffStrategy`] for details.
-    pub fn runs(prev: &'prev Buffer, next: &'next Buffer) -> Self{
+    pub fn runs(prev: &'a Buffer, next: &'a Buffer) -> Self{
         assert_eq!(
             prev.width, next.width,
             "buffers must have the same width: prev={}, next={}",
@@ -90,7 +86,7 @@ impl<'prev, 'next> BufferDiff<'prev, 'next, ByRuns> {
         }
     }
 
-    pub fn into_cells(self) -> BufferDiff<'prev, 'next, ByCells> {
+    pub fn into_cells(self) -> BufferDiff<'a, ByCells> {
         BufferDiff {
             state: self.state,
             strategy: ByCells,
@@ -98,10 +94,10 @@ impl<'prev, 'next> BufferDiff<'prev, 'next, ByRuns> {
     }
 }
 
-impl<'prev, 'next> BufferDiff<'prev, 'next, ByDirty> {
+impl<'a> BufferDiff<'a, ByDirty> {
     /// A zero-allocation diffing iterator over changed rows.
     /// See [`BufferDiff`] and the [`ByDirty`] for details.
-    pub fn dirty(prev: &'prev Buffer, next: &'next TrackingBuffer) -> Self {
+    pub fn dirty(prev: &'a Buffer, next: &'a TrackingBuffer) -> Self {
         BufferDiff {
             state: DirtyDiffState {
                 next,
@@ -110,14 +106,14 @@ impl<'prev, 'next> BufferDiff<'prev, 'next, ByDirty> {
                 height: prev.height.min(next.height),
                 y: 0,
                 x: 0,
-                dirty: next.dirty_rows()
+                bits: next.as_bits(),
             },
             strategy: ByDirty,
         }
     }
 }
 
-impl<'prev, 'next, Strategy: DiffStrategy<'prev, 'next>> Iterator for BufferDiff<'prev, 'next, Strategy> {
+impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
     type Item = Strategy::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -129,7 +125,7 @@ impl<'prev, 'next, Strategy: DiffStrategy<'prev, 'next>> Iterator for BufferDiff
     }
 }
 
-impl<'prev, 'next, Strategy: DiffStrategy<'prev, 'next>> FusedIterator for BufferDiff<'prev, 'next, Strategy> {}
+impl<'a, Strategy: DiffStrategy<'a>> FusedIterator for BufferDiff<'a, Strategy> {}
 
 
 /// A changed cell.
@@ -233,9 +229,9 @@ impl FusedIterator for Runner<'_> {}
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].
 #[derive(Debug)]
-pub struct BaseDiffState<'prev, 'next> {
-    prev: &'prev [Cell],
-    next: &'next [Cell],
+pub struct BaseDiffState<'a> {
+    prev: &'a [Cell],
+    next: &'a [Cell],
     height: usize,
     width: usize,
     len: usize,
@@ -246,30 +242,38 @@ pub struct BaseDiffState<'prev, 'next> {
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].
 #[derive(Debug)]
-pub struct DirtyDiffState<'prev, 'next> {
-    prev: &'prev [Cell],
-    next: &'next [Cell],
-    dirty: &'next [bool],
+pub struct DirtyDiffState<'a> {
+    prev: &'a [Cell],
+    next: &'a [Cell],
+    bits: &'a BitSet,
     height: usize,
     width: usize,
     y: usize,
     x: usize,
 }
 
-impl DirtyDiffState<'_, '_> {
-    pub fn is_row_dirty(&self, y: usize) -> bool {
-        self.dirty.get(y).copied().unwrap_or(false)
+impl<'a> DirtyDiffState<'a> {
+    pub fn is_marked(&self, y: usize) -> bool {
+        self.bits.contains(y)
     }
+}
+
+mod sealed {
+    pub trait Sealed {}
 }
 
 /// Strategy for iterating over the differences between two buffers.
 ///
 /// This trait is sealed: only [`ByCells`] and [`ByRuns`] implement it.
-pub trait DiffStrategy<'prev, 'next>: Default + sealed::Sealed {
+pub trait DiffStrategy<'a>: Default + sealed::Sealed {
+    /// The type of items yielded by the diff.
     type Item;
+    /// The state of the diffing operation.
     type State;
 
+    /// Advances the diff and returns the next item.
     fn next(state: &mut Self::State) -> Option<Self::Item>;
+    /// Returns an estimate of the number of items remaining in the iterator.
     fn size_hint(state: &Self::State) -> (usize, Option<usize>);
 }
 
@@ -280,9 +284,9 @@ pub trait DiffStrategy<'prev, 'next>: Default + sealed::Sealed {
 pub struct ByCells;
 
 impl sealed::Sealed for ByCells {}
-impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByCells {
-    type Item = Change<'next>;
-    type State = BaseDiffState<'prev, 'next>;
+impl<'a> DiffStrategy<'a> for ByCells {
+    type Item = Change<'a>;
+    type State = BaseDiffState<'a>;
 
    #[inline]
    fn next(state: &mut Self::State) -> Option<Self::Item> {
@@ -324,7 +328,7 @@ impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByCells {
     }
 
     #[inline]
-    fn size_hint(state: &BaseDiffState<'prev, 'next>) -> (usize, Option<usize>) {
+    fn size_hint(state: &BaseDiffState<'a>) -> (usize, Option<usize>) {
         (0, Some(state.len.saturating_sub(state.pos)))
     }
 }
@@ -333,15 +337,15 @@ impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByCells {
 pub struct ByDirty;
 
 impl sealed::Sealed for ByDirty {}
-impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByDirty {
-    type Item = Change<'next>;
-    type State = DirtyDiffState<'prev, 'next>;
+impl<'a> DiffStrategy<'a> for ByDirty {
+    type Item = Change<'a>;
+    type State = DirtyDiffState<'a>;
 
     fn next(state: &mut Self::State) -> Option<Self::Item> {
         while state.y < state.height {
             if state.x == 0 {
                 // Skip non-dirty rows in O(1).
-                if !state.is_row_dirty(state.y) {
+                if !state.is_marked(state.y) {
                     state.y += 1;
                     continue;
                 }
@@ -393,12 +397,12 @@ impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByDirty {
 pub struct ByRuns;
 
 impl sealed::Sealed for ByRuns {}
-impl<'prev, 'next> DiffStrategy<'prev, 'next> for ByRuns {
-    type Item = Run<'next>;
-type State = BaseDiffState<'prev, 'next>;
+impl<'a> DiffStrategy<'a> for ByRuns {
+    type Item = Run<'a>;
+type State = BaseDiffState<'a>;
 
     #[inline]
-    fn next(state: &mut BaseDiffState<'prev, 'next>) -> Option<Self::Item> {
+    fn next(state: &mut BaseDiffState<'a>) -> Option<Self::Item> {
         // Scan to the first base cell that differs, fast-skipping whole rows
         // that are unchanged.
         let start = loop {
@@ -466,7 +470,7 @@ type State = BaseDiffState<'prev, 'next>;
     }
 
     #[inline]
-    fn size_hint(state: &BaseDiffState<'prev, 'next>) -> (usize, Option<usize>) {
+    fn size_hint(state: &BaseDiffState<'a>) -> (usize, Option<usize>) {
         (0, Some(state.len.saturating_sub(state.pos)))
     }
 }
@@ -514,8 +518,8 @@ mod tests {
             let mut arena = Arena::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = Buffer::from_lines(["bbb"], &mut arena);
-            let mut runs: Vec<_> = BufferDiff::runs(&prev, &next).collect();
-            let mut one = runs[0].iter();
+            let  runs: Vec<_> = BufferDiff::runs(&prev, &next).collect();
+            let  one = runs[0].iter();
 
             assert_eq!(one.size_hint(), (0, Some(3)));
 
@@ -816,7 +820,7 @@ mod tests {
             assert_eq!((bases[0].x, bases[1].x), (0, 2));
         }
     }
-    #[cfg(test)]
+
     mod by_cells {
         use super::*;
 
@@ -998,4 +1002,76 @@ mod tests {
         }
     }
 
+    mod by_dirty {
+        use super::*;
+
+        #[test]
+        fn diff_dirty_skips_clean_rows_and_unchanged_dirty_rows() {
+            let mut arena = Arena::new();
+            let prev = Buffer::from_lines(["aaa", "bbb", "ccc"], &mut arena);
+            let mut next =
+                TrackingBuffer::from(Buffer::from_lines(["aaa", "bbb", "ccc"], &mut arena));
+            next.unmark_all();
+
+            // Re-render row 1 with the same content. Dirty bit set, but slice-eq
+            // fast path should still produce no changes.
+            next.set_line(Point { x: 0, y: 1 }, "bbb", &mut arena);
+            assert!(next.is_marked(1));
+            let changes: Vec<_> = next.diff(&prev).collect();
+            assert!(changes.is_empty());
+
+            // Mutate row 2 with different content.
+            next.set_line(Point { x: 0, y: 2 }, "cCc", &mut arena);
+            let changes: Vec<_> = next.diff(&prev).collect();
+            assert_eq!(changes.len(), 1);
+            assert_eq!((changes[0].x, changes[0].y), (1, 2));
+        }
+
+        #[test]
+        fn diff_dirty_matches_buffer_diff_when_all_dirty() {
+            let mut arena = Arena::new();
+            let prev = Buffer::from_lines(["hello", "world"], &mut arena);
+            let next_buf = Buffer::from_lines(["hallo", "wXrld"], &mut arena);
+            let next = TrackingBuffer::from(next_buf.clone());
+
+            let via_dirty: Vec<_> = next.diff(&prev).map(|c| (c.x, c.y)).collect();
+            let via_buffer: Vec<_> = Buffer::diff_cells(&prev, &next_buf)
+                .map(|c| (c.x, c.y))
+                .collect();
+
+            assert_eq!(via_dirty, via_buffer);
+        }
+
+        #[test]
+        fn diff_dirty_size_hint_is_upper_bound() {
+            let mut arena = Arena::new();
+            let prev = Buffer::from_lines(["aaa"], &mut arena);
+            let next = TrackingBuffer::from(Buffer::from_lines(["bbb"], &mut arena));
+
+            let iter = next.diff(&prev);
+            let (lower, upper) = iter.size_hint();
+            assert_eq!(lower, 0);
+            assert_eq!(upper, Some(3));
+            assert_eq!(iter.count(), 3);
+        }
+
+        #[test]
+        fn diff_dirty_exhausted_iterator_stays_none() {
+            let prev = Buffer::new(2, 1);
+            let next = TrackingBuffer::new(2, 1);
+            let mut iter = next.diff(&prev);
+            // Single row, both empty: slice eq skips it immediately.
+            assert!(iter.next().is_none());
+            assert!(iter.next().is_none());
+        }
+
+        #[test]
+        #[should_panic(expected = "buffers must have the same width")]
+        fn diff_dirty_mismatched_widths_panic() {
+            let prev = Buffer::new(5, 1);
+            let next = TrackingBuffer::new(10, 1);
+            let _ = next.diff(&prev);
+        }
+
+    }
 }

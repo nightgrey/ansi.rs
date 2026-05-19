@@ -31,6 +31,7 @@ memchr = { workspace = true }
 packed_struct = "0.10.1"
 fast-strip-ansi = "0.13.1"
 vt-push-parser = "0.13.1"
+fixedbitset = "0.5.7"
 
 [dev-dependencies]
 criterion = "0.8.2"

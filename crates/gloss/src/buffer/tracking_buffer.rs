@@ -30,23 +30,44 @@ pub type Bit = fixedbitset::Block;
 /// 2. Mutations mark rows dirty.
 /// 3. Call [`diff_dirty`](Self::diff) and apply the changes.
 /// 4. Call [`clear_dirty`](Self::unmark_all) before the next frame.
+/// A [`Buffer`] with per-row dirty tracking via a [`BitSet`].
+///
+/// Read‑only access mirrors the inner [`Buffer`] via [`Deref`].
+/// Mutations go through dedicated methods that **mark** the touched rows,
+/// enabling a subsequent fast diff that skips unmarked rows.
+///
+/// # Lifecycle
+///
+/// 1. A new `TrackingBuffer` starts with **all rows marked** so that the
+///    first diff sees the full content.
+/// 2. Each mutator marks the affected rows.
+/// 3. Call [`diff`](Self::diff) to obtain the changes.
+/// 4. Call [`unmark_all`](Self::unmark_all) (or [`clean`](Self::clean))
+///    before the next frame.
+///
+/// # Invariants
+///
+/// - `self.bits.len() == self.inner.height`
+/// - A row is *marked* iff it has been mutated since the last `unmark_all`.
 #[derive(Clone, Debug, Deref, AsRef, From)]
 pub struct TrackingBuffer {
     #[deref]
     #[as_ref]
-    inner: Buffer,
-    /// Per-row dirty flags. Invariant: `dirty.len() == inner.height`.
-    bits: BitSet
+    pub(super) inner: Buffer,
+    /// Per-row markers. Invariant: `dirty.len() == inner.height`.
+    pub(super) bits: BitSet,
 }
 
 impl TrackingBuffer {
-    /// Empty tracking buffer.
+    /// An empty tracking buffer. All rows are implicitly unmarked.
     pub const EMPTY: Self = Self {
         inner: Buffer::EMPTY,
         bits: BitSet::new(),
     };
 
-    /// Create a new tracking buffer of the given size with every row dirty.
+    /// Create a new tracking buffer of the given size.
+    ///
+    /// Every row is initially **marked** so a fresh diff covers the whole area.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             inner: Buffer::new(width, height),
@@ -62,178 +83,220 @@ impl TrackingBuffer {
         }
     }
 
-    /// Creates a tracking buffer from a buffer.
+    /// Create a tracking buffer from an existing [`Buffer`].
     ///
-    /// Scans for non-empty rows and marks them dirty.
+    /// Rows that are **non‑empty** are marked; empty rows are unmarked.
+    /// This is useful when creating a tracking wrapper for a buffer that
+    /// already has content.
     pub fn from_buffer_scanned(buffer: Buffer) -> Self {
-        let bits = BitSet::with_capacity_and_blocks(buffer.height, buffer.iter_rows().map(|row| !row.is_empty() as usize));
-
+        let bits = BitSet::with_capacity_and_blocks(
+            buffer.height,
+            buffer.iter_rows().map(|row| !row.is_empty() as usize),
+        );
         Self {
             inner: buffer,
             bits,
         }
     }
 
-    /// Creates a tracking buffer from a buffer.
+    /// Create a tracking buffer from an existing [`Buffer`].
     ///
-    /// All rows are marked dirty.
+    /// **All** rows are marked unconditionally.
     pub fn from_buffer_dirty(buffer: Buffer) -> Self {
         Self {
-            bits: BitSet::with_capacity_and_blocks(buffer.height, iter::repeat_n(1, buffer.height)),
+            bits: BitSet::with_capacity_and_blocks(
+                buffer.height,
+                iter::repeat_n(1, buffer.height),
+            ),
             inner: buffer,
         }
     }
 
-    /// Creates a tracking buffer from a buffer.
+    /// Create a tracking buffer from an existing [`Buffer`].
     ///
-    /// Rows are unmarked.
+    /// **No** rows are marked (all unmarked).
     pub fn from_buffer_clean(buffer: Buffer) -> Self {
         Self {
-            bits: BitSet::with_capacity_and_blocks(buffer.height, iter::repeat_n(0, buffer.height)),
+            bits: BitSet::with_capacity_and_blocks(
+                buffer.height,
+                iter::repeat_n(0, buffer.height),
+            ),
             inner: buffer,
         }
     }
+    
+    // ----------------------------------------------------------
+    // Low-level marker manipulation
+    // ----------------------------------------------------------
 
+    /// Mark a single row.
     #[inline]
     pub fn mark(&mut self, y: usize) {
         self.bits.set(y, true);
     }
 
+    /// Mark all rows in the given range.
     #[inline]
     pub fn mark_many(&mut self, y_range: impl TrackingBufferIndex) {
         let range = y_range.into_tracking_range(&mut self.inner);
         self.bits.set_range(range, true);
     }
 
-    /// Mark every row dirty.
+    /// Mark every row.
     #[inline]
     pub fn mark_all(&mut self) {
         self.mark_many(..);
     }
 
+    /// Unmark a single row.
     #[inline]
     pub fn unmark(&mut self, y: usize) {
         self.bits.set(y, false);
     }
 
+    /// Unmark all rows in the given range.
     #[inline]
     pub fn unmark_many(&mut self, y_range: impl TrackingRange) {
         self.bits.set_range(y_range, false);
     }
 
-    /// Reset all dirty flags. Call this once the previous frame has been
-    /// applied so the next [`diff_dirty`](Self::diff) can skip
-    /// untouched rows.
+    /// Unmark every row. Call this after applying a diff so that the next
+    /// diff only sees rows mutated after this call.
     #[inline]
     pub fn unmark_all(&mut self) {
         self.bits.clear();
     }
 
-    /// Whether row `y` is marked dirty. Out-of-bounds rows return `false`.
+    // ----------------------------------------------------------
+    // Querying marker state
+    // ----------------------------------------------------------
+
+    /// Returns `true` if the row at `y` is marked.
+    ///
+    /// Out‑of‑bounds rows return `false`.
     #[inline]
     pub fn is_marked(&self, y: usize) -> bool {
         self.bits.contains(y)
     }
 
+    /// Returns `true` if **any** row in the range is marked.
     #[inline]
     pub fn is_any_marked(&self, y_range: impl TrackingRange) -> bool {
         self.bits.contains_any_in_range(y_range)
     }
 
+    /// Returns `true` if **all** rows in the range are marked.
     #[inline]
     pub fn is_all_marked(&self, y_range: impl TrackingRange) -> bool {
         self.bits.contains_all_in_range(y_range)
     }
 
+    /// Returns `true` if **any** row in the range is unmarked.
     #[inline]
     pub fn is_any_unmarked(&self, y_range: impl TrackingRange) -> bool {
         !self.is_all_marked(y_range)
     }
 
+    /// Returns `true` if **all** rows in the range are unmarked.
     #[inline]
     pub fn is_all_unmarked(&self, y_range: impl TrackingRange) -> bool {
         !self.is_any_marked(y_range)
     }
 
+    /// Returns `true` if **no** rows are marked.
     #[inline]
     pub fn is_clean(&self) -> bool {
         self.bits.is_empty()
     }
 
-    /// Unmark all rows.
+    /// Unmark every row.  (Synonym of [`unmark_all`](Self::unmark_all).)
+    ///
+    /// After calling this the buffer is *clean*.
     pub fn clean(&mut self) {
         self.bits.clear();
     }
 
-    /// Returns true if any rows are marked.
+    /// Returns `true` if **any** row is marked.
+    ///
+    /// This is the dual of [`is_clean`](Self::is_clean).
     pub fn is_dirty(&self) -> bool {
         !self.is_clean()
     }
 
-    /// Mark all rows.
+    /// Mark every row.  (Synonym of [`mark_all`](Self::mark_all).)
+    ///
+    /// After calling this the buffer is *dirty*.
     pub fn dirty(&mut self) {
         self.bits.set_range(.., true);
     }
 
-    /// Iterator over the indices of rows currently marked dirty.
+    /// Iterate over the indices of marked rows.
     pub fn marked(&self) -> impl Iterator<Item = usize> + '_ {
         self.bits.ones()
     }
 
-    /// Returns the number of rows marked dirty.
+    /// Returns the number of marked rows.
     pub fn count(&self) -> usize {
         self.count_marked(..)
     }
 
-    /// Returns the number of rows marked dirty in the given range.
+    /// Returns the number of marked rows in the given range.
     pub fn count_marked(&self, range: impl TrackingRange) -> usize {
         self.bits.count_ones(range)
     }
 
-    /// Returns the number of rows not marked dirty in the given range.
+    /// Returns the number of unmarked rows in the given range.
     pub fn count_unmarked(&self, range: impl TrackingRange) -> usize {
         self.bits.count_zeroes(range)
     }
 
-    /// Borrow the bitset of this tracking buffer.
+    /// Returns a slice of the raw marker bits (one `Bit` per row).
+    ///
+    /// `result[y]` is `true` if row `y` is marked.
     #[inline]
     pub fn as_bits(&self) -> &BitSet {
         &self.bits
     }
 
-    /// Borrow the inner buffer.
+    // ----------------------------------------------------------
+    // Borrowing the inner buffer
+    // ----------------------------------------------------------
+
+    /// Borrow the inner buffer (immutable).
     #[inline]
     pub fn as_inner(&self) -> &Buffer {
         &self.inner
     }
 
-    /// Mutable borrow of the inner buffer.
+    /// Borrow the inner buffer mutably.
     ///
-    /// Escape hatch: Bypasses dirty tracking.
+    /// **Warning:** This escape hatch **bypasses** dirty tracking. Use the
+    /// dedicated mutating methods instead whenever possible.
     pub fn as_mut_inner(&mut self) -> &mut Buffer {
         &mut self.inner
     }
 
-    /// Consume `self` and return the inner buffer, dropping dirty state.
+    /// Consume the tracking wrapper and return the inner [`Buffer`],
+    /// discarding marker state.
     #[inline]
     pub fn into_inner(self) -> Buffer {
         self.inner
     }
 
-    // --------------------------------------------------------------
-    // Granular mutators
-    // --------------------------------------------------------------
+    // ----------------------------------------------------------
+    // Granular mutators (with automatic marking)
+    // ----------------------------------------------------------
 
-
-    /// Returns a mutable reference to the output at this location, if in
-    /// bounds.
+    /// Returns a mutable reference to the output at the given index, if it
+    /// is in bounds.  Marks the affected row(s) automatically.
     pub fn get_mut<I: BufferIndex>(
         &mut self,
         index: I,
     ) -> Option<&mut <I::Index as SliceIndex<[Cell]>>::Output> {
         index.get_mut(self)
     }
-    /// Mutable access to row `y`, marking it dirty.
+
+    /// Mutable access to row `y`, marking it.
     pub fn row_mut(&mut self, y: usize) -> Option<&mut [Cell]> {
         if y >= self.inner.height {
             return None;
@@ -243,24 +306,27 @@ impl TrackingBuffer {
         Some(&mut self.inner[y * width..(y + 1) * width])
     }
 
-    /// Mutable access to a single cell, marking its row dirty.
+    /// Mutable access to a single cell, marking its row.
     pub fn cell_mut(&mut self, point: Point) -> Option<&mut Cell> {
         self.mark(point.y as usize);
         self.inner.get_mut(point)
     }
 
-    // --------------------------------------------------------------
-    // Wrapped mutation methods
-    // --------------------------------------------------------------
+    // ----------------------------------------------------------
+    // Bulk mutation wrappers
+    // ----------------------------------------------------------
 
-    /// Clear the buffer to default cells.
+    /// Clear all cells to defaults.  Every row is marked.
     pub fn clear(&mut self) {
         self.mark_many(..);
         self.inner.clear();
     }
 
-    /// Resize the buffer. Marks every row dirty since width changes shift
-    /// existing cells.
+    /// Resize the buffer.
+    ///
+    /// If the width changes, existing cells shift and **all** rows become
+    /// marked.  If the height grows, new rows are marked as well.
+    /// If the height shrinks, only the remaining rows are marked.
     pub fn resize(&mut self, width: usize, height: usize) {
         let previous_height = self.inner.height;
         if self.inner.width == width && self.inner.height == height {
@@ -273,10 +339,9 @@ impl TrackingBuffer {
         } else if previous_height > height {
             self.bits = BitSet::with_capacity_and_blocks(height, iter::repeat_n(1, height));
         }
-
     }
 
-    /// Write a string starting at `start`, marking the affected row dirty.
+    /// Write a string starting at `start`, marking the affected row.
     pub fn set_line(
         &mut self,
         start: Point,
@@ -289,10 +354,10 @@ impl TrackingBuffer {
 
     /// Write a string at `index`.
     ///
-    /// The generic index does not give us a cheap way to compute the
-    /// affected rows, so this conservatively marks every row dirty. Use
-    /// [`set_line`](Self::set_line) for single-row writes or
-    /// [`row_mut`](Self::row_mut) to keep dirty tracking precise.
+    /// Because the generic index does not expose which rows are touched,
+    /// this method conservatively marks **all** rows. Prefer
+    /// [`set_line`](Self::set_line) or [`row_mut`](Self::row_mut) for
+    /// precise tracking.
     pub fn set_string<I>(
         &mut self,
         index: I,
@@ -306,43 +371,55 @@ impl TrackingBuffer {
         self.inner.set_string(index, string, arena)
     }
 
-    /// Insert `n` lines at row `y`, shifting following rows down.
+    /// Insert `n` lines at row `y`, shifting subsequent rows down.
+    ///
+    /// All rows from `y` to the bottom are marked.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
         self.mark_many(y..self.inner.height);
         self.inner.insert_line(y, n, cell);
     }
 
-    /// Delete `n` lines at row `y`, shifting following rows up.
+    /// Delete `n` lines at row `y`, shifting subsequent rows up.
+    ///
+    /// All rows from `y` to the bottom are marked.
     pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
         self.mark_many(y..self.inner.height);
         self.inner.delete_line(y, n, cell);
     }
 
-    /// Insert `n` cells at `(row, col)`, shifting cells right on that row.
+    /// Insert `n` cells at `(row, col)`, shifting cells to the right on
+    /// that row.  The row is marked.
     pub fn insert_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
         self.mark(row);
         self.inner.insert_cell(row, col, n, cell);
     }
 
-    /// Delete `n` cells at `(row, col)`, shifting cells left on that row.
+    /// Delete `n` cells at `(row, col)`, shifting cells to the left on
+    /// that row.  The row is marked.
     pub fn delete_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
         self.mark(row);
         self.inner.delete_cell(row, col, n, cell);
     }
 
     /// Bounded variant of [`insert_line`](Self::insert_line).
+    ///
+    /// Only rows within `bounds` are marked.
     pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
         self.mark_many(bounds.min.y as usize..bounds.max.y as usize);
         self.inner.insert_line_area(y, n, cell, bounds);
     }
 
     /// Bounded variant of [`delete_line`](Self::delete_line).
+    ///
+    /// Only rows within `bounds` are marked.
     pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
         self.mark_many(bounds.min.y as usize..bounds.max.y as usize);
         self.inner.delete_line_area(y, n, cell, bounds);
     }
 
     /// Bounded variant of [`insert_cell`](Self::insert_cell).
+    ///
+    /// Only the affected row is marked.
     pub fn insert_cell_area(
         &mut self,
         row: usize,
@@ -356,6 +433,8 @@ impl TrackingBuffer {
     }
 
     /// Bounded variant of [`delete_cell`](Self::delete_cell).
+    ///
+    /// Only the affected row is marked.
     pub fn delete_cell_area(
         &mut self,
         row: usize,
@@ -368,20 +447,24 @@ impl TrackingBuffer {
         self.inner.delete_cell_area(row, col, n, cell, bounds);
     }
 
-    /// Append a row.
+    /// Append a row at the bottom.  The new row is **not** automatically
+    /// marked – the caller is responsible if it should be.
     pub fn push_row(&mut self, row: impl IntoIterator<Item = Cell>) {
         self.inner.push_row(row);
         self.bits.grow(self.height + 1);
     }
 
-    /// Pop the bottom row.
+    /// Pop the bottom row.  The last marker bit is discarded.
     pub fn pop_row(&mut self) -> Option<Vec<Cell>> {
         let row = self.inner.pop_row()?;
-        self.bits = BitSet::with_capacity_and_blocks(self.height - 1, self.bits.as_slice().iter().copied());
+        self.bits = BitSet::with_capacity_and_blocks(
+            self.height - 1,
+            self.bits.as_slice().iter().copied(),
+        );
         Some(row)
     }
 
-    /// Remove row `idx`. Following rows shift up and are marked dirty.
+    /// Remove row `idx`.  Subsequent rows are shifted up and **marked**.
     pub fn remove_row(&mut self, idx: usize) -> Option<Vec<Cell>> {
         let row = self.inner.remove_row(idx)?;
         if idx < self.bits.len() {
@@ -391,20 +474,23 @@ impl TrackingBuffer {
         Some(row)
     }
 
-    /// Insert a row at `idx`. Following rows shift down and are marked dirty.
+    /// Insert a row at `idx`.  Subsequent rows are shifted down and **marked**.
+    /// The new row is **not** automatically marked.
     pub fn insert_row(&mut self, idx: usize, row: impl IntoIterator<Item = Cell>) {
         self.inner.insert_row(idx, row);
         let dirty_idx = idx.min(self.bits.len());
         self.mark_many(dirty_idx..);
     }
 
-    // --------------------------------------------------------------
+    // ----------------------------------------------------------
     // Diff integration
-    // --------------------------------------------------------------
+    // ----------------------------------------------------------
 
-    /// Optimized diff using the [`ByDirty`] diff strategy.
+    /// Compute an optimized diff between `prev` and `self`, using the
+    /// `ByDirty` strategy.  Only marked rows are compared; unmarked rows
+    /// are assumed unchanged.
     ///
-    /// Yields [`Change`]s.
+    /// Returns an iterator of [`Change`] items.
     pub fn diff<'a>(&'a self, prev: &'a Buffer) -> BufferDiff<'a, ByDirty> {
         BufferDiff::dirty(prev, self)
     }

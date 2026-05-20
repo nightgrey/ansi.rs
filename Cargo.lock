@@ -820,6 +820,7 @@ dependencies = [
  "fixedbitset",
  "geometry",
  "hi_sparse_bitset",
+ "itertools 0.14.0",
  "maybe",
  "memchr",
  "number",

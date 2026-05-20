@@ -1,4 +1,4 @@
-use crate::{Arena, Buf, BufMut, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, TrackingBuffer};
+use crate::{Arena, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, TrackingBuffer};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
@@ -608,14 +608,6 @@ impl Buffer {
     /// Returns the slice index of the given buffer index.
     pub fn slice_index_of<I: BufferIndex>(&self, index: I) -> I::Index {
         index.into_slice_index(self)
-    }
-
-    pub fn as_buf<'a>(&'a self, arena: &'a Arena) -> Buf<'a> {
-        Buf::new(self, arena)
-    }
-
-    pub fn as_buf_mut<'a>(&'a mut self, arena: &'a mut Arena) -> BufMut<'a> {
-        BufMut::new(self, arena)
     }
 }
 

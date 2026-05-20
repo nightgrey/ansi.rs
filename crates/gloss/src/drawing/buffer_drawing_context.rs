@@ -474,7 +474,7 @@ mod tests {
     use crate::{Document, Element, FlexDirection, FontWeight, TextDecoration};
     use crate::{Grapheme, Layouted};
     use ansi::Color;
-    use geometry::pos;
+    use geometry::{pos, Edges};
     use std::borrow::Cow;
     use std::ops::Sub;
     use tree::At;

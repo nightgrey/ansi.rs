@@ -1,6 +1,5 @@
 use crate::{Bound, Column, Coordinate, Point, Position, Row};
 use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
-use number::SaturatingSub;
 
 /// Resolve a context-dependent value.
 ///
@@ -46,11 +45,27 @@ impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
     fn resolve(&self, value: P) -> usize {
         (value.y( ) * self.width() + value.x()) as usize
     }
+
+    fn try_resolve(&self, value: P) -> Option<usize> {
+        if value.x() < self.width() && value.y() < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
     fn resolve(&self, value: P) -> Row {
         Row((value.y() as usize))
+    }
+
+    fn try_resolve(&self, value: P) -> Option<Row> {
+        if value.y() < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 
@@ -58,22 +73,54 @@ impl<B: Bound, P: Coordinate> Resolve<P, Column> for B {
     fn resolve(&self, value: P) -> Column {
             Column((value.x() as usize))
     }
+
+    fn try_resolve(&self, value: P) -> Option<Column> {
+        if value.x() < self.width() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 impl<B: Bound> Resolve<Row, usize> for B {
     fn resolve(&self, value: Row) -> usize {
         (value.into_inner()) * self.width() as usize
     }
+
+    fn try_resolve(&self, value: Row) -> Option<usize> {
+        if value.into_inner() < self.height() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 impl<B: Bound, P: Coordinate> Resolve<Row, P> for B {
     fn resolve(&self, value: Row) -> P {
         P::new(self.min_x(), (value.into_inner() as u16))
+    }
+
+    fn try_resolve(&self, value: Row) -> Option<P> {
+        if value.into_inner() < self.height() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 
 impl<B: Bound> Resolve<Row, Column> for B {
     fn resolve(&self, _value: Row) -> Column {
         Column(0)
+    }
+
+    fn try_resolve(&self, value: Row) -> Option<Column> {
+        if value.into_inner() < self.height() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 
@@ -83,6 +130,14 @@ impl<B: Bound> Resolve<Row, Range<usize>> for B {
         let width = self.width() as usize;
         start..start + width
     }
+
+    fn try_resolve(&self, value: Row) -> Option<Range<usize>> {
+        if value.into_inner() < self.height() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 // Column
@@ -90,17 +145,41 @@ impl<B: Bound, P: Coordinate> Resolve<Column, P> for B {
     fn resolve(&self, value: Column) -> P {
         P::new((value.into_inner() as u16), 0)
     }
+
+    fn try_resolve(&self, value: Column) -> Option<P> {
+        if value.into_inner() < self.width() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 impl<B: Bound> Resolve<Column, usize> for B {
     fn resolve(&self, value: Column) -> usize {
         value.into_inner()
     }
+
+    fn try_resolve(&self, value: Column) -> Option<usize> {
+        if value.into_inner() < self.width() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 impl<B: Bound> Resolve<Column, Row> for B {
     fn resolve(&self, _value: Column) -> Row {
         Row(0)
+    }
+
+    fn try_resolve(&self, value: Column) -> Option<Row> {
+        if value.into_inner() < self.width() as usize {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 
@@ -115,6 +194,14 @@ impl<B: Bound, P: Coordinate> Resolve<usize, P> for B {
             (value / w),
         )
     }
+
+    fn try_resolve(&self, value: usize) -> Option<P> {
+        if value < self.len() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 impl<B: Bound> Resolve<usize, usize> for B {
     fn resolve(&self, value: usize) -> usize {
@@ -126,11 +213,27 @@ impl<B: Bound> Resolve<usize, Row> for B {
     fn resolve(&self, value: usize) -> Row {
         Row((value / self.width() as usize))
     }
+
+    fn try_resolve(&self, value: usize) -> Option<Row> {
+        if value < self.len() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
 }
 
 impl<B: Bound> Resolve<usize, Column> for B {
     fn resolve(&self, value: usize) -> Column {
         Column(value % self.width() as usize)
+    }
+
+    fn try_resolve(&self, value: usize) -> Option<Column> {
+        if value < self.len() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 
@@ -150,6 +253,12 @@ where
         let end: U = self.resolve(value.end);
         start..end
     }
+
+    fn try_resolve(&self, value: Range<T>) -> Option<Range<U>> {
+        let start = self.try_resolve(value.start)?;
+        let end = self.try_resolve(value.end)?;
+        Some(start..end)
+    }
 }
 
 impl<B, T: Clone, U> Resolve<RangeInclusive<T>, RangeInclusive<U>> for B
@@ -158,6 +267,12 @@ where
 {
     fn resolve(&self, value: RangeInclusive<T>) -> RangeInclusive<U> {
         self.resolve(value.start().clone())..=self.resolve(value.end().clone())
+    }
+
+    fn try_resolve(&self, value: RangeInclusive<T>) -> Option<RangeInclusive<U>> {
+        let start = self.try_resolve(value.start().clone())?;
+        let end = self.try_resolve(value.end().clone())?;
+        Some(start..=end)
     }
 }
 
@@ -168,6 +283,10 @@ where
     fn resolve(&self, value: RangeTo<T>) -> RangeTo<U> {
         ..self.resolve(value.end)
     }
+
+    fn try_resolve(&self, value: RangeTo<T>) -> Option<RangeTo<U>> {
+        Some(..self.try_resolve(value.end)?)
+    }
 }
 
 impl<B, T, U> Resolve<RangeToInclusive<T>, RangeToInclusive<U>> for B
@@ -177,6 +296,10 @@ where
     fn resolve(&self, value: RangeToInclusive<T>) -> RangeToInclusive<U> {
         ..=self.resolve(value.end)
     }
+
+    fn try_resolve(&self, value: RangeToInclusive<T>) -> Option<RangeToInclusive<U>> {
+        Some(..=self.try_resolve(value.end)?)
+    }
 }
 
 impl<B, T, U> Resolve<RangeFrom<T>, RangeFrom<U>> for B
@@ -185,6 +308,10 @@ where
 {
     fn resolve(&self, value: RangeFrom<T>) -> RangeFrom<U> {
         self.resolve(value.start)..
+    }
+
+    fn try_resolve(&self, value: RangeFrom<T>) -> Option<RangeFrom<U>> {
+        Some(self.try_resolve(value.start)?..)
     }
 }
 

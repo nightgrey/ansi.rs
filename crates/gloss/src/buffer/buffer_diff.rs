@@ -26,6 +26,7 @@ pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
     strategy: Strategy,
 }
 
+
 impl<'a> BufferDiff<'a, ByCells> {
     /// A zero-allocation diffing iterator over changed cells.
     pub fn cells(prev: &'a Buffer, next: &'a Buffer) -> Self {
@@ -124,6 +125,12 @@ impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
         Strategy::size_hint(&self.state)
     }
 }
+impl<'a, Strategy: DiffStrategy<'a>> ExactSizeIterator for BufferDiff<'a, Strategy> {
+    fn len(&self) -> usize {
+        let (min, max) = self.size_hint();
+        min.max(max.unwrap_or(min))
+    }
+}
 
 impl<'a, Strategy: DiffStrategy<'a>> FusedIterator for BufferDiff<'a, Strategy> {}
 
@@ -159,8 +166,8 @@ pub struct Run<'a> {
 
 impl<'a> Run<'a> {
     #[inline]
-    pub fn iter(&self) -> Runner<'a> {
-        Runner {
+    pub fn iter(&self) -> RunIter<'a> {
+        RunIter {
             x: self.x,
             y: self.y,
             cells: self.cells,
@@ -186,21 +193,21 @@ impl<'a> Run<'a> {
 
 impl<'a> IntoIterator for Run<'a> {
     type Item = Change<'a>;
-    type IntoIter = Runner<'a>;
+    type IntoIter = RunIter<'a>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Runner<'a> {
+pub struct RunIter<'a> {
     x: u16,
     y: u16,
     cells: &'a [Cell],
     idx: usize,
 }
 
-impl<'a> Iterator for Runner<'a> {
+impl<'a> Iterator for RunIter<'a> {
     type Item = Change<'a>;
 
     #[inline]
@@ -229,7 +236,7 @@ impl<'a> Iterator for Runner<'a> {
     }
 }
 
-impl FusedIterator for Runner<'_> {}
+impl FusedIterator for RunIter<'_> {}
 
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].

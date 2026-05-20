@@ -234,10 +234,10 @@ impl Rasterer {
                 self.output.escape(EraseLineToEnd)?;
             }
 
-            self.pen.row = height - 1;
+            self.pen.row = (height - 1) as u16;
             let last_row = &next[Row(height - 1)];
             self.pen.col = match (0..width).rev().find(|&x| !last_row[x].is_empty()) {
-                Some(end) => end + 1,
+                Some(end) => end as u16 + 1,
                 None => 0,
             };
         } else {
@@ -248,7 +248,7 @@ impl Rasterer {
                 for _ in 0..extra {
                     self.output.push(b'\n');
                 }
-                self.pen.row += extra;
+                self.pen.row += extra as u16;
                 inline.height = height;
             }
 
@@ -282,10 +282,10 @@ impl Rasterer {
                         .move_to_relative(self.pen.row + 1, 0, &mut self.output)?;
                     self.output.escape(EraseLineToEnd)?;
                 }
-                if self.pen.row > height - 1 {
-                    let up = self.pen.row - (height - 1);
+                if self.pen.row > (height - 1) as u16 {
+                    let up = self.pen.row - ((height - 1) as u16);
                     self.output.escape(CursorUp(up))?;
-                    self.pen.row = height - 1;
+                    self.pen.row = (height - 1) as u16;
                 }
                 inline.height = height;
             }
@@ -333,8 +333,8 @@ impl Rasterer {
         let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_empty());
 
         match cursor_mode {
-            CursorMode::Absolute => cursor.move_to(y, first, output),
-            CursorMode::Relative => cursor.move_to_relative(y, first, output),
+            CursorMode::Absolute => cursor.move_to(y as u16, first as u16, output),
+            CursorMode::Relative => cursor.move_to_relative(y as u16, first as u16, output),
         }?;
 
         match last_non_default_cell {
@@ -349,7 +349,7 @@ impl Rasterer {
                     Self::present_cell(cell, output, cursor, arena)?;
                     let w = cell.width() as usize;
                     col += w;
-                    cursor.col += w;
+                    cursor.col += w as u16;
                 }
 
                 if emit_end < last {

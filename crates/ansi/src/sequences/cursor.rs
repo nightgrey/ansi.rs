@@ -54,7 +54,7 @@ sequence!(
     /// The cursor stops at the left border of the page.
     ///
     /// [`CUB`]: https://vt100.net/docs/vt510-rm/CUB.html
-    pub struct CursorPosition(pub usize, pub usize) => |this, w| {
+    pub struct CursorPosition(pub u16, pub u16) => |this, w| {
         write!(w, "\x1B[{};{}H", this.0 + 1, this.1 + 1)
     }
 );
@@ -78,7 +78,7 @@ sequence!(
     ///
     /// [`CUB`]: https://vt100.net/docs/vt510-rm/CUB.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorBackward(pub usize) => |this, w| {
+    pub struct CursorBackward(pub u16) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[D")
         } else if this.0 > 1 {
@@ -108,7 +108,7 @@ sequence!(
     ///
     /// [`CUD`]: https://vt100.net/docs/vt510-rm/CUD.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorDown(pub usize) => |this, w| {
+    pub struct CursorDown(pub u16) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[B")
         } else if this.0 > 1 {
@@ -137,7 +137,7 @@ sequence!(
     ///
     /// [`CUF`]: https://vt100.net/docs/vt510-rm/CUF.html
     #[derive(Deref, DerefMut)]
-    pub  struct CursorForward(pub usize) => |this, w| {
+    pub  struct CursorForward(pub u16) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[C")
         } else if this.0 > 1 {
@@ -167,7 +167,7 @@ sequence!(
     ///
     /// [`CUU`]: https://vt100.net/docs/vt510-rm/CUU.html
     #[derive(Deref, DerefMut)]
-    pub struct CursorUp(pub usize) => |this, w| {
+    pub struct CursorUp(pub u16) => |this, w| {
         if this.0 == 1 {
             write!(w, "\x1B[A")
         } else if this.0 > 1 {
@@ -194,7 +194,7 @@ sequence!(
     ///
     /// The active position is moved to the first character of the n-th preceding line.
     #[derive(Deref, DerefMut)]
-    pub struct CursorPreviousLine(pub usize) => |this, w| {
+    pub struct CursorPreviousLine(pub u16) => |this, w| {
         write!(w, "\x1B[{}F", this.0)
     }
 );
@@ -215,7 +215,7 @@ sequence!(
     ///
     /// The active position is moved to the first character of the n-th following line.
     #[derive(Deref, DerefMut)]
-    pub struct CursorNextLine(pub usize) => |this, w| {
+    pub struct CursorNextLine(pub u16) => |this, w| {
         write!(w, "\x1B[{}E", this.0)
     }
 );
@@ -237,7 +237,7 @@ sequence!(
     /// The active position is moved to the character position corresponding to the
     /// following n-th horizontal tabulation stop.
     #[derive(Deref, DerefMut)]
-    pub struct CursorHorizontalForwardTabulation(pub usize) => |this, w| {
+    pub struct CursorHorizontalForwardTabulation(pub u16) => |this, w| {
         write!(w, "\x1B[{}I", this.0)
     }
 );
@@ -260,7 +260,7 @@ sequence!(
     /// active position past the first character position on the line, then the active
     /// position stays at column one.
     #[derive(Deref, DerefMut)]
-    pub struct CursorBackwardTabulation(pub usize) => |this, w| {
+    pub struct CursorBackwardTabulation(pub u16) => |this, w| {
         write!(w, "\x1B[{}Z", this.0)
     }
 );
@@ -303,7 +303,7 @@ sequence!(
     /// then the active position stops at the last position on the line.
     ///
     /// [`CHA`]: https://vt100.net/docs/vt510-rm/CHA.html
-    pub struct CursorHorizontalAbsolute(pub usize) => |this, w| {
+    pub struct CursorHorizontalAbsolute(pub u16) => |this, w| {
         write!(w, "\x1B[{}G", this.0 + 1)
     }
 );
@@ -326,7 +326,7 @@ sequence!(
     /// position below the last line, then the active position stops on the last line.
     ///
     /// [`VPA`]: https://vt100.net/docs/vt510-rm/VPA.html
-    pub struct VerticalPositionAbsolute(pub usize) => |this, w| {
+    pub struct VerticalPositionAbsolute(pub u16) => |this, w| {
         write!(w, "\x1B[{}d", this.0 + 1)
     }
 );
@@ -349,7 +349,7 @@ sequence!(
     /// position on the line, then the active position stops at the last position on the line.
     ///
     /// [`HPA`]: https://vt100.net/docs/vt510-rm/HPA.html
-    pub struct HorizontalPositionAbsolute(pub usize) => |this, w| {
+    pub struct HorizontalPositionAbsolute(pub u16) => |this, w| {
         write!(w, "\x1B[{}`", this.0 + 1)
     }
 );

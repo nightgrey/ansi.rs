@@ -6,8 +6,8 @@ use std::io;
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Copy, Debug)]
 pub struct Pen {
-    pub row: usize,
-    pub col: usize,
+    pub row: u16,
+    pub col: u16,
     pub style: Style,
 }
 
@@ -27,7 +27,7 @@ impl Pen {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn move_to(&mut self, row: usize, col: usize, w: &mut impl Write) -> io::Result<()> {
+    pub fn move_to(&mut self, row: u16, col: u16, w: &mut impl Write) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -36,26 +36,26 @@ impl Pen {
         let dc = col as isize - self.col as isize;
 
         // Strategy 0: CUP (always available)
-        let cost_cup = CursorPosition(row, col).cost();
+        let cost_cup = CursorPosition(row as u16, col as u16).cost();
 
         // Strategy 1: Relative moves
-        let vert_cost = CursorUp(dr.unsigned_abs()).cost();
-        let horiz_cost = CursorForward(dc.unsigned_abs()).cost();
+        let vert_cost = CursorUp(dr.unsigned_abs() as u16).cost();
+        let horiz_cost = CursorForward(dc.unsigned_abs() as u16).cost();
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + relative vertical + CUF
         // CR is 1 byte, then vertical move, then CUF to target_col
-        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col as u16).cost();
 
         // Strategy 3: VPA + CHA
         let cost_vpa_cha = {
             let v = if dr != 0 {
-                VerticalPositionAbsolute(row).cost()
+                VerticalPositionAbsolute(row as u16).cost()
             } else {
                 0
             };
             let h = if dc != 0 || dr != 0 {
-                HorizontalPositionAbsolute(col).cost()
+                HorizontalPositionAbsolute(col as u16).cost()
             } else {
                 0
             };
@@ -68,34 +68,34 @@ impl Pen {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                w.escape(CursorDown(dr as usize))?;
+                w.escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize))?;
+                w.escape(CursorUp((-dr) as u16))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as usize))?;
+                w.escape(CursorForward(dc as u16))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as usize))?;
+                w.escape(CursorBackward((-dc) as u16))?;
             }
         } else if min == cost_cr {
             w.escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as usize))?;
+                w.escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize))?;
+                w.escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col))?;
+                w.escape(CursorForward(col as u16))?;
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                w.escape(VerticalPositionAbsolute(row))?;
+                w.escape(VerticalPositionAbsolute(row as u16))?;
             }
             if dc != 0 || dr != 0 {
-                w.escape(HorizontalPositionAbsolute(col))?;
+                w.escape(HorizontalPositionAbsolute(col as u16))?;
             }
         } else {
-            w.escape(CursorPosition(row, col))?;
+            w.escape(CursorPosition(row as u16, col as u16))?;
         }
 
         self.row = row;
@@ -112,8 +112,8 @@ impl Pen {
     /// 2. CR + vertical + CUF
     pub fn move_to_relative(
         &mut self,
-        row: usize,
-        col: usize,
+        row: u16,
+        col: u16,
         w: &mut impl Write,
     ) -> io::Result<()> {
         if self.row == row && self.col == col {
@@ -124,33 +124,33 @@ impl Pen {
         let dc = col as isize - self.col as isize;
 
         // Strategy 1: Pure relative
-        let vert_cost = CursorUp(dr.unsigned_abs()).cost();
-        let horiz_cost = CursorForward(dc.unsigned_abs()).cost();
+        let vert_cost = CursorUp(dr.unsigned_abs() as u16).cost();
+        let horiz_cost = CursorForward(dc.unsigned_abs() as u16).cost();
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + vertical + CUF
-        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col as u16).cost();
 
         if cost_cr < cost_relative {
             w.escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as usize))?;
+                w.escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize))?;
+                w.escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col))?;
+                w.escape(CursorForward(col as u16))?;
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                w.escape(CursorDown(dr as usize))?;
+                w.escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as usize))?;
+                w.escape(CursorUp((-dr) as u16))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as usize))?;
+                w.escape(CursorForward(dc as u16))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as usize))?;
+                w.escape(CursorBackward((-dc) as u16))?;
             }
         }
 

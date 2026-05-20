@@ -6,7 +6,7 @@ use crate::Escape;
 /// This is the static dual of `Escape`—`cost()` must return the exact
 /// number of bytes that `escape()` would write.
 pub trait Cost: Escape {
-    fn cost(&self) -> usize;
+    fn cost(self) -> usize;
 }
 
 /// Width of the decimal representation of an unsigned integer.
@@ -17,7 +17,7 @@ pub trait Cost: Escape {
 /// Used to calculate exact byte lengths for CSI (Control Sequence Introducer)
 /// parameters, which are transmitted as 1-indexed decimal ASCII strings.
 #[inline]
-pub const fn decimal_width(n: usize) -> usize {
+pub const fn decimal_width(n: u16) -> usize {
     if n == 0 {
         return 1;
     }
@@ -32,7 +32,7 @@ pub const fn decimal_width(n: usize) -> usize {
 
 /// Cost of a CSI sequence that moves the cursor relative to its current position.
 #[inline(always)]
-fn relative_cursor_cost(n: usize) -> usize {
+fn relative_cursor_cost(n: u16) -> usize {
     match n {
         0 => 0,
         1 => 3,
@@ -41,51 +41,58 @@ fn relative_cursor_cost(n: usize) -> usize {
 }
 
 impl Cost for SetCursorStyle {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         2 + 1 + 1 + 1
     }
 }
 
 impl Cost for CursorPosition {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         // CSI Pl ; Pc H  →  \x1B [ digits ; digits H
         2 + decimal_width(self.0 + 1) + 1 + decimal_width(self.1 + 1) + 1
     }
 }
 
 impl Cost for CursorBackward {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
 impl Cost for CursorDown {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
 impl Cost for CursorForward {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
 impl Cost for CursorUp {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
+impl Cost for CursorHorizontalAbsolute {
+    fn cost(self) -> usize {
+        3 + decimal_width(self.0.saturating_add(1))
+    }
+}
+
+
 impl Cost for HorizontalPositionAbsolute {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         // \x1B [ digits `
         2 + decimal_width(self.0 + 1) + 1
     }
 }
 
 impl Cost for VerticalPositionAbsolute {
-    fn cost(&self) -> usize {
+    fn cost(self) -> usize {
         // \x1B [ digits d
         2 + decimal_width(self.0 + 1) + 1
     }
@@ -116,7 +123,7 @@ mod tests {
 
     // Representative parameter values covering edge cases:
     // 0 (n=0 no-op), 1 (short form), 9 (1 digit), 10 (2 digits), 100 (3 digits)
-    const PARAMS: &[usize] = &[0, 1, 2, 5, 9, 10, 42, 99, 100, 999];
+    const PARAMS: &[u16] = &[0, 1, 2, 5, 9, 10, 42, 99, 100, 999];
 
     #[test]
     fn cursor_position_cost() {

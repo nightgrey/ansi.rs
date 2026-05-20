@@ -68,6 +68,16 @@ pub trait BufferIndex: Clone {
     }
 }
 
+impl BufferIndex for usize {
+    type Output = Cell;
+    type Index = usize;
+
+    #[inline]
+    fn into_slice_index(self, _: &Buffer) -> usize {
+        self
+    }
+}
+
 impl BufferIndex for Point {
     type Output = Cell;
     type Index = usize;
@@ -108,77 +118,7 @@ impl BufferIndex for Row {
     }
 }
 
-impl BufferIndex for ops::Range<Row> {
-    type Output = [Cell];
-    type Index = ops::Range<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
-        buffer.resolve(self)
-    }
-}
-
-impl BufferIndex for ops::RangeInclusive<Row> {
-    type Output = [Cell];
-    type Index = ops::RangeInclusive<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
-        buffer.resolve(self)
-    }
-}
-
-impl BufferIndex for ops::RangeTo<Row> {
-    type Output = [Cell];
-    type Index = ops::RangeTo<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
-        buffer.resolve(self)
-    }
-}
-
-impl BufferIndex for ops::RangeToInclusive<Row> {
-    type Output = [Cell];
-    type Index = ops::RangeToInclusive<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
-        buffer.resolve(self)
-    }
-}
-impl BufferIndex for ops::RangeFrom<Row> {
-    type Output = [Cell];
-    type Index = ops::RangeFrom<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
-        buffer.resolve(self)
-    }
-}
-
-impl BufferIndex for ops::RangeFull {
-    type Output = [Cell];
-    type Index = ops::RangeFull;
-
-    #[inline]
-    fn into_slice_index(self, _: &Buffer) -> ops::RangeFull {
-        ..
-    }
-}
-
-// Convenience for `Index` and `Position`
-impl BufferIndex for usize {
-    type Output = Cell;
-    type Index = usize;
-
-    #[inline]
-    fn into_slice_index(self, _: &Buffer) -> usize {
-        self
-    }
-}
-
-impl<I: BufferIndex<Index = usize>> BufferIndex for ops::Range<I> {
+impl<T: BufferIndex<Index = usize>> BufferIndex for ops::Range<T> {
     type Output = [Cell];
     type Index = ops::Range<usize>;
 
@@ -190,29 +130,7 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::Range<I> {
     }
 }
 
-impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeTo<I> {
-    type Output = [Cell];
-    type Index = ops::RangeTo<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
-        let end = self.end.into_slice_index(buffer);
-        ..end
-    }
-}
-
-impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeFrom<I> {
-    type Output = [Cell];
-    type Index = ops::RangeFrom<usize>;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
-        let start = self.start.into_slice_index(buffer);
-        start..
-    }
-}
-
-impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<I> {
+impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<T> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
 
@@ -224,7 +142,18 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<I> {
     }
 }
 
-impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeToInclusive<I> {
+impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeTo<T> {
+    type Output = [Cell];
+    type Index = ops::RangeTo<usize>;
+
+    #[inline]
+    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
+        let end = self.end.into_slice_index(buffer);
+        ..end
+    }
+}
+
+impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeToInclusive<T> {
     type Output = [Cell];
     type Index = ops::RangeToInclusive<usize>;
 
@@ -232,6 +161,26 @@ impl<I: BufferIndex<Index = usize>> BufferIndex for ops::RangeToInclusive<I> {
     fn into_slice_index(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
         let end = self.end.into_slice_index(buffer);
         ..=end
+    }
+}
+impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeFrom<T> {
+    type Output = [Cell];
+    type Index = ops::RangeFrom<usize>;
+
+    #[inline]
+    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
+        let start = self.start.into_slice_index(buffer);
+        start..
+    }
+}
+
+impl BufferIndex for ops::RangeFull {
+    type Output = [Cell];
+    type Index = ops::RangeFull;
+
+    #[inline]
+    fn into_slice_index(self, _: &Buffer) -> ops::RangeFull {
+        ..
     }
 }
 

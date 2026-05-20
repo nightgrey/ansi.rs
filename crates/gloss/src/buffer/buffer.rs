@@ -120,6 +120,10 @@ impl Buffer {
         index.get_unchecked_mut(self)
     }
 
+    pub fn contains<I: BufferIndex>(&self, index: I) -> bool {
+        index.get(self).is_some()
+    }
+
     /// Print the given string until the end of the given index.
     pub fn set_string(
         &mut self,
@@ -409,6 +413,10 @@ impl Buffer {
     }
 
     pub fn insert_row(&mut self, index: usize, row: impl IntoIterator<Item = Cell>) {
+        if index > self.height {
+            return;
+        }
+        
         let row = row.into_iter();
         let (input_len, _) = row.size_hint();
         assert!(
@@ -578,27 +586,23 @@ impl Buffer {
 
     /// Create a [`TrackingBuffer`] from this buffer.
     ///
-    /// All rows are marked dirty unless the buffer is [`Buffer::EMPTY`].
-    /// Creates a [`TrackingBuffer`] from this buffer.
-    ///
     /// All rows are marked.
     pub fn into_tracking(self) -> TrackingBuffer {
-        if self == Buffer::EMPTY {
-            return TrackingBuffer::EMPTY;
-        }
-
-        TrackingBuffer::from_buffer_dirty(self)
+        TrackingBuffer::from_buffer_marked(self)
     }
 
     /// Create a clean [`TrackingBuffer`] from this buffer.
     ///
     /// All rows are unmarked.
-    pub fn into_tracking_clean(self) -> TrackingBuffer {
-        TrackingBuffer::from_buffer_clean(self)
+    pub fn into_tracking_unmarked(self) -> TrackingBuffer {
+        TrackingBuffer::from_buffer_unmarked(self)
     }
 
-    pub fn into_tracking_scanned(self) -> TrackingBuffer {
-        TrackingBuffer::from_buffer_scanned(self)
+    /// Create a [`TrackingBuffer`] from this buffer.
+    ///
+    /// All rows are iterated over. They are marked if they are non-empty.
+    pub fn into_tracking_checked(self) -> TrackingBuffer {
+        TrackingBuffer::from_buffer_checked(self)
     }
 
     /// Returns the slice index of the given buffer index.

@@ -1,5 +1,5 @@
 use crate::{Buffer, Cell};
-use geometry::{Point, PointLike, Position, PositionLike, Resolve, Row};
+use geometry::{Point, Position, PositionLike, Resolve, Row};
 use std::ops;
 use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
@@ -11,7 +11,7 @@ pub trait BufferIndex: Clone {
     /// Returns the [`Self::Index`] for this location.
     ///
     /// This method does not perform any bounds checking.
-    #[inline]
+    
     fn into_slice_index(self, context: &Buffer) -> Self::Index;
 
     /// Returns a shared reference to the output at this location, if in
@@ -36,9 +36,9 @@ pub trait BufferIndex: Clone {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    unsafe fn get_unchecked(self, context: &Buffer) -> *const Self::Output {
+    unsafe fn get_unchecked(self, context: &Buffer) -> *const Self::Output { unsafe {
         SliceIndex::get_unchecked(self.into_slice_index(context), context.as_ref())
-    }
+    }}
     /// Returns a mutable pointer to the output at this location, without
     /// performing any bounds checking.
     ///
@@ -47,9 +47,9 @@ pub trait BufferIndex: Clone {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    unsafe fn get_unchecked_mut(self, context: &mut Buffer) -> *mut Self::Output {
+    unsafe fn get_unchecked_mut(self, context: &mut Buffer) -> *mut Self::Output { unsafe {
         SliceIndex::get_unchecked_mut(self.into_slice_index(context), context.as_mut())
-    }
+    }}
 
     /// Returns a shared reference to the output at this location, panicking
     /// if out of bounds.

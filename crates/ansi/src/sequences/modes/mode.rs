@@ -1,4 +1,3 @@
-use crate::{ResetMode, SetMode};
 use std::fmt;
 use std::fmt::{Display, Write};
 

@@ -1,7 +1,7 @@
 use super::{DataString, Intermediates, Parameters};
 use std::fmt;
 use std::fmt::Write;
-use utils::{Nested, NestedIter};
+use utils::Nested;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Esc {

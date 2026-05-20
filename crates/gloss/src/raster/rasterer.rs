@@ -6,7 +6,6 @@ use ansi::escape;
 use ansi::fmt::Fmt;
 use ansi::io::Write;
 use ansi::sequences::*;
-use bilge::prelude::u1;
 use geometry::{Resolve, Row};
 use std::io;
 use std::io::Write as _;
@@ -40,7 +39,7 @@ impl Rasterer {
     /// [`present`](Self::present).
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            output: Vec::with_capacity((width * height * 4)),
+            output: Vec::with_capacity(width * height * 4 ),
             pen: Pen::new(),
             capabilities: Capabilities::default(),
             invalidated: true,

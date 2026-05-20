@@ -1,5 +1,4 @@
 use derive_more::{AsMut, AsRef, Deref};
-use std::ops::Deref;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Debug, Clone, Copy, Deref, AsRef, AsMut, Hash)]

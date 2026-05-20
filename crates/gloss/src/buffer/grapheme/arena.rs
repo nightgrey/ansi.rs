@@ -316,7 +316,7 @@ impl std::fmt::Debug for Arena {
 }
 
 pub const trait AsOffset {
-    #[inline]
+    
     fn as_offset(self) -> usize;
 }
 

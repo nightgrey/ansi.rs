@@ -1,5 +1,5 @@
 use crate::{
-    ComputedLayout, Display, Element, ElementId, ElementKind, FlexDirection, Layout, Space,
+    ComputedLayout, Display, Element, ElementId, ElementKind, Layout, Space,
 };
 use compact_str::CompactString;
 use slotmap::Key;

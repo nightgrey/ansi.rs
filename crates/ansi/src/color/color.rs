@@ -1,11 +1,8 @@
 use crate::{ColorSpace, Escape};
-use bilge::prelude::*;
 use maybe::Maybe;
 use std::fmt::Debug;
-use std::io::Write;
-use std::marker::Destruct;
 use std::ops::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign,
 };
 
 #[derive_const(Default, Clone, Eq, PartialEq)]
@@ -50,7 +47,7 @@ impl Color {
         match (self, rhs) {
             (Color::None, _) => Color::None,
             (x, Color::None) => x,
-            (a, b) => Color::None,
+            (_a, _b) => Color::None,
         }
     }
     #[inline]

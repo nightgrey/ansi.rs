@@ -110,7 +110,7 @@ impl Grapheme {
     pub const fn inline(value: impl [const] Encode) -> Self {
         match value.try_inline() {
             Ok(g) => g,
-            Err(e) => panic!("Failed to encode value as an inline grapheme"),
+            Err(_e) => panic!("Failed to encode value as an inline grapheme"),
         }
     }
 
@@ -231,7 +231,7 @@ impl Grapheme {
     /// assert_eq!(g.as_str(&arena), "A");
     /// ```
     #[cfg(target_endian = "little")]
-    pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &str {
+    pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &'a str {
         if self.is_empty() || self.is_continuation() {
             ""
         } else if self.is_inline() {
@@ -242,7 +242,7 @@ impl Grapheme {
     }
 
     /// Resolve this grapheme to a byte slice.
-    pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &[u8] {
+    pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.as_str(arena).as_bytes()
     }
 

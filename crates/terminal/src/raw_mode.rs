@@ -1,5 +1,4 @@
-use crossbeam::epoch::Pointable;
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::Mutex;
 use rustix::termios::{OptionalActions, Termios, tcgetattr, tcsetattr};
 use utils::slot;
 
@@ -31,7 +30,7 @@ impl RawModeGuard {
     pub fn with(file: std::fs::File) -> io::Result<Self> {
         let original = tcgetattr(&file).map_err(io::Error::other)?;
 
-        let mut raw = original.clone();
+        let raw = original.clone();
         tcsetattr(&file, OptionalActions::Flush, &raw).map_err(io::Error::other)?;
 
         RawModeSlot::set(original.clone());

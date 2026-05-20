@@ -1,4 +1,4 @@
-use crate::{Buf, Buffer};
+use crate::Buffer;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
 use geometry::{Bound, Size};
 use std::ops::{Deref, DerefMut};

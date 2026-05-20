@@ -90,7 +90,7 @@ impl<K: Id, V> Tree<K, V> {
         self.inner.insert(Node::new(value))
     }
 
-    pub fn insertion(&mut self, value: V) -> Insertion<K, V> {
+    pub fn insertion(&mut self, value: V) -> Insertion<'_, K, V> {
         let key = self.insert(value);
         Insertion::new(self, key)
     }
@@ -169,13 +169,13 @@ impl<K: Id, V> Tree<K, V> {
     ///
     /// Panics if the position references a missing node or would create a cycle.
     /// Use [`try_insert_at`](Self::try_insert_at) for a fallible version.
-    pub fn insertion_at(&mut self, value: V, at: At<K>) -> Insertion<K, V> {
+    pub fn insertion_at(&mut self, value: V, at: At<K>) -> Insertion<'_, K, V> {
         let id = self.insert_at(value, at);
         Insertion::new(self, id)
     }
 
     /// Inserts a node at the specified position, returning an error on failure.
-    pub fn try_inserted_at(&mut self, value: V, at: At<K>) -> Result<Insertion<K, V>, Error<K>> {
+    pub fn try_inserted_at(&mut self, value: V, at: At<K>) -> Result<Insertion<'_, K, V>, Error<K>> {
         let id = self.try_insert_at(value, at)?;
         Ok(Insertion::new(self, id))
     }
@@ -451,7 +451,7 @@ impl<K: Id, V> Tree<K, V> {
     }
 
     /// Removes all nodes from the tree, yielding them as `(key, node)` pairs.
-    pub fn drain(&mut self) -> Drain<K, Node<K, V>> {
+    pub fn drain(&mut self) -> Drain<'_, K, Node<K, V>> {
         self.inner.drain()
     }
 

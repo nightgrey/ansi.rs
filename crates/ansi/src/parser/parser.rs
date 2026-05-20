@@ -1,7 +1,6 @@
 use super::*;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut};
-use std::mem;
 use utils::{Nested, NestedMut, NestedRaw, TryNestedMut};
 
 #[derive(Debug, Default)]

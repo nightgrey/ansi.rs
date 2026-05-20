@@ -60,7 +60,7 @@ impl<'a> Engine<'a> {
     {
         let buffer = &mut self.buffer.back;
         let arena = &mut self.arena;
-        let document = &self.document;
+        let _document = &self.document;
 
         buffer.clear();
         let mut ctx = BufferDrawingContext::new(buffer, arena);

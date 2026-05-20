@@ -2,7 +2,6 @@ use ansi::io::Write;
 use ansi::{Escape, Style, sequences::*};
 use maybe::Maybe;
 use std::io;
-use std::ops::Sub;
 
 /// Tracks the logical cursor position and current style state.
 #[derive(Clone, Copy, Debug)]

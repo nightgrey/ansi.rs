@@ -100,9 +100,7 @@
 //! - OSC queries for capabilities
 //! - Must be bounded with timeouts
 
-use bon::{Builder, bon};
-use compact_str::CompactString;
-use derive_more::Display;
+use bon::Builder;
 use std::env;
 use std::str::FromStr;
 

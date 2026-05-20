@@ -12,7 +12,6 @@
 /// id!(pub(crate) struct NodeId);
 /// ```
 #[macro_export]
-#[macro_use]
 macro_rules! id {
     ( $(#[$outer:meta])* $vis:vis struct $name:ident) => {
         use slotmap::Key as _;

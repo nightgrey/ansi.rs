@@ -38,7 +38,6 @@
 
 mod at;
 mod error;
-#[macro_export]
 mod id;
 pub mod iter;
 mod node;
@@ -52,5 +51,4 @@ pub use id::*;
 pub use iter::*;
 pub use node::*;
 pub use secondary::*;
-pub use traits::*;
 pub use tree::*;

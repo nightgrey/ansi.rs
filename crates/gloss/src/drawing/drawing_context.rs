@@ -2,7 +2,6 @@ use crate::{Border, Document, ElementId, ElementKind, Layout};
 use bon::Builder;
 use geometry::{Bound, Point, Rect, Size};
 use maybe::Maybe;
-use std::io;
 
 /// Per-call style overrides for fill operations.
 #[derive(Debug, Clone, Default, Builder, Copy)]

@@ -1,4 +1,4 @@
-use crate::{Id, Tree};
+use crate::Id;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use std::ops::{Deref, DerefMut};
 

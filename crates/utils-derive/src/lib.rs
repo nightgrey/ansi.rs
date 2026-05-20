@@ -2,7 +2,6 @@ extern crate proc_macro;
 
 use proc_macro2::{token_stream, Ident, Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
-use std::fmt::format;
 use std::iter::Peekable;
 
 /// A single cell in the transition table: (action, target_state) or empty.
@@ -13,7 +12,7 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item: TokenStream = item.into();
     let mut iter = item.into_iter().peekable();
 
-    let n = next_usize(&mut iter);
+    let _n = next_usize(&mut iter);
     expect_punct(&mut iter, ',');
 
     let mut states_iter = next_group(&mut iter).into_iter().peekable();

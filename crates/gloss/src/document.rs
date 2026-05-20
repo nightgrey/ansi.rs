@@ -1,6 +1,6 @@
 use crate::measure;
 use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
-use crate::{Layout, Length, Space, element};
+use crate::{Layout, Space};
 use geometry::Rect;
 use tree::{At, Secondary, Tree};
 
@@ -157,7 +157,7 @@ impl<'a> Document<'a> {
         let mut context = LayoutContext::new(
             &mut self.elements,
             &mut self.layouts,
-            |known, available, id, style| measure(known, available, style),
+            |known, available, _id, style| measure(known, available, style),
         );
 
         context.compute_layout(self.root_id, space.into());
@@ -169,7 +169,7 @@ impl<'a> Document<'a> {
         LayoutContext::new(
             &mut self.elements,
             &mut self.layouts,
-            |known, available, id, style| measure(known, available, style),
+            |known, available, _id, style| measure(known, available, style),
         )
         .print_tree(self.root_id)
     }

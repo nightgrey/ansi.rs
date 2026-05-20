@@ -4,7 +4,7 @@ mod iter;
 pub use edge::*;
 pub use iter::*;
 
-use crate::{Id, Node};
+use crate::Id;
 
 /// An iterator over `(key, &node)` pairs in a [`Tree`](crate::Tree).
 pub type Iter<'a, K: 'a + Id, V: 'a> = slotmap::basic::Iter<'a, K, V>;
@@ -31,4 +31,4 @@ pub type Nodes<'a, K: 'a + Id, V: 'a> = Values<'a, K, V>;
 pub type NodesMut<'a, K: 'a + Id, V: 'a> = ValuesMut<'a, K, V>;
 
 /// An owning iterator that moves `(key, node)` pairs out of a [`Tree`](crate::Tree).
-pub type IntoIter<K: Id, V> = slotmap::basic::IntoIter<K, V>;
+pub type IntoIter<K, V> = slotmap::basic::IntoIter<K, V>;

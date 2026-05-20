@@ -1,4 +1,3 @@
-use ansi::Color;
 use gloss::mock::*;
 use gloss::*;
 use std::io::{self, stdout};

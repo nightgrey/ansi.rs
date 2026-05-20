@@ -3,9 +3,9 @@ use crate::{Arena, Buffer, Cell, DrawingOptions};
 use crate::{Border, DrawingContext};
 use ansi::{Attribute, Color, Style};
 use bon::Builder;
-use derive_more::{Deref, DerefMut, Index, IndexMut};
+use derive_more::{Deref, DerefMut};
 use geometry::{
-    Bound, Contains, Edges, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos,
+    Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos,
 };
 use number::{SaturatingAdd, SaturatingSub};
 use smallvec::SmallVec;

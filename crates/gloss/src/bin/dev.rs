@@ -1,10 +1,10 @@
 use ansi::Color;
 use gloss::*;
-use std::io::{self, Write as _};
+use std::io::{self};
 
 fn main() -> io::Result<()> {
     let mut engine = Engine::new(40, 10);
-    let root = engine.root_id();
+    let _root = engine.root_id();
 
     engine.set_root(
         Element::Div()

@@ -1,18 +1,14 @@
 use async_broadcast::{InactiveReceiver, Receiver, broadcast};
-use async_channel::bounded;
 use rustix::termios::{Winsize, tcgetwinsize};
 use signal_hook::consts::signal::*;
-use signal_hook::flag;
-use signal_hook::low_level::{pipe, raise};
-use signal_hook_async_std::Signals as S;
+use signal_hook::low_level::pipe;
 use smol::{Async, Executor, future, io::*, lock::*, stream::*};
 use std::ffi::c_int;
 use std::io::{self, Read, stdin};
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::os::fd::AsFd;
 use std::os::unix::net::UnixStream;
 use std::panic::catch_unwind;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 use std::thread;
 
 /// Per-subscriber channel depth. On `Full` the message is dropped — a slow

@@ -139,11 +139,11 @@ impl Cell {
         self.is_empty()
     }
 
-    pub fn with_char(mut self, char: char, arena: &mut Arena) -> Self {
+    pub fn with_char(self, char: char, arena: &mut Arena) -> Self {
         self.with_char_measured(char, char.width().unwrap_or(0), arena)
     }
 
-    pub fn with_str(mut self, str: &str, arena: &mut Arena) -> Self {
+    pub fn with_str(self, str: &str, arena: &mut Arena) -> Self {
         self.with_str_measured(str, str.width(), arena)
     }
 

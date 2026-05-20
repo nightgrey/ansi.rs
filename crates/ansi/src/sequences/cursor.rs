@@ -1,4 +1,4 @@
-use crate::{Escape, cost, decimal_width, sequence};
+use crate::sequence;
 use derive_more::{Deref, DerefMut};
 
 sequence!(

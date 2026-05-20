@@ -1,4 +1,3 @@
-use std::io;
 
 /// Creates an ANSI sequence.
 ///

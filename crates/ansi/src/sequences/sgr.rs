@@ -108,7 +108,7 @@ impl Escape for SelectGraphicRenditionTransition {
 
         match (from.background, to.background) {
             (Color::None, Color::None) => {}
-            (from, Color::None) => {
+            (_from, Color::None) => {
                 separate!(w.write_all(b"49")?);
             }
             (Color::None, to) => {
@@ -120,7 +120,7 @@ impl Escape for SelectGraphicRenditionTransition {
         };
         match (from.foreground, to.foreground) {
             (Color::None, Color::None) => {}
-            (from, Color::None) => {
+            (_from, Color::None) => {
                 separate!(w.write_all(b"39")?);
             }
             (Color::None, to) => {
@@ -171,7 +171,7 @@ impl Debug for SelectGraphicRenditionTransition {
 
         match (from.foreground, to.foreground) {
             (Color::None, Color::None) => {}
-            (from, Color::None) => {
+            (_from, Color::None) => {
                 debug.field(&"Foreground Reset");
             }
             (_, to) => {

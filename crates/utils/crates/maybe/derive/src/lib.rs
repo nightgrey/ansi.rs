@@ -124,7 +124,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
         .filter(|v| has_maybe_default(&v.attrs))
         .collect();
 
-    let default_ident = match attr_default.len() {
+    let _default_ident = match attr_default.len() {
         0 => none_ident,
         1 => {
             let v = attr_default[0];

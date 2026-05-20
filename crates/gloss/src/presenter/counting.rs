@@ -25,8 +25,7 @@
 
 use derive_more::{AsMut, AsRef};
 use std::borrow::Borrow;
-use std::io::{self, BufWriter, Write};
-use std::time::{Duration, Instant};
+use std::io::{self, Write};
 
 /// A write wrapper that counts bytes written.
 ///
@@ -62,7 +61,7 @@ impl<W: Write> Counting<W> {
     }
 
     /// Unwraps this `CountingWriter<W>`, returning the underlying writer.
-    pub fn into_inner(mut self) -> W {
+    pub fn into_inner(self) -> W {
         self.inner
     }
 }

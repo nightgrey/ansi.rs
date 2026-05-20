@@ -1,6 +1,5 @@
 use super::*;
 use ansi::Color;
-use bon::Builder;
 use compact_str::CompactString;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

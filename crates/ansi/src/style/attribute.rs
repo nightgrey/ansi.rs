@@ -1,11 +1,10 @@
 use crate::Escape;
 use bitflags::{
-    Bits, Flag, Flags, bitflags,
+    Bits, Flags, bitflags,
     iter::{Iter, IterDefinedNames, IterNames},
 };
 use std::borrow::Cow;
 use std::fmt::from_fn;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 
 bitflags! {
     /// Attribute
@@ -218,9 +217,9 @@ impl Attribute {
     ///
     /// assert_eq!(attrs.to_string(), "Bold | Italic");
     /// ```
-    pub fn to_string(&self) -> Cow<str> {
+    pub fn to_string(&self) -> Cow<'_, str> {
         self.names()
-            .map(|(str, attr)| str)
+            .map(|(str, _attr)| str)
             .intersperse(" | ")
             .collect()
     }
@@ -240,7 +239,7 @@ impl std::fmt::Debug for Attribute {
 
 impl Escape for Attribute {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        for (i, (sgr, attr)) in self.iter_sgr().enumerate() {
+        for (i, (sgr, _attr)) in self.iter_sgr().enumerate() {
             if i > 0 {
                 w.write(b";")?;
             }

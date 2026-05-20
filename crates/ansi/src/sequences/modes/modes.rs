@@ -1,4 +1,4 @@
-use crate::{Mode, ModeSetting, ReportMode};
+use crate::{Mode, ModeSetting};
 use derive_more::{Deref, DerefMut, From};
 use std::collections::HashMap;
 

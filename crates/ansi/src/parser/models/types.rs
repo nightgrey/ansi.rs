@@ -1,6 +1,5 @@
 use utils::{ByteStr, ByteString, NestedIter, NestedSlice, NestedVec};
 
-pub use utils::Nested;
 
 /// Represents ANSI intermediates parameters, a sequence of bytes.
 pub type Intermediates = ByteString;

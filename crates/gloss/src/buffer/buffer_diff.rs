@@ -1,8 +1,8 @@
-use std::iter::FusedIterator;
+use crate::buffer::{Buffer, Cell};
+use crate::{BitSet, TrackingBuffer};
 use derive_more::{AsRef, Deref};
 use geometry::Point;
-use crate::buffer::{Buffer, Cell};
-use crate::{Bit, BitSet, TrackingBuffer};
+use std::iter::FusedIterator;
 
 /// A zero-allocation buffer diffing iterator
 ///
@@ -23,7 +23,7 @@ use crate::{Bit, BitSet, TrackingBuffer};
 #[derive(Debug)]
 pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
     state: Strategy::State,
-    strategy: Strategy
+    strategy: Strategy,
 }
 
 impl<'a> BufferDiff<'a, ByCells> {
@@ -63,7 +63,7 @@ impl<'a> BufferDiff<'a, ByRuns> {
     /// A zero-allocation diffing iterator over changed runs of consecutive cells on the same row.
     ///
     /// See [`BufferDiff`] and the [`ByRuns`] [`DiffStrategy`] for details.
-    pub fn runs(prev: &'a Buffer, next: &'a Buffer) -> Self{
+    pub fn runs(prev: &'a Buffer, next: &'a Buffer) -> Self {
         assert_eq!(
             prev.width, next.width,
             "buffers must have the same width: prev={}, next={}",
@@ -127,7 +127,6 @@ impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
 
 impl<'a, Strategy: DiffStrategy<'a>> FusedIterator for BufferDiff<'a, Strategy> {}
 
-
 /// A changed cell.
 #[derive(Copy, Clone, Debug, Deref, PartialEq)]
 pub struct Change<'a> {
@@ -161,7 +160,12 @@ pub struct Run<'a> {
 impl<'a> Run<'a> {
     #[inline]
     pub fn iter(&self) -> Runner<'a> {
-        Runner { x: self.x, y: self.y, cells: self.cells, idx: 0 }
+        Runner {
+            x: self.x,
+            y: self.y,
+            cells: self.cells,
+            idx: 0,
+        }
     }
 
     /// Total column width spanned by this run (sum of base-cell widths).
@@ -180,11 +184,12 @@ impl<'a> Run<'a> {
     }
 }
 
-
 impl<'a> IntoIterator for Run<'a> {
     type Item = Change<'a>;
     type IntoIter = Runner<'a>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -238,7 +243,6 @@ pub struct BaseDiffState<'a> {
     pos: usize,
 }
 
-
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].
 #[derive(Debug)]
@@ -277,7 +281,6 @@ pub trait DiffStrategy<'a>: Default + sealed::Sealed {
     fn size_hint(state: &Self::State) -> (usize, Option<usize>);
 }
 
-
 /// Diffs [`Change`]s for each cell that is different.
 /// See [`DiffStrategy`].
 #[derive(Debug, Default)]
@@ -288,8 +291,8 @@ impl<'a> DiffStrategy<'a> for ByCells {
     type Item = Change<'a>;
     type State = BaseDiffState<'a>;
 
-   #[inline]
-   fn next(state: &mut Self::State) -> Option<Self::Item> {
+    #[inline]
+    fn next(state: &mut Self::State) -> Option<Self::Item> {
         while state.pos < state.len {
             let row_end = state.pos - (state.pos % state.width) + state.width;
 
@@ -320,7 +323,11 @@ impl<'a> DiffStrategy<'a> for ByCells {
                 if current != &state.prev[i] {
                     let x = (i % state.width) as u16;
                     let y = (i / state.width) as u16;
-                    return Some(Change { x, y, cell: current });
+                    return Some(Change {
+                        x,
+                        y,
+                        cell: current,
+                    });
                 }
             }
         }
@@ -399,7 +406,7 @@ pub struct ByRuns;
 impl sealed::Sealed for ByRuns {}
 impl<'a> DiffStrategy<'a> for ByRuns {
     type Item = Run<'a>;
-type State = BaseDiffState<'a>;
+    type State = BaseDiffState<'a>;
 
     #[inline]
     fn next(state: &mut BaseDiffState<'a>) -> Option<Self::Item> {
@@ -477,8 +484,8 @@ type State = BaseDiffState<'a>;
 
 #[cfg(test)]
 mod tests {
-    use crate::Arena;
     use super::*;
+    use crate::Arena;
 
     mod by_runs {
         use super::*;
@@ -490,7 +497,6 @@ mod tests {
             assert!(diff.is_empty());
             assert_eq!(diff.iter().size_hint(), (0, Some(0)));
         }
-
 
         #[test]
         fn identical_buffers_yield_no_diffs() {
@@ -518,12 +524,15 @@ mod tests {
             let mut arena = Arena::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = Buffer::from_lines(["bbb"], &mut arena);
-            let  runs: Vec<_> = BufferDiff::runs(&prev, &next).collect();
-            let  one = runs[0].iter();
+            let runs: Vec<_> = BufferDiff::runs(&prev, &next).collect();
+            let one = runs[0].iter();
 
             assert_eq!(one.size_hint(), (0, Some(3)));
 
-            assert_eq!(one.map(|change| change.as_str(&arena)).collect::<String>(), "bbb");
+            assert_eq!(
+                one.map(|change| change.as_str(&arena)).collect::<String>(),
+                "bbb"
+            );
         }
 
         #[test]
@@ -534,7 +543,11 @@ mod tests {
             // Layout: [中, CONT, X, SPACE] — the wide 中 has a continuation at x=1.
             next.set_string(0..4, "中X", &mut arena);
 
-            let diff: Vec<_> = BufferDiff::runs(&prev, &next).next().unwrap().iter().collect();
+            let diff: Vec<_> = BufferDiff::runs(&prev, &next)
+                .next()
+                .unwrap()
+                .iter()
+                .collect();
 
             // Only the two base cells (x=0, x=2) differ; the continuation at x=1
             // is not emitted.
@@ -737,7 +750,11 @@ mod tests {
             // zero-width skip branch in `Runner::next`. This shouldn't happen
             // with a well-formed buffer, but the iterator should remain robust.
             let cells = [Cell::CONTINUATION, Cell::inline('a')];
-            let run = Run { x: 5, y: 2, cells: &cells };
+            let run = Run {
+                x: 5,
+                y: 2,
+                cells: &cells,
+            };
             let collected: Vec<_> = run.iter().map(|c| (c.x, c.y)).collect();
             assert_eq!(collected, vec![(5, 2)]);
         }
@@ -747,7 +764,11 @@ mod tests {
             // A slice consisting entirely of continuations has zero base cells,
             // so the lower bound must be 0 — not the current index.
             let cells = [Cell::CONTINUATION, Cell::CONTINUATION];
-            let run = Run { x: 0, y: 0, cells: &cells };
+            let run = Run {
+                x: 0,
+                y: 0,
+                cells: &cells,
+            };
             assert_eq!(run.iter().size_hint(), (0, Some(2)));
         }
 
@@ -957,9 +978,7 @@ mod tests {
             let next = Buffer::from_lines(["hallo"], &mut arena);
 
             let via_method: Vec<Point> = Buffer::diff_cells(&prev, &next).map(Into::into).collect();
-            let via_ctor: Vec<Point> = BufferDiff::cells(&prev, &next)
-                .map(Into::into)
-                .collect();
+            let via_ctor: Vec<Point> = BufferDiff::cells(&prev, &next).map(Into::into).collect();
 
             assert_eq!(via_method, via_ctor);
         }
@@ -1072,6 +1091,5 @@ mod tests {
             let next = TrackingBuffer::new(10, 1);
             let _ = next.diff(&prev);
         }
-
     }
 }

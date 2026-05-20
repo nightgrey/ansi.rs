@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use geometry::{Bound, Edges, Point, Rect, Size};
+use geometry::{Bound, Edges, Point, Rect};
 
 bitflags! {
     #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]

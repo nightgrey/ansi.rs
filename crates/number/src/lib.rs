@@ -8,7 +8,6 @@
 #![feature(range_into_bounds)]
 #![feature(const_destruct)]
 #![feature(const_option_ops)]
-#![feature(new_range_api)]
 
 pub mod consts;
 pub mod float;

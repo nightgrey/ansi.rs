@@ -102,9 +102,9 @@ impl Buffer {
     pub unsafe fn get_unchecked<I: BufferIndex>(
         &self,
         index: I,
-    ) -> *const <I::Index as SliceIndex<[Cell]>>::Output {
+    ) -> *const <I::Index as SliceIndex<[Cell]>>::Output { unsafe {
         index.get_unchecked(self)
-    }
+    }}
 
     /// Returns a mutable pointer to the output at this location, without
     /// performing any bounds checking.
@@ -116,9 +116,9 @@ impl Buffer {
     pub unsafe fn get_unchecked_mut<I: BufferIndex>(
         &mut self,
         index: I,
-    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
+    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output { unsafe {
         index.get_unchecked_mut(self)
-    }
+    }}
 
     pub fn contains<I: BufferIndex>(&self, index: I) -> bool {
         index.get(self).is_some()
@@ -416,7 +416,7 @@ impl Buffer {
         if index > self.height {
             return;
         }
-        
+
         let row = row.into_iter();
         let (input_len, _) = row.size_hint();
         assert!(
@@ -483,7 +483,7 @@ impl Buffer {
         self.inner.fill(Cell::default());
     }
 
-    pub fn iter_col(&self, col: usize) -> StepBy<Iter<Cell>> {
+    pub fn iter_col(&self, col: usize) -> StepBy<Iter<'_, Cell>> {
         assert!(
             col < self.width,
             "out of bounds. Column must be less than {:?}, but is {:?}",
@@ -494,7 +494,7 @@ impl Buffer {
         self.inner[col..].iter().step_by(self.width)
     }
 
-    pub fn iter_col_mut(&mut self, col: usize) -> StepBy<IterMut<Cell>> {
+    pub fn iter_col_mut(&mut self, col: usize) -> StepBy<IterMut<'_, Cell>> {
         assert!(
             col < self.width,
             "out of bounds. Column must be less than {:?}, but is {:?}",
@@ -504,7 +504,7 @@ impl Buffer {
         self.inner[col..].iter_mut().step_by(self.width)
     }
 
-    pub fn iter_row(&self, row: usize) -> Iter<Cell> {
+    pub fn iter_row(&self, row: usize) -> Iter<'_, Cell> {
         assert!(
             row < self.height,
             "out of bounds. Row must be less than {:?}, but is {:?}",
@@ -514,7 +514,7 @@ impl Buffer {
         self[row * self.width..row * self.width + self.width].iter()
     }
 
-    pub fn iter_row_mut(&mut self, row: usize) -> IterMut<Cell> {
+    pub fn iter_row_mut(&mut self, row: usize) -> IterMut<'_, Cell> {
         assert!(
             row < self.height,
             "out of bounds. Row must be less than {:?}, but is {:?}",
@@ -544,19 +544,19 @@ impl Buffer {
             .map(move |(idx, i)| ((idx / cols, idx % cols), i))
     }
 
-    pub fn iter_rows(&self) -> impl Iterator<Item = Iter<Cell>> {
+    pub fn iter_rows(&self) -> impl Iterator<Item = Iter<'_, Cell>> {
         (0..self.height).map(move |row| self.iter_row(row))
     }
 
-    pub fn iter_cols(&self) -> impl Iterator<Item = StepBy<Iter<Cell>>> {
+    pub fn iter_cols(&self) -> impl Iterator<Item = StepBy<Iter<'_, Cell>>> {
         (0..self.width).map(move |col| self.iter_col(col))
     }
 
-    pub fn iter(&self) -> Iter<Cell> {
+    pub fn iter(&self) -> Iter<'_, Cell> {
         self.inner.iter()
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<Cell> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, Cell> {
         self.inner.iter_mut()
     }
 
@@ -571,13 +571,13 @@ impl Buffer {
     pub fn diff<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
         Self::diff_cells(prev, next)
     }
-    
+
     /// Returns a [`BufferCells`] iterator.
     /// Yields a [`Changed`] for each cell that differs between `prev` and `next`.
     pub fn diff_cells<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
         BufferDiff::cells(prev, next)
     }
-    
+
     /// Returns a [`BufferRuns`] iterator.
     /// Yields a [`Run`] for each run of changed cells on the same row.
     pub fn diff_runs<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByRuns> {

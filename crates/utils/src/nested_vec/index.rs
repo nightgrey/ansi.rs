@@ -25,7 +25,7 @@ pub trait NestedIndex<T> {
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_>;
 
     /// Returns the length of the output at this location, if in bounds.
-    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize>;
+    fn get_len(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize>;
 }
 
 pub trait NestedIndexMut<T> {
@@ -90,7 +90,7 @@ impl<T> NestedIndex<T> for usize {
         }
     }
 
-    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+    fn get_len(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
         if self < nested.len() {
             let starts = nested.starts();
             unsafe {
@@ -148,7 +148,7 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
         }
     }
 
-    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+    fn get_len(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
         if self.end <= nested.len() {
             let starts = nested.starts();
 
@@ -213,7 +213,7 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
         }
     }
 
-    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+    fn get_len(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
         if *self.end() <= nested.len() {
             let starts = nested.starts();
             let values = nested.values();

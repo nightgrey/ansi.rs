@@ -8,3 +8,6 @@ derive_more = { workspace = true }
 synonym = "0.1.6"
 utils = { workspace = true }
 number = { workspace = true }
+
+[lints]
+workspace = true

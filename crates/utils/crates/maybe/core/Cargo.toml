@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 maybe-derive = { workspace = true }
+[lints]
+workspace = true

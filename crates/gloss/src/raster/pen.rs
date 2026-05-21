@@ -162,7 +162,7 @@ impl Pen {
 
     /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn transition(&mut self, to: Style, w: &mut Vec<u8>) -> io::Result<()> {
+    pub fn transition(&mut self, to: Style, w: &mut impl Write) -> io::Result<()> {
         if self.style == to {
             return Ok(());
         }

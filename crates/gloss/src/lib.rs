@@ -30,5 +30,6 @@ pub use engine::*;
 mod document;
 pub mod mock;
 pub mod presenter;
+pub use presenter::*;
 
 pub use document::*;

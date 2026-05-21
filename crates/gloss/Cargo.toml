@@ -45,3 +45,6 @@ harness = false
 [[bench]]
 name = "cell"
 harness = false
+
+[lints]
+workspace = true

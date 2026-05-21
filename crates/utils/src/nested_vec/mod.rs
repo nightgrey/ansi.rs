@@ -21,6 +21,8 @@ pub mod macros;
 pub use macros::*;
 
 mod index;
+mod soa_nested_vec;
+
 pub use index::*;
 
 #[cfg(test)]

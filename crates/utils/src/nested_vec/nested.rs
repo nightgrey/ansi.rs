@@ -8,21 +8,22 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]> {
     }
 
     unsafe fn get_unchecked<I: NestedIndex<T>>(&self, index: I) -> I::Output<'_> {
-        index.get_unchecked(self)
+            index.get_unchecked(self)
+    }
+
+    fn len_of<I: NestedIndex<T>>(&self, index: I) -> Option<usize> {
+        index.len_of(self)
     }
 
     fn first(&self) -> Option<&[T]>;
     fn last(&self) -> Option<&[T]>;
+
 
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 
     fn iter(&self) -> NestedIter<'_, T> {
         NestedIter::from_parts(self.starts(), self.values(), 0, self.len())
-    }
-
-    fn iter_flat(&self) -> std::slice::Iter<'_, T> {
-        self.values().iter()
     }
 
     #[inline]

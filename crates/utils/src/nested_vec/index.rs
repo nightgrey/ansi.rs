@@ -23,6 +23,35 @@ pub trait NestedIndex<T> {
     /// if out of bounds.
     #[track_caller]
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_>;
+
+    /// Returns the length of the output at this location, if in bounds.
+    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize>;
+}
+
+pub trait NestedIndexMut<T> {
+    type Output<'a>
+    where
+        T: 'a;
+
+    /// Returns a mutable reference to the output at this location, if in bounds.
+    fn get_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Option<Self::Output<'_>>;
+
+    /// Returns a mutable pointer to the output at this location, without
+    /// performing any bounds checking.
+    ///
+    /// Calling this method with an out-of-bounds index or a dangling `slice` pointer
+    /// is *[undefined behavior]* even if the resulting pointer is not used.
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    unsafe fn get_unchecked_mut(
+        self,
+        nested: &mut (impl NestedMut<T> + ?Sized),
+    ) -> Self::Output<'_>;
+
+    /// Returns a mutable reference to the output at this location, panicking
+    /// if out of bounds.
+    #[track_caller]
+    fn index_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Self::Output<'_>;
 }
 
 impl<T> NestedIndex<T> for usize {
@@ -35,7 +64,7 @@ impl<T> NestedIndex<T> for usize {
         if self >= nested.len() {
             return None;
         }
-        Some(&*unsafe { nested.get_unchecked(self) })
+        Some(&*unsafe { NestedIndex::get_unchecked(self, nested) })
     }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
@@ -60,6 +89,19 @@ impl<T> NestedIndex<T> for usize {
             nested_index_fail(self, self + 1, nested.len())
         }
     }
+
+    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+        if self < nested.len() {
+            let starts = nested.starts();
+            unsafe {
+                let start = *starts.get_unchecked(self);
+                let end = *starts.get_unchecked(self + 1);
+                Some(end - start)
+            }
+        } else {
+            nested_index_fail(self, self + 1, nested.len())
+        }
+    }
 }
 impl<T> NestedIndex<T> for ops::Range<usize> {
     type Output<'a>
@@ -68,28 +110,27 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
         T: 'a;
 
     fn get(self, nested: &(impl Nested<T> + ?Sized)) -> Option<Self::Output<'_>> {
-        if self.end <= nested.len() {
-            let starts = nested.starts();
-            // need range.end+1 starts to bound the last group
-            let starts = starts.get(self.start..=(self.end))?;
-            let inner = nested
-                .values()
-                .get(starts.first().copied()?..starts.last().copied()?)?;
-            unsafe { Some(NestedSlice::from_parts(inner, starts)) }
-        } else {
-            None
+            if self.end <= nested.len() {
+                let starts = nested.starts();
+                let inner = nested.values();
+                // need range.end+1 starts to bound the last group
+                unsafe {
+                    let starts = starts.get_unchecked(self.start..=(self.end));
+                    let inner = inner.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
+                    Some(NestedSlice::from_parts(inner, starts))
+                }
+            } else {
+                None
+            }
         }
-    }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
-        unsafe {
             let starts = nested.starts();
             let inner = nested.values();
             let starts = starts.get_unchecked(self.start..=self.end);
             let inner = inner
                 .get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
             NestedSlice::from_parts(inner, starts)
-        }
     }
 
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
@@ -106,6 +147,20 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
             nested_index_fail(self.start, self.end, nested.len())
         }
     }
+
+    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+        if self.end <= nested.len() {
+            let starts = nested.starts();
+
+            unsafe {
+                let start = starts.get_unchecked(self.start);
+                let end = starts.get_unchecked(self.end);
+                Some(end - start)
+            }
+        } else {
+            None
+        }
+    }
 }
 impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
     type Output<'a>
@@ -117,10 +172,13 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
         if *self.end() <= nested.len() {
             let starts = nested.starts();
             let values = nested.values();
-            // need range.end+1 starts to bound the last group
-            let starts = starts.get(*self.start()..=*self.end())?;
-            let inner = &values.get(starts.first().copied()?..starts.last().copied()?)?;
-            Some(unsafe { NestedSlice::from_parts(inner, starts) })
+
+            unsafe {
+                // need range.end+1 starts to bound the last group
+                let starts = starts.get_unchecked(*self.start()..=*self.end());
+                let inner = values.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
+                Some(NestedSlice::from_parts(inner, starts))
+            }
         } else {
             None
         }
@@ -154,32 +212,22 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
             nested_index_fail(*self.start(), *self.end(), nested.len())
         }
     }
-}
 
-pub trait NestedIndexMut<T> {
-    type Output<'a>
-    where
-        T: 'a;
+    fn len_of(self, nested: &(impl Nested<T> + ?Sized)) -> Option<usize> {
+        if *self.end() <= nested.len() {
+            let starts = nested.starts();
+            let values = nested.values();
 
-    /// Returns a mutable reference to the output at this location, if in bounds.
-    fn get_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Option<Self::Output<'_>>;
-
-    /// Returns a mutable pointer to the output at this location, without
-    /// performing any bounds checking.
-    ///
-    /// Calling this method with an out-of-bounds index or a dangling `slice` pointer
-    /// is *[undefined behavior]* even if the resulting pointer is not used.
-    ///
-    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    unsafe fn get_unchecked_mut(
-        self,
-        nested: &mut (impl NestedMut<T> + ?Sized),
-    ) -> Self::Output<'_>;
-
-    /// Returns a mutable reference to the output at this location, panicking
-    /// if out of bounds.
-    #[track_caller]
-    fn index_mut(self, nested: &mut (impl NestedMut<T> + ?Sized)) -> Self::Output<'_>;
+            unsafe {
+                // need range.end+1 starts to bound the last group
+                let start = starts.get_unchecked(*self.start());
+                let end = starts.get_unchecked(*self.end());
+                Some(end - start)
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl<T> NestedIndexMut<T> for usize {
@@ -218,6 +266,7 @@ impl<T> NestedIndexMut<T> for usize {
         }
     }
 }
+
 // TODO: ops::Range
 #[cfg_attr(not(panic = "immediate-abort"), inline(never), cold)]
 #[cfg_attr(panic = "immediate-abort", inline)]

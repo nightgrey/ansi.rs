@@ -12,23 +12,20 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item: TokenStream = item.into();
     let mut iter = item.into_iter().peekable();
 
-
-    let mut states_iter = next_group(&mut iter).into_iter().peekable();
-
     let mut states: Vec<Ident> = Vec::new();
     let mut transitions: Vec<[Cell; 256]> = Vec::new();
     let mut entry_actions: Vec<Option<TokenTree>> = Vec::new();
     let mut exit_actions: Vec<Option<TokenTree>> = Vec::new();
     let mut anywhere: [Cell; 256] = [const { None }; 256];
 
-    while states_iter.peek().is_some() {
-        let ident = match states_iter.next() {
+    while iter.peek().is_some() {
+        let ident = match iter.next() {
             Some(TokenTree::Ident(i)) => i,
             token => panic!("Expected ident, but got {:?}", token),
         };
         let is_anywhere = &ident == "Anywhere";
 
-        let mut body = next_group(&mut states_iter).into_iter().peekable();
+        let mut body = next_group(&mut iter).into_iter().peekable();
         let mut cells: [Cell; 256] = [const { None }; 256];
         let mut entry: Option<TokenTree> = None;
         let mut exit: Option<TokenTree> = None;
@@ -114,7 +111,7 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
             exit_actions.push(exit);
         }
 
-        optional_punct(&mut states_iter, ',');
+        optional_punct(&mut iter, ',');
     }
 
     // Merge Anywhere into every state. per-state takes priority over Anywhere.

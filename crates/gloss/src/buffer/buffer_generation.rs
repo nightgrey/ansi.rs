@@ -1,12 +1,16 @@
+use crate::{Buffer, Cell};
 use ansi::Color;
-use crate::{Arena, Buffer, Cell};
 pub fn buffer_solid(width: usize, height: usize, color: Color) -> Buffer {
     Buffer::from_fn(width, height, |_, _| Cell::default().with_background(color))
 }
 /// Creates a buffer with a checkerboard pattern using two cells.
 pub fn buffer_chessboard(width: usize, height: usize) -> Buffer {
     Buffer::from_fn(width, height, |row, col| {
-        if (row + col) % 2 == 0 { Cell::default().with_background(Color::BrightWhite) } else { Cell::default().with_background(Color::Black) }
+        if (row + col) % 2 == 0 {
+            Cell::default().with_background(Color::BrightWhite)
+        } else {
+            Cell::default().with_background(Color::Black)
+        }
     })
 }
 
@@ -21,4 +25,3 @@ pub fn buffer_diagonals(width: usize, height: usize) -> Buffer {
         }
     })
 }
-

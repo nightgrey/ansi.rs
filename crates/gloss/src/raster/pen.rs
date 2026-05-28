@@ -110,12 +110,7 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(
-        &mut self,
-        row: u16,
-        col: u16,
-        w: &mut impl Write,
-    ) -> io::Result<()> {
+    pub fn move_to_relative(&mut self, row: u16, col: u16, w: &mut impl Write) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }

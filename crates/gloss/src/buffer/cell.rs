@@ -1,9 +1,8 @@
-use core::fmt;
 use super::{Arena, Grapheme};
 use crate::AsOffset;
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
-use std::fmt::{from_fn, Debug, DebugTuple};
+use std::fmt::{Debug, from_fn};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 // Compile-time size check
@@ -291,7 +290,9 @@ impl Debug for Cell {
 
         let g = from_fn(|f| match grapheme.or(Some(Grapheme::EMPTY)) {
             Some(grapheme) if grapheme.is_inline() => f.write_str(grapheme.as_inline_str()),
-            Some(grapheme) if grapheme.is_extended() => write!(f, "Offset({:?})", grapheme.as_offset()),
+            Some(grapheme) if grapheme.is_extended() => {
+                write!(f, "Offset({:?})", grapheme.as_offset())
+            }
             Some(grapheme) if grapheme.is_continuation() => f.write_str(".."),
             _ => unreachable!(),
         });
@@ -311,7 +312,7 @@ impl Debug for Cell {
                 }
 
                 return debug.finish();
-            },
+            }
             (bg, fg, attr) => {
                 let mut debug = f.debug_tuple(if bg.is_some() {
                     "Cell::Background"

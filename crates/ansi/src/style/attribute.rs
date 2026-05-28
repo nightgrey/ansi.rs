@@ -3,9 +3,9 @@ use bitflags::{
     Bits, Flags, bitflags,
     iter::{Iter, IterDefinedNames, IterNames},
 };
+use maybe::Maybe;
 use std::borrow::Cow;
 use std::fmt::from_fn;
-use maybe::Maybe;
 
 bitflags! {
     /// Attribute

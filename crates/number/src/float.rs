@@ -35,11 +35,11 @@ pub trait Float: Number + Neg<Output = Self> {
     /// 1/π
     const FRAC_1_PI: Self;
 
-    #[feature(more_float_constants)]
+    #[cfg(feature = "more_float_constants")]
     const FRAC_1_SQRT_PI: Self;
 
     /// 1/sqrt(2π)
-    #[feature(more_float_constants)]
+    #[cfg(feature = "more_float_constants")]
     const FRAC_1_SQRT_2PI: Self;
 
     /// 2/π
@@ -55,11 +55,11 @@ pub trait Float: Number + Neg<Output = Self> {
     const FRAC_1_SQRT_2: Self;
 
     /// sqrt(3)
-    #[feature(more_float_constants)]
+    #[cfg(feature = "more_float_constants")]
     const SQRT_3: Self;
 
     /// 1/sqrt(3)
-    #[feature(more_float_constants)]
+    #[cfg(feature = "more_float_constants")]
     const FRAC_1_SQRT_3: Self;
 
     /// Euler's number (e)
@@ -91,7 +91,7 @@ pub trait Float: Number + Neg<Output = Self> {
     ///
     /// [Machine epsilon]: https://en.wikipedia.org/wiki/Machine_epsilon
     /// [`MANTISSA_DIGITS`]: f32::MANTISSA_DIGITS
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const EPSILON: Self;
 
     /// Smallest finite `f32` value.
@@ -99,14 +99,14 @@ pub trait Float: Number + Neg<Output = Self> {
     /// Equal to &minus;[`MAX`].
     ///
     /// [`MAX`]: f32::MAX
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const MIN: Self;
     /// Smallest positive normal `f32` value.
     ///
     /// Equal to 2<sup>[`MIN_EXP`]&nbsp;&minus;&nbsp;1</sup>.
     ///
     /// [`MIN_EXP`]: f32::MIN_EXP
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const MIN_POSITIVE: Self;
     /// Largest finite `f32` value.
     ///
@@ -115,7 +115,7 @@ pub trait Float: Number + Neg<Output = Self> {
     ///
     /// [`MANTISSA_DIGITS`]: f32::MANTISSA_DIGITS
     /// [`MAX_EXP`]: f32::MAX_EXP
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const MAX: Self;
 
     /// Not a Number (NaN).
@@ -130,15 +130,15 @@ pub trait Float: Number + Neg<Output = Self> {
     /// that the quiet/signaling bit being set to 1 indicates a quiet NaN). Beyond that, nothing is
     /// guaranteed about the specific bit pattern chosen here: both payload and sign are arbitrary.
     /// The concrete bit pattern may change across Rust versions and target platforms.
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const NAN: Self;
 
     /// Infinity (∞).
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const INFINITY: Self;
 
     /// Negative infinity (−∞).
-    #[feature(assoc_int_consts)]
+    #[cfg(feature = "assoc_int_consts")]
     const NEG_INFINITY: Self;
 
     /// Returns `true` if this value is `NaN` and false otherwise.
@@ -239,7 +239,7 @@ pub trait Float: Number + Neg<Output = Self> {
     /// assert!(lower_than_min.is_subnormal());
     /// ```
     /// [subnormal]: https://en.wikipedia.org/wiki/Subnormal_number
-    #[inline]
+
     fn is_subnormal(self) -> bool;
 
     /// Returns the floating point category of the number. If only one property
@@ -584,7 +584,6 @@ pub trait Float: Number + Neg<Output = Self> {
     ///
     /// assert!(abs_difference < 1e-10);
     /// ```
-    #[inline]
     fn to_degrees(self) -> Self;
 
     /// Converts degrees to radians.
@@ -598,7 +597,6 @@ pub trait Float: Number + Neg<Output = Self> {
     ///
     /// assert!(abs_difference < 1e-10);
     /// ```
-    #[inline]
     fn to_radians(self) -> Self;
 
     /// The positive difference of two numbers.
@@ -961,10 +959,10 @@ macro_rules! impl_float {
 
             const FRAC_1_PI: Self = std::$T::consts::FRAC_1_PI;
 
-            #[feature(more_float_constants)]
+            #[cfg(feature = "more_float_constants")]
             const FRAC_1_SQRT_PI: Self = std::$T::consts::FRAC_1_SQRT_PI;
 
-            #[feature(more_float_constants)]
+            #[cfg(feature = "more_float_constants")]
             const FRAC_1_SQRT_2PI: Self = std::$T::consts::FRAC_1_SQRT_2PI;
 
             const FRAC_2_PI: Self = std::$T::consts::FRAC_2_PI;
@@ -975,10 +973,10 @@ macro_rules! impl_float {
 
             const FRAC_1_SQRT_2: Self = std::$T::consts::FRAC_1_SQRT_2;
 
-            #[feature(more_float_constants)]
+            #[cfg(feature = "more_float_constants")]
             const SQRT_3: Self = std::$T::consts::SQRT_3;
 
-            #[feature(more_float_constants)]
+            #[cfg(feature = "more_float_constants")]
             const FRAC_1_SQRT_3: Self = std::$T::consts::FRAC_1_SQRT_3;
 
             const E: Self = std::$T::consts::E;
@@ -995,23 +993,23 @@ macro_rules! impl_float {
 
             const LN_10: Self = std::$T::consts::LN_10;
 
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const EPSILON: Self = std::$T::EPSILON;
 
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const MIN: Self = std::$T::MIN;
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const MIN_POSITIVE: Self = std::$T::MIN_POSITIVE;
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const MAX: Self = std::$T::MAX;
 
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const NAN: Self = std::$T::NAN;
 
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const INFINITY: Self = std::$T::INFINITY;
 
-            #[feature(assoc_int_consts)]
+            #[cfg(feature = "assoc_int_consts")]
             const NEG_INFINITY: Self = std::$T::NEG_INFINITY;
 
             #[inline]

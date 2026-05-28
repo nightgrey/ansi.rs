@@ -26,7 +26,6 @@ pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
     strategy: Strategy,
 }
 
-
 impl<'a> BufferDiff<'a, ByCells> {
     /// A zero-allocation diffing iterator over changed cells.
     pub fn cells(prev: &'a Buffer, next: &'a Buffer) -> Self {

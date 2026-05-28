@@ -1,4 +1,4 @@
-use crate::{Column, Edges, Point, PointLike, Rect, Row, Sides, Size};
+use crate::{Column, Edges, Point, Rect, Row, Sides, Size};
 use number::{Max, Min, One, Zero};
 
 impl<T: Zero> Zero for Point<T> {

@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use derive_more::{AsRef, Deref, DerefMut, Display, From, Into, IntoIterator};
+use derive_more::{Deref, DerefMut, Into, IntoIterator};
 use smallvec::SmallVec;
 
 #[derive(

@@ -10,7 +10,6 @@ mod steps;
 mod translate;
 
 pub use bound::*;
-pub use consts::*;
 pub use contains::*;
 pub use coordinate::*;
 pub use intersect::*;

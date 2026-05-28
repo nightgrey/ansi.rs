@@ -1,4 +1,4 @@
-use crate::{Nested, NestedConstructor, NestedIter, NestedMut, NestedSlice};
+use crate::{Nested, NestedConstructor, NestedMut};
 use core::ops::Index;
 use smallvec::SmallVec;
 use std::ops::IndexMut;
@@ -25,7 +25,7 @@ impl<T, const N: usize, const M: usize> NestedSoaVec<T, N, M> {
             groups: SmallVec::with_capacity(capacity + 1),
         }
     }
-    
+
     pub fn get(&self, index: usize) -> Option<&[T]> {
         let offset = self.groups[..index].iter().map(|&n| n as usize).sum();
         let len = self.groups[index];
@@ -111,7 +111,7 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedSoaVec<T, N, M> {
             None => {
                 self.groups.push(0);
                 &mut self.groups[0]
-            },
+            }
         };
         self.inner.extend(iter);
         *group_len = self.inner.len() - *group_len;
@@ -122,7 +122,7 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedSoaVec<T, N, M> {
             None => {
                 self.groups.push(0);
                 &mut self.groups[0]
-            },
+            }
         };
 
         self.inner.push(item);
@@ -154,7 +154,7 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedSoaVec<T, N, M> {
 }
 
 impl<T, Group: IntoIterator<Item = T>, const N: usize, const M: usize> FromIterator<Group>
-for NestedSoaVec<T, N, M>
+    for NestedSoaVec<T, N, M>
 {
     #[inline]
     fn from_iter<I: IntoIterator<Item = Group>>(iter: I) -> Self {

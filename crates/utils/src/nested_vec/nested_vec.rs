@@ -1,4 +1,4 @@
-use crate::{Nested, NestedConstructor, NestedIter, NestedMut, NestedSlice};
+use crate::{Nested, NestedConstructor, NestedMut};
 use core::ops::Index;
 use smallvec::SmallVec;
 use std::ops::IndexMut;

@@ -175,7 +175,11 @@ impl<K: Id, V> Tree<K, V> {
     }
 
     /// Inserts a node at the specified position, returning an error on failure.
-    pub fn try_inserted_at(&mut self, value: V, at: At<K>) -> Result<Insertion<'_, K, V>, Error<K>> {
+    pub fn try_inserted_at(
+        &mut self,
+        value: V,
+        at: At<K>,
+    ) -> Result<Insertion<'_, K, V>, Error<K>> {
         let id = self.try_insert_at(value, at)?;
         Ok(Insertion::new(self, id))
     }

@@ -1,5 +1,5 @@
-use crate::{Column, Edges, Point, PointLike, Rect, Row, Sides, Size};
-use number::{AssignOps, Max, Min, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
+use crate::{Column, Point, Rect, Row};
+use number::{AssignOps, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};

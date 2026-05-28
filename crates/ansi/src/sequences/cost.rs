@@ -83,7 +83,6 @@ impl Cost for CursorHorizontalAbsolute {
     }
 }
 
-
 impl Cost for HorizontalPositionAbsolute {
     fn cost(self) -> usize {
         // \x1B [ digits `

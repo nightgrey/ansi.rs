@@ -7,3 +7,7 @@ edition = "2024"
 
 [lints]
 workspace = true
+
+[features]
+more_float_constants = []
+assoc_int_consts = []

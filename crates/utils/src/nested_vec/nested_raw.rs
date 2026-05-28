@@ -1,5 +1,5 @@
 use crate::nested_vec::error::NestedError;
-use crate::{Nested, NestedConstructor, NestedIter, NestedMut, NestedSlice, TryNestedMut};
+use crate::{Nested, NestedConstructor, NestedMut, TryNestedMut};
 use core::ops::Index;
 use std::ops::IndexMut;
 
@@ -219,6 +219,7 @@ impl<T, const N: usize, const M: usize> AsMut<[T]> for NestedRaw<T, N, M> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::{NestedIter, NestedSlice};
 
     const N: usize = 8;
     const M: usize = 8;
@@ -242,7 +243,7 @@ mod tests {
         assert_eq!(&p[0], &[1, 2]);
         assert_eq!(&p.inner[..p.inner_len], &[1, 2]);
         assert_eq!(
-            super::NestedIter::from_parts(
+            NestedIter::from_parts(
                 &p.starts[..p.starts_len],
                 &p.inner[..p.inner_len],
                 0,
@@ -308,7 +309,7 @@ mod tests {
         p.push(items);
         assert_eq!(p.starts_len.saturating_sub(1), 3);
         assert_eq!(
-            super::NestedIter::from_parts(
+            NestedIter::from_parts(
                 &p.starts[..p.starts_len],
                 &p.inner[..p.inner_len],
                 0,

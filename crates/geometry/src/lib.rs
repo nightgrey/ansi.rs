@@ -40,5 +40,4 @@ mod traits;
 
 pub use geometry::*;
 pub use index::*;
-pub use macros::*;
 pub use traits::*;

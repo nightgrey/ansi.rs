@@ -1,5 +1,5 @@
 use crate::Resolve;
-use crate::{Bound, Coordinate, Point, Rect};
+use crate::{Bound, Coordinate};
 use std::iter::FusedIterator;
 
 pub trait Step<T> {
@@ -7,11 +7,11 @@ pub trait Step<T> {
     ///
     /// Returns `(n, Some(n))` when `start <= end` within bounds,
     /// or `(0, None)` when `start > end`.
-    #[inline(always)]
+    
     fn steps_between(&self, start: T, end: T) -> (usize, Option<usize>);
 
     /// Move `count` steps forward in row-major order, or `None` if out of bounds.
-    #[inline(always)]
+    
     fn forward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `forward_checked`, but panics on overflow.
@@ -31,7 +31,7 @@ pub trait Step<T> {
     }
 
     /// Move `count` steps backward in row-major order, or `None` if out of bounds.
-    #[inline(always)]
+    
     fn backward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `backward_checked`, but panics on underflow.

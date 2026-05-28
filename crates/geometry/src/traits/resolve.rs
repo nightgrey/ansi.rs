@@ -1,4 +1,4 @@
-use crate::{Bound, Column, Coordinate, Point, Position, Row};
+use crate::{Bound, Column, Coordinate, Row};
 use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
 /// Resolve a context-dependent value.
@@ -39,11 +39,10 @@ pub trait Resolve<T, U> {
     }
 }
 
-
 // Coordinate
 impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
     fn resolve(&self, value: P) -> usize {
-        (value.y( ) * self.width() + value.x()) as usize
+        (value.y() * self.width() + value.x()) as usize
     }
 
     fn try_resolve(&self, value: P) -> Option<usize> {
@@ -57,7 +56,7 @@ impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
 
 impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
     fn resolve(&self, value: P) -> Row {
-        Row((value.y() as usize))
+        Row(value.y() as usize )
     }
 
     fn try_resolve(&self, value: P) -> Option<Row> {
@@ -71,7 +70,7 @@ impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
 
 impl<B: Bound, P: Coordinate> Resolve<P, Column> for B {
     fn resolve(&self, value: P) -> Column {
-            Column((value.x() as usize))
+        Column(value.x() as usize )
     }
 
     fn try_resolve(&self, value: P) -> Option<Column> {
@@ -98,7 +97,7 @@ impl<B: Bound> Resolve<Row, usize> for B {
 }
 impl<B: Bound, P: Coordinate> Resolve<Row, P> for B {
     fn resolve(&self, value: Row) -> P {
-        P::new(self.min_x(), (value.into_inner() as u16))
+        P::new(self.min_x(), value.into_inner() as u16 )
     }
 
     fn try_resolve(&self, value: Row) -> Option<P> {
@@ -143,7 +142,7 @@ impl<B: Bound> Resolve<Row, Range<usize>> for B {
 // Column
 impl<B: Bound, P: Coordinate> Resolve<Column, P> for B {
     fn resolve(&self, value: Column) -> P {
-        P::new((value.into_inner() as u16), 0)
+        P::new(value.into_inner() as u16 , 0)
     }
 
     fn try_resolve(&self, value: Column) -> Option<P> {
@@ -189,10 +188,7 @@ impl<B: Bound, P: Coordinate> Resolve<usize, P> for B {
         let value = value as u16;
         let w = self.width();
 
-        P::new(
-            (value % w),
-            (value / w),
-        )
+        P::new(value % w , value / w )
     }
 
     fn try_resolve(&self, value: usize) -> Option<P> {
@@ -211,7 +207,7 @@ impl<B: Bound> Resolve<usize, usize> for B {
 
 impl<B: Bound> Resolve<usize, Row> for B {
     fn resolve(&self, value: usize) -> Row {
-        Row((value / self.width() as usize))
+        Row(value / self.width() as usize )
     }
 
     fn try_resolve(&self, value: usize) -> Option<Row> {
@@ -236,7 +232,6 @@ impl<B: Bound> Resolve<usize, Column> for B {
         }
     }
 }
-
 
 // ── Ranges ──────────────────────────────────
 //
@@ -329,8 +324,9 @@ impl<B: Bound> Resolve<RangeFull, Range<usize>> for B {
 
 #[cfg(test)]
 mod tests {
-    use crate::traits::bound::Bound as _;
+    use crate::{Point, Position};
     use super::*;
+    use crate::traits::bound::Bound as _;
 
     type Bound = crate::Rect;
 
@@ -341,11 +337,19 @@ mod tests {
     macro_rules! assert_resolve {
         ($ctx:tt, $value:expr => $expected:expr, $ty:ty) => {{
             let resolved: $ty = $ctx.resolve($value);
-            assert_eq!(resolved, $expected, "expected {:?} but got {:?}", $expected, resolved);
+            assert_eq!(
+                resolved, $expected,
+                "expected {:?} but got {:?}",
+                $expected, resolved
+            );
         }};
-       ($ctx:expr, $value:tt => $expected:tt) => {{
+        ($ctx:expr, $value:tt => $expected:tt) => {{
             let resolved = $ctx.resolve($value);
-            assert_eq!(resolved, $expected, "expected {:?} but got {:?}", $expected, resolved);
+            assert_eq!(
+                resolved, $expected,
+                "expected {:?} but got {:?}",
+                $expected, resolved
+            );
         }};
     }
 

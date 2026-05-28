@@ -18,7 +18,6 @@ pub use error::*;
 
 #[macro_use]
 pub mod macros;
-pub use macros::*;
 
 mod index;
 mod soa_nested_vec;

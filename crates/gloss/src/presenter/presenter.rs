@@ -141,15 +141,17 @@ impl<W: IoWrite> Presenter<W> {
         let dims_changed = prev.width != next.width || prev.height != next.height;
         let force_full = self.invalidated || dims_changed;
 
-        let emission = self.begin_frame(next.width, next.height, force_full).and_then(|()| {
-            if force_full {
-                self.emit_full(next, arena, &mut stats)
-            } else if self.is_inline() {
-                self.emit_diff_inline(prev, next, arena, &mut stats)
-            } else {
-                self.emit_diff(prev, next, arena, &mut stats)
-            }
-        });
+        let emission = self
+            .begin_frame(next.width, next.height, force_full)
+            .and_then(|()| {
+                if force_full {
+                    self.emit_full(next, arena, &mut stats)
+                } else if self.is_inline() {
+                    self.emit_diff_inline(prev, next, arena, &mut stats)
+                } else {
+                    self.emit_diff(prev, next, arena, &mut stats)
+                }
+            });
 
         let cleanup = self.finish_frame();
 
@@ -177,13 +179,15 @@ impl<W: IoWrite> Presenter<W> {
         let dims_changed = prev.width != next.width || prev.height != next.height;
         let force_full = self.invalidated || dims_changed;
 
-        let emission = self.begin_frame(next.width, next.height, force_full).and_then(|()| {
-            if force_full {
-                self.emit_full(next.as_inner(), arena, &mut stats)
-            } else {
-                self.emit_diff_dirty(prev, next, arena, &mut stats)
-            }
-        });
+        let emission = self
+            .begin_frame(next.width, next.height, force_full)
+            .and_then(|()| {
+                if force_full {
+                    self.emit_full(next.as_inner(), arena, &mut stats)
+                } else {
+                    self.emit_diff_dirty(prev, next, arena, &mut stats)
+                }
+            });
 
         let cleanup = self.finish_frame();
         emission?;
@@ -504,12 +508,7 @@ impl<W: IoWrite> Presenter<W> {
 /// advance the terminal cursor). Continuation cells are skipped — emitting a
 /// wide base already advanced the terminal cursor by the full width.
 #[inline]
-fn emit_cell<W: IoWrite>(
-    cell: &Cell,
-    w: &mut W,
-    pen: &mut Pen,
-    arena: &Arena,
-) -> io::Result<()> {
+fn emit_cell<W: IoWrite>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -> io::Result<()> {
     if cell.is_continuation() {
         return Ok(());
     }
@@ -570,13 +569,12 @@ fn bridge_cost(
     total
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use ansi::Color;
-    use crate::buffer_generation::{buffer_chessboard, buffer_diagonals, buffer_solid};
     use super::*;
+    use crate::buffer_generation::{buffer_chessboard, buffer_diagonals, buffer_solid};
+    use ansi::Color;
+    use std::io::Cursor;
 
     #[test]
     fn test() {
@@ -585,10 +583,9 @@ mod tests {
 
         let prev = buffer_solid(100, 100, Color::BrightWhite);
         dbg!(prev);
-        
+
         let next = buffer_diagonals(100, 100);
         let arena = Arena::new();
         dbg!(next);
-
     }
 }

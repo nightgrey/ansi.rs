@@ -1,4 +1,3 @@
-
 /// Creates an ANSI sequence.
 ///
 /// You can use this macro to create your own ANSI sequence. All sequences are

@@ -79,7 +79,11 @@ impl Buffer {
                 inner.push(f(row, col));
             }
         }
-        Self { inner, width, height }
+        Self {
+            inner,
+            width,
+            height,
+        }
     }
 
     pub fn width(&self) -> usize {
@@ -118,9 +122,9 @@ impl Buffer {
     pub unsafe fn get_unchecked<I: BufferIndex>(
         &self,
         index: I,
-    ) -> *const <I::Index as SliceIndex<[Cell]>>::Output { unsafe {
-        index.get_unchecked(self)
-    }}
+    ) -> *const <I::Index as SliceIndex<[Cell]>>::Output {
+        unsafe { index.get_unchecked(self) }
+    }
 
     /// Returns a mutable pointer to the output at this location, without
     /// performing any bounds checking.
@@ -132,9 +136,9 @@ impl Buffer {
     pub unsafe fn get_unchecked_mut<I: BufferIndex>(
         &mut self,
         index: I,
-    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output { unsafe {
-        index.get_unchecked_mut(self)
-    }}
+    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
+        unsafe { index.get_unchecked_mut(self) }
+    }
 
     pub fn contains<I: BufferIndex>(&self, index: I) -> bool {
         index.get(self).is_some()

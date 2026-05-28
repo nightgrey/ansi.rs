@@ -92,8 +92,8 @@ impl<W: Write> Borrow<W> for Counting<W> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::BufWriter;
     use super::*;
+    use std::io::BufWriter;
 
     // ============== CountingWriter Tests ==============
 

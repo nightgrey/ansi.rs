@@ -243,7 +243,6 @@ impl Grapheme {
         }
     }
 
-
     /// Interpret the inline bytes as a `&str`.
     ///
     /// # Safety
@@ -253,7 +252,7 @@ impl Grapheme {
     pub fn as_inline_str(&self) -> &str {
         unsafe { std::str::from_utf8_unchecked(self.as_inline_bytes()) }
     }
-    
+
     /// Resolve this grapheme to a byte slice.
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.as_str(arena).as_bytes()
@@ -302,7 +301,6 @@ impl Grapheme {
     pub fn inline_len(self) -> usize {
         memchr::memchr(0, &self.value.to_le_bytes()).unwrap_or(char::MAX_LEN_UTF8)
     }
-
 }
 
 impl From<char> for Grapheme {
@@ -314,16 +312,18 @@ impl From<char> for Grapheme {
 impl fmt::Debug for Grapheme {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            grapheme if grapheme.is_empty() => f.debug_tuple("Grapheme::Empty")
-                .finish(),
-            grapheme if grapheme.is_inline() => f.debug_tuple("Grapheme::Inline")
+            grapheme if grapheme.is_empty() => f.debug_tuple("Grapheme::Empty").finish(),
+            grapheme if grapheme.is_inline() => f
+                .debug_tuple("Grapheme::Inline")
                 .field(&self.as_inline_str())
                 .finish(),
-            grapheme if grapheme.is_extended() => f.debug_tuple("Grapheme::Extended")
+            grapheme if grapheme.is_extended() => f
+                .debug_tuple("Grapheme::Extended")
                 .field(&self.as_offset())
                 .finish(),
-            grapheme if grapheme.is_continuation() => f.debug_tuple("Grapheme::Continuation")
-                .finish(),
+            grapheme if grapheme.is_continuation() => {
+                f.debug_tuple("Grapheme::Continuation").finish()
+            }
             _ => unreachable!(),
         }
     }

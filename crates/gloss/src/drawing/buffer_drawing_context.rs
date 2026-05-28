@@ -4,9 +4,7 @@ use crate::{Border, DrawingContext};
 use ansi::{Attribute, Color, Style};
 use bon::Builder;
 use derive_more::{Deref, DerefMut};
-use geometry::{
-    Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos,
-};
+use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos};
 use number::{SaturatingAdd, SaturatingSub};
 use smallvec::SmallVec;
 use std::io;
@@ -474,7 +472,7 @@ mod tests {
     use crate::{Document, Element, FlexDirection, FontWeight, TextDecoration};
     use crate::{Grapheme, Layouted};
     use ansi::Color;
-    use geometry::{pos, Edges};
+    use geometry::{Edges, pos};
     use std::borrow::Cow;
     use std::ops::Sub;
     use tree::At;

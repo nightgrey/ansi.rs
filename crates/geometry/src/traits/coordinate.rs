@@ -1,5 +1,4 @@
 use crate::{Point, PointLike, Position, PositionLike};
-use std::ops::Deref;
 
 /// Two-dimensional screen-space coordinate
 ///
@@ -8,14 +7,14 @@ use std::ops::Deref;
 pub trait Coordinate: Copy + PartialEq + Eq + PartialOrd + Ord {
     fn new(x: u16, y: u16) -> Self;
 
-    #[inline]
+    
     fn x(&self) -> u16;
-    #[inline]
+    
     fn y(&self) -> u16;
 
-    #[inline]
+    
     fn set_x(&mut self, x: u16);
-    #[inline]
+    
     fn set_y(&mut self, y: u16);
 
     #[inline]

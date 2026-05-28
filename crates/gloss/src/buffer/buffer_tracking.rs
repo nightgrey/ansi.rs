@@ -26,16 +26,15 @@
 ///!
 ///! - `self.bits.len() == self.inner.height`.
 ///! - Row `y` is marked iff `self.bits.contains(y)`.
-
 use crate::{Arena, Buffer, BufferDiff, BufferIndex, ByDirty, Cell};
 use derive_more::{AsRef, Deref, From};
 pub use fixedbitset::IndexRange as TrackingRange;
 use geometry::{Bound, Point, Position, PositionLike, Rect, Resolve, Row};
 use std::fmt::Debug;
+use std::iter;
 use std::ops::{DerefMut, Index, IndexMut, RangeBounds};
 use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use std::slice::SliceIndex;
-use std::iter;
 use thiserror::Error;
 pub type BitSet2 = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_256bit>;
 pub type BitSet = fixedbitset::FixedBitSet;
@@ -164,7 +163,10 @@ impl TrackingBuffer {
 
     /// Tries to unmark every row in the given index.
     #[inline]
-    pub fn try_unmark(&mut self, index: impl TrackingBufferIndex) -> Result<(), TrackingBufferError> {
+    pub fn try_unmark(
+        &mut self,
+        index: impl TrackingBufferIndex,
+    ) -> Result<(), TrackingBufferError> {
         index.try_unmark(self)
     }
 
@@ -323,10 +325,12 @@ impl TrackingBuffer {
     pub unsafe fn get_unchecked_mut<I: TrackingBufferIndex>(
         &mut self,
         index: I,
-    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output { unsafe {
-        index.clone().mark(self);
-        self.inner.get_unchecked_mut(index)
-    }}
+    ) -> *mut <I::Index as SliceIndex<[Cell]>>::Output {
+        unsafe {
+            index.clone().mark(self);
+            self.inner.get_unchecked_mut(index)
+        }
+    }
 
     /// Clears the buffer and marks every row.
     pub fn clear(&mut self) {

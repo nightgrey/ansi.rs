@@ -1,5 +1,5 @@
+use std::num::Saturating;
 use std::ops::*;
-
 pub trait SaturatingOps<Rhs = Self>:
     SaturatingAdd<Rhs>
     + SaturatingSub<Rhs>
@@ -35,31 +35,31 @@ macro_rules! saturating_impl {
 
         impl SaturatingAdd for $T {
             fn saturating_add(self, rhs: Self) -> Self {
-                Self::saturating_add(self, rhs)
+                (Saturating(self) + Saturating(rhs)).0
             }
         }
 
         impl SaturatingSub for $T {
             fn saturating_sub(self, rhs: Self) -> Self {
-                Self::saturating_sub(self, rhs)
+                (Saturating(self) - Saturating(rhs)).0
             }
         }
 
         impl SaturatingMul for $T {
             fn saturating_mul(self, rhs: Self) -> Self {
-                Self::saturating_mul(self, rhs)
+                (Saturating(self) * Saturating(rhs)).0
             }
         }
 
         impl SaturatingRem for $T {
             fn saturating_rem(self, rhs: Self) -> Self {
-                Self::saturating_rem(self, rhs)
+                (Saturating(self) % Saturating(rhs)).0
             }
         }
 
         impl SaturatingDiv for $T {
             fn saturating_div(self, rhs: Self) -> Self {
-                Self::saturating_div(self, rhs)
+                (Saturating(self) / Saturating(rhs)).0
             }
         }
     };

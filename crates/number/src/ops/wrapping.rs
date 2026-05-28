@@ -1,3 +1,4 @@
+use std::num::Wrapping;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
 pub trait WrappingOps<Rhs = Self>:
@@ -31,31 +32,31 @@ macro_rules! wrapping_impl {
 
         impl WrappingAdd for $T {
             fn wrapping_add(self, rhs: Self) -> Self {
-                Self::wrapping_add(self, rhs)
+                (Wrapping(self) + Wrapping(rhs)).0
             }
         }
 
         impl WrappingSub for $T {
             fn wrapping_sub(self, rhs: Self) -> Self {
-                Self::wrapping_sub(self, rhs)
+                (Wrapping(self) - Wrapping(rhs)).0
             }
         }
 
         impl WrappingMul for $T {
             fn wrapping_mul(self, rhs: Self) -> Self {
-                Self::wrapping_mul(self, rhs)
+                (Wrapping(self) * Wrapping(rhs)).0
             }
         }
 
         impl WrappingRem for $T {
             fn wrapping_rem(self, rhs: Self) -> Self {
-                Self::wrapping_rem(self, rhs)
+                (Wrapping(self) % Wrapping(rhs)).0
             }
         }
 
         impl WrappingDiv for $T {
             fn wrapping_div(self, rhs: Self) -> Self {
-                Self::wrapping_div(self, rhs)
+                (Wrapping(self) / Wrapping(rhs)).0
             }
         }
     };

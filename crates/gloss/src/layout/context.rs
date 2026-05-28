@@ -1,6 +1,4 @@
-use crate::{
-    ComputedLayout, Display, Element, ElementId, ElementKind, Layout, Space,
-};
+use crate::{ComputedLayout, Display, Element, ElementId, ElementKind, Layout, Space};
 use compact_str::CompactString;
 use slotmap::Key;
 use taffy::{BlockContext, LayoutInput, LayoutOutput, TraversePartialTree};

@@ -1,6 +1,5 @@
-use crate::{Nested, NestedIter, NestedVec};
+use crate::Nested;
 use core::ops::Index;
-use smallvec::SmallVec;
 
 /// A borrowed view into a nested collection.
 ///

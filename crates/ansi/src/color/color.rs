@@ -1,9 +1,7 @@
 use crate::{ColorSpace, Escape};
 use maybe::Maybe;
 use std::fmt::Debug;
-use std::ops::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign,
-};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 
 #[derive_const(Default, Clone, Eq, PartialEq)]
 #[derive(Copy, Maybe)]

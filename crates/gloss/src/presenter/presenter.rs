@@ -1,7 +1,6 @@
 use super::Counting;
 use crate::raster::Pen;
 use crate::{Arena, Buffer, BufferDiff, Cell, TrackingBuffer};
-use ansi::Escape;
 use ansi::io::Write;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
@@ -148,10 +147,14 @@ impl<W: IoWrite> Presenter<W> {
         let emission = self
             .begin_frame(next.width, next.height, force_full)
             .and_then(|()| {
-                if force_full {
+                if self.is_inline() {
+                    if force_full {
+                        self.emit_inline_full(next, arena, &mut stats)
+                    } else {
+                        self.emit_diff_inline(prev, next, arena, &mut stats)
+                    }
+                } else if force_full {
                     self.emit_full(next, arena, &mut stats)
-                } else if self.is_inline() {
-                    self.emit_diff_inline(prev, next, arena, &mut stats)
                 } else {
                     self.emit_diff(prev, next, arena, &mut stats)
                 }
@@ -247,7 +250,7 @@ impl<W: IoWrite> Presenter<W> {
     /// Returns the first error encountered so the caller can prioritise it
     /// over an emission error.
     fn finish_frame(&mut self) -> io::Result<()> {
-        let style = self.pen.clear_style(&mut self.writer);
+        let style = self.pen.reset(&mut self.writer);
         let cursor = self.writer.escape(TextCursorEnable::Set);
         let sync = if self.capabilities.use_sync_output() {
             self.writer.escape(SynchronizedOutput::Reset)
@@ -268,9 +271,9 @@ impl<W: IoWrite> Presenter<W> {
     #[inline]
     fn move_pen(&mut self, row: u16, col: u16) -> io::Result<()> {
         if self.is_inline() {
-            self.pen.move_to_relative(row, col, &mut self.writer)
+            self.pen.relative_position(row, col, &mut self.writer)
         } else {
-            self.pen.move_to(row, col, &mut self.writer)
+            self.pen.position(row, col, &mut self.writer)
         }
     }
 
@@ -290,42 +293,9 @@ impl<W: IoWrite> Presenter<W> {
             return Ok(());
         }
 
-        if let Some(inline) = self.inline.as_mut()
-            && inline.is_first {
-                // First inline render: claim scrollback rows with \n separators.
-                inline.is_first = false;
-                inline.height = height;
-
-                for y in 0..height {
-                    if y > 0 {
-                        self.writer.write_all(b"\n")?;
-                    }
-                    let row = &next[Row(y)];
-                    let last = (0..width).rev().find(|&x| !row[x].is_empty());
-                    if let Some(end) = last {
-                        for col in 0..=end {
-                            emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
-                            stats.cells += 1;
-                        }
-                        stats.runs += 1;
-                    }
-                    self.pen.clear_style(&mut self.writer)?;
-                    self.writer.escape(EraseLineToEnd)?;
-                }
-
-                // Track final pen position so the next inline frame can do
-                // a CUU+CR back to the top.
-                self.pen.row = (height - 1) as u16;
-                let last_row = &next[Row(height - 1)];
-                self.pen.col = (0..width)
-                    .rev()
-                    .find(|&x| !last_row[x].is_empty())
-                    .map_or(0, |end| end as u16 + 1);
-
-                return Ok(());
-            }
-
-        // Fullscreen full-paint: write every non-empty row, EL its tail.
+        // Fullscreen full-paint: the screen was just homed + erased, so empty
+        // rows need no clearing and can be skipped. Write every non-empty row
+        // and EL its tail to drop any leftover content past the last cell.
         for y in 0..height {
             let row = &next[Row(y)];
             let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) else {
@@ -337,9 +307,101 @@ impl<W: IoWrite> Presenter<W> {
                 stats.cells += 1;
             }
             stats.runs += 1;
-            self.pen.clear_style(&mut self.writer)?;
+            self.pen.reset(&mut self.writer)?;
             self.writer.escape(EraseLineToEnd)?;
         }
+        Ok(())
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Inline full-paint path
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Full repaint in inline mode.
+    ///
+    /// On the very first frame this claims `height` rows of scrollback. On any
+    /// later forced repaint (resize, [`invalidate`](Self::invalidate), external
+    /// corruption) the rows already exist, so we rewind to the anchor and
+    /// rewrite every row in place. Unlike [`emit_full`](Self::emit_full) this
+    /// must EL-clear *every* row — there is no `EraseDisplay` in inline mode,
+    /// so skipping empty rows would leave the prior frame's content behind.
+    fn emit_inline_full(
+        &mut self,
+        next: &Buffer,
+        arena: &Arena,
+        stats: &mut PresentStats,
+    ) -> io::Result<()> {
+        let width = next.width;
+        let height = next.height;
+        if width == 0 || height == 0 {
+            return Ok(());
+        }
+
+        if self.inline.as_ref().is_some_and(|i| i.is_first) {
+            return self.inline_claim(next, arena, stats);
+        }
+
+        let prev_height = self.inline_grow(height)?;
+        self.inline_rewind()?;
+
+        for y in 0..height {
+            self.move_pen(y as u16, 0)?;
+            let row = &next[Row(y)];
+            if let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) {
+                for col in 0..=end {
+                    emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
+                    stats.cells += 1;
+                }
+                stats.runs += 1;
+            }
+            self.pen.reset(&mut self.writer)?;
+            self.writer.escape(EraseLineToEnd)?;
+        }
+
+        self.inline_shrink(prev_height, height)
+    }
+
+    /// First inline render: claim `height` rows of scrollback with `\n`
+    /// separators and record the anchor so later frames can rewind to it.
+    fn inline_claim(
+        &mut self,
+        next: &Buffer,
+        arena: &Arena,
+        stats: &mut PresentStats,
+    ) -> io::Result<()> {
+        let width = next.width;
+        let height = next.height;
+
+        if let Some(inline) = self.inline.as_mut() {
+            inline.is_first = false;
+            inline.height = height;
+        }
+
+        for y in 0..height {
+            if y > 0 {
+                self.writer.write_all(b"\n")?;
+            }
+            let row = &next[Row(y)];
+            if let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) {
+                for col in 0..=end {
+                    emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
+                    stats.cells += 1;
+                }
+                stats.runs += 1;
+            }
+            self.pen.reset(&mut self.writer)?;
+            self.writer.escape(EraseLineToEnd)?;
+        }
+
+        // Track the final pen position so the next inline frame can CUU+CR
+        // back to the top of the claimed region.
+        self.pen.row = (height - 1) as u16;
+        let last_row = &next[Row(height - 1)];
+        self.pen.col = (0..width)
+            .rev()
+            .find(|&x| !last_row[x].is_empty())
+            .map_or(0, |end| end as u16 + 1);
+
         Ok(())
     }
 
@@ -385,28 +447,10 @@ impl<W: IoWrite> Presenter<W> {
         arena: &Arena,
         stats: &mut PresentStats,
     ) -> io::Result<()> {
-        let inline = self.inline.as_mut().expect("inline state");
-        let prev_height = inline.height;
-        let height = next.height;
+        let prev_height = self.inline_grow(next.height)?;
+        self.inline_rewind()?;
 
-        // Grow: emit \n to claim new scrollback rows.
-        if height > prev_height {
-            let extra = height - prev_height;
-            for _ in 0..extra {
-                self.writer.write_all(b"\n")?;
-            }
-            self.pen.row += extra as u16;
-            inline.height = height;
-        }
-
-        // Rewind to the top of the claimed region.
-        if self.pen.row > 0 {
-            self.writer.escape(CursorUp(self.pen.row))?;
-        }
-        self.writer.escape(CarriageReturn)?;
-        self.pen.clear_position();
-
-        // Now run the same diff path with relative cursor moves.
+        // Run the same diff path as fullscreen, but with relative cursor moves.
         let mut runs = BufferDiff::runs(prev, next).peekable();
         while let Some(run) = runs.next() {
             self.move_pen(run.y, run.x)?;
@@ -425,22 +469,55 @@ impl<W: IoWrite> Presenter<W> {
             }
         }
 
-        // Shrink: clear any orphan rows below the new last row.
-        let inline = self.inline.as_mut().unwrap();
-        if height < prev_height {
-            for _ in height..prev_height {
-                self.pen
-                    .move_to_relative(self.pen.row + 1, 0, &mut self.writer)?;
-                self.writer.escape(EraseLineToEnd)?;
-            }
-            if self.pen.row > (height - 1) as u16 {
-                let up = self.pen.row - (height - 1) as u16;
-                self.writer.escape(CursorUp(up))?;
-                self.pen.row = (height - 1) as u16;
-            }
-            inline.height = height;
-        }
+        self.inline_shrink(prev_height, next.height)
+    }
 
+    // ────────────────────────────────────────────────────────────────────
+    // Inline scaffolding (shared by the diff and full-repaint paths)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// Claim extra scrollback rows when the frame grew, returning the height
+    /// the claimed region had *before* this frame (the basis for shrink).
+    fn inline_grow(&mut self, height: usize) -> io::Result<usize> {
+        let prev_height = self.inline.as_ref().expect("inline state").height;
+        if height > prev_height {
+            let extra = height - prev_height;
+            for _ in 0..extra {
+                self.writer.write_all(b"\n")?;
+            }
+            self.pen.row += extra as u16;
+            self.inline.as_mut().expect("inline state").height = height;
+        }
+        Ok(prev_height)
+    }
+
+    /// Rewind the pen to the top-left of the claimed region (CUU + CR).
+    fn inline_rewind(&mut self) -> io::Result<()> {
+        if self.pen.row > 0 {
+            self.writer.escape(CursorUp(self.pen.row))?;
+        }
+        self.writer.escape(CarriageReturn)?;
+        self.pen.origin();
+        Ok(())
+    }
+
+    /// Clear orphan rows when the frame shrank and pull the pen back up to the
+    /// new last row.
+    fn inline_shrink(&mut self, prev_height: usize, height: usize) -> io::Result<()> {
+        if height >= prev_height {
+            return Ok(());
+        }
+        for _ in height..prev_height {
+            self.pen
+                .relative_position(self.pen.row + 1, 0, &mut self.writer)?;
+            self.writer.escape(EraseLineToEnd)?;
+        }
+        if self.pen.row > (height - 1) as u16 {
+            let up = self.pen.row - (height - 1) as u16;
+            self.writer.escape(CursorUp(up))?;
+            self.pen.row = (height - 1) as u16;
+        }
+        self.inline.as_mut().expect("inline state").height = height;
         Ok(())
     }
 
@@ -521,7 +598,7 @@ fn emit_cell<W: IoWrite>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -
     if cell.is_continuation() {
         return Ok(());
     }
-    pen.transition(cell.style, w)?;
+    pen.style(cell.style, w)?;
     let bytes = cell.as_bytes(arena);
     if bytes.is_empty() {
         // EMPTY: emit a space to keep the grid aligned.
@@ -804,6 +881,47 @@ mod tests {
         let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', Style::None)]);
         let out = h.frame_str(&buf2, &Arena::new());
         assert!(out.contains("\x1B[K"), "should EL orphan rows: {out:?}");
+    }
+
+    #[test]
+    fn inline_invalidate_repaints_in_place() {
+        // After invalidate (no resize) the inline region already exists on
+        // screen, so the repaint must rewind (CUU) rather than re-claim with
+        // newlines, and it must re-emit the content.
+        let buf = Buffer::from_chars(
+            5,
+            2,
+            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)],
+        );
+        let mut h = Harness::inline(5, 2);
+        h.present(&buf, &Arena::new());
+
+        h.invalidate();
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(out.contains("\x1B[A"), "should CUU to rewind, not re-claim: {out:?}");
+        assert!(!out.contains('\n'), "must not claim new rows on repaint: {out:?}");
+        assert!(out.contains('a') && out.contains('b'), "should repaint content: {out:?}");
+    }
+
+    #[test]
+    fn inline_invalidate_clears_now_empty_row() {
+        // Row 1 had content; after invalidate the new frame leaves it empty.
+        // The fullscreen full-paint skips empty rows (EraseDisplay handles
+        // them), but inline has no EraseDisplay, so the row must be EL-cleared.
+        let buf1 = Buffer::from_chars(
+            5,
+            2,
+            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)],
+        );
+        let mut h = Harness::inline(5, 2);
+        h.present(&buf1, &Arena::new());
+
+        let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None)]);
+        h.invalidate();
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(!out.contains('b'), "stale 'b' should not be re-emitted: {out:?}");
+        // Two EL: one per row, including the now-empty row 1.
+        assert_eq!(out.matches("\x1B[K").count(), 2, "every row must be EL-cleared: {out:?}");
     }
 
     // ── Style tracking across frames ────────────────────────────────────

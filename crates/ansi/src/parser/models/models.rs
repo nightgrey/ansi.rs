@@ -1,6 +1,5 @@
 use super::{DataString, Intermediates, Parameters};
 use std::fmt;
-use std::fmt::Write;
 use utils::Nested;
 
 #[derive(Clone, PartialEq, Eq)]

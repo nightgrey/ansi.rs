@@ -14,20 +14,20 @@ use std::borrow::{Cow, ToOwned};
 /// The underlying storage is heap-allocated as long as it does not exceed [`N`].
 ///
 /// A `ByteString` owns its contents and can grow and shrink, like a `Vec` or `String`. For a
-/// borrowed intermediates string, see [`ByteStr`].
+/// borrowed intermediates string, see [`SmallByteStr`].
 ///
-/// `ByteString` implements `Deref` to `&SmallVec<u8>`, so all methods available on `&SmallVec<u8>` are
-/// available on `ByteString`. Similarly, `ByteString` implements `DerefMut` to `&mut SmallVec<u8>`,
-/// so you can modify a `ByteString` using any method available on `&mut SmallVec<u8>`.
+/// `ByteString` implements `Deref` to `&[u8]`, so all methods available on `&[u8]` are
+/// available on `ByteString`. Similarly, `ByteString` implements `DerefMut` to `&mut [u8]`,
+/// so you can modify a `ByteString` using any method available on `&mut [u8]`.
 ///
 /// The `Debug` and `Display` implementations for `ByteString` are the same as those for `ByteStr`,
 /// showing invalid UTF-8 as hex escapes or the Unicode replacement character, respectively.
 #[repr(transparent)]
 #[derive(Clone)]
 #[doc(alias = "ByteStr")]
-pub struct ByteString(pub CompactBytes);
+pub struct SmallByteString(pub CompactBytes);
 
-impl ByteString {
+impl SmallByteString {
     pub const EMPTY: Self = Self(CompactBytes::empty());
 
     pub const fn empty() -> Self {
@@ -45,13 +45,13 @@ impl ByteString {
     }
 
     #[inline]
-    pub(crate) fn as_byte_str(&self) -> &ByteStr {
-        ByteStr::new(&self.0)
+    pub(crate) fn as_byte_str(&self) -> &SmallByteStr {
+        SmallByteStr::new(&self.0)
     }
 
     #[inline]
-    pub(crate) fn as_mut_byte_str(&mut self) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0)
+    pub(crate) fn as_mut_byte_str(&mut self) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0)
     }
 
     #[inline]
@@ -65,7 +65,7 @@ impl ByteString {
     }
 }
 
-impl Deref for ByteString {
+impl Deref for SmallByteString {
     type Target = CompactBytes;
 
     #[inline]
@@ -74,162 +74,162 @@ impl Deref for ByteString {
     }
 }
 
-impl DerefMut for ByteString {
+impl DerefMut for SmallByteString {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl fmt::Debug for ByteString {
+impl fmt::Debug for SmallByteString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(std::bstr::ByteStr::new(&self), f)
     }
 }
 
-impl fmt::Display for ByteString {
+impl fmt::Display for SmallByteString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_byte_str(), f)
     }
 }
-impl AsRef<[u8]> for ByteString {
+impl AsRef<[u8]> for SmallByteString {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl AsRef<ByteStr> for ByteString {
+impl AsRef<SmallByteStr> for SmallByteString {
     #[inline]
-    fn as_ref(&self) -> &ByteStr {
+    fn as_ref(&self) -> &SmallByteStr {
         self.as_byte_str()
     }
 }
 
-impl AsMut<[u8]> for ByteString {
+impl AsMut<[u8]> for SmallByteString {
     #[inline]
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl AsMut<ByteStr> for ByteString {
+impl AsMut<SmallByteStr> for SmallByteString {
     #[inline]
-    fn as_mut(&mut self) -> &mut ByteStr {
+    fn as_mut(&mut self) -> &mut SmallByteStr {
         self.as_mut_byte_str()
     }
 }
 
-impl Borrow<[u8]> for ByteString {
+impl Borrow<[u8]> for SmallByteString {
     #[inline]
     fn borrow(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl Borrow<ByteStr> for ByteString {
+impl Borrow<SmallByteStr> for SmallByteString {
     #[inline]
-    fn borrow(&self) -> &ByteStr {
+    fn borrow(&self) -> &SmallByteStr {
         self.as_byte_str()
     }
 }
-impl Borrow<ByteStr> for Vec<u8> {
+impl Borrow<SmallByteStr> for Vec<u8> {
     #[inline]
-    fn borrow(&self) -> &ByteStr {
-        ByteStr::new(self)
+    fn borrow(&self) -> &SmallByteStr {
+        SmallByteStr::new(self)
     }
 }
-impl Borrow<ByteStr> for String {
+impl Borrow<SmallByteStr> for String {
     #[inline]
-    fn borrow(&self) -> &ByteStr {
-        ByteStr::new(self.as_bytes())
+    fn borrow(&self) -> &SmallByteStr {
+        SmallByteStr::new(self.as_bytes())
     }
 }
 
-impl BorrowMut<[u8]> for ByteString {
+impl BorrowMut<[u8]> for SmallByteString {
     #[inline]
     fn borrow_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
-impl BorrowMut<ByteStr> for ByteString {
+impl BorrowMut<SmallByteStr> for SmallByteString {
     #[inline]
-    fn borrow_mut(&mut self) -> &mut ByteStr {
+    fn borrow_mut(&mut self) -> &mut SmallByteStr {
         self.as_mut_byte_str()
     }
 }
-impl BorrowMut<ByteStr> for String {
+impl BorrowMut<SmallByteStr> for String {
     #[inline]
-    fn borrow_mut(&mut self) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(unsafe { self.as_bytes_mut() })
+    fn borrow_mut(&mut self) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(unsafe { self.as_bytes_mut() })
     }
 }
 
-impl Default for ByteString {
+impl Default for SmallByteString {
     fn default() -> Self {
-        ByteString::empty()
+        SmallByteString::empty()
     }
 }
 
-impl From<&[u8]> for ByteString {
+impl From<&[u8]> for SmallByteString {
     #[inline]
     fn from(s: &[u8]) -> Self {
         Self(CompactBytes::new(s))
     }
 }
 
-impl<const N: usize> From<[u8; N]> for ByteString {
+impl<const N: usize> From<[u8; N]> for SmallByteString {
     #[inline]
     fn from(s: [u8; N]) -> Self {
         Self(CompactBytes::new(&s))
     }
 }
-impl<const N: usize> From<&[u8; N]> for ByteString {
+impl<const N: usize> From<&[u8; N]> for SmallByteString {
     #[inline]
     fn from(s: &[u8; N]) -> Self {
         Self(CompactBytes::new(s))
     }
 }
-impl From<ByteString> for CompactBytes {
+impl From<SmallByteString> for CompactBytes {
     #[inline]
-    fn from(s: ByteString) -> Self {
+    fn from(s: SmallByteString) -> Self {
         s.0
     }
 }
 
-impl<'a> From<&'a ByteStr> for ByteString {
+impl<'a> From<&'a SmallByteStr> for SmallByteString {
     #[inline]
-    fn from(s: &'a ByteStr) -> Self {
-        ByteString(CompactBytes::new(&s.0))
+    fn from(s: &'a SmallByteStr) -> Self {
+        SmallByteString(CompactBytes::new(&s.0))
     }
 }
 
-impl<'a> From<ByteString> for Cow<'a, ByteStr> {
+impl<'a> From<SmallByteString> for Cow<'a, SmallByteStr> {
     #[inline]
-    fn from(s: ByteString) -> Self {
+    fn from(s: SmallByteString) -> Self {
         Cow::Owned(s)
     }
 }
 
-impl<'a> From<&'a ByteString> for Cow<'a, ByteStr> {
+impl<'a> From<&'a SmallByteString> for Cow<'a, SmallByteStr> {
     #[inline]
-    fn from(s: &'a ByteString) -> Self {
+    fn from(s: &'a SmallByteString) -> Self {
         Cow::Borrowed(s.as_byte_str())
     }
 }
 
-impl FromIterator<char> for ByteString {
+impl FromIterator<char> for SmallByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
-        ByteString(CompactBytes::new(
+        SmallByteString(CompactBytes::new(
             iter.into_iter().collect::<String>().as_bytes(),
         ))
     }
 }
 
-impl FromIterator<u8> for ByteString {
+impl FromIterator<u8> for SmallByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
         let mut buf = CompactBytes::empty();
@@ -237,70 +237,70 @@ impl FromIterator<u8> for ByteString {
             buf.push(b);
         }
 
-        ByteString(buf)
+        SmallByteString(buf)
     }
 }
 
-impl<'a> FromIterator<&'a u8> for ByteString {
+impl<'a> FromIterator<&'a u8> for SmallByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = &'a u8>>(iter: T) -> Self {
         let mut buf = CompactBytes::empty();
         for b in iter {
             buf.push(*b);
         }
-        ByteString(buf)
+        SmallByteString(buf)
     }
 }
 
-impl<'a> FromIterator<&'a str> for ByteString {
+impl<'a> FromIterator<&'a str> for SmallByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        ByteString(CompactBytes::new(
+        SmallByteString(CompactBytes::new(
             iter.into_iter().collect::<String>().as_bytes(),
         ))
     }
 }
 
-impl<'a> FromIterator<&'a [u8]> for ByteString {
+impl<'a> FromIterator<&'a [u8]> for SmallByteString {
     #[inline]
     fn from_iter<T: IntoIterator<Item = &'a [u8]>>(iter: T) -> Self {
         let mut buf = CompactBytes::empty();
         for b in iter {
             buf.extend_from_slice(b);
         }
-        ByteString(buf)
+        SmallByteString(buf)
     }
 }
 
-impl<'a> FromIterator<&'a ByteStr> for ByteString {
-    fn from_iter<T: IntoIterator<Item = &'a ByteStr>>(iter: T) -> Self {
+impl<'a> FromIterator<&'a SmallByteStr> for SmallByteString {
+    fn from_iter<T: IntoIterator<Item = &'a SmallByteStr>>(iter: T) -> Self {
         let mut buf = CompactBytes::empty();
         for b in iter {
             buf.extend_from_slice(&b.0);
         }
-        ByteString(buf)
+        SmallByteString(buf)
     }
 }
 
-impl FromIterator<ByteString> for ByteString {
+impl FromIterator<SmallByteString> for SmallByteString {
     #[inline]
-    fn from_iter<T: IntoIterator<Item = ByteString>>(iter: T) -> Self {
-        ByteString(CompactBytes::new(
+    fn from_iter<T: IntoIterator<Item =SmallByteString>>(iter: T) -> Self {
+        SmallByteString(CompactBytes::new(
             iter.into_iter().collect::<Vec<_>>().concat().as_slice(),
         ))
     }
 }
 
-impl FromStr for ByteString {
+impl FromStr for SmallByteString {
     type Err = core::convert::Infallible;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(ByteString(CompactBytes::new(s.as_bytes())))
+        Ok(SmallByteString(CompactBytes::new(s.as_bytes())))
     }
 }
 
-impl Index<usize> for ByteString {
+impl Index<usize> for SmallByteString {
     type Output = u8;
 
     #[inline]
@@ -309,121 +309,121 @@ impl Index<usize> for ByteString {
     }
 }
 
-impl Index<RangeFull> for ByteString {
-    type Output = ByteStr;
+impl Index<RangeFull> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, _: RangeFull) -> &ByteStr {
+    fn index(&self, _: RangeFull) -> &SmallByteStr {
         self.as_byte_str()
     }
 }
 
-impl Index<Range<usize>> for ByteString {
-    type Output = ByteStr;
+impl Index<Range<usize>> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, r: Range<usize>) -> &ByteStr {
-        ByteStr::from_bytes(&self.0[r])
+    fn index(&self, r: Range<usize>) -> &SmallByteStr {
+        SmallByteStr::from_bytes(&self.0[r])
     }
 }
 
-impl Index<RangeInclusive<usize>> for ByteString {
-    type Output = ByteStr;
+impl Index<RangeInclusive<usize>> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, r: RangeInclusive<usize>) -> &ByteStr {
-        ByteStr::from_bytes(&self.0[r])
+    fn index(&self, r: RangeInclusive<usize>) -> &SmallByteStr {
+        SmallByteStr::from_bytes(&self.0[r])
     }
 }
 
-impl Index<RangeFrom<usize>> for ByteString {
-    type Output = ByteStr;
+impl Index<RangeFrom<usize>> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, r: RangeFrom<usize>) -> &ByteStr {
-        ByteStr::from_bytes(&self.0[r])
+    fn index(&self, r: RangeFrom<usize>) -> &SmallByteStr {
+        SmallByteStr::from_bytes(&self.0[r])
     }
 }
 
-impl Index<RangeTo<usize>> for ByteString {
-    type Output = ByteStr;
+impl Index<RangeTo<usize>> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, r: RangeTo<usize>) -> &ByteStr {
-        ByteStr::from_bytes(&self.0[r])
+    fn index(&self, r: RangeTo<usize>) -> &SmallByteStr {
+        SmallByteStr::from_bytes(&self.0[r])
     }
 }
 
-impl Index<RangeToInclusive<usize>> for ByteString {
-    type Output = ByteStr;
+impl Index<RangeToInclusive<usize>> for SmallByteString {
+    type Output = SmallByteStr;
 
     #[inline]
-    fn index(&self, r: RangeToInclusive<usize>) -> &ByteStr {
-        ByteStr::from_bytes(&self.0[r])
+    fn index(&self, r: RangeToInclusive<usize>) -> &SmallByteStr {
+        SmallByteStr::from_bytes(&self.0[r])
     }
 }
 
-impl IndexMut<usize> for ByteString {
+impl IndexMut<usize> for SmallByteString {
     #[inline]
     fn index_mut(&mut self, idx: usize) -> &mut u8 {
         &mut self.0[idx]
     }
 }
 
-impl IndexMut<RangeFull> for ByteString {
+impl IndexMut<RangeFull> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, _: RangeFull) -> &mut ByteStr {
+    fn index_mut(&mut self, _: RangeFull) -> &mut SmallByteStr {
         self.as_mut_byte_str()
     }
 }
 
-impl IndexMut<Range<usize>> for ByteString {
+impl IndexMut<Range<usize>> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, r: Range<usize>) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0[r])
+    fn index_mut(&mut self, r: Range<usize>) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0[r])
     }
 }
 
-impl IndexMut<RangeInclusive<usize>> for ByteString {
+impl IndexMut<RangeInclusive<usize>> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, r: RangeInclusive<usize>) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0[r])
+    fn index_mut(&mut self, r: RangeInclusive<usize>) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0[r])
     }
 }
 
-impl IndexMut<RangeFrom<usize>> for ByteString {
+impl IndexMut<RangeFrom<usize>> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, r: RangeFrom<usize>) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0[r])
+    fn index_mut(&mut self, r: RangeFrom<usize>) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0[r])
     }
 }
 
-impl IndexMut<RangeTo<usize>> for ByteString {
+impl IndexMut<RangeTo<usize>> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, r: RangeTo<usize>) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0[r])
+    fn index_mut(&mut self, r: RangeTo<usize>) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0[r])
     }
 }
 
-impl IndexMut<RangeToInclusive<usize>> for ByteString {
+impl IndexMut<RangeToInclusive<usize>> for SmallByteString {
     #[inline]
-    fn index_mut(&mut self, r: RangeToInclusive<usize>) -> &mut ByteStr {
-        ByteStr::from_bytes_mut(&mut self.0[r])
+    fn index_mut(&mut self, r: RangeToInclusive<usize>) -> &mut SmallByteStr {
+        SmallByteStr::from_bytes_mut(&mut self.0[r])
     }
 }
 
-impl hash::Hash for ByteString {
+impl hash::Hash for SmallByteString {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl Eq for ByteString {}
+impl Eq for SmallByteString {}
 
-impl PartialEq for ByteString {
+impl PartialEq for SmallByteString {
     #[inline]
-    fn eq(&self, other: &ByteString) -> bool {
+    fn eq(&self, other: &SmallByteString) -> bool {
         self.0 == other.0
     }
 }
@@ -603,112 +603,112 @@ macro_rules! impl_partial_eq_n {
 }
 
 // PartialOrd with `Vec<u8>` omitted to avoid inference failures
-impl_partial_eq!(ByteString, Vec<u8>);
+impl_partial_eq!(SmallByteString, Vec<u8>);
 // PartialOrd with `[u8]` omitted to avoid inference failures
-impl_partial_eq!(ByteString, [u8]);
+impl_partial_eq!(SmallByteString, [u8]);
 // PartialOrd with `&[u8]` omitted to avoid inference failures
-impl_partial_eq!(ByteString, &[u8]);
+impl_partial_eq!(SmallByteString, &[u8]);
 // PartialOrd with `String` omitted to avoid inference failures
-impl_partial_eq!(ByteString, String);
+impl_partial_eq!(SmallByteString, String);
 // PartialOrd with `str` omitted to avoid inference failures
-impl_partial_eq!(ByteString, str);
+impl_partial_eq!(SmallByteString, str);
 // PartialOrd with `&str` omitted to avoid inference failures
-impl_partial_eq!(ByteString, &str);
-impl_partial_eq_ord!(ByteString, ByteStr);
-impl_partial_eq_ord!(ByteString, &ByteStr);
+impl_partial_eq!(SmallByteString, &str);
+impl_partial_eq_ord!(SmallByteString, SmallByteStr);
+impl_partial_eq_ord!(SmallByteString, &SmallByteStr);
 // PartialOrd with `[u8]` omitted to avoid inference failures
-impl_partial_eq_n!(ByteString, [u8; N]);
+impl_partial_eq_n!(SmallByteString, [u8; N]);
 // PartialOrd with `&[u8]` omitted to avoid inference failures
-impl_partial_eq_n!(ByteString, &[u8; N]);
-impl_partial_eq_ord_cow!(ByteString, Cow<'_, ByteStr>);
-impl_partial_eq_ord_cow!(ByteString, Cow<'_, str>);
-impl_partial_eq_ord_cow!(ByteString, Cow<'_, [u8]>);
+impl_partial_eq_n!(SmallByteString, &[u8; N]);
+impl_partial_eq_ord_cow!(SmallByteString, Cow<'_, SmallByteStr>);
+impl_partial_eq_ord_cow!(SmallByteString, Cow<'_, str>);
+impl_partial_eq_ord_cow!(SmallByteString, Cow<'_, [u8]>);
 
-impl Ord for ByteString {
+impl Ord for SmallByteString {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&self.0.as_slice(), &other.0.as_slice())
     }
 }
 
-impl PartialOrd for ByteString {
+impl PartialOrd for SmallByteString {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         PartialOrd::partial_cmp(&self.0.as_slice(), &other.0.as_slice())
     }
 }
 
-impl ToOwned for ByteStr {
-    type Owned = ByteString;
+impl ToOwned for SmallByteStr {
+    type Owned = SmallByteString;
 
     #[inline]
-    fn to_owned(&self) -> ByteString {
-        ByteString(CompactBytes::new(&self.0))
+    fn to_owned(&self) -> SmallByteString {
+        SmallByteString(CompactBytes::new(&self.0))
     }
 }
 
-impl TryFrom<ByteString> for String {
+impl TryFrom<SmallByteString> for String {
     type Error = std::string::FromUtf8Error;
 
     #[inline]
-    fn try_from(s: ByteString) -> Result<Self, Self::Error> {
+    fn try_from(s: SmallByteString) -> Result<Self, Self::Error> {
         String::from_utf8(s.0.to_vec())
     }
 }
 
-impl<'a> TryFrom<&'a ByteString> for &'a str {
+impl<'a> TryFrom<&'a SmallByteString> for &'a str {
     type Error = std::str::Utf8Error;
 
     #[inline]
-    fn try_from(s: &'a ByteString) -> Result<Self, Self::Error> {
+    fn try_from(s: &'a SmallByteString) -> Result<Self, Self::Error> {
         std::str::from_utf8(s.0.as_slice())
     }
 }
 
 // Additional impls for `ByteStr` that require types from `alloc`:
-impl Clone for Box<ByteStr> {
+impl Clone for Box<SmallByteStr> {
     #[inline]
     fn clone(&self) -> Self {
         Self::from(Box::<[u8]>::from(&self.0 as &[u8]))
     }
 }
 
-impl<'a> From<&'a ByteStr> for Cow<'a, ByteStr> {
+impl<'a> From<&'a SmallByteStr> for Cow<'a, SmallByteStr> {
     #[inline]
-    fn from(s: &'a ByteStr) -> Self {
+    fn from(s: &'a SmallByteStr) -> Self {
         Cow::Borrowed(s)
     }
 }
 
-impl From<Box<[u8]>> for Box<ByteStr> {
+impl From<Box<[u8]>> for Box<SmallByteStr> {
     #[inline]
-    fn from(s: Box<[u8]>) -> Box<ByteStr> {
+    fn from(s: Box<[u8]>) -> Box<SmallByteStr> {
         // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
         unsafe { Box::from_raw(Box::into_raw(s) as _) }
     }
 }
 
-impl From<Box<ByteStr>> for Box<[u8]> {
+impl From<Box<SmallByteStr>> for Box<[u8]> {
     #[inline]
-    fn from(s: Box<ByteStr>) -> Box<[u8]> {
+    fn from(s: Box<SmallByteStr>) -> Box<[u8]> {
         // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
         unsafe { Box::from_raw(Box::into_raw(s) as _) }
     }
 }
 
 // PartialOrd with `Vec<u8>` omitted to avoid inference failures
-impl_partial_eq!(ByteStr, Vec<u8>);
+impl_partial_eq!(SmallByteStr, Vec<u8>);
 // PartialOrd with `String` omitted to avoid inference failures
-impl_partial_eq!(ByteStr, String);
-impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, ByteStr>);
-impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, str>);
-impl_partial_eq_ord_cow!(&ByteStr, Cow<'_, [u8]>);
+impl_partial_eq!(SmallByteStr, String);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, SmallByteStr>);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, str>);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, [u8]>);
 
-impl<'a> TryFrom<&'a ByteStr> for String {
+impl<'a> TryFrom<&'a SmallByteStr> for String {
     type Error = core::str::Utf8Error;
 
     #[inline]
-    fn try_from(s: &'a ByteStr) -> Result<Self, Self::Error> {
+    fn try_from(s: &'a SmallByteStr) -> Result<Self, Self::Error> {
         Ok(core::str::from_utf8(&s.0)?.into())
     }
 }
@@ -716,7 +716,7 @@ impl<'a> TryFrom<&'a ByteStr> for String {
 /// A wrapper for `&[u8]` representing a human-readable string that's conventionally, but not always, UTF-8.
 ///
 /// For an owned, growable string buffer, use
-/// [`ByteString`].
+/// [`SmallByteString`].
 ///
 /// `ByteStr` implements `Deref` to `[u8]`, so all methods available on `[u8]` are available on
 /// `ByteStr`.
@@ -738,9 +738,9 @@ impl<'a> TryFrom<&'a ByteStr> for String {
 /// `str`, with invalid UTF-8 presented as the Unicode replacement character (�).
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ByteStr(pub [u8]);
+pub struct SmallByteStr(pub [u8]);
 
-impl ByteStr {
+impl SmallByteStr {
     /// Creates a `ByteStr` slice from anything that can be converted to a byte slice.
     ///
     /// This is a zero-cost conversion.
@@ -819,7 +819,7 @@ impl ByteStr {
     }
 }
 
-impl const Deref for ByteStr {
+impl const Deref for SmallByteStr {
     type Target = [u8];
 
     #[inline]
@@ -828,49 +828,49 @@ impl const Deref for ByteStr {
     }
 }
 
-impl const DerefMut for ByteStr {
+impl const DerefMut for SmallByteStr {
     #[inline]
     fn deref_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl fmt::Display for ByteStr {
+impl fmt::Display for SmallByteStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(std::bstr::ByteStr::new(&self), f)
     }
 }
 
-impl fmt::Debug for ByteStr {
+impl fmt::Debug for SmallByteStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(std::bstr::ByteStr::new(&self), f)
     }
 }
 
-impl AsRef<[u8]> for ByteStr {
+impl AsRef<[u8]> for SmallByteStr {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl AsRef<ByteStr> for ByteStr {
+impl AsRef<SmallByteStr> for SmallByteStr {
     #[inline]
-    fn as_ref(&self) -> &ByteStr {
+    fn as_ref(&self) -> &SmallByteStr {
         self
     }
 }
 
 // `impl AsRef<ByteStr> for [u8]` omitted to avoid widespread inference failures
 
-impl AsRef<ByteStr> for str {
+impl AsRef<SmallByteStr> for str {
     #[inline]
-    fn as_ref(&self) -> &ByteStr {
-        ByteStr::new(self)
+    fn as_ref(&self) -> &SmallByteStr {
+        SmallByteStr::new(self)
     }
 }
 
-impl AsMut<[u8]> for ByteStr {
+impl AsMut<[u8]> for SmallByteStr {
     #[inline]
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
@@ -883,7 +883,7 @@ impl AsMut<[u8]> for ByteStr {
 
 // `impl Borrow<ByteStr> for str` omitted to avoid widespread inference failures
 
-impl Borrow<[u8]> for ByteStr {
+impl Borrow<[u8]> for SmallByteStr {
     #[inline]
     fn borrow(&self) -> &[u8] {
         &self.0
@@ -892,39 +892,39 @@ impl Borrow<[u8]> for ByteStr {
 
 // `impl BorrowMut<ByteStr> for [u8]` omitted to avoid widespread inference failures
 
-impl BorrowMut<[u8]> for ByteStr {
+impl BorrowMut<[u8]> for SmallByteStr {
     #[inline]
     fn borrow_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl Default for &ByteStr {
+impl Default for &SmallByteStr {
     fn default() -> Self {
-        ByteStr::from_bytes(b"")
+        SmallByteStr::from_bytes(b"")
     }
 }
 
-impl Default for &mut ByteStr {
+impl Default for &mut SmallByteStr {
     fn default() -> Self {
-        ByteStr::from_bytes_mut(&mut [])
+        SmallByteStr::from_bytes_mut(&mut [])
     }
 }
 
-impl<'a> const TryFrom<&'a ByteStr> for &'a str {
+impl<'a> const TryFrom<&'a SmallByteStr> for &'a str {
     type Error = std::str::Utf8Error;
 
     #[inline]
-    fn try_from(s: &'a ByteStr) -> Result<Self, Self::Error> {
+    fn try_from(s: &'a SmallByteStr) -> Result<Self, Self::Error> {
         std::str::from_utf8(&s.0)
     }
 }
 
-impl<'a> const TryFrom<&'a mut ByteStr> for &'a mut str {
+impl<'a> const TryFrom<&'a mut SmallByteStr> for &'a mut str {
     type Error = std::str::Utf8Error;
 
     #[inline]
-    fn try_from(s: &'a mut ByteStr) -> Result<Self, Self::Error> {
+    fn try_from(s: &'a mut SmallByteStr) -> Result<Self, Self::Error> {
         std::str::from_utf8_mut(&mut s.0)
     }
 }
@@ -934,7 +934,7 @@ fn wqe() {
     let i = std::bstr::ByteString(Vec::from([0, 0]));
     dbg!(i);
 
-    let i = ByteString::empty();
+    let i = SmallByteString::empty();
     // SAFETY: all the elements in `..len` are initialized
 
     dbg!(i);

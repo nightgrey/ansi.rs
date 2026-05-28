@@ -12,8 +12,6 @@ mod separate_by;
 
 mod nested_vec;
 pub use nested_vec::*;
-mod small_byte_string;
-pub use small_byte_string::*;
 
 mod as_refd;
 pub use as_refd::*;

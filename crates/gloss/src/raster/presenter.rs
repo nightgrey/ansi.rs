@@ -1,14 +1,12 @@
 use super::Counting;
 use crate::raster::Pen;
 use crate::{Arena, Buffer, BufferDiff, Cell, TrackingBuffer};
-use ansi::io::Write;
+use ansi::EscapeWrite;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
 use geometry::{Point, Row};
-use std::io::{self, BufWriter, Write as IoWrite};
+use std::io::{self, BufWriter, Write};
 use terminal::Capabilities;
-
-use super::PresentStats;
 
 /// Internal buffer size for the buffered writer.
 const BUFFER_CAPACITY: usize = 64 * 1024;
@@ -40,7 +38,7 @@ struct InlineState {
 ///    once per frame.
 /// 4. On resize, alt-screen toggle, or external terminal corruption, call
 ///    [`invalidate`](Self::invalidate) to force a full repaint next frame.
-pub struct Presenter<W: IoWrite> {
+pub struct Presenter<W: Write> {
     writer: Counting<BufWriter<W>>,
     pen: Pen,
     capabilities: Capabilities,
@@ -48,7 +46,7 @@ pub struct Presenter<W: IoWrite> {
     inline: Option<InlineState>,
 }
 
-impl<W: IoWrite> Presenter<W> {
+impl<W: Write> Presenter<W> {
     /// Create a fullscreen presenter wrapping `writer`.
     pub fn new(writer: W) -> Self {
         Self {
@@ -137,8 +135,8 @@ impl<W: IoWrite> Presenter<W> {
         prev: &Buffer,
         next: &Buffer,
         arena: &Arena,
-    ) -> io::Result<PresentStats> {
-        let mut stats = PresentStats::default();
+    ) -> io::Result<PresenterStats> {
+        let mut stats = PresenterStats::default();
         self.writer.reset();
 
         let dims_changed = prev.width != next.width || prev.height != next.height;
@@ -179,8 +177,8 @@ impl<W: IoWrite> Presenter<W> {
         prev: &Buffer,
         next: &TrackingBuffer,
         arena: &Arena,
-    ) -> io::Result<PresentStats> {
-        let mut stats = PresentStats::default();
+    ) -> io::Result<PresenterStats> {
+        let mut stats = PresenterStats::default();
         self.writer.reset();
 
         let dims_changed = prev.width != next.width || prev.height != next.height;
@@ -285,7 +283,7 @@ impl<W: IoWrite> Presenter<W> {
         &mut self,
         next: &Buffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let width = next.width;
         let height = next.height;
@@ -329,7 +327,7 @@ impl<W: IoWrite> Presenter<W> {
         &mut self,
         next: &Buffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let width = next.width;
         let height = next.height;
@@ -367,7 +365,7 @@ impl<W: IoWrite> Presenter<W> {
         &mut self,
         next: &Buffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let width = next.width;
         let height = next.height;
@@ -414,7 +412,7 @@ impl<W: IoWrite> Presenter<W> {
         prev: &Buffer,
         next: &Buffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let mut runs = BufferDiff::runs(prev, next).peekable();
         while let Some(run) = runs.next() {
@@ -445,7 +443,7 @@ impl<W: IoWrite> Presenter<W> {
         prev: &Buffer,
         next: &Buffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let prev_height = self.inline_grow(next.height)?;
         self.inline_rewind()?;
@@ -526,7 +524,7 @@ impl<W: IoWrite> Presenter<W> {
         prev: &Buffer,
         next: &TrackingBuffer,
         arena: &Arena,
-        stats: &mut PresentStats,
+        stats: &mut PresenterStats,
     ) -> io::Result<()> {
         // ByDirty yields one Change per base cell. Coalesce same-row adjacent
         // changes into one logical run by relying on `pen.move_to`'s built-in
@@ -584,6 +582,22 @@ impl<W: IoWrite> Presenter<W> {
     }
 }
 
+/// Per-frame counters returned by [`Presenter::present`].
+///
+/// All fields are populated regardless of which path produced the frame
+/// (full-paint, diff, dirty). `bytes` is read from the byte-counting writer
+/// after flush, so it reflects what was actually emitted.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct PresenterStats {
+    /// Number of base cells emitted to the terminal.
+    pub cells: usize,
+    /// Number of distinct emission spans (a span ends with a cursor move).
+    pub runs: usize,
+    /// Bytes written for this frame, after flush.
+    pub bytes: u64,
+}
+
+
 // ────────────────────────────────────────────────────────────────────────
 // Free helpers
 // ────────────────────────────────────────────────────────────────────────
@@ -594,7 +608,7 @@ impl<W: IoWrite> Presenter<W> {
 /// advance the terminal cursor). Continuation cells are skipped — emitting a
 /// wide base already advanced the terminal cursor by the full width.
 #[inline]
-fn emit_cell<W: IoWrite>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -> io::Result<()> {
+fn emit_cell<W: Write>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -> io::Result<()> {
     if cell.is_continuation() {
         return Ok(());
     }
@@ -694,7 +708,7 @@ mod tests {
         }
 
         /// Present `next`, returning just the bytes emitted for this frame.
-        fn present(&mut self, next: &Buffer, arena: &Arena) -> (PresentStats, Vec<u8>) {
+        fn present(&mut self, next: &Buffer, arena: &Arena) -> (PresenterStats, Vec<u8>) {
             if self.prev.width != next.width || self.prev.height != next.height {
                 self.prev.resize(next.width, next.height);
                 self.prev.clear();

@@ -100,7 +100,7 @@ impl Cost for VerticalPositionAbsolute {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::Write;
+    use crate::EscapeWrite;
 
     macro_rules! assert_cost {
         (@$sequence:expr) => {

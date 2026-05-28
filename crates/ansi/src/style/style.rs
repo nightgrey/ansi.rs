@@ -410,7 +410,7 @@ impl Debug for Style {
 
 impl Escape for Style {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use crate::io::Write as _;
+        use crate::EscapeWrite as _;
         use std::io::Write as _;
 
         if self.is_none() {

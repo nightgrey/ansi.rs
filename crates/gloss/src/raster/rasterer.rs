@@ -1,10 +1,8 @@
 use super::pen::Pen;
 use crate::Cell;
 use crate::{Arena, Buffer};
-use ansi::Escape;
 use ansi::escape;
-use ansi::fmt::Fmt;
-use ansi::io::Write;
+use ansi::{Escape, EscapeFmt, EscapeWrite};
 use ansi::sequences::*;
 use geometry::{Resolve, Row};
 use std::io;
@@ -230,7 +228,7 @@ impl Rasterer {
                     }
                 }
 
-                self.pen.clear_style(&mut self.output)?;
+                self.pen.reset(&mut self.output)?;
                 self.output.escape(EraseLineToEnd)?;
             }
 
@@ -256,7 +254,7 @@ impl Rasterer {
                 self.output.escape(CursorUp(self.pen.row))?;
             }
             self.output.escape(CarriageReturn)?;
-            self.pen.clear_position();
+            self.pen.origin();
 
             for y in 0..height {
                 let prev_row = if invalidated {
@@ -279,7 +277,7 @@ impl Rasterer {
             if height < prev_height {
                 for _ in height..prev_height {
                     self.pen
-                        .move_to_relative(self.pen.row + 1, 0, &mut self.output)?;
+                        .relative_position(self.pen.row + 1, 0, &mut self.output)?;
                     self.output.escape(EraseLineToEnd)?;
                 }
                 if self.pen.row > (height - 1) as u16 {
@@ -293,7 +291,7 @@ impl Rasterer {
 
         self.invalidated = false;
 
-        self.pen.clear_style(&mut self.output)?;
+        self.pen.reset(&mut self.output)?;
         self.output.escape(TextCursorEnable::Set)?;
 
         if self.capabilities.sync_output {
@@ -333,13 +331,13 @@ impl Rasterer {
         let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_empty());
 
         match cursor_mode {
-            CursorMode::Absolute => cursor.move_to(y as u16, first as u16, output),
-            CursorMode::Relative => cursor.move_to_relative(y as u16, first as u16, output),
+            CursorMode::Absolute => cursor.position(y as u16, first as u16, output),
+            CursorMode::Relative => cursor.relative_position(y as u16, first as u16, output),
         }?;
 
         match last_non_default_cell {
             None => {
-                cursor.clear_style(output)?;
+                cursor.reset(output)?;
                 output.escape(EraseLineToEnd)?;
             }
             Some(emit_end) => {
@@ -353,7 +351,7 @@ impl Rasterer {
                 }
 
                 if emit_end < last {
-                    cursor.clear_style(output)?;
+                    cursor.reset(output)?;
                     output.escape(EraseLineToEnd)?;
                 }
             }
@@ -370,7 +368,7 @@ impl Rasterer {
         cursor: &mut Pen,
         arena: &Arena,
     ) -> io::Result<()> {
-        cursor.transition(cell.style, output)?;
+        cursor.style(cell.style, output)?;
         output.extend_from_slice(cell.as_bytes(arena));
 
         Ok(())

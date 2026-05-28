@@ -1,6 +1,5 @@
-use ansi::io::Write;
-use ansi::{Escape, Style, sequences::*};
-use maybe::Maybe;
+use ansi::EscapeWrite;
+use ansi::{Style, sequences::*};
 use std::io;
 
 /// Tracks the logical cursor position and current style state.
@@ -27,7 +26,7 @@ impl Pen {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn move_to(&mut self, row: u16, col: u16, w: &mut impl Write) -> io::Result<()> {
+    pub fn position(&mut self, row: u16, col: u16, w: &mut impl EscapeWrite) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -110,7 +109,7 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn move_to_relative(&mut self, row: u16, col: u16, w: &mut impl Write) -> io::Result<()> {
+    pub fn relative_position(&mut self, row: u16, col: u16, w: &mut impl EscapeWrite) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -157,7 +156,7 @@ impl Pen {
 
     /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn transition(&mut self, to: Style, w: &mut impl Write) -> io::Result<()> {
+    pub fn style(&mut self, to: Style, w: &mut impl EscapeWrite) -> io::Result<()> {
         if self.style == to {
             return Ok(());
         }
@@ -168,18 +167,19 @@ impl Pen {
         Ok(())
     }
 
-    pub fn clear_position(&mut self) {
-        self.row = 0;
-        self.col = 0;
-    }
-
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
-    pub fn clear_style(&mut self, w: &mut impl io::Write) -> io::Result<()> {
+    pub fn reset(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         if !self.style.is_none() {
             w.escape(SGR::reset())?;
             self.style = Style::None;
         }
         Ok(())
+    }
+
+    /// Move the pen to the origin (0, 0).
+    pub fn origin(&mut self) {
+        self.row = 0;
+        self.col = 0;
     }
 
     /// Reset cursor to origin with empty pen.
@@ -204,7 +204,7 @@ mod tests {
     fn move_to_same_position_is_noop() {
         let mut cursor = Pen::new();
         let mut buf = Vec::new();
-        cursor.move_to(0, 0, &mut buf);
+        cursor.position(0, 0, &mut buf);
         assert!(buf.is_empty());
     }
 
@@ -213,7 +213,7 @@ mod tests {
         let mut cursor = Pen::new();
         let mut buf = Vec::new();
         // Moving right by 1 should use CUF (3 bytes) not CUP (6+ bytes)
-        cursor.move_to(0, 1, &mut buf);
+        cursor.position(0, 1, &mut buf);
         assert_eq!(buf, b"\x1B[C");
     }
 
@@ -224,7 +224,7 @@ mod tests {
         cursor.col = 10;
         let mut buf = Vec::new();
         // Same row, col 0 — CR (1 byte) is cheapest
-        cursor.move_to(5, 0, &mut buf);
+        cursor.position(5, 0, &mut buf);
         assert_eq!(buf, b"\r");
     }
 
@@ -232,7 +232,7 @@ mod tests {
     fn move_to_uses_cup_for_distant_positions() {
         let mut cursor = Pen::new();
         let mut buf = Vec::new();
-        cursor.move_to(50, 80, &mut buf);
+        cursor.position(50, 80, &mut buf);
         let output = String::from_utf8_lossy(&buf);
         // Should use some form of absolute positioning
         assert!(output.contains('\x1B'));
@@ -246,7 +246,7 @@ mod tests {
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
         cursor
-            .transition(Style::default().bold(), &mut buf)
+            .style(Style::default().bold(), &mut buf)
             .unwrap();
         assert!(buf.is_empty());
     }
@@ -256,12 +256,12 @@ mod tests {
         let mut cursor = Pen::new();
         let mut buf = Vec::new();
         // Clean pen — no output
-        cursor.clear_style(&mut buf);
+        cursor.reset(&mut buf);
         assert!(buf.is_empty());
 
         // Dirty pen — emits SGR reset
         cursor.style = Style::default().bold();
-        cursor.clear_style(&mut buf);
+        cursor.reset(&mut buf);
         assert_eq!(buf, b"\x1B[0m");
         assert!(cursor.style.is_none());
     }

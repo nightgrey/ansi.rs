@@ -3,83 +3,76 @@ pub trait Escape {
 }
 
 impl<T: AsRef<str>> Escape for T {
+    #[inline]
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         w.write_all(self.as_ref().as_bytes())
     }
 }
 
-pub mod io {
-    use super::*;
+pub trait EscapeWrite {
+    fn escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
+}
 
-    pub trait Write {
-        fn escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
-    }
-
-    impl<W: std::io::Write> Write for W {
-        #[inline]
-        fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
-            escape.escape(self)
-        }
+impl<W: std::io::Write> EscapeWrite for W {
+    #[inline]
+    fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
+        escape.escape(self)
     }
 }
 
-pub mod fmt {
-    use super::*;
+pub trait EscapeFmt {
+    fn escape(&mut self, escape: impl Escape) -> std::fmt::Result;
+}
 
-    pub trait Fmt {
-        fn escape(&mut self, escape: impl Escape) -> std::fmt::Result;
-    }
+impl<W: std::fmt::Write> EscapeFmt for W {
+    #[inline]
+    fn escape(&mut self, escape: impl Escape) -> std::fmt::Result {
+        use std::io::Cursor;
 
-    impl<W: std::fmt::Write> Fmt for W {
-        #[inline]
-        fn escape(&mut self, escape: impl Escape) -> std::fmt::Result {
-            use std::io::Cursor;
+        // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
+        // I/O errors, instead of discarding them.
+        struct Adapter<'a, Inner: std::fmt::Write + 'a> {
+            inner: &'a mut Inner,
+            error: std::fmt::Result,
+        }
 
-            // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
-            // I/O errors, instead of discarding them.
-            struct Adapter<'a, Inner: std::fmt::Write + 'a> {
-                inner: &'a mut Inner,
-                error: std::fmt::Result,
-            }
+        impl<Inner: std::fmt::Write> EscapeWrite for Adapter<'_, Inner> {
+            fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
+                let mut buf = Vec::<u8>::new();
+                let mut cursor = Cursor::new(&mut buf);
 
-            impl<Inner: std::fmt::Write> io::Write for Adapter<'_, Inner> {
-                fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
-                    let mut buf = Vec::<u8>::new();
-                    let mut cursor = Cursor::new(&mut buf);
+                escape.escape(&mut cursor)?;
 
-                    escape.escape(&mut cursor)?;
-
-                    unsafe {
-                        self.inner
-                            .write_str(&String::from_utf8_unchecked(buf))
-                            .map_err(|_| {
-                                std::io::Error::other(
-                                    "Failed to write string",
-                                )
-                            })?;
-                    }
-                    Ok(())
+                unsafe {
+                    self.inner
+                        .write_str(&String::from_utf8_unchecked(buf))
+                        .map_err(|_| {
+                            std::io::Error::other(
+                                "Failed to write string",
+                            )
+                        })?;
                 }
+                Ok(())
             }
+        }
 
-            let mut adapter = Adapter {
-                inner: self,
-                error: Ok(()),
-            };
+        let mut adapter = Adapter {
+            inner: self,
+            error: Ok(()),
+        };
 
-            match io::Write::escape(&mut adapter, escape) {
-                Ok(()) => Ok(()),
-                Err(..) => {
-                    // Check whether the error came from the underlying `Write`.
-                    if adapter.error.is_err() {
-                        adapter.error
-                    } else {
-                        // This shouldn't happen: the underlying stream did not error,
-                        // but somehow the formatter still errored?
-                        panic!(
-                            "a formatting trait implementation returned an error when the underlying stream did not"
-                        );
-                    }
+        match EscapeWrite::escape(&mut adapter, escape) {
+            Ok(()) => Ok(()),
+            Err(..) => {
+                // Check whether the error came from the underlying `Write`.
+                if adapter.error.is_err() {
+                    adapter.error
+                } else {
+                    // This shouldn't happen: the underlying stream did not error,
+                    // but somehow the formatter still errored?
+                    panic!(
+                        "a formatting trait implementation returned an error when the underlying stream did not"
+                    );
                 }
             }
         }
@@ -91,7 +84,7 @@ pub mod fmt {
 /// This macro accepts a 'writer' and a list of values to be escaped. Values will be
 /// escaped and the result will be passed to the writer. The writer may be any value
 /// with a `write_fmt` method; generally this comes from an
-/// implementation of either the [`fmt::Fmt`] or the [`io::Write`] trait. The macro
+/// implementation of either the [`fmt::EscapeFmt`] or the [`io::EscapeWrite`] trait. The macro
 /// returns whatever the `write_fmt` method returns; commonly a [`fmt::Result`], or an
 /// [`io::Result`].
 ///
@@ -136,9 +129,7 @@ macro_rules! escape {
            $dst.escape($arg)
     };
     ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
-        use $crate::Escape as _;
-        use $crate::io::Write as _;
-        use $crate::fmt::Fmt as _;
+        use $crate::{EscapeWrite, EscapeFmt, Escape};
         let mut result: std::io::Result<()> = $dst.escape($first);
         $(
                 if result.is_ok() {
@@ -153,5 +144,5 @@ macro_rules! escape {
 ///
 /// A single-value, functional version of [`escape!`].
 pub fn escape(w: &mut impl std::io::Write, escape: impl Escape) -> std::io::Result<()> {
-    io::Write::escape(w, escape)
+    EscapeWrite::escape(w, escape)
 }

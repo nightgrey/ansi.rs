@@ -6,7 +6,7 @@ pub use mode::*;
 pub use sequences::*;
 
 use crate::Escape;
-use crate::io::Write;
+use crate::EscapeWrite;
 
 sequence!(
     /// (25) Text Cursor Enable Mode (DECTCEM) is a mode that shows/hides the cursor.

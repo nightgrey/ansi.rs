@@ -89,7 +89,7 @@ impl SelectGraphicRenditionTransition {
 
 impl Escape for SelectGraphicRenditionTransition {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use crate::io::Write as _;
+        use crate::EscapeWrite as _;
         use std::io::Write as _;
 
         let (from, to) = (self.from, self.to);

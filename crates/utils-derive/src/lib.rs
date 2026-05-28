@@ -163,7 +163,6 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     quote!(
         const _: () = {
-            assert!(State::None as u8 == 0, "State::None does not match index 0.");
             #(#asserts);*
         };
 

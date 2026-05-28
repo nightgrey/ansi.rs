@@ -2,7 +2,7 @@ use core::mem;
 use strum::{EnumCount, IntoStaticStr};
 use utils_derive::transitions;
 
-transitions!(0, {
+transitions! {
     Anywhere {
         0x18       => (Execute, Ground),
         0x1a       => (Execute, Ground),
@@ -187,7 +187,7 @@ transitions!(0, {
         0x1c..=0x1f => Ignore,
         0x20..=0x7f => Ignore,
     },
-});
+}
 
 // NOTE: Removing the unused actions prefixed with `_` will reduce performance.
 #[repr(u8)]
@@ -269,14 +269,17 @@ pub const fn unpack(byte: u8) -> (Action, State) {
     }
 }
 
+#[inline(always)]
 pub const fn transition(state: State, byte: u8) -> (Action, State) {
     unpack(TRANSITIONS[state as usize][byte as usize])
 }
 
+#[inline(always)]
 pub const fn entry(state: State) -> Action {
     ENTRY_ACTIONS[state as usize]
 }
 
+#[inline(always)]
 pub const fn exit(state: State) -> Action {
     EXIT_ACTIONS[state as usize]
 }

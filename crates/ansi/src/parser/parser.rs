@@ -130,34 +130,50 @@ impl Parser {
         // chars; C1 introducer bytes appear as invalid utf8 and are handled
         // in the error branch below.
         let num_bytes = bytes.len();
-        let plain_chars = memchr::memchr(0x1B, bytes).unwrap_or(num_bytes);
+        let num_chars = memchr::memchr(0x1B, bytes).unwrap_or(num_bytes);
 
         // ESC is the very first byte: short-circuit to Escape state.
-        if plain_chars == 0 {
+        if num_chars == 0 {
             self.state = State::Escape;
             self.clear();
             return 1;
         }
 
-        match str::from_utf8(&bytes[..plain_chars]) {
-            Ok(parsed) => {
-                let consumed = Self::dispatch_ground_chars(handler, parsed);
+        let chars = &bytes[..num_chars];
+        if chars.is_ascii() {
+            let processed = Self::dispatch_ground_ascii(handler, chars);
+            if processed < num_chars {
+                return processed;
+            }
+
+            if num_chars < num_bytes {
+                self.state = State::Escape;
+                self.clear();
+                return num_chars + 1;
+            }
+
+            return num_chars;
+        }
+
+        match str::from_utf8(chars) {
+            Ok(str) => {
+                let consumed = Self::dispatch_ground_chars(handler, str);
 
                 // If we stopped early on a C1 char encoded as utf8, hand the
                 // bytes after `consumed` back to the state machine unless the
                 // C1 char is first, in which case consume it now to guarantee
                 // progress.
-                if consumed < plain_chars {
+                if consumed < num_chars {
                     if consumed > 0 {
                         return consumed;
                     }
 
-                    let c = unsafe { parsed.chars().next().unwrap_unchecked() };
+                    let c = unsafe { str.chars().next().unwrap_unchecked() };
                     self.advance_byte(handler, c as u8);
                     return c.len_utf8();
                 }
 
-                let mut processed = plain_chars;
+                let mut processed = num_chars;
                 if processed < num_bytes {
                     // Next byte must be ESC — process directly.
                     self.state = State::Escape;
@@ -202,13 +218,13 @@ impl Parser {
                         valid_bytes + len
                     }
                     None => {
-                        if plain_chars < num_bytes {
+                        if num_chars < num_bytes {
                             // The partial codepoint is followed by ESC — drop
                             // it and start the escape sequence.
                             handler.print('\u{FFFD}');
                             self.state = State::Escape;
                             self.clear();
-                            plain_chars + 1
+                            num_chars + 1
                         } else {
                             // Buffer the partial codepoint for the next call.
                             let extra = num_bytes - valid_bytes;
@@ -228,6 +244,7 @@ impl Parser {
     /// Walk the chars of a validated str, dispatching prints and C0 executes.
     /// Stops at the first C1 control char (0x80..=0x9F) without consuming it,
     /// returning the byte offset where dispatch stopped.
+    #[inline]
     fn dispatch_ground_chars(handler: &mut impl Handler, parsed: &str) -> usize {
         let mut consumed = 0;
         for c in parsed.chars() {
@@ -239,6 +256,19 @@ impl Parser {
             consumed += c.len_utf8();
         }
         consumed
+    }
+
+    /// Walk ASCII bytes without UTF-8 char decoding.
+    #[inline]
+    fn dispatch_ground_ascii(handler: &mut impl Handler, bytes: &[u8]) -> usize {
+        for &byte in bytes {
+            match byte {
+                0x00..=0x1F => handler.execute(byte),
+                _ => handler.print(byte as char),
+            }
+        }
+
+        bytes.len()
     }
 
     #[inline]

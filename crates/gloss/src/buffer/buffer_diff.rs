@@ -213,13 +213,16 @@ impl<'a> Iterator for RunIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let cell = self.cells.get(self.idx)?;
-            let w = cell.width() as u16;
 
-            if w == 0 {
+            // Skip continuation tails of wide glyphs — the base already redraws
+            // them. Empty cells are *not* continuations: they are cleared cells
+            // and must be yielded so a blank gets emitted over the old glyph.
+            if cell.is_continuation() {
                 self.idx += 1;
                 continue;
             }
 
+            let w = (cell.width() as u16).max(1);
             let x = self.x;
             self.x += w;
             self.idx += w as usize;
@@ -315,16 +318,16 @@ impl<'a> DiffStrategy<'a> for ByCells {
             while state.pos < row_end {
                 let i = state.pos;
                 let current = &state.next[i];
-                let cell_width = current.width() as usize;
 
-                // Zero-width cells are the trailing positions of a wide
-                // grapheme and are redrawn implicitly by that base cell.
-                if cell_width == 0 {
+                // Continuations are the trailing positions of a wide grapheme,
+                // redrawn implicitly by that base cell. Empty cells are cleared
+                // cells, not continuations, and must be reported as changes.
+                if current.is_continuation() {
                     state.pos += 1;
                     continue;
                 }
 
-                state.pos += cell_width;
+                state.pos += (current.width() as usize).max(1);
 
                 if current != &state.prev[i] {
                     let x = (i % state.width) as u16;
@@ -377,14 +380,14 @@ impl<'a> DiffStrategy<'a> for ByDirty {
             while state.x < state.width {
                 let i = row_start + state.x;
                 let cell = &state.next[i];
-                let w = cell.width() as usize;
-                if w == 0 {
+                if cell.is_continuation() {
                     // Trailing continuation of a wide cell — implicitly
-                    // redrawn by its base.
+                    // redrawn by its base. Empty cells are cleared cells and
+                    // must still be reported.
                     state.x += 1;
                     continue;
                 }
-                state.x += w;
+                state.x += (cell.width() as usize).max(1);
                 if *cell != state.prev[i] {
                     return Some(Change {
                         x: (i % state.width) as u16,
@@ -433,15 +436,14 @@ impl<'a> DiffStrategy<'a> for ByRuns {
 
             let i = state.pos;
             let cell = &state.next[i];
-            let w = cell.width() as usize;
 
-            if w == 0 {
+            if cell.is_continuation() {
                 // Trailing continuation — implicitly redrawn by its base.
                 state.pos += 1;
                 continue;
             }
 
-            state.pos += w;
+            state.pos += (cell.width() as usize).max(1);
             if cell != &state.prev[i] {
                 break i;
             }
@@ -456,9 +458,8 @@ impl<'a> DiffStrategy<'a> for ByRuns {
         while state.pos < row_end {
             let j = state.pos;
             let cell = &state.next[j];
-            let w = cell.width() as usize;
 
-            if w == 0 {
+            if cell.is_continuation() {
                 // Trailing continuation — implicitly redrawn by its base.
                 state.pos += 1;
                 continue;
@@ -468,7 +469,7 @@ impl<'a> DiffStrategy<'a> for ByRuns {
                 break;
             }
 
-            state.pos += w;
+            state.pos += (cell.width() as usize).max(1);
         }
 
         // Cap at `row_end` defensively: a malformed buffer with a wide cell

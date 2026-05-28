@@ -116,19 +116,25 @@ impl Cell {
     }
 
     #[inline]
-    pub const fn is_none(&self) -> bool {
-        self.grapheme == Grapheme::EMPTY || self.grapheme == Grapheme::CONTINUATION
-    }
-
-    #[inline]
     pub const fn is_continuation(&self) -> bool {
         self.grapheme == Grapheme::CONTINUATION
     }
 
-    /// Returns `true` if this cell is empty.
+    /// Returns `true` if this cell's grapheme is empty (and would be rendered as a space).
     #[inline]
-    pub const fn is_empty(&self) -> bool {
+    pub const fn is_space(&self) -> bool {
         self.grapheme == Grapheme::EMPTY
+    }
+
+    /// Returns `true` if this cell has nothing to draw: no glyph *and* no style.
+    ///
+    /// An empty cell that carries a style (e.g. a background colour) is *not*
+    /// blank — it must still be painted as a styled space. Use this, rather
+    /// than [`is_empty`](Self::is_space), when deciding whether a cell can be
+    /// skipped or cleared with an erase.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.is_space() && self.style.is_none()
     }
 
     /// Check if this content is the default value.
@@ -136,7 +142,7 @@ impl Cell {
     /// This is equivalent to `is_empty()` and primarily exists for readability in tests.
     #[inline]
     pub const fn is_default(self) -> bool {
-        self.is_empty()
+        self.is_space()
     }
 
     pub fn with_char(self, char: char, arena: &mut Arena) -> Self {
@@ -279,7 +285,7 @@ impl Default for Cell {
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() && self.style.is_empty() {
+        if self.is_space() && self.style.is_empty() {
             return f.write_str("Cell::Empty");
         }
 
@@ -354,7 +360,7 @@ mod tests {
     #[test]
     fn empty_cell() {
         let cell = Cell::EMPTY;
-        assert!(cell.is_empty());
+        assert!(cell.is_space());
         assert_eq!(cell.width(), 1);
     }
 
@@ -370,7 +376,7 @@ mod tests {
         let cell = Cell::inline('A')
             .with_attributes(Attribute::Bold)
             .with_foreground(Color::Rgb(255, 0, 0));
-        assert!(!cell.is_empty());
+        assert!(!cell.is_space());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
@@ -406,7 +412,7 @@ mod tests {
         let cell_before = Cell::inline('Z').with_foreground(Color::Index(1));
         let mut cell = cell_before;
         cell.clear();
-        assert!(cell.is_empty());
+        assert!(cell.is_space());
         assert_eq!(cell, Cell::EMPTY);
     }
 }

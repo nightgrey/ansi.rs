@@ -19,29 +19,32 @@ pub type DataStr = ByteStr;
 macro_rules! params {
     // Empty
     () => {
-       use utils::{Nested as _, NestedConstructor as _};
-        utils::NestedVec::new()
+        {
+        use utils::NestedConstructor;
+        Parameters::new()
+        }
     };
     // [_]
     ($($elem:literal),+ $(,)?) => (
-            use utils::{Nested as _, NestedConstructor as _};
-
-        let mut nested = utils::NestedVec::new();
-        let inner = SmallVec::from_iter($($elem),*.into_iter());
-        utils::NestedVec {
-            starts: SmallVec::from_iter(0..=inner.len()),
-            inner,
+        {
+            Parameters::from_values([$($elem),*])
         }
     );
     // [[_]]
     ($([$($elem:literal),* $(,)?]),+ $(,)?) => (
         {
-            use utils::{Nested as _, NestedConstructor as _};
-            let mut nested = utils::NestedVec::new();
+            use utils::{NestedConstructor, NestedMut};
+            let mut p = Parameters::new();
             $(
-            nested.push([$($elem),*]);
+            p.push([$($elem),*]);
             )+
-            nested
+            p
         }
     );
+}
+
+#[test]
+fn qew() {
+    let a: Parameters<8, 8> = params![1,2,3];
+
 }

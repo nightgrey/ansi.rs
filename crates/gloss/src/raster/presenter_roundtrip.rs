@@ -22,10 +22,11 @@
 //!   scrollback-claim relies on this (ONLCR); modelling LF as pure line-feed
 //!   would make inline reconstruction wrong, so we mirror the presenter's own
 //!   assumption.
-//! - **Empty cells carry no style.** The generators below only attach styles to
-//!   *visible* glyphs, so we never have to model "erase with background colour"
-//!   (BCE). Empty-cell-with-background is a separate, genuinely ambiguous case
-//!   (see `empty_background_cells_are_inconsistent_between_paths`).
+//! - **An empty cell with a style is a styled space, not a blank.** A cell with
+//!   a background but no glyph is paintable on every path (`Cell::is_blank` is
+//!   the "truly nothing" predicate). We do *not* rely on "erase with background
+//!   colour" (BCE): the generators never put a style on a cell that the
+//!   presenter would clear with `EL` rather than overwrite.
 
 use super::Presenter;
 use crate::{Arena, Buffer, Cell};
@@ -336,11 +337,16 @@ fn canon_cell(cell: &Cell, arena: &Arena) -> Canon {
         return Canon::Continuation;
     }
     if cell.is_empty() {
+        // Empty *and* unstyled — nothing to paint.
         return Canon::Blank;
+    }
+    if cell.is_space() {
+        // Empty but styled (e.g. a background) — painted as a styled space.
+        return Canon::Glyph(' ', *cell.style());
     }
     let s = cell.as_str(arena);
     let ch = s.chars().next().unwrap_or(' ');
-    if ch == ' ' && *cell.style() == Style::None {
+    if ch == ' ' && cell.style().is_none() {
         return Canon::Blank;
     }
     Canon::Glyph(ch, *cell.style())
@@ -489,10 +495,10 @@ fn pseudo_random(width: usize, height: usize, seed: u64, fill: u64) -> Buffer {
         Style::None.foreground(Color::Red),
         Style::None.foreground(Color::Rgb(10, 200, 30)),
         Style::None.background(Color::Blue),
-        Style::None.with_attributes(Attribute::Bold),
+        Style::None.with(Attribute::Bold),
         Style::None
             .foreground(Color::BrightCyan)
-            .with_attributes(Attribute::Italic),
+            .with(Attribute::Italic),
     ];
     let glyphs = b"abcdefgABCDEFG0123 .#@";
     let mut state = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1);
@@ -502,6 +508,7 @@ fn pseudo_random(width: usize, height: usize, seed: u64, fill: u64) -> Buffer {
         state ^= state << 17;
         state
     };
+    let backgrounds = [Color::Rgb(20, 20, 20), Color::Blue, Color::Index(238)];
     let mut buf = Buffer::new(width, height);
     for y in 0..height {
         for x in 0..width {
@@ -509,6 +516,11 @@ fn pseudo_random(width: usize, height: usize, seed: u64, fill: u64) -> Buffer {
                 let ch = glyphs[(next() as usize) % glyphs.len()] as char;
                 let style = palette[(next() as usize) % palette.len()];
                 buf[(y, x)] = Cell::inline(ch).with_style(style);
+            } else if next() % 4 == 0 {
+                // An empty cell carrying only a background — must paint as a
+                // styled space on every path.
+                let bg = backgrounds[(next() as usize) % backgrounds.len()];
+                buf[(y, x)] = Cell::default().with_background(bg);
             }
         }
     }
@@ -674,24 +686,28 @@ fn inline_property_random_sequences() {
     }
 }
 
-/// Documents a real inconsistency surfaced by the oracle: an *empty* cell that
-/// carries a background colour (e.g. `Cell::default().with_background(..)`, as
-/// produced by `buffer_solid`/`buffer_chessboard`) renders differently on the
-/// full-paint path vs. the diff path. The diff yields the cell as changed and
-/// emits a styled space, painting the background; the full paint's
-/// `is_empty()` scan skips it entirely, so the background never appears.
-///
-/// Ignored until the intended semantics are decided (treat empty+bg as
-/// paintable, or as truly blank). See the summary notes.
+/// Empty-but-styled cells (a background with no glyph, as produced by
+/// `buffer_solid`/`buffer_chessboard`) must paint as styled spaces on *every*
+/// path — full paint, inline claim, and diff. Earlier the full-paint scan used
+/// `is_empty()` (glyph-only) and dropped these; it now uses `is_blank()`
+/// (glyph *and* style), so a background survives a full repaint.
 #[test]
-#[ignore = "surfaced inconsistency: empty+background cells differ between full and diff paths"]
-fn empty_background_cells_are_inconsistent_between_paths() {
+fn empty_background_cells_paint_on_all_paths() {
     let arena = Arena::new();
-    let solid = Buffer::from_fn(4, 2, |_, _| {
-        Cell::default().with_background(Color::Rgb(40, 40, 40))
-    });
+    let grey = Color::Rgb(40, 40, 40);
+    let solid = Buffer::from_fn(4, 2, |_, _| Cell::default().with_background(grey));
+
+    // Full paint (first frame).
     let mut rt = Roundtrip::fullscreen(4, 2);
-    // Fails on the very first (full-paint) frame: nothing is emitted, so the
-    // reconstructed grid is blank while `next` wants a grey background.
     rt.frame(&solid, &arena);
+
+    // Diff: recolour one cell, leave the rest as background.
+    let mut next = solid.clone();
+    next[(1, 2)] = Cell::default().with_background(Color::Red);
+    rt.frame(&next, &arena);
+
+    // Inline claim + inline diff.
+    let mut inl = Roundtrip::inline(4, 2);
+    inl.frame(&solid, &arena);
+    inl.frame(&next, &arena);
 }

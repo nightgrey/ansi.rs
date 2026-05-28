@@ -291,9 +291,10 @@ impl<W: Write> Presenter<W> {
             return Ok(());
         }
 
-        // Fullscreen full-paint: the screen was just homed + erased, so empty
-        // rows need no clearing and can be skipped. Write every non-empty row
-        // and EL its tail to drop any leftover content past the last cell.
+        // Fullscreen full-paint: the screen was just homed + erased, so blank
+        // rows need no clearing and can be skipped. Write every row with
+        // content *or* styling (a background is paintable even on an empty
+        // cell) and EL its tail to drop any leftover content past the last.
         for y in 0..height {
             let row = &next[Row(y)];
             let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) else {

@@ -27,12 +27,14 @@ Requires **Rust nightly** (configured via `mise.toml`). The codebase uses many n
 - **Color**: 4-bit, 8-bit, and 24-bit RGB color representation with a compact bit-packed layout (`Color` type uses `bilge` for bitfield packing)
 - **Style**: `Attribute` flags (bold, italic, underline, etc.) and `Style` combining foreground/background colors with attributes
 - **Sequences**: CSI/SGR escape sequence generation — cursor movement, scrolling, erasure, terminal modes
-- Color and Attribute types implement bitwise ops (`BitOr`, `BitAnd`) with `None` acting as identity/zero
 
 ### `geometry` — Geometric primitives
 - `Point`, `Size`, `Rect`, `Edges`, `Sides` — core spatial types
 - `Row`, `Column`, `Position` — terminal grid indexing
-- Feature system (`features/`) for transforms and mapping over geometric types
+- Trait system (`traits/`) for transforms, mapping over 
+  geometric types and more
+
+### `number` - Numeric traits
 - Custom numeric traits (`num/`) including checked operations and float constants
 
 ### `gloss` — Document-based terminal renderer (highest-level crate)
@@ -49,7 +51,6 @@ Requires **Rust nightly** (configured via `mise.toml`). The codebase uses many n
 - **`tree`**: Arena-based tree data structure with `Tree`, `Secondary` (parallel storage keyed by tree IDs), node traversal iterators
 - **`tagged`/`tagged-derive`**: Derive macro for tagged union patterns
 - **`maybe`/`maybe-derive`**: Derive macro for optional/nullable wrapper types
-- `SeparateBy` iterator adapter
 
 ## Key Patterns
 

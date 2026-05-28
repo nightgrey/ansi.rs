@@ -20,17 +20,11 @@
 //! - [`Location`] - An (x, y) coordinate with getters, setters, and a `from_xy` constructor.
 //! - [`Bound`] - A geometry with a half-open `[min, max)` bounding rectangle.
 
-#![feature(more_float_constants)]
 #![feature(const_clone)]
 #![feature(const_default)]
 #![feature(const_cmp)]
 #![feature(derive_const)]
 #![feature(const_trait_impl)]
-#![feature(const_convert)]
-#![feature(range_into_bounds)]
-#![feature(const_destruct)]
-#![feature(const_option_ops)]
-#![feature(new_range_api)]
 
 mod geometry;
 mod index;

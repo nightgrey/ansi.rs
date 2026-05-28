@@ -79,6 +79,10 @@ impl<W: IoWrite> Presenter<W> {
         self
     }
 
+    pub fn get_writer(&self) -> &W {
+       self.writer.as_ref().get_ref()
+    }
+
     /// Returns the active capability set.
     #[inline]
     pub fn capabilities(&self) -> &Capabilities {
@@ -577,14 +581,17 @@ mod tests {
 
     #[test]
     fn test() {
-        let writer = Cursor::new(Vec::new());
-        let mut presenter = Presenter::new(writer);
-
-        let prev = buffer_solid(100, 100, Color::BrightWhite);
-        dbg!(prev);
+        let mut presenter = Presenter::new(Cursor::new(Vec::new()));
+        let mut arena = Arena::new();
+        let prev = buffer_solid(100, 100, Color::Rgb(255, 0, 0));
 
         let next = buffer_diagonals(100, 100);
         let arena = Arena::new();
-        dbg!(next);
+
+        let stats = presenter.present(&prev, &next, &arena).unwrap();
+
+        let out = String::from_utf8_lossy(presenter.get_writer().get_ref());
+
+        dbg!(out);
     }
 }

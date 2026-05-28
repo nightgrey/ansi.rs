@@ -98,6 +98,12 @@ impl<'a> BufferDiff<'a, ByDirty> {
     /// A zero-allocation diffing iterator over changed rows.
     /// See [`BufferDiff`] and the [`ByDirty`] for details.
     pub fn dirty(prev: &'a Buffer, next: &'a TrackingBuffer) -> Self {
+        assert_eq!(
+            prev.width, next.width,
+            "buffers must have the same width: prev={}, next={}",
+            prev.width, next.width,
+        );
+
         BufferDiff {
             state: DirtyDiffState {
                 next,

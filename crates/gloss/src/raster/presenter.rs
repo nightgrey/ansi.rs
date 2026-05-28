@@ -1,6 +1,6 @@
 use super::Counting;
 use crate::raster::Pen;
-use crate::{Arena, Buffer, BufferDiff, Cell, TrackingBuffer};
+use crate::{Arena, Buffer, BufferDiff, Cell, Run, TrackingBuffer};
 use ansi::EscapeWrite;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
@@ -415,14 +415,45 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
+        self.emit_run_loop(prev, next, arena, stats)
+    }
+
+    fn emit_diff_inline(
+        &mut self,
+        prev: &Buffer,
+        next: &Buffer,
+        arena: &Arena,
+        stats: &mut PresenterStats,
+    ) -> io::Result<()> {
+        let prev_height = self.inline_grow(next.height)?;
+        self.inline_rewind()?;
+        // The run loop's cursor moves are mode-aware via `move_pen`, so the same
+        // path serves fullscreen and inline.
+        self.emit_run_loop(prev, next, arena, stats)?;
+        self.inline_shrink(prev_height, next.height)
+    }
+
+    /// Walk the changed runs of `next` vs `prev`, emitting each one. Shared by
+    /// the fullscreen and inline diff paths.
+    fn emit_run_loop(
+        &mut self,
+        prev: &Buffer,
+        next: &Buffer,
+        arena: &Arena,
+        stats: &mut PresenterStats,
+    ) -> io::Result<()> {
         let mut runs = BufferDiff::runs(prev, next).peekable();
         while let Some(run) = runs.next() {
             self.move_pen(run.y, run.x)?;
-            for change in run.iter() {
-                emit_cell(change.cell, &mut self.writer, &mut self.pen, arena)?;
-                stats.cells += 1;
+
+            if self.emit_run(next, &run, arena, stats)? {
+                // The run ended with an EL that cleared to the row's end, so any
+                // remaining runs on this row are blank and already cleared.
+                while runs.peek().is_some_and(|r| r.y == run.y) {
+                    runs.next();
+                }
+                continue;
             }
-            stats.runs += 1;
 
             // Local peek-bridge: if the next run is close on the same row,
             // bleeding through the unchanged cells can be cheaper than a
@@ -439,36 +470,67 @@ impl<W: Write> Presenter<W> {
         Ok(())
     }
 
-    fn emit_diff_inline(
+    /// Emit one run's cells. If the run ends in blanks that extend to the end of
+    /// the row, replace those trailing spaces with a single [`EraseLineToEnd`]
+    /// (cheaper, and it clears to the row's end) and return `true` to signal the
+    /// row is finished. Otherwise emit every cell and return `false`.
+    fn emit_run(
         &mut self,
-        prev: &Buffer,
         next: &Buffer,
+        run: &Run,
         arena: &Arena,
         stats: &mut PresenterStats,
-    ) -> io::Result<()> {
-        let prev_height = self.inline_grow(next.height)?;
-        self.inline_rewind()?;
-
-        // Run the same diff path as fullscreen, but with relative cursor moves.
-        let mut runs = BufferDiff::runs(prev, next).peekable();
-        while let Some(run) = runs.next() {
-            self.move_pen(run.y, run.x)?;
-            for change in run.iter() {
-                emit_cell(change.cell, &mut self.writer, &mut self.pen, arena)?;
-                stats.cells += 1;
+    ) -> io::Result<bool> {
+        let el_col = self.trailing_el_col(next, run);
+        for change in run.iter() {
+            if el_col.is_some_and(|col| change.x >= col) {
+                break; // trailing blanks handled by the EL below
             }
-            stats.runs += 1;
+            emit_cell(change.cell, &mut self.writer, &mut self.pen, arena)?;
+            stats.cells += 1;
+        }
+        stats.runs += 1;
 
-            if let Some(next_run) = runs.peek()
-                && next_run.y == run.y
-                && let Some(gap_start) = self.pen_col_after()
-                && next_run.x > gap_start
-            {
-                self.maybe_bridge(next, arena, run.y, gap_start, next_run.x)?;
+        if el_col.is_some() {
+            // Reset SGR first so the erase clears to the default background
+            // rather than smearing the pen's current colour (BCE).
+            self.pen.reset(&mut self.writer)?;
+            self.writer.escape(EraseLineToEnd)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Column at which an [`EraseLineToEnd`] should replace a run's trailing
+    /// blank cells, or `None` if that is unsafe or not worth it.
+    ///
+    /// Safe only when every cell from the run's end to the row's end is already
+    /// blank (so EL cannot wipe content that must stay), and worthwhile only
+    /// when the blank suffix is longer than the escape itself.
+    fn trailing_el_col(&self, next: &Buffer, run: &Run) -> Option<u16> {
+        /// Byte length of `\x1B[K`.
+        const EL_COST: u16 = 3;
+
+        let width = next.width as u16;
+        let y = run.y;
+        let run_end = run.x + run.as_ref().len() as u16;
+
+        // Cells past the run must already be blank for EL to be safe — they are
+        // unchanged (== prev), so a blank here means the screen is blank there.
+        for x in run_end..width {
+            if !(next[Point { x, y }]).is_empty() {
+                return None;
             }
         }
 
-        self.inline_shrink(prev_height, next.height)
+        // Walk back over the run's own trailing blank columns.
+        let mut from = run_end;
+        while from > run.x && (next[Point { x: from - 1, y }]).is_empty() {
+            from -= 1;
+        }
+
+        (run_end - from > EL_COST).then_some(from)
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -766,6 +828,60 @@ mod tests {
         assert!(out.contains('X'), "should emit 'X': {out:?}");
         assert!(!out.contains('A'), "should not re-emit 'A': {out:?}");
         assert!(!out.contains('C'), "should not re-emit 'C': {out:?}");
+    }
+
+    #[test]
+    fn fullscreen_diff_clears_row_with_erase_line() {
+        let arena = Arena::new();
+        let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
+        let buf = Buffer::from_chars(20, 1, &full);
+        let mut h = Harness::new(20, 1);
+        h.present(&buf, &arena);
+
+        // Clear the whole row: should collapse to one EL, not 20 spaces.
+        let cleared = Buffer::new(20, 1);
+        let out = h.frame_str(&cleared, &arena);
+        assert!(out.contains("\x1B[K"), "should erase line: {out:?}");
+        assert!(
+            out.matches(' ').count() < 4,
+            "trailing clear should not spam spaces: {out:?}"
+        );
+    }
+
+    #[test]
+    fn fullscreen_diff_shrink_uses_erase_line_for_tail() {
+        let arena = Arena::new();
+        let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
+        let buf = Buffer::from_chars(20, 1, &full);
+        let mut h = Harness::new(20, 1);
+        h.present(&buf, &arena);
+
+        // Keep the first two cells, clear the rest to the row end.
+        let shrunk = Buffer::from_chars(20, 1, &[(0, 0, 'x', Style::None), (0, 1, 'x', Style::None)]);
+        let out = h.frame_str(&shrunk, &arena);
+        assert!(out.contains("\x1B[K"), "should EL the cleared tail: {out:?}");
+        assert!(
+            out.matches(' ').count() < 4,
+            "should not emit a space per cleared cell: {out:?}"
+        );
+    }
+
+    #[test]
+    fn fullscreen_diff_no_erase_line_when_tail_has_content() {
+        let arena = Arena::new();
+        let buf = Buffer::from_chars(
+            5,
+            1,
+            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (0, 4, 'Z', Style::None)],
+        );
+        let mut h = Harness::new(5, 1);
+        h.present(&buf, &arena);
+
+        // Clear b (col 1) but col 4 'Z' stays: a blank gap mid-row must not be
+        // turned into an EL (that would wipe 'Z').
+        let next = Buffer::from_chars(5, 1, &[(0, 0, 'a', Style::None), (0, 4, 'Z', Style::None)]);
+        let out = h.frame_str(&next, &arena);
+        assert!(!out.contains("\x1B[K"), "must not EL across surviving content: {out:?}");
     }
 
     #[test]

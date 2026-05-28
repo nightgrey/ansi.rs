@@ -31,7 +31,6 @@ use derive_more::{AsRef, Deref, From};
 pub use fixedbitset::IndexRange as TrackingRange;
 use geometry::{Bound, Point, Position, PositionLike, Rect, Resolve, Row};
 use std::fmt::Debug;
-use std::iter;
 use std::ops::{DerefMut, Index, IndexMut, RangeBounds};
 use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 use std::slice::SliceIndex;
@@ -121,7 +120,12 @@ impl TrackingBuffer {
 
     /// Wraps an existing [`Buffer`] and marks every row.
     pub fn from_buffer_marked(buffer: Buffer) -> Self {
-        Self::new_marked(buffer.width, buffer.height)
+        let mut bits = BitSet::with_capacity(buffer.height);
+        bits.insert_range(..);
+        Self {
+            inner: buffer,
+            bits,
+        }
     }
 
     /// Wraps an existing [`Buffer`] and leaves every row unmarked.
@@ -605,8 +609,7 @@ impl From<TrackingBuffer> for Buffer {
 
 impl From<Buffer> for TrackingBuffer {
     fn from(value: Buffer) -> Self {
-        let bits = BitSet::with_capacity_and_blocks(value.height, iter::repeat_n(1, value.height));
-        Self { inner: value, bits }
+        Self::from_buffer_marked(value)
     }
 }
 

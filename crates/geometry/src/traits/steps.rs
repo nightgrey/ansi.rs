@@ -178,15 +178,14 @@ impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator 
             return None;
         }
 
-        if let Some(plus_n) = self.bounds.forward_checked(self.front, n) {
-            if plus_n < self.bounds.max() {
+        if let Some(plus_n) = self.bounds.forward_checked(self.front, n)
+            && plus_n < self.bounds.max() {
                 self.front = self
                     .bounds
                     .forward_checked(plus_n, 1)
                     .expect("`Step` invariants not upheld");
                 return Some(plus_n);
             }
-        }
 
         None
     }
@@ -270,15 +269,14 @@ impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> DoubleEnd
             return None;
         }
 
-        if let Some(minus_n) = self.bounds.backward_checked(self.back, n) {
-            if minus_n < self.bounds.max() {
+        if let Some(minus_n) = self.bounds.backward_checked(self.back, n)
+            && minus_n < self.bounds.max() {
                 self.back = self
                     .bounds
                     .backward_checked(minus_n, 1)
                     .expect("`Step` invariants not upheld");
                 return Some(minus_n);
             }
-        }
 
         None
     }

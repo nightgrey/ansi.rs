@@ -423,7 +423,7 @@ impl<'a> DiffStrategy<'a> for ByRuns {
                 return None;
             }
 
-            if state.pos % state.width == 0 {
+            if state.pos.is_multiple_of(state.width) {
                 let row_end = state.pos + state.width;
                 if state.next[state.pos..row_end] == state.prev[state.pos..row_end] {
                     state.pos = row_end;

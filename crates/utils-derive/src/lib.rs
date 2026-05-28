@@ -157,7 +157,7 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let asserts = states.iter().enumerate().map(|(i, state)| {
         let i = i as u8;
-        let str = format!("State::{} does not match index {}.", state.to_string(), i);
+        let str = format!("State::{} does not match index {}.", state, i);
         quote!(assert!(State::#state as u8 == #i, #str))
     });
 

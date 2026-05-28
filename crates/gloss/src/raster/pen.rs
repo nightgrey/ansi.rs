@@ -36,7 +36,7 @@ impl Pen {
         let dc = col as isize - self.col as isize;
 
         // Strategy 0: CUP (always available)
-        let cost_cup = CursorPosition(row as u16, col as u16).cost();
+        let cost_cup = CursorPosition(row, col).cost();
 
         // Strategy 1: Relative moves
         let vert_cost = CursorUp(dr.unsigned_abs() as u16).cost();
@@ -45,17 +45,17 @@ impl Pen {
 
         // Strategy 2: CR + relative vertical + CUF
         // CR is 1 byte, then vertical move, then CUF to target_col
-        let cost_cr = 1 + vert_cost + CursorForward(col as u16).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         // Strategy 3: VPA + CHA
         let cost_vpa_cha = {
             let v = if dr != 0 {
-                VerticalPositionAbsolute(row as u16).cost()
+                VerticalPositionAbsolute(row).cost()
             } else {
                 0
             };
             let h = if dc != 0 || dr != 0 {
-                HorizontalPositionAbsolute(col as u16).cost()
+                HorizontalPositionAbsolute(col).cost()
             } else {
                 0
             };
@@ -85,17 +85,17 @@ impl Pen {
                 w.escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col as u16))?;
+                w.escape(CursorForward(col))?;
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                w.escape(VerticalPositionAbsolute(row as u16))?;
+                w.escape(VerticalPositionAbsolute(row))?;
             }
             if dc != 0 || dr != 0 {
-                w.escape(HorizontalPositionAbsolute(col as u16))?;
+                w.escape(HorizontalPositionAbsolute(col))?;
             }
         } else {
-            w.escape(CursorPosition(row as u16, col as u16))?;
+            w.escape(CursorPosition(row, col))?;
         }
 
         self.row = row;
@@ -124,7 +124,7 @@ impl Pen {
         let cost_relative = vert_cost + horiz_cost;
 
         // Strategy 2: CR + vertical + CUF
-        let cost_cr = 1 + vert_cost + CursorForward(col as u16).cost();
+        let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
             w.escape(CarriageReturn)?;
@@ -134,7 +134,7 @@ impl Pen {
                 w.escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col as u16))?;
+                w.escape(CursorForward(col))?;
             }
         } else if cost_relative > 0 {
             if dr > 0 {

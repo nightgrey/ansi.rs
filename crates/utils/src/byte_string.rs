@@ -899,13 +899,13 @@ impl BorrowMut<[u8]> for ByteStr {
     }
 }
 
-impl<'a> Default for &'a ByteStr {
+impl Default for &ByteStr {
     fn default() -> Self {
         ByteStr::from_bytes(b"")
     }
 }
 
-impl<'a> Default for &'a mut ByteStr {
+impl Default for &mut ByteStr {
     fn default() -> Self {
         ByteStr::from_bytes_mut(&mut [])
     }

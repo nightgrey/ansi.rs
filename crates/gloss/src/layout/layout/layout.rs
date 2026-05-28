@@ -180,10 +180,7 @@ impl From<Layout> for ansi::Style {
         }
         let mut attributes = ansi::Attribute::empty();
 
-        match style.font_weight {
-            Some(FontWeight::Bold) => attributes.insert(ansi::Attribute::Bold),
-            _ => (),
-        };
+        if let Some(FontWeight::Bold) = style.font_weight { attributes.insert(ansi::Attribute::Bold) };
 
         match style.text_decoration {
             Some(TextDecoration::Underline) => attributes.insert(ansi::Attribute::Underline),
@@ -193,10 +190,7 @@ impl From<Layout> for ansi::Style {
             _ => (),
         };
 
-        match style.font_style {
-            Some(FontStyle::Italic) => attributes.insert(ansi::Attribute::Italic),
-            _ => (),
-        };
+        if let Some(FontStyle::Italic) = style.font_style { attributes.insert(ansi::Attribute::Italic) };
 
         ansi::Style {
             attributes,

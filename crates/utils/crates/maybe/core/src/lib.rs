@@ -542,7 +542,7 @@ pub trait Maybe: Sized {
     /// ```
     #[inline]
     fn from_option(option: Option<Self>) -> Self {
-        option.unwrap_or_else(|| Self::None)
+        option.unwrap_or(Self::None)
     }
 }
 

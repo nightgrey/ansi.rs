@@ -269,7 +269,7 @@ impl Arena {
 
         // If the leftover is large enough to hold at least a minimal entry
         // (PREFIX_SIZE + 1 byte), re-insert it as a new free slot.
-        if leftover >= PREFIX_SIZE + 1 {
+        if leftover > PREFIX_SIZE {
             let remainder = Slot {
                 offset: slot.offset + needed,
                 len: leftover,
@@ -336,14 +336,14 @@ impl AsOffset for Grapheme {
 impl AsOffset for &Grapheme {
     #[inline]
     fn as_offset(self) -> usize {
-        Grapheme::as_offset(&self)
+        Grapheme::as_offset(self)
     }
 }
 
 impl AsOffset for &mut Grapheme {
     #[inline]
     fn as_offset(self) -> usize {
-        Grapheme::as_offset(&self)
+        Grapheme::as_offset(self)
     }
 }
 

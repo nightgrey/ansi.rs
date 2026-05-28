@@ -64,7 +64,7 @@ impl<T> NestedIndex<T> for usize {
         if self >= nested.len() {
             return None;
         }
-        Some(&*unsafe { NestedIndex::get_unchecked(self, nested) })
+        Some(unsafe { NestedIndex::get_unchecked(self, nested) })
     }
 
     unsafe fn get_unchecked(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {

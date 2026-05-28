@@ -51,7 +51,7 @@ impl<'a> Engine<'a> {
         buffer.clear();
 
         let mut ctx = BufferDrawingContext::new(buffer, arena);
-        ctx.paint(&document);
+        ctx.paint(document);
     }
 
     pub fn paint_with<F>(&mut self, f: F)

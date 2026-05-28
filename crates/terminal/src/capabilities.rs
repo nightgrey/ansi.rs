@@ -689,7 +689,7 @@ impl Capabilities {
             unicode_emoji,
             double_width,
             sync_output,
-            hyperlinks: hyperlinks,
+            hyperlinks,
             scroll_region,
             in_tmux,
             in_screen,

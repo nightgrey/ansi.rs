@@ -196,7 +196,7 @@ impl<'d, 'n, M: MeasureFunction<'n>> taffy::LayoutFlexboxContainer for LayoutCon
     }
 
     fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.style(child_node_id)
+        self.style(child_node_id)
     }
 }
 // impl<'d, 'n, MeasureFunction> taffy::LayoutGridContainer for LayoutContext<'d, 'n, MeasureFunction>

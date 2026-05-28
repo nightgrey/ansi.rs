@@ -20,7 +20,7 @@ struct Backing {
 
 impl Backing {
     fn new(input: &syn::Ident) -> Self {
-        Self::try_new(&input).unwrap_or_else(|| {
+        Self::try_new(input).unwrap_or_else(|| {
             panic!(
                 "unsupported backing type {} — expected u8, u16, u32, u64, or u128",
                 input,

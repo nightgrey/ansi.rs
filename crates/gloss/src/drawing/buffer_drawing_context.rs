@@ -161,7 +161,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
     fn translate(&mut self, offset: impl Into<Point>) -> &mut Self {
-        self.origin = self.origin + offset.into();
+        self.origin += offset.into();
         self
     }
 

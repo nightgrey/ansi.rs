@@ -32,7 +32,7 @@ impl Signals {
         fn executor() -> &'static Executor<'static> {
             EXECUTOR.get_or_init_blocking(|| {
                 thread::Builder::new()
-                    .name(format!("signals-thread"))
+                    .name("signals-thread".to_string())
                     .spawn(|| {
                         loop {
                             catch_unwind(|| {

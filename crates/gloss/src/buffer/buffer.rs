@@ -243,7 +243,7 @@ impl Buffer {
         }
 
         // Clip to buffer bounds and ensure y is within bounds
-        let bounds = self.clip(&Rect::from(bounds));
+        let bounds = self.clip(&bounds);
         let min_x = bounds.min.x as usize;
         let min_y = bounds.min.y as usize;
         let max_y = bounds.max.y as usize;
@@ -266,7 +266,7 @@ impl Buffer {
         // Fill new lines with the provided cell
         for row in y..(y + n) {
             let start = row * self.width() + min_x;
-            &mut self[start..start + width].fill(cell);
+            self[start..start + width].fill(cell);
         }
     }
 
@@ -276,7 +276,7 @@ impl Buffer {
         if n == 0 {
             return;
         }
-        let bounds = self.clip(&Rect::from(bounds));
+        let bounds = self.clip(&bounds);
         let min_x = bounds.min.x as usize;
         let min_y = bounds.min.y as usize;
         let max_y = bounds.max.y as usize;
@@ -312,7 +312,7 @@ impl Buffer {
             return;
         }
 
-        let bounds = self.clip(&Rect::from(bounds));
+        let bounds = self.clip(&bounds);
         let min_x = bounds.min.x as usize;
         let max_x = bounds.max.x as usize;
         let min_y = bounds.min.y as usize;
@@ -353,7 +353,7 @@ impl Buffer {
             return;
         }
 
-        let bounds = self.clip(&Rect::from(bounds));
+        let bounds = self.clip(&bounds);
         let min_x = bounds.min.x as usize;
         let max_x = bounds.max.x as usize;
         let min_y = bounds.min.y as usize;
@@ -474,10 +474,10 @@ impl Buffer {
                     let dst = y * width;
                     self.inner.copy_within(src..src + copy_w, dst);
                     // Fill the new columns
-                    &mut self.inner[dst + copy_w..dst + width].fill(Cell::EMPTY);
+                    self.inner[dst + copy_w..dst + width].fill(Cell::EMPTY);
                 }
                 // Row 0: just fill the tail
-                &mut self.inner[copy_w..width].fill(Cell::EMPTY);
+                self.inner[copy_w..width].fill(Cell::EMPTY);
             } else {
                 // Shrinking: shift rows front-to-back, then truncate
                 for y in 1..cur_h {

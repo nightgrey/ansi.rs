@@ -509,9 +509,8 @@ impl TrackingBuffer {
 
     /// Removes row and marks the rows shifted up.
     pub fn remove_row_marked(&mut self, idx: usize) -> Option<Vec<Cell>> {
-        self.remove_row_unmarked(idx).map(|row| {
+        self.remove_row_unmarked(idx).inspect(|row| {
             self.mark(idx..);
-            row
         })
     }
 
@@ -705,10 +704,10 @@ impl TrackingBufferIndex for Position {
 }
 impl TrackingBufferIndex for PositionLike {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
-        TrackingBufferIndex::try_mark(self.1 as usize, tracking_buffer)
+        TrackingBufferIndex::try_mark(self.1, tracking_buffer)
     }
     fn try_unmark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
-        TrackingBufferIndex::try_unmark(self.1 as usize, tracking_buffer)
+        TrackingBufferIndex::try_unmark(self.1, tracking_buffer)
     }
 }
 

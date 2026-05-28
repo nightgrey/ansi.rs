@@ -22,8 +22,8 @@ impl<'a, T> NestedSlice<'a, T> {
     #[inline]
     pub fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
         debug_assert!(
-            if starts.len() == 0 {
-                values.len() == 0
+            if starts.is_empty() {
+                values.is_empty()
             } else {
                 starts.last().copied() == Some(values.len())
             },
@@ -33,7 +33,7 @@ impl<'a, T> NestedSlice<'a, T> {
         );
         Self {
             starts,
-            values: values,
+            values,
         }
     }
 }
@@ -88,7 +88,7 @@ impl<'a, T> Index<usize> for NestedSlice<'a, T> {
 
 impl<'a, T> AsRef<[T]> for NestedSlice<'a, T> {
     fn as_ref(&self) -> &[T] {
-        &self.values
+        self.values
     }
 }
 

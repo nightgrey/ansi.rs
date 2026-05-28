@@ -102,7 +102,7 @@ impl Rasterer {
 
         self.output.escape(TextCursorEnable::Reset)?;
 
-        for y in 0..height as usize {
+        for y in 0..height {
             Self::row(
                 if invalidated {
                     None

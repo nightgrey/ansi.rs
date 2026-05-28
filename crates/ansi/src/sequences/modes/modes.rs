@@ -44,24 +44,24 @@ impl Modes {
     }
 
     pub fn is_not_recognized(&self, mode: &Mode) -> bool {
-        self.get(mode).map_or(true, ModeSetting::is_not_recognized)
+        self.get(mode).is_none_or(ModeSetting::is_not_recognized)
     }
 
     pub fn is_set(&self, mode: &Mode) -> bool {
-        self.get(mode).map_or(false, ModeSetting::is_set)
+        self.get(mode).is_some_and(ModeSetting::is_set)
     }
 
     pub fn is_permanently_set(&self, mode: &Mode) -> bool {
         self.get(mode)
-            .map_or(false, ModeSetting::is_permanently_set)
+            .is_some_and(ModeSetting::is_permanently_set)
     }
 
     pub fn is_reset(&self, mode: &Mode) -> bool {
-        self.get(mode).map_or(false, ModeSetting::is_reset)
+        self.get(mode).is_some_and(ModeSetting::is_reset)
     }
 
     pub fn is_permanently_reset(&self, mode: &Mode) -> bool {
         self.get(mode)
-            .map_or(false, ModeSetting::is_permanently_reset)
+            .is_some_and(ModeSetting::is_permanently_reset)
     }
 }

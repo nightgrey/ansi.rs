@@ -44,7 +44,7 @@ impl DoubleBuffer {
     }
 
     pub fn both(&self) -> (&Buffer, &Buffer) {
-        (&self.front(), &self.back())
+        (self.front(), self.back())
     }
 
     pub fn swap(&mut self) {

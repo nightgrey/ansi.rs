@@ -322,7 +322,7 @@ impl<K: Id, V> Tree<K, V> {
         }
 
         // Detach root of subtree from parent first.
-        let _ = self.detach(id);
+        self.detach(id);
 
         // Remove itself and all descendants
         let mut elements = self.descendants(id).collect::<SmallVec<_, _>>();
@@ -367,12 +367,12 @@ impl<K: Id, V> Tree<K, V> {
     pub fn is_leaf(&self, id: K) -> bool {
         self.inner
             .get(id)
-            .map_or(true, |n| n.first_child().is_none())
+            .is_none_or(|n| n.first_child().is_none())
     }
 
     /// Returns `true` if the node has no parent.
     pub fn is_root(&self, id: K) -> bool {
-        self.inner.get(id).map_or(false, |n| n.parent().is_none())
+        self.inner.get(id).is_some_and(|n| n.parent().is_none())
     }
 
     // --- Capacity & bulk operations ----------------------------------------

@@ -279,8 +279,8 @@ impl<W: IoWrite> Presenter<W> {
             return Ok(());
         }
 
-        if let Some(inline) = self.inline.as_mut() {
-            if inline.is_first {
+        if let Some(inline) = self.inline.as_mut()
+            && inline.is_first {
                 // First inline render: claim scrollback rows with \n separators.
                 inline.is_first = false;
                 inline.height = height;
@@ -313,7 +313,6 @@ impl<W: IoWrite> Presenter<W> {
 
                 return Ok(());
             }
-        }
 
         // Fullscreen full-paint: write every non-empty row, EL its tail.
         for y in 0..height {
@@ -446,7 +445,7 @@ impl<W: IoWrite> Presenter<W> {
         // changes into one logical run by relying on `pen.move_to`'s built-in
         // "already there" no-op and counting runs only when we actually move.
         let mut last: Option<(u16, u16)> = None;
-        while let Some(change) = iter.next() {
+        for change in iter {
             let starts_run = match last {
                 Some((py, px)) => change.y != py || change.x != px,
                 None => true,

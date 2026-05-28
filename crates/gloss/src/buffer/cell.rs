@@ -311,7 +311,7 @@ impl Debug for Cell {
                     debug.field("attributes", &attr.unwrap());
                 }
 
-                return debug.finish();
+                debug.finish()
             }
             (bg, fg, attr) => {
                 let mut debug = f.debug_tuple(if bg.is_some() {

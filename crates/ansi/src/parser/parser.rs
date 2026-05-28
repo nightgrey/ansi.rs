@@ -26,7 +26,15 @@ impl Parser {
 
         while i < bytes.len() {
             match self.state {
-                State::Ground => i += self.advance_ground(handler, &bytes[i..]),
+                State::Ground => {
+                    let consumed = self.advance_ground(handler, &bytes[i..]);
+                    if consumed == 0 { 
+                        self.advance_byte(handler, bytes[i]);
+                        i += 1;
+                    } else {
+                        i += consumed;
+                    }
+                }
                 _ => {
                     let byte = bytes[i];
                     self.advance_byte(handler, byte);
@@ -283,6 +291,14 @@ pub struct ParametersBuilder {
     #[deref_mut]
     inner: NestedRaw<u16, 16, 8>,
     current: Option<u16>,
+    group_active: bool,
+    last_separator: Option<ParameterSeparator>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParameterSeparator {
+    Main,
+    Sub,
 }
 
 impl ParametersBuilder {
@@ -304,28 +320,67 @@ impl ParametersBuilder {
     /// Empty sub-parameters default to 0 to mirror ECMA-48 — `1::3` means `[1, 0, 3]`.
     pub fn push_sub(&mut self) {
         let val = self.current.take().unwrap_or(0);
-        self.inner
-            .try_extend_one(val)
-            .expect("could not extend value");
+        self.push_sub_value(val);
+        self.last_separator = Some(ParameterSeparator::Sub);
     }
 
     /// Append current parameter as a main parameter (`;` separator).
     /// An empty leading param defaults to 0 — `;1m` means `[[0], [1]]`.
     pub fn push_main(&mut self) {
-        let val = self.current.take().unwrap_or(0);
-        self.inner.try_push_one(val).expect("Capacity exceeded");
+        match self.current.take() {
+            Some(val) => self.push_value(val),
+            None if matches!(self.last_separator, Some(ParameterSeparator::Sub)) => {
+                self.push_sub_value(0);
+            }
+            None => self
+                .inner
+                .try_push_one(0)
+                .expect("could not push empty parameter"),
+        }
+
+        self.group_active = false;
+        self.last_separator = Some(ParameterSeparator::Main);
     }
 
-    /// Finalize the in-flight param at dispatch time. Only commits if there's an unfinished value.
+    /// Finalize the in-flight param at dispatch time.
     pub fn finish(&mut self) {
-        if self.current.is_some() {
-            self.push_sub();
+        match self.current.take() {
+            Some(val) => self.push_value(val),
+            None if matches!(self.last_separator, Some(ParameterSeparator::Sub)) => {
+                self.push_sub_value(0);
+            }
+            None => {}
         }
     }
 
     pub fn clear(&mut self) {
         self.inner.clear();
         self.current = None;
+        self.group_active = false;
+        self.last_separator = None;
+    }
+
+    fn push_value(&mut self, val: u16) {
+        if self.group_active {
+            self.push_sub_value(val);
+        } else {
+            self.inner
+                .try_push_one(val)
+                .expect("could not push parameter");
+        }
+    }
+
+    fn push_sub_value(&mut self, val: u16) {
+        if self.group_active {
+            self.inner
+                .try_extend_one(val)
+                .expect("could not extend parameter");
+        } else {
+            self.inner
+                .try_push_one(val)
+                .expect("could not push parameter");
+            self.group_active = true;
+        }
     }
 }
 

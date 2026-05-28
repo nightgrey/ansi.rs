@@ -137,7 +137,7 @@ transitions!(0, {
         0x30..=0x39 => Param,
         0x3b       => Param,
         0x7f       => Ignore,
-        0x3a       => (None, DcsIgnore),
+        0x3a       => Param,
         0x3c..=0x3f => (None, DcsIgnore),
         0x20..=0x2f => (Collect, DcsIntermediate),
         0x40..=0x7e => (None, DcsData)
@@ -173,6 +173,7 @@ transitions!(0, {
     OscData {
         on_entry  => OscDispatch,
         0x00..=0x17 => Ignore,
+        0x07       => (None, Ground),
         0x19       => Ignore,
         0x1c..=0x1f => Ignore,
         0x20..=0x7f => OscByte,
@@ -218,9 +219,9 @@ pub enum Action {
 #[derive(Copy, EnumCount, IntoStaticStr, Debug)]
 #[derive_const(Clone, PartialEq, Eq, Default)]
 pub enum State {
+    /// No state transition.
+    None,
     #[default]
-    /// Denotes "no state transition" or "keep current state"
-    None = 0,
     /// Initial state used to consume characters until an escape-style sequence begins.
     Ground,
     /// UTF-8 byte sequence (`0xC2..=0xDF`, `0xE0..=0xEF`, or `0xF0..=0xF4`) or continuation byte (`0x80..=0xBF`).
@@ -286,17 +287,17 @@ mod tests {
 
     #[test]
     fn unpack_state_action() {
-        match unpack(0xEE) {
+        match unpack(0xE1) {
             (Action::OscTermination, State::Ground) => (),
             _ => panic!("unpack failed"),
         }
 
-        match unpack(0x0E) {
+        match unpack(0x01) {
             (Action::None, State::Ground) => (),
             _ => panic!("unpack failed"),
         }
 
-        match unpack(0xE0) {
+        match unpack(0xE5) {
             (Action::OscTermination, State::CsiEntry) => (),
             _ => panic!("unpack failed"),
         }
@@ -304,8 +305,8 @@ mod tests {
 
     #[test]
     fn pack_state_action() {
-        assert_eq!(pack(Action::OscTermination, State::Ground), 0xEE);
-        assert_eq!(pack(Action::None, State::Ground), 0x0E);
-        assert_eq!(pack(Action::OscTermination, State::CsiEntry), 0xE0);
+        assert_eq!(pack(Action::OscTermination, State::Ground), 0xE1);
+        assert_eq!(pack(Action::None, State::Ground), 0x01);
+        assert_eq!(pack(Action::OscTermination, State::CsiEntry), 0xE5);
     }
 }

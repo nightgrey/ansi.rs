@@ -40,24 +40,11 @@ impl Parser {
     fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
         let prev_state = self.state;
         let (action, next_state) = transition(self.state, byte);
-        println!(
-            "{:?} / 0x{:2x} | {:?} -> {:?} @ {:?}",
-            byte as char,
-            byte,
-            prev_state,
-            if next_state == State::None {
-                prev_state
-            } else {
-                next_state
-            },
-            action
-        );
 
         if next_state != State::None {
             let exit_action = exit(prev_state);
             let entry_action = entry(next_state);
 
-            println!("Exit {:?} <-> Entry {:?}", exit_action, entry_action);
             if exit_action != Action::None {
                 self.action(handler, exit_action, byte);
             }
@@ -316,7 +303,6 @@ impl ParametersBuilder {
     /// Append current parameter as a sub-parameter (`:` separator).
     /// Empty sub-parameters default to 0 to mirror ECMA-48 — `1::3` means `[1, 0, 3]`.
     pub fn push_sub(&mut self) {
-        dbg!("sub", self.current);
         let val = self.current.take().unwrap_or(0);
         self.inner
             .try_extend_one(val)
@@ -326,7 +312,6 @@ impl ParametersBuilder {
     /// Append current parameter as a main parameter (`;` separator).
     /// An empty leading param defaults to 0 — `;1m` means `[[0], [1]]`.
     pub fn push_main(&mut self) {
-        dbg!("main", self.current);
         let val = self.current.take().unwrap_or(0);
         self.inner.try_push_one(val).expect("Capacity exceeded");
     }

@@ -22,7 +22,7 @@
 extern crate core;
 
 mod color;
-mod parser;
+pub mod parser;
 mod style;
 
 #[macro_use]

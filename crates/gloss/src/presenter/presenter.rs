@@ -225,10 +225,17 @@ impl<W: IoWrite> Presenter<W> {
         }
         self.writer.escape(TextCursorEnable::Reset)?;
 
-        if force_full && !self.is_inline() {
-            self.writer.escape(Home)?;
-            self.writer.escape(EraseDisplay)?;
-            self.pen.clear();
+        if force_full {
+            // Fullscreen homes + erases the screen; inline mode claims/rewinds
+            // its own rows inside `emit_full`, so it must not touch the screen
+            // here. Either way the full paint discharges the invalidation, so
+            // clear the flag for both modes — otherwise inline would re-take
+            // the full-paint path on every frame and never diff.
+            if !self.is_inline() {
+                self.writer.escape(Home)?;
+                self.writer.escape(EraseDisplay)?;
+                self.pen.clear();
+            }
             self.invalidated = false;
         }
 
@@ -444,12 +451,11 @@ impl<W: IoWrite> Presenter<W> {
         arena: &Arena,
         stats: &mut PresentStats,
     ) -> io::Result<()> {
-        let mut iter = next.diff(prev).peekable();
         // ByDirty yields one Change per base cell. Coalesce same-row adjacent
         // changes into one logical run by relying on `pen.move_to`'s built-in
         // "already there" no-op and counting runs only when we actually move.
         let mut last: Option<(u16, u16)> = None;
-        for change in iter {
+        for change in next.diff(prev) {
             let starts_run = match last {
                 Some((py, px)) => change.y != py || change.x != px,
                 None => true,
@@ -575,23 +581,275 @@ fn bridge_cost(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer_generation::{buffer_chessboard, buffer_diagonals, buffer_solid};
-    use ansi::Color;
+    use ansi::{Color, Style};
     use std::io::Cursor;
 
+    /// Test wrapper that owns the previous frame and exposes the bytes emitted
+    /// by the most recent `present` call. Mirrors the `Shadowed` helper used in
+    /// the rasterer tests so the two implementations can be checked against the
+    /// same expectations.
+    struct Harness {
+        inner: Presenter<Cursor<Vec<u8>>>,
+        prev: Buffer,
+        mark: usize,
+    }
+
+    impl Harness {
+        fn new(width: usize, height: usize) -> Self {
+            Self {
+                inner: Presenter::new(Cursor::new(Vec::new())),
+                prev: Buffer::new(width, height),
+                mark: 0,
+            }
+        }
+
+        fn inline(width: usize, height: usize) -> Self {
+            Self {
+                inner: Presenter::inline(Cursor::new(Vec::new())),
+                prev: Buffer::new(width, height),
+                mark: 0,
+            }
+        }
+
+        fn with_capabilities(mut self, caps: Capabilities) -> Self {
+            self.inner = self.inner.with_capabilities(caps);
+            self
+        }
+
+        /// Present `next`, returning just the bytes emitted for this frame.
+        fn present(&mut self, next: &Buffer, arena: &Arena) -> (PresentStats, Vec<u8>) {
+            if self.prev.width != next.width || self.prev.height != next.height {
+                self.prev.resize(next.width, next.height);
+                self.prev.clear();
+            }
+            let stats = self.inner.present(&self.prev, next, arena).unwrap();
+            self.prev.copy_from_slice(next.as_ref());
+
+            let all = self.inner.get_writer().get_ref();
+            let frame = all[self.mark..].to_vec();
+            self.mark = all.len();
+            (stats, frame)
+        }
+
+        fn frame_str(&mut self, next: &Buffer, arena: &Arena) -> String {
+            let (_, bytes) = self.present(next, arena);
+            String::from_utf8_lossy(&bytes).into_owned()
+        }
+
+        fn invalidate(&mut self) {
+            self.inner.invalidate();
+        }
+    }
+
+    // ── Fullscreen ──────────────────────────────────────────────────────
+
     #[test]
-    fn test() {
-        let mut presenter = Presenter::new(Cursor::new(Vec::new()));
-        let mut arena = Arena::new();
-        let prev = buffer_solid(100, 100, Color::Rgb(255, 0, 0));
+    fn fullscreen_first_frame_clears_then_paints() {
+        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let mut h = Harness::new(3, 1);
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(out.contains("\x1B[2J"), "first frame should ED2: {out:?}");
+        assert!(out.contains('A'), "should paint 'A': {out:?}");
+    }
 
-        let next = buffer_diagonals(100, 100);
+    #[test]
+    fn fullscreen_identical_second_frame_emits_no_content() {
+        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None)]);
+        let mut h = Harness::new(3, 1);
+        h.present(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(!out.contains('A'), "should not re-emit 'A': {out:?}");
+        assert!(!out.contains('B'), "should not re-emit 'B': {out:?}");
+    }
+
+    #[test]
+    fn fullscreen_diff_emits_only_changed_cell() {
         let arena = Arena::new();
+        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None), (0, 2, 'C', Style::None)]);
+        let mut h = Harness::new(3, 1);
+        h.present(&buf1, &arena);
 
-        let stats = presenter.present(&prev, &next, &arena).unwrap();
+        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'X', Style::None), (0, 2, 'C', Style::None)]);
+        let out = h.frame_str(&buf2, &arena);
+        assert!(out.contains('X'), "should emit 'X': {out:?}");
+        assert!(!out.contains('A'), "should not re-emit 'A': {out:?}");
+        assert!(!out.contains('C'), "should not re-emit 'C': {out:?}");
+    }
 
-        let out = String::from_utf8_lossy(presenter.get_writer().get_ref());
+    #[test]
+    fn fullscreen_invalidate_forces_full_redraw() {
+        let buf = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
+        let mut h = Harness::new(2, 1);
+        h.present(&buf, &Arena::new());
 
-        dbg!(out);
+        h.invalidate();
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(out.contains("\x1B[2J"), "invalidate should ED2: {out:?}");
+        assert!(out.contains('Z'), "should re-emit 'Z': {out:?}");
+    }
+
+    #[test]
+    fn fullscreen_sync_output_wraps_frame() {
+        let caps = Capabilities::builder().sync_output(true).build();
+        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let mut h = Harness::new(3, 1).with_capabilities(caps);
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(out.starts_with("\x1B[?2026h"), "begin sync: {out:?}");
+        assert!(out.ends_with("\x1B[?2026l"), "end sync: {out:?}");
+    }
+
+    #[test]
+    fn fullscreen_hides_then_shows_cursor() {
+        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let mut h = Harness::new(3, 1);
+        let out = h.frame_str(&buf, &Arena::new());
+        let hide = out.find("\x1B[?25l");
+        let show = out.rfind("\x1B[?25h");
+        assert!(hide.is_some() && show.is_some(), "hide/show present: {out:?}");
+        assert!(hide < show, "hide before show: {out:?}");
+    }
+
+    // ── Inline ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn inline_first_frame_has_no_ed_or_home() {
+        let buf = Buffer::from_chars(3, 2, &[(0, 0, 'x', Style::None), (1, 0, 'y', Style::None)]);
+        let mut h = Harness::inline(3, 2);
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(!out.contains("\x1B[2J"), "no ED2 inline: {out:?}");
+        assert!(!out.contains("\x1B[H"), "no Home inline: {out:?}");
+        assert!(out.contains('x') && out.contains('y'), "paints content: {out:?}");
+    }
+
+    #[test]
+    fn inline_identical_second_frame_emits_no_content() {
+        let buf = Buffer::from_chars(
+            5,
+            2,
+            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None), (1, 1, 'd', Style::None)],
+        );
+        let mut h = Harness::inline(5, 2);
+        h.present(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Arena::new());
+        assert!(!out.contains('a'), "should not re-emit 'a': {out:?}");
+        assert!(!out.contains('c'), "should not re-emit 'c': {out:?}");
+    }
+
+    #[test]
+    fn inline_diff_emits_only_changed_cell() {
+        let buf1 = Buffer::from_chars(
+            5,
+            2,
+            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None), (1, 1, 'd', Style::None)],
+        );
+        let mut h = Harness::inline(5, 2);
+        h.present(&buf1, &Arena::new());
+
+        let buf2 = Buffer::from_chars(
+            5,
+            2,
+            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'X', Style::None), (1, 1, 'd', Style::None)],
+        );
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(out.contains('X'), "should emit changed cell: {out:?}");
+        assert!(!out.contains('a'), "should not re-emit 'a': {out:?}");
+        assert!(!out.contains('d'), "should not re-emit 'd': {out:?}");
+    }
+
+    #[test]
+    fn inline_second_frame_rewinds_with_cuu() {
+        let buf = Buffer::from_chars(
+            5,
+            3,
+            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+        );
+        let mut h = Harness::inline(5, 3);
+        h.present(&buf, &Arena::new());
+
+        let buf2 = Buffer::from_chars(
+            5,
+            3,
+            &[(0, 0, 'a', Style::None), (1, 0, 'X', Style::None), (2, 0, 'c', Style::None)],
+        );
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(out.contains("\x1B[2A") || out.contains("\x1B[A"), "should CUU to rewind: {out:?}");
+    }
+
+    #[test]
+    fn inline_grow_claims_new_rows_with_newline() {
+        let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
+        let mut h = Harness::inline(3, 2);
+        h.present(&buf1, &Arena::new());
+
+        let buf2 = Buffer::from_chars(
+            3,
+            3,
+            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+        );
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(out.contains('\n'), "should emit newline to claim a row: {out:?}");
+        assert!(out.contains('c'), "should paint the new row: {out:?}");
+    }
+
+    #[test]
+    fn inline_shrink_clears_orphan_rows() {
+        let buf1 = Buffer::from_chars(
+            3,
+            3,
+            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+        );
+        let mut h = Harness::inline(3, 3);
+        h.present(&buf1, &Arena::new());
+
+        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', Style::None)]);
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(out.contains("\x1B[K"), "should EL orphan rows: {out:?}");
+    }
+
+    // ── Style tracking across frames ────────────────────────────────────
+
+    #[test]
+    fn fullscreen_style_change_across_frames_emits_new_sgr() {
+        let s1 = Style::default().foreground(Color::Rgb(255, 0, 0));
+        let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
+        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
+        let mut h = Harness::new(3, 1);
+        h.present(&buf1, &Arena::new());
+
+        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
+        let out = h.frame_str(&buf2, &Arena::new());
+        assert!(out.contains("38;2;0;0;255"), "should emit new fg: {out:?}");
+    }
+
+    // ── Tracking buffer (dirty-row) path ────────────────────────────────
+
+    #[test]
+    fn tracking_diff_emits_only_marked_changes() {
+        use crate::TrackingBuffer;
+        let mut arena = Arena::new();
+
+        let prev = Buffer::from_chars(
+            3,
+            2,
+            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None)],
+        );
+
+        // First frame: full paint to sync state.
+        let mut presenter = Presenter::new(Cursor::new(Vec::new()));
+        let blank = Buffer::new(3, 2);
+        presenter.present(&blank, &prev, &arena).unwrap();
+        let mark = presenter.get_writer().get_ref().len();
+
+        // Change one cell on row 1, mark only row 1 dirty.
+        let mut next = TrackingBuffer::from(prev.clone());
+        next.unmark_all();
+        next.set_line(Point { x: 0, y: 1 }, "X", &mut arena);
+
+        presenter.present_tracking(&prev, &next, &arena).unwrap();
+        let all = presenter.get_writer().get_ref();
+        let frame = String::from_utf8_lossy(&all[mark..]).into_owned();
+
+        assert!(frame.contains('X'), "should emit changed cell: {frame:?}");
+        assert!(!frame.contains('a'), "should not touch row 0: {frame:?}");
     }
 }

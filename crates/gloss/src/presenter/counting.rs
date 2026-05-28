@@ -171,7 +171,7 @@ mod tests {
         let buffer: Vec<u8> = Vec::new();
         let writer = Counting::new(buffer);
         let dbg = format!("{:?}", writer);
-        assert!(dbg.contains("CountingWriter"), "Debug: {dbg}");
+        assert!(dbg.contains("Counting"), "Debug: {dbg}");
     }
 
     #[test]

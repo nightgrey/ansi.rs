@@ -12,8 +12,6 @@ pub fn transitions(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item: TokenStream = item.into();
     let mut iter = item.into_iter().peekable();
 
-    let _n = next_usize(&mut iter);
-    expect_punct(&mut iter, ',');
 
     let mut states_iter = next_group(&mut iter).into_iter().peekable();
 

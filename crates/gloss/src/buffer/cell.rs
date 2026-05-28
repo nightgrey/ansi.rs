@@ -1,8 +1,9 @@
+use core::fmt;
 use super::{Arena, Grapheme};
 use crate::AsOffset;
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
-use std::fmt::Debug;
+use std::fmt::{from_fn, Debug, DebugTuple};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 // Compile-time size check
@@ -279,22 +280,67 @@ impl Default for Cell {
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() {
-            return f.write_str("Cell::EMPTY");
-        }
-        if self.is_continuation() {
-            return f.write_str("Cell::CONTINUATION");
+        if self.is_empty() && self.style.is_empty() {
+            return f.write_str("Cell::Empty");
         }
 
-        let mut debug = f.debug_tuple("Cell");
+        let bg = self.style.background.maybe();
+        let fg = self.style.foreground.maybe();
+        let attr = self.style.attributes.maybe();
+        let grapheme = (!self.grapheme.is_empty()).then_some(self.grapheme);
 
-        debug.field(&self.grapheme);
+        let g = from_fn(|f| match grapheme.or(Some(Grapheme::EMPTY)) {
+            Some(grapheme) if grapheme.is_inline() => f.write_str(grapheme.as_inline_str()),
+            Some(grapheme) if grapheme.is_extended() => write!(f, "Offset({:?})", grapheme.as_offset()),
+            Some(grapheme) if grapheme.is_continuation() => f.write_str(".."),
+            _ => unreachable!(),
+        });
 
-        if self.style.is_some() {
-            debug.field(&self.style);
+        match (bg, fg, attr) {
+            (Some(bg), Some(fg), attr) => {
+                let mut debug = f.debug_struct("Cell");
+
+                if !self.grapheme.is_empty() {
+                    debug.field("grapheme", &g);
+                }
+                debug.field("background", &bg);
+                debug.field("foreground", &fg);
+
+                if attr.is_some() {
+                    debug.field("attributes", &attr.unwrap());
+                }
+
+                return debug.finish();
+            },
+            (bg, fg, attr) => {
+                let mut debug = f.debug_tuple(if bg.is_some() {
+                    "Cell::Background"
+                } else if fg.is_some() {
+                    "Cell::Foreground"
+                } else if attr.is_some() {
+                    "Cell::Attributes"
+                } else {
+                    "Cell"
+                });
+
+                if !self.grapheme.is_empty() {
+                    debug.field(&g);
+                }
+
+                if bg.is_some() {
+                    debug.field(&bg.unwrap());
+                }
+
+                if fg.is_some() {
+                    debug.field(&fg.unwrap());
+                }
+                if attr.is_some() {
+                    debug.field(&attr.unwrap());
+                }
+
+                debug.finish()
+            }
         }
-
-        debug.finish()
     }
 }
 

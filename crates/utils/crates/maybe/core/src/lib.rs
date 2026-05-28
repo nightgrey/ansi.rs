@@ -515,6 +515,11 @@ pub trait Maybe: Sized {
         if self.is_some() { Some(self) } else { None }
     }
 
+    #[doc(alias = "maybe")]
+    #[inline]
+    fn option(self) -> Option<Self> {
+        self.maybe()
+    }
     /// Converts [`Option<Self>`] to [`Self`].
     ///
     /// # Examples

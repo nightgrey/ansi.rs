@@ -1,6 +1,7 @@
 use super::{Arena, GraphemeError};
 use crate::AsOffset;
 use std::fmt;
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -209,8 +210,9 @@ impl Grapheme {
         char::from_u32(code_point)
     }
 
-    fn as_char(&self) -> char {
-        self.try_as_char().unwrap()
+    /// Resolve this grapheme to a `char`, falling back to a replacement character if invalid.
+    pub fn as_char(&self) -> char {
+        self.try_as_char().unwrap_or(char::REPLACEMENT_CHARACTER)
     }
 
     /// Resolve this grapheme to a `&str`.
@@ -241,11 +243,29 @@ impl Grapheme {
         }
     }
 
+
+    /// Interpret the inline bytes as a `&str`.
+    ///
+    /// # Safety
+    ///
+    /// The inline encoding guarantees valid UTF-8 for all non-empty values
+    /// constructed through the public API.
+    pub fn as_inline_str(&self) -> &str {
+        unsafe { std::str::from_utf8_unchecked(self.as_inline_bytes()) }
+    }
+    
     /// Resolve this grapheme to a byte slice.
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.as_str(arena).as_bytes()
     }
 
+    /// Extract the inline UTF-8 bytes as a slice.
+    ///
+    /// On little-endian targets this is a direct pointer cast into `self`;
+    /// the length is determined by [`inline_len`](Self::inline_len).
+    pub fn as_inline_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, self.inline_len()) }
+    }
     // ── Internal constructors ──────────────────────────────────────────
 
     /// Pack up to 4 UTF-8 bytes into a `u32` via little-endian interpretation.
@@ -283,23 +303,6 @@ impl Grapheme {
         memchr::memchr(0, &self.value.to_le_bytes()).unwrap_or(char::MAX_LEN_UTF8)
     }
 
-    /// Extract the inline UTF-8 bytes as a slice.
-    ///
-    /// On little-endian targets this is a direct pointer cast into `self`;
-    /// the length is determined by [`inline_len`](Self::inline_len).
-    pub fn as_inline_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, self.inline_len()) }
-    }
-
-    /// Interpret the inline bytes as a `&str`.
-    ///
-    /// # Safety
-    ///
-    /// The inline encoding guarantees valid UTF-8 for all non-empty values
-    /// constructed through the public API.
-    pub fn as_inline_str(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(self.as_inline_bytes()) }
-    }
 }
 
 impl From<char> for Grapheme {
@@ -310,21 +313,18 @@ impl From<char> for Grapheme {
 
 impl fmt::Debug for Grapheme {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_empty() {
-            return f.write_str("Grapheme::EMPTY");
-        }
-        if self.is_continuation() {
-            return f.write_str("Grapheme::CONTINUATION");
-        }
-
-        if self.is_inline() {
-            f.debug_tuple("Grapheme::Inline")
+        match self {
+            grapheme if grapheme.is_empty() => f.debug_tuple("Grapheme::Empty")
+                .finish(),
+            grapheme if grapheme.is_inline() => f.debug_tuple("Grapheme::Inline")
                 .field(&self.as_inline_str())
-                .finish()
-        } else {
-            f.debug_tuple("Grapheme::Extended")
+                .finish(),
+            grapheme if grapheme.is_extended() => f.debug_tuple("Grapheme::Extended")
                 .field(&self.as_offset())
-                .finish()
+                .finish(),
+            grapheme if grapheme.is_continuation() => f.debug_tuple("Grapheme::Continuation")
+                .finish(),
+            _ => unreachable!(),
         }
     }
 }

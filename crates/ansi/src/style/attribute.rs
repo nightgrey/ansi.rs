@@ -5,6 +5,7 @@ use bitflags::{
 };
 use std::borrow::Cow;
 use std::fmt::from_fn;
+use maybe::Maybe;
 
 bitflags! {
     /// Attribute
@@ -252,6 +253,15 @@ impl Escape for Attribute {
 pub type AttributeIter = Iter<Attribute>;
 pub type AttributeNames = IterNames<Attribute>;
 pub type AttributeVariants = IterDefinedNames<Attribute>;
+
+impl Maybe for Attribute {
+    #[allow(non_upper_case_globals)]
+    const None: Self = Self::None;
+
+    fn is_none(&self) -> bool {
+        self == &Self::None
+    }
+}
 
 #[cfg(test)]
 mod tests {

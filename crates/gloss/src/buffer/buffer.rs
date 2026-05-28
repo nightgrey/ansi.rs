@@ -66,6 +66,22 @@ impl Buffer {
         buffer
     }
 
+    /// Creates a [`Buffer`] by calling `f` for each cell position.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let buf = Buffer::from_fn(10, 5, |row, col| Cell::inline(char::from(b'A' + (row * 10 + col) as u8 % 26)));
+    /// ```
+    pub fn from_fn(width: usize, height: usize, f: impl Fn(usize, usize) -> Cell) -> Self {
+        let mut inner = Vec::with_capacity(width * height);
+        for row in 0..height {
+            for col in 0..width {
+                inner.push(f(row, col));
+            }
+        }
+        Self { inner, width, height }
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }

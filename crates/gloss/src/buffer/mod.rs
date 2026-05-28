@@ -5,6 +5,7 @@ mod cell;
 mod buffer_double;
 mod grapheme;
 mod buffer_tracking;
+pub mod buffer_generation;
 
 pub use buffer::*;
 pub use buffer_diff::*;

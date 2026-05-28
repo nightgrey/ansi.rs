@@ -26,15 +26,7 @@ impl Parser {
 
         while i < bytes.len() {
             match self.state {
-                State::Ground => {
-                    let consumed = self.advance_ground(handler, &bytes[i..]);
-                    if consumed == 0 { 
-                        self.advance_byte(handler, bytes[i]);
-                        i += 1;
-                    } else {
-                        i += consumed;
-                    }
-                }
+                State::Ground => i += self.advance_ground(handler, &bytes[i..]),
                 _ => {
                     let byte = bytes[i];
                     self.advance_byte(handler, byte);
@@ -152,9 +144,17 @@ impl Parser {
                 let consumed = Self::dispatch_ground_chars(handler, parsed);
 
                 // If we stopped early on a C1 char encoded as utf8, hand the
-                // bytes after `consumed` back to the state machine.
+                // bytes after `consumed` back to the state machine unless the
+                // C1 char is first, in which case consume it now to guarantee
+                // progress.
                 if consumed < plain_chars {
-                    return consumed;
+                    if consumed > 0 {
+                        return consumed;
+                    }
+
+                    let c = unsafe { parsed.chars().next().unwrap_unchecked() };
+                    self.advance_byte(handler, c as u8);
+                    return c.len_utf8();
                 }
 
                 let mut processed = plain_chars;
@@ -172,19 +172,30 @@ impl Parser {
                 let dispatched = Self::dispatch_ground_chars(handler, parsed);
 
                 // Stopped early inside the valid prefix: bail out so the state
-                // machine can take over with the C1 char.
+                // machine can take over with the C1 char unless it is first,
+                // in which case consume it now to guarantee progress.
                 if dispatched < valid_bytes {
-                    return dispatched;
+                    if dispatched > 0 {
+                        return dispatched;
+                    }
+
+                    let c = unsafe { parsed.chars().next().unwrap_unchecked() };
+                    self.advance_byte(handler, c as u8);
+                    return c.len_utf8();
                 }
 
                 match err.error_len() {
                     Some(len) => {
                         let bad = bytes[valid_bytes];
                         // Raw 8-bit C1 controls (0x80..=0x9F) are handled by
-                        // the state machine via Anywhere transitions — bail
-                        // out so the next iteration runs `advance_byte`.
+                        // the state machine via Anywhere transitions.
                         if len == 1 && (0x80..=0x9F).contains(&bad) {
-                            return valid_bytes;
+                            if valid_bytes > 0 {
+                                return valid_bytes;
+                            }
+
+                            self.advance_byte(handler, bad);
+                            return len;
                         }
                         // Otherwise the bytes are genuinely malformed.
                         handler.print('\u{FFFD}');

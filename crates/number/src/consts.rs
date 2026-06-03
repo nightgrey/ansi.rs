@@ -16,25 +16,25 @@ pub const trait Max {
 
 macro_rules! impl_zero {
     ($($ty:ty = $val:expr),*) => {
-        $( impl Zero for $ty { const ZERO: Self = $val; } )*
+        $( impl const Zero for $ty { const ZERO: Self = $val; } )*
     };
 }
 
 macro_rules! impl_one {
     ($($ty:ty = $val:expr),*) => {
-        $( impl One for $ty { const ONE: Self = $val; } )*
+        $( impl const One for $ty { const ONE: Self = $val; } )*
     };
 }
 
 macro_rules! impl_min {
     ($($ty:ty = $val:expr),*) => {
-        $( impl Min for $ty { const MIN: Self = $val; } )*
+        $( impl const Min for $ty { const MIN: Self = $val; } )*
     };
 }
 
 macro_rules! impl_max {
     ($($ty:ty = $val:expr),*) => {
-        $( impl Max for $ty { const MAX: Self = $val; } )*
+        $( impl const Max for $ty { const MAX: Self = $val; } )*
     };
 }
 

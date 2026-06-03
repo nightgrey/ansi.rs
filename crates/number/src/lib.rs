@@ -1,6 +1,7 @@
 #![feature(more_float_constants)]
 #![feature(const_trait_impl)]
-
+#![feature(const_ops)]
+#![feature(const_cmp)]
 pub mod consts;
 pub mod float;
 pub mod integer;

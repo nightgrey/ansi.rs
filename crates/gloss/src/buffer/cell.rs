@@ -66,7 +66,7 @@ impl Cell {
     };
 
     /// Create a new cell.
-    pub fn new(grapheme: Grapheme, width: usize, style: Style) -> Self {
+    pub const fn new(grapheme: Grapheme, width: usize, style: Style) -> Self {
         Self {
             grapheme,
             width: width as u8,
@@ -100,18 +100,18 @@ impl Cell {
     // ── Accessors ──────────────────────────────────────────────────────
 
     #[inline]
-    pub fn grapheme(&self) -> Grapheme {
+    pub const fn grapheme(&self) -> Grapheme {
         self.grapheme
     }
 
     #[inline]
-    pub fn width(&self) -> u8 {
+    pub const fn width(&self) -> u8 {
         self.width
     }
 
     /// The cell's visual style.
     #[inline]
-    pub fn style(&self) -> &Style {
+    pub const fn style(&self) -> &Style {
         &self.style
     }
 
@@ -133,7 +133,7 @@ impl Cell {
     /// than [`is_empty`](Self::is_space), when deciding whether a cell can be
     /// skipped or cleared with an erase.
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.is_space() && self.style.is_none()
     }
 
@@ -145,15 +145,15 @@ impl Cell {
         self.is_space()
     }
 
-    pub fn with_char(self, char: char, arena: &mut Arena) -> Self {
+    pub const fn with_char(self, char: char, arena: &mut Arena) -> Self {
         self.with_char_measured(char, char.width().unwrap_or(0), arena)
     }
 
-    pub fn with_str(self, str: &str, arena: &mut Arena) -> Self {
+    pub const fn with_str(self, str: &str, arena: &mut Arena) -> Self {
         self.with_str_measured(str, str.width(), arena)
     }
 
-    pub fn with_char_measured(mut self, char: char, width: usize, arena: &mut Arena) -> Self {
+    pub const fn with_char_measured(mut self, char: char, width: usize, arena: &mut Arena) -> Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -164,7 +164,7 @@ impl Cell {
         self
     }
 
-    pub fn with_str_measured(mut self, str: &str, width: usize, arena: &mut Arena) -> Self {
+    pub const fn with_str_measured(mut self, str: &str, width: usize, arena: &mut Arena) -> Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -173,37 +173,56 @@ impl Cell {
         self
     }
 
-    pub fn with_style(mut self, style: Style) -> Self {
+    pub const fn with_style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
 
-    pub fn with_foreground(mut self, color: Color) -> Self {
+    pub const fn with_foreground(mut self, color: Color) -> Self {
         self.style.foreground = color;
         self
     }
 
-    pub fn with_background(mut self, color: Color) -> Self {
+    pub const fn with_maybe_foreground(self, color: Option<Color>) -> Self {
+        match color {
+            Some(color) => self.with_foreground(color),
+            None => self,
+        }
+    }
+
+    pub const fn with_background(mut self, color: Color) -> Self {
         self.style.background = color;
         self
     }
 
-    pub fn with_attributes(mut self, attribute: Attribute) -> Self {
+    pub const fn with_maybe_background(self, color: Option<Color>) -> Self {
+        match color {
+            Some(color) => self.with_background(color),
+            None => self,
+        }
+    }
+
+    pub const fn with_attributes(mut self, attribute: Attribute) -> Self {
         self.style.attributes = attribute;
         self
     }
 
-    pub fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
+    pub const fn set_char(&mut self, char: char, arena: &mut Arena) -> &mut Self {
         *self = self.with_char(char, arena);
         self
     }
 
-    pub fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
+    pub const fn set_str(&mut self, str: &str, arena: &mut Arena) -> &mut Self {
         *self = self.with_str(str, arena);
         self
     }
 
-    pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
+    pub const fn set_char_measured(
+        &mut self,
+        char: char,
+        width: usize,
+        arena: &mut Arena,
+    ) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -214,27 +233,32 @@ impl Cell {
         self
     }
 
-    pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
+    pub const fn set_str_measured(
+        &mut self,
+        str: &str,
+        width: usize,
+        arena: &mut Arena,
+    ) -> &mut Self {
         *self = self.with_str_measured(str, width, arena);
         self
     }
 
-    pub fn set_style(&mut self, style: Style) -> &mut Self {
+    pub const fn set_style(&mut self, style: Style) -> &mut Self {
         *self = self.with_style(style);
         self
     }
 
-    pub fn set_foreground(&mut self, color: Color) -> &mut Self {
+    pub const fn set_foreground(&mut self, color: Color) -> &mut Self {
         *self = self.with_foreground(color);
         self
     }
 
-    pub fn set_background(&mut self, color: Color) -> &mut Self {
+    pub const fn set_background(&mut self, color: Color) -> &mut Self {
         *self = self.with_background(color);
         self
     }
 
-    pub fn set_attributes(&mut self, attribute: Attribute) -> &mut Self {
+    pub const fn set_attributes(&mut self, attribute: Attribute) -> &mut Self {
         *self = self.with_attributes(attribute);
         self
     }
@@ -243,7 +267,7 @@ impl Cell {
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
     /// may be arena-stored. No-op for inline and empty graphemes.
-    pub fn release(&mut self, arena: &mut Arena) -> &mut Self {
+    pub const fn release(&mut self, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -254,22 +278,22 @@ impl Cell {
     ///
     /// Does **not** release arena storage — call
     /// [`release`](Self::release) first if needed.
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         *self = Self::DEFAULT;
     }
 
     /// Resolve the grapheme to a readable string.
     ///
     /// Shorthand for `self.grapheme().resolve(arena)`.
-    pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &'a str {
+    pub const fn as_str<'a>(&'a self, arena: &'a Arena) -> &'a str {
         self.grapheme.as_str(arena)
     }
 
-    pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
+    pub const fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)
     }
 
-    pub fn eq_bitwise(&self, other: &Self) -> bool {
+    pub const fn eq_bitwise(&self, other: &Self) -> bool {
         (self.grapheme == other.grapheme)
             & (self.style.foreground == other.style.foreground)
             & (self.style.background == other.style.background)
@@ -277,7 +301,7 @@ impl Cell {
     }
 }
 
-impl Default for Cell {
+impl const Default for Cell {
     fn default() -> Self {
         Self::EMPTY
     }

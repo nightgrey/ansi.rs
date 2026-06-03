@@ -7,6 +7,7 @@
 #![feature(iter_intersperse)]
 #![feature(exact_size_is_empty)]
 #![feature(slice_range)]
+#![feature(const_default)]
 extern crate core;
 
 pub mod drawing;

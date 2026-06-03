@@ -4,20 +4,21 @@ use std::num::ParseIntError;
 use std::ops::Not;
 use std::ops::*;
 
-pub trait Unsigned: Integer {}
-pub trait Signed: Integer {}
-
-pub trait Integer:
-    Number
-    + Eq
-    + Ord
-    + Not<Output = Self>
-    + BitAnd<Output = Self>
-    + BitOr<Output = Self>
-    + BitXor<Output = Self>
-    + Shl<usize, Output = Self>
-    + Shr<usize, Output = Self>
-    + ConditionalOps
+pub const trait Integer:
+[ const ] Number
++ [ const ] Eq
++ [ const ] Ord
++ [ const ] Not<Output=Self>
++ [ const ] BitAnd<Output=Self>
++ [ const ] BitAndAssign
++ [ const ] BitOr<Output=Self>
++ [ const ] BitOrAssign
++ [ const ] BitXor<Output=Self>
++ [ const ] BitXorAssign
++ [ const ] Shl<usize, Output=Self>
++ [ const ] Shr<usize, Output=Self>
++ [ const ] ConditionalOps
++ [ const ] WrappingOps
 {
     /// Convert from a string and radix (typically `2..=36`).
     ///
@@ -350,9 +351,12 @@ pub trait Integer:
     fn pow(self, exp: u32) -> Self;
 }
 
+pub const trait Unsigned: [ const ] Integer + [ const ] BitOps {}
+pub const trait Signed: [ const ] Integer {}
+
 macro_rules! impl_integer {
     ($integer:ty, $signed:ty, $unsigned:ty) => {
-        impl Integer for $integer {
+        impl const Integer for $integer {
             #[inline]
             fn from_str_radix(s: &str, radix: u32) -> Result<Self, ParseIntError> {
                 <$integer>::from_str_radix(s, radix)
@@ -469,16 +473,16 @@ impl_integer!(i64, i64, u64);
 impl_integer!(i128, i128, u128);
 impl_integer!(isize, isize, usize);
 
-impl Unsigned for u8 {}
-impl Unsigned for u16 {}
-impl Unsigned for u32 {}
-impl Unsigned for u64 {}
-impl Unsigned for u128 {}
-impl Unsigned for usize {}
+impl const Unsigned for u8 {}
+impl const Unsigned for u16 {}
+impl const Unsigned for u32 {}
+impl const Unsigned for u64 {}
+impl const Unsigned for u128 {}
+impl const Unsigned for usize {}
 
-impl Signed for i8 {}
-impl Signed for i16 {}
-impl Signed for i32 {}
-impl Signed for i64 {}
-impl Signed for i128 {}
-impl Signed for isize {}
+impl const Signed for i8 {}
+impl const Signed for i16 {}
+impl const Signed for i32 {}
+impl const Signed for i64 {}
+impl const Signed for i128 {}
+impl const Signed for isize {}

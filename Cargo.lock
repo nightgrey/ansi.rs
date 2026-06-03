@@ -42,6 +42,7 @@ dependencies = [
  "maybe",
  "maybe-derive",
  "memchr",
+ "number",
  "nutype",
  "segmented-vec",
  "smallvec 2.0.0-alpha.12",

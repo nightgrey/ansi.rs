@@ -1,6 +1,6 @@
 use std::num::Saturating;
 use std::ops::*;
-pub trait SaturatingOps<Rhs = Self>:
+pub const trait SaturatingOps<Rhs = Self>:
     SaturatingAdd<Rhs>
     + SaturatingSub<Rhs>
     + SaturatingMul<Rhs>
@@ -9,55 +9,55 @@ pub trait SaturatingOps<Rhs = Self>:
 {
 }
 
-pub trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
+pub const trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
     fn saturating_add(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
+pub const trait SaturatingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
     fn saturating_sub(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
+pub const trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
     fn saturating_mul(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
+pub const trait SaturatingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
     fn saturating_div(self, other: Rhs) -> Self;
 }
 
-pub trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
+pub const trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
     fn saturating_rem(self, other: Rhs) -> Self;
 }
 
 macro_rules! saturating_impl {
-    ($T:ty) => {
-        impl SaturatingOps for $T {}
+    ( $ T: ty) => {
+        impl const SaturatingOps for $T {}
 
-        impl SaturatingAdd for $T {
+        impl const SaturatingAdd for $T {
             fn saturating_add(self, rhs: Self) -> Self {
                 (Saturating(self) + Saturating(rhs)).0
             }
         }
 
-        impl SaturatingSub for $T {
+        impl const SaturatingSub for $T {
             fn saturating_sub(self, rhs: Self) -> Self {
                 (Saturating(self) - Saturating(rhs)).0
             }
         }
 
-        impl SaturatingMul for $T {
+        impl const SaturatingMul for $T {
             fn saturating_mul(self, rhs: Self) -> Self {
                 (Saturating(self) * Saturating(rhs)).0
             }
         }
 
-        impl SaturatingRem for $T {
+        impl const SaturatingRem for $T {
             fn saturating_rem(self, rhs: Self) -> Self {
                 (Saturating(self) % Saturating(rhs)).0
             }
         }
 
-        impl SaturatingDiv for $T {
+        impl const SaturatingDiv for $T {
             fn saturating_div(self, rhs: Self) -> Self {
                 (Saturating(self) / Saturating(rhs)).0
             }

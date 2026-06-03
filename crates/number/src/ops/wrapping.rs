@@ -1,60 +1,60 @@
 use std::num::Wrapping;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
-pub trait WrappingOps<Rhs = Self>:
-    WrappingAdd<Rhs> + WrappingSub<Rhs> + WrappingMul<Rhs> + WrappingDiv<Rhs> + WrappingRem<Rhs>
+pub const trait WrappingOps<Rhs = Self>:
+    [const] WrappingAdd<Rhs> + [const] WrappingSub<Rhs> + [const] WrappingMul<Rhs> + [const] WrappingDiv<Rhs> + [const] WrappingRem<Rhs>
 {
 }
 
-pub trait WrappingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
+pub const trait WrappingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
     fn wrapping_add(self, other: Rhs) -> Self;
 }
 
-pub trait WrappingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
+pub const trait WrappingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
     fn wrapping_sub(self, other: Rhs) -> Self;
 }
 
-pub trait WrappingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
+pub const trait WrappingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
     fn wrapping_mul(self, other: Rhs) -> Self;
 }
 
-pub trait WrappingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
+pub const trait WrappingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
     fn wrapping_div(self, other: Rhs) -> Self;
 }
 
-pub trait WrappingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
+pub const trait WrappingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
     fn wrapping_rem(self, other: Rhs) -> Self;
 }
 
 macro_rules! wrapping_impl {
-    ($T:ty) => {
-        impl WrappingOps for $T {}
+    ( $ T: ty) => {
+        impl const WrappingOps for $T {}
 
-        impl WrappingAdd for $T {
+        impl const WrappingAdd for $T {
             fn wrapping_add(self, rhs: Self) -> Self {
                 (Wrapping(self) + Wrapping(rhs)).0
             }
         }
 
-        impl WrappingSub for $T {
+        impl const WrappingSub for $T {
             fn wrapping_sub(self, rhs: Self) -> Self {
                 (Wrapping(self) - Wrapping(rhs)).0
             }
         }
 
-        impl WrappingMul for $T {
+        impl const WrappingMul for $T {
             fn wrapping_mul(self, rhs: Self) -> Self {
                 (Wrapping(self) * Wrapping(rhs)).0
             }
         }
 
-        impl WrappingRem for $T {
+        impl const WrappingRem for $T {
             fn wrapping_rem(self, rhs: Self) -> Self {
                 (Wrapping(self) % Wrapping(rhs)).0
             }
         }
 
-        impl WrappingDiv for $T {
+        impl const WrappingDiv for $T {
             fn wrapping_div(self, rhs: Self) -> Self {
                 (Wrapping(self) / Wrapping(rhs)).0
             }

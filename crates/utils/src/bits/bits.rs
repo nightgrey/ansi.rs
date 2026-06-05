@@ -1,646 +1,405 @@
-use number::{Integer, Unsigned};
-use std::fmt::{Debug, Formatter};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Rem, RemAssign, Sub, SubAssign};
+//! A compact, const-friendly bitflag/set toolkit.
+//!
+//! Three concepts, three names:
+//!
+//! * [`Bit`]        — a single flag (one enum variant).
+//! * [`Bits<B>`]    — a *set* of flags; reads as the plural of `Bit`.
+//! * [`Bit::Repr`]  — the unsigned integer that physically stores the bits.
+//!
+//! The set is a single generic newtype defined once here, so the [`bits!`]
+//! macro only emits the per-enum parts that genuinely cannot be generic:
+//! the variants, their bit layout, and the `enum -> Bits` conversion.
+//!
+//! Almost every method accepts `impl Into<Bits<B>>`, so a bare `Bit`, a
+//! `Bits` set, and a borrowed/owned mix are all interchangeable arguments.
+//!
+//! ----------------------------------------------------------------------
+//! NOTE: this targets the same nightly you're already on (`const_trait_impl`,
+//! `[const]` bounds, `derive_const`). It was written against your `number`
+//! crate's API by name only and has not been compiled here — expect to nudge
+//! a `[const]` bound or two, and to confirm `number::Unsigned: Copy` plus the
+//! const bit-operators. The structure is the point.
+//! ----------------------------------------------------------------------
+
+use core::fmt::{self, Debug, Formatter};
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Rem, RemAssign, Sub,
+    SubAssign,
+};
+use std::marker::Destruct;
 use thiserror::Error;
 
-pub const trait Bit: Copy
-+ [ const ] Clone
+/// A single flag: one variant of a bit enum.
+///
+/// Deliberately small. A flag does not need to be a whole boolean algebra —
+/// it only needs to know its representation, the universe of valid bits, and
+/// how to become a [`Bits`] set. All set behaviour lives on [`Bits`].
+pub const trait Bit: Sized
++ [ const ] Destruct
++ Copy
++ [ const ] Default
 + [ const ] PartialEq
 + [ const ] Eq
++ [ const ] PartialOrd
++ Debug
++ [ const ] Ord
 + [ const ] BitAnd<Self, Output=Bits<Self>>
 + [ const ] BitOr<Self, Output=Bits<Self>>
 + [ const ] BitXor<Self, Output=Bits<Self>>
-+ [ const ] Sub<Self, Output=Bits<Self>>
-+ [ const ] Rem<Self, Output=Bits<Self>>
 + [ const ] Not<Output=Bits<Self>>
-+ [ const ] Into<Bits<Self>>
-+ [ const ] Into<<Self as Bit>::Bits>
++ [ const ] Into<Self::Repr>
 + 'static
-+ Debug
 {
-    type Bits: [ const ] Unsigned
-    + [ const ] BitAnd<Self::Bits, Output=Self::Bits>
-    + [ const ] BitAndAssign<Self::Bits>
-    + [ const ] BitOr<Self::Bits, Output=Self::Bits>
-    + [ const ] BitOrAssign<Self::Bits>
-    + [ const ] BitXor<Self::Bits, Output=Self::Bits>
-    + [ const ] BitXorAssign<Self::Bits>
-    + [ const ] Not<Output=Self::Bits>;
+    /// The unsigned integer that stores the bits.
+    type Repr: Sized
+    + [ const ] Destruct
+    + Copy
+    + [ const ] Default
+    + [ const ] PartialEq
+    + [ const ] Eq
+    + [ const ] PartialOrd
+    + Debug
+    + [ const ] Ord
+    + [ const ] BitAnd<Self::Repr, Output=Self::Repr>
+    + [ const ] BitOr<Self::Repr, Output=Self::Repr>
+    + [ const ] BitXor<Self::Repr, Output=Self::Repr>
+    + [ const ] Not<Output=Self::Repr>;
 
-    const NONE: Self::Bits;
-    const ALL: Self::Bits;
-
+    /// Every flag, in declaration order. Drives iteration and counting.
     const LIST: &'static [Self];
+    /// Number of declared flags.
     const COUNT: usize = Self::LIST.len();
+
+    /// Bitwise OR of every flag in [`LIST`](Self::LIST): the mask of all valid bits.
+    const ALL: Self::Repr;
+    /// Empty.
+    const EMPTY: Self::Repr;
 }
 
-
-#[repr(C)]
-#[derive(Copy, Hash)]
-#[derive_const(PartialEq, Eq, Clone)]
-pub struct Bits<B: Bit>(B::Bits);
+#[repr(transparent)]
+#[derive(Copy)]
+#[derive_const(Clone, derive_more::Deref, derive_more::DerefMut)]
+pub struct Bits<B: Bit>(B::Repr);
 
 impl<B: [ const ] Bit> const Bits<B> {
-    pub const EMPTY: Self = Self(B::NONE);
-    pub const ALL: Self = Self(B::ALL);
+    /// Every flag, in declaration order. Drives iteration and counting.
+    const LIST: &'static [B] = B::LIST;
+    /// Number of declared flags.
+    const COUNT: usize = B::COUNT;
 
+    /// The empty set.
     pub fn empty() -> Self {
-        Self::EMPTY
+        Self::new(B::EMPTY)
     }
 
+    /// Every valid flag.
     pub fn all() -> Self {
-        Self::ALL
+        Self::new(B::ALL)
     }
 
-    #[inline]
-    pub fn new(bits: impl [ const ] Into<B::Bits>) -> Self {
-        Self::from_bits_truncated(bits)
+    /// Construct new bits.
+    pub fn new(bits: impl [ const ] Into<B::Repr>) -> Self {
+        Self(bits.into())
     }
 
-
+    /// Wrap raw bits as-is, keeping any unknown bits. Cheapest constructor.
     #[inline]
-    pub fn insert(&mut self, rhs: impl [ const ] Into<Self>)
-    {
-        *self = Self::union(*self, rhs);
+    pub fn from_bits_retained(bits: impl [ const ] Into<B::Repr>) -> Self {
+        Self(bits.into())
     }
 
-
+    /// Wrap raw bits, masking away anything outside [`Bit::ALL`].
     #[inline]
-    pub fn remove(&mut self, rhs: impl [ const ] Into<Self>)
-    {
-        *self = Self::difference(*self, rhs);
+    pub fn from_bits_truncated(bits: impl [ const ] Into<B::Repr>) -> Self {
+        Self(bits.into() & B::ALL)
     }
 
+    /// Like [`from_bits`](Self::from_bits) but returns a typed error.
     #[inline]
-    pub fn toggle(&mut self, rhs: impl [ const ] Into<Self>)
-    {
-        *self = Self::symmetric_difference(*self, rhs);
+    pub fn try_from_bits(bits: impl [ const ] Into<B::Repr>) -> Result<Self, BitsError> {
+        let bits = bits.into();
+
+        if bits & !B::ALL == B::EMPTY {
+            Ok(Self(bits))
+        } else {
+            Err(BitsError::Unknown)
+        }
     }
 
+    /// Wrap raw bits, or `None` if any unknown bit is set.
     #[inline]
-    pub fn contains(&self, rhs: impl [ const ] Into<Self>) -> bool
-    {
-        let rhs = rhs.into();
-        self.0 & rhs.0 == rhs.0
+    pub fn from_bits(bits: impl [ const ] Into<B::Repr>) -> Self {
+        match Self::try_from_bits(bits) {
+            Ok(b) => b,
+            Err(_) => panic!("invalid bits"),
+        }
     }
 
+    /// The raw integer behind this set.
     #[inline]
-    pub fn is_empty(self) -> bool {
-        self == Self::EMPTY
-    }
-
-    #[inline]
-    pub fn is_all(self) -> bool {
-        self == Self::ALL
-    }
-
-    #[inline]
-    pub fn is_disjoint(self, rhs: impl [ const ] Into<Self>) -> bool {
-        self & rhs.into() == Self::EMPTY
-    }
-
-    #[inline]
-    pub fn intersects(&self, rhs: impl [ const ] Into<Self>) -> bool
-    {
-        self.0 & rhs.into().0 != B::NONE
-    }
-
-    ///   The bitwise and ( `&` ) of the bits in  `self`  and  `rhs` .
-    #[inline]
-    #[must_use]
-    pub fn intersection(self, rhs: impl [ const ] Into<Self>) -> Self
-    {
-        Self::bitand(self, rhs)
-    }
-
-
-    ///   The bitwise or ( `|` ) of the bits in  `self`  and  `rhs` .
-    #[inline]
-    #[must_use]
-    pub fn union(self, rhs: impl [ const ] Into<Self>) -> Self
-    {
-        Self::bitor(self, rhs)
-    }
-
-
-    #[inline]
-    #[must_use]
-    pub fn difference(self, rhs: impl [ const ] Into<Self>) -> Self
-    {
-        Self::sub(self, rhs)
-    }
-
-
-    #[inline]
-    #[must_use]
-    pub fn symmetric_difference(self, rhs: impl [ const ] Into<Self>) -> Self
-    {
-        Self::rem(self, rhs)
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn complement(self) -> Self
-    {
-        Self::not(self)
-    }
-
-    #[inline]
-    pub fn truncated(mut self) -> Self {
-        self.0 &= B::ALL;
-        self
-    }
-
-    /// Removes all flags from the Bits.
-    #[inline]
-    pub fn clear(&mut self) {
-        *self = Self::EMPTY;
-    }
-
-    #[inline]
-    fn bits(self) -> B::Bits {
+    pub fn bits(self) -> B::Repr {
         self.0
     }
 
     #[inline]
-    pub fn iter(&self) -> BitsIter<B> {
-        BitsIter::new(*self)
+    pub fn is_empty(self) -> bool {
+        self == Self::empty()
     }
 
-    pub fn try_from_bits(bits: impl [ const ] Into<B::Bits>) -> Result<Self, BitError> {
-        let bits = bits.into();
-        let truncated = Self::from_bits_truncated(bits);
+    #[inline]
+    pub fn is_all(self) -> bool {
+        self == Self::all()
+    }
 
-        if truncated.bits() == bits {
-            Ok(truncated)
+    /// `true` if every flag in `other` is present.
+    #[inline]
+    pub fn contains(self, other: impl [ const ] Into<Self>) -> bool {
+        let o = other.into();
+        self.0 & o.0 == o.0
+    }
+
+    /// `true` if any flag is shared.
+    #[inline]
+    pub fn intersects(self, other: impl [ const ] Into<Self>) -> bool {
+        self & other.into() != Self::empty()
+    }
+
+    /// `true` if no flag is shared.
+    #[inline]
+    pub fn is_disjoint(self, other: impl [ const ] Into<Self>) -> bool {
+        self & other.into() == Self::empty()
+    }
+
+    /// Set union (`|`).
+    #[inline]
+    #[must_use]
+    pub fn union(self, other: impl [ const ] Into<Self>) -> Self {
+        Self(self.0 | other.into().0)
+    }
+
+    /// Set intersection (`&`).
+    #[inline]
+    #[must_use]
+    pub fn intersection(self, other: impl [ const ] Into<Self>) -> Self {
+        Self(self.0 & other.into().0)
+    }
+
+    /// Flags in `self` but not `other` (`self & !other`).
+    #[inline]
+    #[must_use]
+    pub fn difference(self, other: impl [ const ] Into<Self>) -> Self {
+        Self(self.0 & !other.into().0)
+    }
+
+    /// Flags in exactly one of the two sets (XOR, masked to valid bits).
+    #[inline]
+    #[must_use]
+    pub fn symmetric_difference(self, other: impl [ const ] Into<Self>) -> Self {
+        Self((self.0 ^ other.into().0) & B::ALL)
+    }
+
+    /// All valid flags not in `self`.
+    #[inline]
+    #[must_use]
+    pub fn complement(self) -> Self {
+        Self(!self.0 & B::ALL)
+    }
+
+    #[inline]
+    pub fn insert(&mut self, other: impl [ const ] Into<Self>) {
+        self.0 = self.0 | other.into().0;
+    }
+
+    #[inline]
+    pub fn remove(&mut self, other: impl [ const ] Into<Self>) {
+        self.0 = self.0 & !other.into().0;
+    }
+
+    #[inline]
+    pub fn toggle(&mut self, other: impl [ const ] Into<Self>) {
+        self.0 = (self.0 ^ other.into().0) & B::ALL;
+    }
+
+    /// Insert when `on`, remove otherwise.
+    #[inline]
+    pub fn set(&mut self, other: impl [ const ] Into<Self>, on: bool) {
+        if on {
+            self.insert(other)
         } else {
-            Err(BitError::Unknown)
+            self.remove(other)
         }
     }
 
-    pub fn from_bits(bits: impl [ const ] Into<B::Bits>) -> Self {
-        Self(bits.into() & B::ALL)
-    }
-
-    pub fn from_bits_retained(bits: impl [ const ] Into<B::Bits>) -> Self {
-        Self(bits.into())
-    }
-
-    pub fn from_bits_truncated(bits: impl [ const ] Into<B::Bits>) -> Self {
-        Self(bits.into() & B::ALL)
-    }
-}
-
-
-impl<B: [ const ] Bit> const AsRef<B::Bits> for Bits<B> {
     #[inline]
-    fn as_ref(&self) -> &B::Bits {
-        &self.0
+    pub fn clear(&mut self) {
+        *self = Self::empty();
     }
-}
 
-impl<B: [ const ] Bit> const From<Option<Bits<B>>> for Bits<B> {
-    /// Converts from `Option<Bits<B>>` to `Bits<B>`.
-    ///
-    /// Most notably, this allows for the use of `None` in many places to
-    /// substitute for manually creating an empty `Bits<B>`. See below.
-    ///
-    /// ```
-    /// use flagset::{Bits, flags};
-    ///
-    /// flags! {
-    ///     enum Flag: u8 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// fn convert(v: impl Into<Bits<Flag>>) -> u8 {
-    ///     v.into().bits()
-    /// }
-    ///
-    /// assert_eq!(convert(Flag::Foo | Flag::Bar), 0b011);
-    /// assert_eq!(convert(Flag::Foo), 0b001);
-    /// assert_eq!(convert(None), 0b000);
-    /// ```
+    /// Iterate the individual flags present in this set.
     #[inline]
-    fn from(value: Option<Bits<B>>) -> Bits<B> {
-        value.unwrap_or_default()
+    pub fn iter(self) -> BitsIter<B> {
+        BitsIter::new(self)
     }
-}
 
-impl<B: [ const ] Bit> const Default for Bits<B> {
-    /// Creates a new, empty Bits.
-    ///
-    /// ```
-    /// use flagset::{Bits, flags};
-    ///
-    /// flags! {
-    ///     enum Flag: u8 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let set = Bits::<Flag>::default();
-    /// assert!(set.is_empty());
-    /// assert!(!set.is_full());
-    /// assert!(!set.contains(Flag::Foo));
-    /// assert!(!set.contains(Flag::Bar));
-    /// assert!(!set.contains(Flag::Baz));
-    /// ```
+    /// Number of flags yielded by iteration.
     #[inline]
-    fn default() -> Self {
-        Self::empty()
+    pub fn count(self) -> usize {
+        self.iter().count()
     }
 }
 
 impl<B: [ const ] Bit> const IntoIterator for Bits<B> {
-    type Item = Bits<B>;
+    type Item = B;
     type IntoIter = BitsIter<B>;
-
-    /// Iterate over the flags in the set.
-    ///
-    /// **NOTE**: The order in which the flags are iterated is undefined.
-
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         BitsIter::new(self)
     }
 }
 
-impl<B: Bit> Debug for Bits<B> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+impl<B: Bit, I: Into<Bits<B>>> Extend<I> for Bits<B> {
+    fn extend<T: IntoIterator<Item=I>>(&mut self, iter: T) {
+        for item in iter {
+            self.insert(item);
+        }
+    }
+}
+
+impl<B: Bit, I: Into<Bits<B>>> FromIterator<I> for Bits<B> {
+    fn from_iter<T: IntoIterator<Item=I>>(iter: T) -> Self {
+        let mut set = Self::empty();
+        set.extend(iter);
+        set
+    }
+}
+
+impl<B: Bit> core::fmt::Debug for Bits<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Bits(")?;
-        for (i, flag) in self.into_iter().enumerate() {
-            write!(f, "{}{:?}", if i > 0 { " | " } else { "" }, flag)?;
+        for (i, flag) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, " | ")?;
+            }
+            write!(f, "{flag:?}")?;
         }
         write!(f, ")")
     }
 }
 
-impl<B: [ const ] Bit> const Not for Bits<B> {
-    type Output = Self;
-
-    /// Calculates the complement of the current set.
-    ///
-    /// In common parlance, this returns the set of all possible flags that are
-    /// not in the current set.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     #[derive(PartialOrd, Ord)]
-    ///     enum Flag: u8 {
-    ///         Foo = 1 << 0,
-    ///         Bar = 1 << 1,
-    ///         Baz = 1 << 2
-    ///     }
-    /// }
-    ///
-    /// let set = !Bits::from(Flag::Foo);
-    /// assert!(!set.is_empty());
-    /// assert!(!set.is_full());
-    /// assert!(!set.contains(Flag::Foo));
-    /// assert!(set.contains(Flag::Bar));
-    /// assert!(set.contains(Flag::Baz));
-    /// ```
+impl<B: [ const ] Bit, I: core::marker::Copy + [ const ] Into<Bits<B>>> const core::cmp::PartialEq<I> for Bits<B> {
     #[inline]
-    fn not(self) -> Self {
-        Bits(!self.0)
+    fn eq(&self, other: &I) -> bool {
+        *self == (*other).into()
     }
 }
 
-impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitAnd<I> for Bits<B> {
-    type Output = Self;
-
-    /// Calculates the intersection of the current set and the specified flags.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     #[derive(PartialOrd, Ord)]
-    ///     pub enum Flag: u8 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0 & set1, Flag::Bar);
-    /// assert_eq!(set0 & Flag::Foo, Flag::Foo);
-    /// assert_eq!(set1 & Flag::Baz, Flag::Baz);
-    /// ```
+impl<B: [ const ] Bit> const core::default::Default for Bits<B> {
     #[inline]
-    fn bitand(self, rhs: I) -> Self {
-        Bits(self.0 & rhs.into().0)
-    }
-}
-
-impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitAndAssign<I> for Bits<B> {
-    /// Assigns the intersection of the current set and the specified flags.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     enum Flag: u64 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let mut set0 = Flag::Foo | Flag::Bar;
-    /// let mut set1 = Flag::Baz | Flag::Bar;
-    ///
-    /// set0 &= set1;
-    /// assert_eq!(set0, Flag::Bar);
-    ///
-    /// set1 &= Flag::Baz;
-    /// assert_eq!(set0, Flag::Bar);
-    /// ```
-    #[inline]
-    fn bitand_assign(&mut self, rhs: I) {
-        self.0 &= rhs.into().0
+    fn default() -> Self {
+        Self::empty()
     }
 }
 
 impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitOr<I> for Bits<B> {
     type Output = Self;
-
-    /// Calculates the union of the current set with the specified flags.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     #[derive(PartialOrd, Ord)]
-    ///     pub enum Flag: u8 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0 | set1, Bits::full());
-    /// ```
     #[inline]
     fn bitor(self, rhs: I) -> Self {
-        Bits(self.0 | rhs.into().0)
+        self.union(rhs)
     }
 }
-
 impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitOrAssign<I> for Bits<B> {
-    /// Assigns the union of the current set with the specified flags.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     enum Flag: u64 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let mut set0 = Flag::Foo | Flag::Bar;
-    /// let mut set1 = Flag::Bar | Flag::Baz;
-    ///
-    /// set0 |= set1;
-    /// assert_eq!(set0, Bits::full());
-    ///
-    /// set1 |= Flag::Baz;
-    /// assert_eq!(set1, Flag::Bar | Flag::Baz);
-    /// ```
     #[inline]
     fn bitor_assign(&mut self, rhs: I) {
-        self.0 |= rhs.into().0
+        *self = self.union(rhs);
     }
 }
 
-impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitXor<I> for Bits<B> {
+impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitAnd<I> for Bits<B> {
     type Output = Self;
-
-    /// Calculates the current set with the specified flags toggled.
-    ///
-    /// This is commonly known as toggling the presence
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     enum Flag: u32 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0 ^ set1, Flag::Foo | Flag::Baz);
-    /// assert_eq!(set0 ^ Flag::Foo, Flag::Bar);
-    /// ```
     #[inline]
-    fn bitxor(self, rhs: I) -> Self {
-        Bits(self.0 ^ rhs.into().0)
+    fn bitand(self, rhs: I) -> Self {
+        self.intersection(rhs)
     }
 }
-
-impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitXorAssign<I> for Bits<B> {
-    /// Assigns the current set with the specified flags toggled.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     enum Flag: u16 {
-    ///         Foo = 0b001,
-    ///         Bar = 0b010,
-    ///         Baz = 0b100
-    ///     }
-    /// }
-    ///
-    /// let mut set0 = Flag::Foo | Flag::Bar;
-    /// let mut set1 = Flag::Baz | Flag::Bar;
-    ///
-    /// set0 ^= set1;
-    /// assert_eq!(set0, Flag::Foo | Flag::Baz);
-    ///
-    /// set1 ^= Flag::Baz;
-    /// assert_eq!(set1, Flag::Bar);
-    /// ```
+impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitAndAssign<I> for Bits<B> {
     #[inline]
-    fn bitxor_assign(&mut self, rhs: I) {
-        self.0 ^= rhs.into().0
+    fn bitand_assign(&mut self, rhs: I) {
+        *self = self.intersection(rhs);
     }
 }
 
 impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const Sub<I> for Bits<B> {
     type Output = Self;
-
-    /// Calculates set difference (the current set without the specified flags).
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     pub enum Flag: u8 {
-    ///         Foo = 1,
-    ///         Bar = 2,
-    ///         Baz = 4
-    ///     }
-    /// }
-    ///
-    /// let set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0 - set1, Flag::Foo);
-    /// ```
     #[inline]
     fn sub(self, rhs: I) -> Self {
-        self & !rhs.into()
+        self.difference(rhs)
+    }
+}
+impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const SubAssign<I> for Bits<B> {
+    #[inline]
+    fn sub_assign(&mut self, rhs: I) {
+        *self = self.difference(rhs);
     }
 }
 
-impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const SubAssign<I> for Bits<B> {
-    /// Assigns set difference (the current set without the specified flags).
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     pub enum Flag: u8 {
-    ///         Foo = 1,
-    ///         Bar = 2,
-    ///         Baz = 4
-    ///     }
-    /// }
-    ///
-    /// let mut set0 = Flag::Foo | Flag::Bar;
-    /// set0 -= Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0, Flag::Foo);
-    /// ```
+impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitXor<I> for Bits<B> {
+    type Output = Self;
     #[inline]
-    fn sub_assign(&mut self, rhs: I) {
-        *self &= !rhs.into();
+    fn bitxor(self, rhs: I) -> Self {
+        self.symmetric_difference(rhs)
+    }
+}
+impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const BitXorAssign<I> for Bits<B> {
+    #[inline]
+    fn bitxor_assign(&mut self, rhs: I) {
+        *self = self.symmetric_difference(rhs);
     }
 }
 
 impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const Rem<I> for Bits<B> {
     type Output = Self;
-
-    /// Calculates the symmetric difference between two sets.
-    ///
-    /// The symmetric difference between two sets is the set of all flags
-    /// that appear in one set or the other, but not both.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     pub enum Flag: u8 {
-    ///         Foo = 1,
-    ///         Bar = 2,
-    ///         Baz = 4
-    ///     }
-    /// }
-    ///
-    /// let set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// assert_eq!(set0 % set1, Flag::Foo | Flag::Baz);
-    /// ```
     #[inline]
     fn rem(self, rhs: I) -> Self {
-        let rhs = rhs.into();
-        (self - rhs) | (rhs - self)
+        self.symmetric_difference(rhs)
     }
 }
 
 impl<B: [ const ] Bit, I: [ const ] Into<Bits<B>>> const RemAssign<I> for Bits<B> {
-    /// Assigns the symmetric difference between two sets.
-    ///
-    /// The symmetric difference between two sets is the set of all flags
-    /// that appear in one set or the other, but not both.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     pub enum Flag: u8 {
-    ///         Foo = 1,
-    ///         Bar = 2,
-    ///         Baz = 4
-    ///     }
-    /// }
-    ///
-    /// let mut set0 = Flag::Foo | Flag::Bar;
-    /// let set1 = Flag::Baz | Flag::Bar;
-    /// set0 %= set1;
-    /// assert_eq!(set0, Flag::Foo | Flag::Baz);
-    /// ```
     #[inline]
     fn rem_assign(&mut self, rhs: I) {
-        *self = *self % rhs
+        *self = self.symmetric_difference(rhs);
     }
 }
 
-impl<B: Bit, I: Into<Bits<B>>> Extend<I> for Bits<B> {
-    /// Add values by iterating over some collection.
-    ///
-    /// ```
-    /// use bits::{Bits, bits};
-    ///
-    /// bits! {
-    ///     #[derive(PartialOrd, Ord)]
-    ///     pub enum Flag: u8 {
-    ///         Foo = 1,
-    ///         Bar = 2,
-    ///         Baz = 4
-    ///     }
-    /// }
-    ///
-    /// let flag_vec = vec![Flag::Bar, Flag::Baz];
-    /// let mut some_extended_flags = Bits::from(Flag::Foo);
-    /// some_extended_flags.extend(flag_vec);
-    /// assert_eq!(some_extended_flags, Flag::Foo | Flag::Bar | Flag::Baz);
-    /// ```
-    fn extend<T>(&mut self, iter: T)
-    where
-        T: IntoIterator<Item=I>,
-    {
-        for item in iter {
-            *self |= item;
-        }
+impl<B: [ const ] Bit> const Not for Bits<B> {
+    type Output = Self;
+    #[inline]
+    fn not(self) -> Self {
+        self.complement()
     }
 }
 
-
-#[doc(hidden)]
+/// Yields the individual flags present in a [`Bits<B>`] set.
+///
+/// Walks [`Bit::LIST`] in order. A flag is yielded when all of its bits are in
+/// the source set *and* it still covers bits no earlier flag has claimed — so
+/// overlapping flags both appear, while a convenience alias whose bits are
+/// fully covered by already-yielded flags does not.
 #[derive(Copy, Clone)]
 pub struct BitsIter<B: Bit> {
-    bits: Bits<B>,
+    source: Bits<B>,
     remaining: Bits<B>,
     idx: usize,
 }
 
 impl<B: [ const ] Bit> const BitsIter<B> {
     #[inline]
-    pub fn new(bits: impl [ const ] Into<Bits<B>>) -> Self {
-        let bits = bits.into();
-        Self { bits, remaining: bits, idx: 0 }
+    pub fn new(source: impl [ const ] Into<Bits<B>>) -> Self {
+        let bits = source.into();
+        Self { source: bits, remaining: bits, idx: 0 }
     }
 
+    #[inline]
     pub fn with_remaining(mut self, remaining: impl [ const ] Into<Bits<B>>) -> Self {
         self.remaining = remaining.into();
         self
@@ -648,196 +407,87 @@ impl<B: [ const ] Bit> const BitsIter<B> {
 }
 
 impl<B: [ const ] Bit> const Iterator for BitsIter<B> {
-    type Item = Bits<B>;
+    type Item = B;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while self.idx < B::COUNT {
-            // Short-circuit if our state is empty
+            let flag = B::LIST[self.idx];
+            self.idx += 1;
+
+            let bits = Bits::new(flag);
+            if self.source.contains(bits) && self.remaining.intersects(bits) {
+                self.remaining.remove(bits);
+                return Some(flag);
+            }
             if self.remaining.is_empty() {
                 self.idx = B::COUNT;
                 return None;
             }
-
-            let next = Bits::from_bits_retained(B::LIST[self.idx]);
-            // If the flag is set in the original source _and_ it has bits that haven't
-            // been covered by a previous flag yet then yield it. These conditions cover
-            // two cases for multi-bit flags:
-            //
-            // 1. When flags partially overlap, such as `0b00000001` and `0b00000101`, we'll
-            // yield both flags.
-            // 2. When flags fully overlap, such as in convenience flags that are a shorthand for others,
-            // we won't yield both flags.
-            if self.bits.contains(next)
-                && self.remaining.intersects(next)
-            {
-                self.remaining.remove(next);
-
-                return Some(next);
-            }
         }
-
         None
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let x = self.remaining.bits().count_ones() as usize;
-        (x, Some(x))
+        // Upper bound only: the exact count depends on the overlap rules above.
+        (0, Some(B::COUNT - self.idx))
     }
 }
 
 impl<B: Bit> ExactSizeIterator for BitsIter<B> {
     #[inline]
     fn len(&self) -> usize {
-        self.remaining.bits().count_ones() as usize
+        // Drain a copy — correct under overlapping/alias flags, and COUNT is tiny.
+        let mut probe = *self;
+        let mut n = 0;
+        while probe.next().is_some() {
+            n += 1;
+        }
+        n
     }
 }
 
-#[derive(Debug, PartialEq, Error)]
-pub enum BitError {
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum BitsError {
     #[error("invalid bits")]
     Invalid,
-    #[error("unknown bits")]
+    #[error("unknown bits set")]
     Unknown,
 }
 
-// #[repr(u16)]
-// #[derive(Copy, Debug)]
-// #[derive_const(Clone, PartialEq, Eq)]
-// pub enum Attribute {
-//     None = 0,
-//     Bold = 1 << 1,
-//     Faint = 1 << 2,
-//     Italic = 1 << 3,
-//     Underline = 1 << 4,
-//     UnderlineDouble = 1 << 13,
-//     UnderlineCurly = 1 << 14,
-//     Blink = 1 << 5,
-//     RapidBlink = 1 << 6,
-//     Inverse = 1 << 7,
-//     Invisible = 1 << 8,
-//     Strikethrough = 1 << 9,
-//     Frame = 1 << 10,
-//     Encircle = 1 << 11,
-//     Overline = 1 << 12,
-// }
-//
-// impl const Bit for Attribute {
-//     type Bits = u16;
-//
-//     const NONE: Self::Bits = Self::None as Self::Bits;
-//     const ALL: Self::Bits = Self::Bold as Self::Bits | Self::Faint as Self::Bits | Self::Italic as Self::Bits | Self::Underline as Self::Bits | Self::Blink as Self::Bits | Self::RapidBlink as Self::Bits | Self::Inverse as Self::Bits | Self::Invisible as Self::Bits | Self::Strikethrough as Self::Bits | Self::Frame as Self::Bits | Self::Encircle as Self::Bits | Self::Overline as Self::Bits | Self::UnderlineDouble as Self::Bits | Self::UnderlineCurly as Self::Bits;
-//     const LIST: &'static [Self] = &[Self::None, Self::Bold, Self::Faint, Self::Italic, Self::Underline, Self::UnderlineDouble, Self::UnderlineCurly, Self::Blink, Self::RapidBlink, Self::Inverse, Self::Invisible, Self::Strikethrough, Self::Frame, Self::Encircle, Self::Overline];
-//
-//     fn bits(self) -> Self::Bits {
-//         self as u16
-//     }
-// }
-
-#[macro_export]
-macro_rules! bits {
-    () => {};
-
-    // Entry point for enumerations without values.
-    ($bits:ident => $(#[$m:meta])* $vis:vis enum $n:ident: $t:ty { $($(#[$a:meta])* $k:ident),+ $(,)* } $($next:tt)*) => {
-        $crate::bits! { $(#[$m])* $vis enum $n: $t { $($(#[$a])* $k = ((1 as $t).shl($n::$k as $t))),+ } $($next)* }
-    };
-
-    // Entrypoint for enumerations with values.
-    ($bits:ident => $(#[$m:meta])* $vis:vis enum $n:ident: $t:ty { $($(#[$a:meta])*$k:ident = $v:expr),* $(,)* } $($next:tt)*) => {
-        $(#[$m])*
-        #[derive(Copy,  Debug)]
-        #[derive_const(Clone, PartialEq, Eq)]
-        $vis enum $n { $($(#[$a])* $k),* }
-
-        impl const $crate::Bit for $n {
-            type Bits = $t;
-
-            const NONE: Self::Bits = 0;
-            const ALL: Self::Bits = $($n::$k as Self::Bits)|*;
-
-            const LIST: &'static [Self] = &[$($n::$k),*];
-        }
-        $vis type $bits = $crate::Bits<$n>;
-
-        impl const $bits {
-            $(
-             #[allow(non_upper_case_globals)]
-             pub const $k: Self = Self($v);
-            )*
-        }
+mod test {
+    use super::*;
 
 
-        impl const ::core::convert::Into<$t> for $n {
-            #[inline]
-            fn into(self) -> $t {
-                self as $t
-            }
-        }
+    bits! {
+        bits = Attributes,
+        bit = pub enum Attribute: u16 {
+            #[default]
+            None = (1 << 0),
+            Bold = (1 << 1),
+            Faint = (1 << 2),
+            Italic = (1 << 3),
+            Underline = (1 << 4),
+            UnderlineDouble = (1 << 5),
+            UnderlineCurly = (1 << 6),
+            Blink = (1 << 7),
+            RapidBlink = (1 << 8),
+            Inverse = (1 << 9),
+            Invisible = (1 << 10),
+            Strikethrough = (1 << 11),
+            Frame = (1 << 12),
+            Encircle = (1 << 13),
+            Overline = (1 << 14),
+        },
+        empty = None
+    }
 
-        impl const ::core::convert::From<$n> for $crate::Bits<$n> {
-            #[inline]
-            fn from(value: $n) -> Self {
-                match value {
-                    $($n::$k => Self($v)),*
-                }
-            }
-        }
-
-        impl const ::core::ops::Not for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn not(self) -> Self::Output {
-                !$crate::Bits::from(self)
-            }
-        }
-
-        impl<I: [const] ::core::convert::Into<$crate::Bits<$n>>> const ::core::ops::BitAnd<I> for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn bitand(self, rhs: I) -> Self::Output {
-                $crate::Bits::from(self) & rhs
-            }
-        }
-
-        impl<I: [const] ::core::convert::Into<$crate::Bits<$n>>> const  ::core::ops::BitOr<I> for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn bitor(self, rhs: I) -> Self::Output {
-                $crate::Bits::from(self) | rhs
-            }
-        }
-
-        impl<I: [const] ::core::convert::Into<$crate::Bits<$n>>> const  ::core::ops::BitXor<I> for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn bitxor(self, rhs: I) -> Self::Output {
-                $crate::Bits::from(self) ^ rhs
-            }
-        }
-
-        impl<I: [const] ::core::convert::Into<$crate::Bits<$n>>> const  ::core::ops::Sub<I> for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn sub(self, rhs: I) -> Self::Output {
-                $crate::Bits::from(self) - rhs
-            }
-        }
-
-        impl<I: [const] ::core::convert::Into<$crate::Bits<$n>>> const  ::core::ops::Rem<I> for $n {
-            type Output = $crate::Bits<$n>;
-
-            #[inline]
-            fn rem(self, rhs: I) -> Self::Output {
-                $crate::Bits::from(self) % rhs
-            }
-        }
-
-        $crate::bits! { $($next)* }
-    };
+    #[test]
+    fn combine() {
+        let a = Attribute::Bold | Attribute::Italic | Attribute::Underline;
+        assert!(a.contains(Attribute::Bold));
+        assert!(a.contains(Attribute::Italic));
+        assert!(a.contains(Attribute::Underline));
+    }
 }

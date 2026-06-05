@@ -41,8 +41,10 @@ pub mod byte_string;
 
 pub use byte_string::*;
 pub mod ansi;
+
+#[macro_use]
 pub mod bits;
 
 pub use ansi::*;
-
+#[macro_use]
 pub use bits::*;

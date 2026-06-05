@@ -471,7 +471,7 @@ mod test {
         bits = Attributes,
         bit = pub enum Attribute: u16 {
             #[default]
-            None = (1 << 0),
+            None = 0,
             Bold = (1 << 1),
             Faint = (1 << 2),
             Italic = (1 << 3),

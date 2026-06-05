@@ -9,6 +9,8 @@
 #![feature(slice_range)]
 #![feature(const_default)]
 #![feature(const_heap)]
+#![feature(const_index)]
+#![feature(const_try)]
 extern crate core;
 
 pub mod drawing;

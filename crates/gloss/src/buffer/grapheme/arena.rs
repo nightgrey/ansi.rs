@@ -58,7 +58,7 @@ const MINIMUM_ALLOC: usize = 1024;
 /// Maximum string payload that fits in a u16 length prefix.
 const MAX_ENTRY_LEN: usize = u16::MAX as usize;
 
-impl const  Arena {
+impl const Arena {
     pub const EMPTY: Self = Self {
         inner: vec![],
         count: 0,
@@ -89,49 +89,66 @@ impl const  Arena {
     }
 
     /// Retrieve a UTF-8 grapheme cluster by offset.
-    pub fn get(&self, offset: impl AsOffset) -> &str {
+    pub fn get(&self, offset: impl [ const ] AsOffset) -> &str {
         let offset = offset.as_offset();
-        debug_assert!(
-            offset + PREFIX_SIZE <= self.inner.len(),
-            "arena offset {offset} out of bounds (arena len {})",
-            self.inner.len(),
-        );
+        let entry_start = offset + PREFIX_SIZE;
+        let entry_len = self.get_len(offset);
+        let entry_end = entry_start + entry_len;
 
-        let str_len = self.get_len(offset);
+        if entry_start > self.inner.len() {
+            panic!("arena offset out of bounds")
+        }
 
-        debug_assert!(
-            str_len > 0,
-            "resolving a released or invalid entry at offset {offset}",
-        );
-        debug_assert!(
-            offset + PREFIX_SIZE + str_len <= self.inner.len(),
-            "arena entry at {offset} extends past end of arena",
-        );
+        if entry_len == 0 {
+            panic!("string length is zero at given offset");
+        }
+
+        if entry_end > self.inner.len() {
+            panic!("arena entry extends past end of arena")
+        }
 
         // SAFETY: We only store valid UTF-8 via `stash`, and the debug
         // assertions above guard against released / corrupt entries.
         unsafe {
             std::str::from_utf8_unchecked(
-                &self.inner[offset + PREFIX_SIZE..offset + PREFIX_SIZE + str_len],
+                self.inner.get_unchecked(entry_start..entry_end).as_ref()
             )
         }
     }
 
     /// Read the string length from the 2-byte LE prefix at `offset`.
     #[inline]
-    pub fn get_len(&self, offset: impl AsOffset) -> usize {
+    pub fn get_len(&self, offset: impl [ const ] AsOffset) -> usize {
         let offset = offset.as_offset();
         u16::from_le_bytes([self.inner[offset], self.inner[offset + 1]]) as usize
     }
 
-    /// Store a length-prefixed UTF-8 grapheme cluster and return its offset.
-    ///
-    /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
-    /// cluster exceeds 4 bytes.
-    pub fn insert(&mut self, value: &str) -> Grapheme {
-        self.try_insert(value).unwrap()
+    /// Number of bytes actively used by stored graphemes.
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.count
     }
 
+    /// Total byte capacity currently allocated by the arena's backing storage.
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    /// Total number of bytes in the arena (including freed gaps).
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Returns `true` if the arena has no live entries.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+}
+
+impl Arena {
     /// Inserts a UTF-8 grapheme cluster and returns its offset.
     ///
     /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
@@ -162,35 +179,17 @@ impl const  Arena {
         Ok(Grapheme::offset(offset))
     }
 
-    /// Remove stored grapheme
+    /// Store a length-prefixed UTF-8 grapheme cluster and return its offset.
     ///
-    /// Zeroes the entry and adds the region to the free list.
-    pub fn remove(&mut self, offset: impl AsOffset) {
-        let offset = offset.as_offset();
-        debug_assert!(
-            offset + PREFIX_SIZE <= self.inner.len(),
-            "releasing out-of-bounds offset {offset}",
-        );
-
-        let str_len = self.get_len(offset);
-
-        debug_assert!(
-            str_len > 0,
-            "double-release detected at offset {offset} (entry_len is 0)",
-        );
-
-        let total = PREFIX_SIZE + str_len;
-
-        // Zero only the 2-byte length prefix (stash overwrites the payload).
-        self.inner[offset..offset + PREFIX_SIZE].fill(0);
-        self.count = self.count.saturating_sub(total);
-
-        // Insert into the free list, maintaining sort by ascending size
-        // for best-fit allocation.
-        let slot = Slot { offset, len: total };
-        let pos = self.free.partition_point(|s| s.len < total);
-        self.free.insert(pos, slot);
+    /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
+    /// cluster exceeds 4 bytes.
+    pub fn insert(&mut self, value: &str) -> Grapheme {
+        match self.try_insert(value) {
+            Ok(offset) => offset,
+            Err(err) => panic!("failed to insert grapheme"),
+        }
     }
+
 
     /// Reset the arena entirely, invalidating **all** outstanding grapheme
     /// handles that reference this arena.
@@ -202,31 +201,36 @@ impl const  Arena {
         self.count = 0;
     }
 
-    /// Number of bytes actively used by stored graphemes.
-    #[inline]
-    pub fn count(&self) -> usize {
-        self.count
+    /// Remove stored grapheme
+    ///
+    /// Zeroes the entry and adds the region to the free list.
+    pub fn remove(&mut self, offset: impl AsOffset) {
+        let offset = offset.as_offset();
+        let entry_start = offset + PREFIX_SIZE;
+        let entry_len = self.get_len(offset);
+        let entry_end = entry_start + entry_len;
+
+        if entry_start >= self.inner.len() {
+            panic!("releasing out-of-bounds offset");
+        }
+
+        if entry_len == 0 {
+            panic!("double-release detected (entry_len is 0)");
+        }
+
+        let total = PREFIX_SIZE + entry_len;
+
+        // Zero only the 2-byte length prefix (stash overwrites the payload).
+        self.inner[offset..entry_start].fill(0);
+        self.count = self.count.saturating_sub(total);
+
+        // Insert into the free list, maintaining sort by ascending size
+        // for best-fit allocation.
+        let slot = Slot { offset, len: total };
+        let pos = self.free.partition_point(|s| s.len < total);
+        self.free.insert(pos, slot);
     }
 
-    /// Total byte capacity currently allocated by the arena's backing storage.
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-
-    /// Total number of bytes in the arena (including freed gaps).
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Returns `true` if the arena has no live entries.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.count == 0
-    }
-
-    // ── Allocation internals ───────────────────────────────────────────
 
     /// Allocate `needed` contiguous bytes in the arena.
     ///

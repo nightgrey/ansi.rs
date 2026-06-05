@@ -1,8 +1,9 @@
 use crate::number::Number;
 use std::num::FpCategory;
 use std::ops::Neg;
+use std::str::FromStr;
 
-pub trait Float: Number + Neg<Output = Self> {
+pub const trait Float: Number + Neg<Output=Self> {
     /// Archimedes' constant (π)
     const PI: Self;
 
@@ -1211,3 +1212,4 @@ macro_rules! impl_float {
 }
 impl_float!(f32);
 impl_float!(f64);
+

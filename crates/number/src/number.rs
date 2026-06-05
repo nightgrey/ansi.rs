@@ -4,9 +4,8 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 pub const trait Number:
-    Sized + Copy + PartialEq + PartialOrd + Zero + One + Ops + AssignOps + FromStr + Debug
-{
-}
+Sized + Copy + [ const ] Default + [ const ] PartialEq + [ const ] PartialOrd + [ const ] Zero + [ const ] One + [ const ] Ops + [ const ] AssignOps + FromStr + Debug
+{}
 
 impl const Number for u8 {}
 impl const Number for u16 {}

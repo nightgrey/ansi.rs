@@ -21,6 +21,8 @@
 #![feature(iter_advance_by)]
 #![feature(const_iter)]
 #![feature(const_result_trait_fn)]
+#![feature(const_try)]
+#![feature(const_option_ops)]
 extern crate core;
 
 mod color;

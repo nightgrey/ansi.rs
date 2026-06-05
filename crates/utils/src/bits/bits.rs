@@ -468,8 +468,8 @@ mod test {
 
 
     bits! {
-        bits = Attributes,
-        bit = pub enum Attribute: u16 {
+        Attributes,
+        pub enum Attribute: u16 {
             #[default]
             None = 0,
             Bold = (1 << 1),

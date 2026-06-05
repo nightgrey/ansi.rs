@@ -1,20 +1,20 @@
 #[macro_export]
 macro_rules! bits {
-    // Explicit layout: each variant carries its own bit pattern, so aliases
+// Explicit layout: each variant carries its own bit pattern, so aliases
     // / combined flags (`All = Bold as $repr | Italic as $repr`) are allowed.
     (
-        bits = $bits:ident,
-        bit = $(#[$m:meta])* $vis:vis enum $bit:ident: $repr:ty {
-            $($(#[$am:meta])* $variant:ident = $value:expr),+ $(,)?
+        $(#[$bits_meta:meta])* $bits:ident,
+        $(#[$bit_meta:meta])* $vis:vis enum $bit:ident: $repr:ty {
+            $($(#[$variant_meta:meta])* $variant:ident = $value:expr),+ $(,)?
         }
         $(,)?
     ) => {
         // Bit
-        $(#[$m])*
+        $(#[$bit_meta])*
         #[repr($repr)]
         #[derive(Copy, Debug)]
         #[derive_const(Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
-        $vis enum $bit { $($(#[$am])* $variant = $value),+ }
+        $vis enum $bit { $($(#[$variant_meta])* $variant = $value),+ }
 
         /// A set of [`
         #[doc = stringify!($bit)]
@@ -33,6 +33,12 @@ macro_rules! bits {
             // flag) would give a non-zero "empty" and break `is_empty`,
             // `contains`, `intersects` and iteration.
             const EMPTY: $repr = 0;
+        }
+        
+        impl const $bit {
+            #[allow(non_upper_case_globals)]
+            /// The empty set of flags.
+            pub const None: Self = Self::EMPTY.into();
         }
 
         impl const std::ops::BitAnd for $bit {
@@ -70,6 +76,12 @@ macro_rules! bits {
         impl const core::convert::From<$bit> for $repr {
             fn from(value: $bit) -> Self {
                 value as $repr
+            }
+        }
+
+        impl const core::convert::From<$repr> for $bit {
+            fn from(value: $repr) -> Self {
+               unsafe { std::mem::transmute(value) }
             }
         }
 

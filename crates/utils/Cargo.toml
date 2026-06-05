@@ -9,6 +9,7 @@ derive_more = { workspace = true }
 compact_bytes = "0.2.1"
 thiserror = { workspace = true }
 itertools = "0.14.0"
+number = { workspace = true }
 
 [lints]
 workspace = true

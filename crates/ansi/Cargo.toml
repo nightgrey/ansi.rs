@@ -25,6 +25,7 @@ log = "0.4.29"
 memchr = "2.8.0"
 utils-derive = { workspace = true }
 vte_generate_state_changes = "0.2.0"
+flagset = "0.4.7"
 
 [dev-dependencies]
 criterion = "0.8.2"

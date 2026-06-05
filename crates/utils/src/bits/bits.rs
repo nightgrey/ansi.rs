@@ -22,7 +22,7 @@ pub const trait Bits: Sized
     const COUNT: usize = <Self::Bit as Bit>::COUNT;
 
     /// The flag type this set is built from.
-    type Bit: [ const ] Bit<Repr=Self::Repr>;
+    type Bit: [ const ] Bit + [ const ] Base<Repr = Self::Repr>;
 
     const None: Self;
     const All: Self;
@@ -61,7 +61,7 @@ pub const trait Bits: Sized
     fn try_from_bits(bits: impl [ const ] Into<Self::Repr>) -> Result<Self, BitsError> {
         let bits = bits.into();
 
-        if bits & !Self::All.bits() == <Self::Bit as Bit>::None.into() {
+        if bits & !Self::All.bits() == Self::None.bits() {
             Ok(Self::from_repr(bits))
         } else {
             Err(BitsError::Unknown)
@@ -81,16 +81,6 @@ pub const trait Bits: Sized
         }
     }
 
-    #[inline]
-    fn is_none(self) -> bool {
-        self == Self::none()
-    }
-
-    #[inline]
-    fn is_all(self) -> bool {
-        self == Self::all()
-    }
-
     /// `true` if every flag in `other` is present.
     #[inline]
     fn contains(self, other: impl [ const ] Into<Self>) -> bool {
@@ -98,16 +88,26 @@ pub const trait Bits: Sized
         self.bits() & o == o
     }
 
+    #[inline]
+    fn is_none(self) -> bool {
+        self == Self::None
+    }
+
+    #[inline]
+    fn is_all(self) -> bool {
+        self == Self::all()
+    }
+
     /// `true` if any flag is shared.
     #[inline]
     fn intersects(self, other: impl [ const ] Into<Self>) -> bool {
-        Self::new(self.bits() & other.into().bits()) != Self::none()
+        Self::new(self.bits() & other.into().bits()) != Self::None
     }
 
     /// `true` if no flag is shared.
     #[inline]
     fn is_disjoint(self, other: impl [ const ] Into<Self>) -> bool {
-        self.bits() & other.into().bits() == <Self::Bit as Bit>::None.bits()
+        self.bits() & other.into().bits() == Self::None.bits()
     }
 
     /// Set union (`|`).
@@ -172,7 +172,7 @@ pub const trait Bits: Sized
 
     #[inline]
     fn clear(&mut self) {
-        *self = Self::none();
+        *self = Self::None;
     }
 
     /// Iterate the individual flags present in this set.

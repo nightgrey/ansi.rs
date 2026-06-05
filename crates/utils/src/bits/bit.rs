@@ -30,7 +30,6 @@ pub const trait Bit: Sized
 + [ const ] Base
 + [ const ] Destruct
 + Copy
-+ [ const ] Default
 + [ const ] PartialEq
 + [ const ] Eq
 + [ const ] PartialOrd
@@ -43,6 +42,4 @@ pub const trait Bit: Sized
     const LIST: &'static [(Self, &'static str)];
     /// Number of declared flags.
     const COUNT: usize = Self::LIST.len();
-
-    const None: Self;
 }

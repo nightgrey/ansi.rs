@@ -1,118 +1,94 @@
+use utils::{Bit, Bits, BitsIter, BitsError, Base};
 use crate::Escape;
-use bitflags::{
-    Bits, Flags, bitflags,
-    iter::{Iter, IterDefinedNames, IterNames},
-};
 use maybe::Maybe;
 use std::borrow::Cow;
 use std::fmt::from_fn;
+use geometry::Bound;
+use utils::bits;
 
-bitflags! {
-    /// Attribute
-    ///
-    /// Defines a compact representation of ANSI SGR attributes.
-
-    #[derive(Default, Copy, Clone, Eq, PartialEq, Hash)]
-    pub struct Attribute: u16 {
+bits! {
+    /// Attributes
+    /// A compact representation of ANSI SGR attributes.
+    Attributes,
+    pub enum Attribute: u16 {
         /// Increases the text intensity.
-        const Bold = 1 << 1;
+        Bold = 1 << 1,
         /// Decreases the text intensity.
-        const Faint = 1 << 2;
+        Faint = 1 << 2,
         /// Emphasises the text.
-        const Italic = 1 << 3;
+        Italic = 1 << 3,
         /// Underlines the text with a single line.
-        const Underline = 1 << 4;
+        Underline = 1 << 4,
         /// Underlines the text with a double line.
-        const UnderlineDouble = 1 << 13;
+        UnderlineDouble = 1 << 13,
         /// Underlines the text with a curly line.
-        const UnderlineCurly = 1 << 14;
+        UnderlineCurly = 1 << 14,
         /// Makes the text blink.
-        const Blink = 1 << 5;
+        Blink = 1 << 5,
         /// Makes the text blink rapidly.
-        const RapidBlink = 1 << 6;
+        RapidBlink = 1 << 6,
         /// Swaps the foreground and background colors.
-        const Inverse = 1 << 7;
+        Inverse = 1 << 7,
         /// Hides the text.
-        const Invisible = 1 << 8;
+        Invisible = 1 << 8,
         /// Crosses the text out.
-        const Strikethrough = 1 << 9;
+        Strikethrough = 1 << 9,
         /// Frames the text.
-        const Frame = 1 << 10;
+        Frame = 1 << 10,
         /// Encircles the text.
-        const Encircle = 1 << 11;
+        Encircle = 1 << 11,
         /// Draws a line at the top of the text.
-        const Overline = 1 << 12;
-
-    }
+        Overline = 1 << 12,
+    },
+    AttributesIter,
+    AttributesError
 }
 
-static SGR: &[(Attribute, &str)] = &[
-    (Attribute::Bold, "1"),
-    (Attribute::Faint, "2"),
-    (Attribute::Italic, "3"),
-    (Attribute::Underline, "4"),
-    (Attribute::UnderlineDouble, "21"),
-    (Attribute::UnderlineCurly, "24"),
-    (Attribute::Blink, "5"),
-    (Attribute::RapidBlink, "6"),
-    (Attribute::Inverse, "7"),
-    (Attribute::Invisible, "8"),
-    (Attribute::Strikethrough, "9"),
-    (Attribute::Frame, "51"),
-    (Attribute::Encircle, "52"),
-    (Attribute::Overline, "53"),
-];
+pub struct Names {
+    source: Attributes,
+    remaining: Attributes,
+    idx: usize,
+}
+impl Iterator for Names {
+    type Item = (&'static str, Attribute);
 
-static SGR_UNSET: &[(Attribute, &str)] = &[
-    (Attribute::Bold, "22"),
-    (Attribute::Faint, "22"),
-    (Attribute::Italic, "23"),
-    (
-        Attribute::new(
-            Attribute::Underline.bits()
-                | Attribute::UnderlineDouble.bits()
-                | Attribute::UnderlineDouble.bits(),
-        ),
-        "24",
-    ),
-    (
-        Attribute::new(Attribute::Blink.bits() | Attribute::RapidBlink.bits()),
-        "25",
-    ),
-    (Attribute::Inverse, "27"),
-    (Attribute::Invisible, "28"),
-    (Attribute::Strikethrough, "29"),
-    (Attribute::Frame, "54"),
-    (Attribute::Encircle, "54"),
-    (Attribute::Overline, "55"),
-];
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(flag) = self.source.get(self.idx) {
+            // Short-circuit if our state is empty
+            if self.remaining.is_none() {
+                return None;
+            }
 
-static SEP: &str = ";";
+            self.idx += 1;
 
-const _: () = assert!(SGR.len() == Attribute::COUNT);
-const _: () = assert!(SGR_UNSET.len() == Attribute::COUNT - 3); // Some attributes are merged.
+            // Skip unnamed flags
+            if flag.name().is_empty() {
+                continue;
+            }
 
-impl Attribute {
-    #[allow(non_upper_case_globals)]
-    pub const None: Self = Self::new(0);
+            let bits = flag.value().bits();
 
-    pub const COUNT: usize = <Self as Flags>::FLAGS.len();
+            // If the flag is set in the original source _and_ it has bits that haven't
+            // been covered by a previous flag yet then yield it. These conditions cover
+            // two cases for multi-bit flags:
+            //
+            // 1. When flags partially overlap, such as `0b00000001` and `0b00000101`, we'll
+            // yield both flags.
+            // 2. When flags fully overlap, such as in convenience flags that are a shorthand for others,
+            // we won't yield both flags.
+            if self.source.contains(Attributes::from_bits_retained(bits))
+                && self.remaining.intersects(Attributes::from_bits_retained(bits))
+            {
+                self.remaining.remove(Attributes::from_bits_retained(bits));
 
-    /// All defined attributes combined.
-    pub const MAX: Self = Self::new(<Self as Flags>::Bits::ALL);
+                return Some((flag.name(), Attributes::from_bits_retained(bits)));
+            }
+        }
 
-    pub const fn new(bits: u16) -> Self {
-        Self::from_bits_truncate(bits)
+        None
     }
-
-    pub fn is_none(&self) -> bool {
-        self == &Attribute::None
-    }
-
-    pub fn is_some(&self) -> bool {
-        !self.is_none()
-    }
-
+}
+impl Attributes {
     /// Returns the semicolon-separated SGR parameters to set attributes.
     ///
     /// # Example
@@ -131,7 +107,7 @@ impl Attribute {
         }
 
         SGR.iter()
-            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some(sgr))
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
             .intersperse(SEP)
             .collect()
     }
@@ -156,7 +132,7 @@ impl Attribute {
 
         SGR_UNSET
             .iter()
-            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some(sgr))
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some(sgr))
             .intersperse(SEP)
             .collect()
     }
@@ -166,7 +142,7 @@ impl Attribute {
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn iter_sgr(self) -> impl Iterator<Item=(&'static str, Attribute)> {
         SGR.iter()
-            .filter_map(move |&(attr, sgr)| attr.contains(self).then_some((sgr, attr)))
+            .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
     }
 
     pub fn iter_sgr_unset(self) -> impl Iterator<Item=(&'static str, Attribute)> {
@@ -187,8 +163,8 @@ impl Attribute {
     /// assert_eq!(attrs.names().map(|(name, _)| name).collect::<Vec<_>>(), vec!["Bold", "Italic"]);
     /// ```
     #[inline]
-    pub fn names(self) -> AttributeNames {
-        self.iter_names()
+    pub fn names(self) -> AttributesIter {
+        todo!()
     }
 
     /// Returns an iterator over all defined attribute variants.
@@ -203,8 +179,8 @@ impl Attribute {
     /// assert_eq!(Attribute::variants().count(), Attribute::COUNT);
     /// ```
     #[inline]
-    pub fn variants() -> AttributeVariants {
-        Attribute::iter_defined_names()
+    pub fn variants() -> AttributesIter {
+        todo!()
     }
 
     /// Returns a string representation of the attributes.
@@ -226,19 +202,19 @@ impl Attribute {
     }
 }
 
-impl std::fmt::Debug for Attribute {
+impl std::fmt::Debug for Attributes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_none() {
-            return f.write_str("Attribute::None");
+            return f.write_str("Attributes::None");
         }
 
-        f.debug_tuple("Attribute")
+        f.debug_tuple("Attributes")
             .field(&from_fn(|f| f.write_str(&self.to_string())))
             .finish()
     }
 }
 
-impl Escape for Attribute {
+impl Escape for Attributes {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         for (i, (sgr, _attr)) in self.iter_sgr().enumerate() {
             if i > 0 {
@@ -250,18 +226,57 @@ impl Escape for Attribute {
     }
 }
 
-pub type AttributeIter = Iter<Attribute>;
-pub type AttributeNames = IterNames<Attribute>;
-pub type AttributeVariants = IterDefinedNames<Attribute>;
-
-impl Maybe for Attribute {
-    #[allow(non_upper_case_globals)]
-    const None: Self = Self::None;
-
-    fn is_none(&self) -> bool {
-        self == &Self::None
-    }
+impl Maybe for Attributes {
+    const None: Self = Attributes::new(0);
 }
+
+
+static SGR: &[(Attribute, &str)] = &[
+    (Attribute::Bold, "1"),
+    (Attribute::Faint, "2"),
+    (Attribute::Italic, "3"),
+    (Attribute::Underline, "4"),
+    (Attribute::UnderlineDouble, "21"),
+    (Attribute::UnderlineCurly, "24"),
+    (Attribute::Blink, "5"),
+    (Attribute::RapidBlink, "6"),
+    (Attribute::Inverse, "7"),
+    (Attribute::Invisible, "8"),
+    (Attribute::Strikethrough, "9"),
+    (Attribute::Frame, "51"),
+    (Attribute::Encircle, "52"),
+    (Attribute::Overline, "53"),
+];
+
+static SGR_UNSET: &[(Attribute, &str)] = &[
+    (Attribute::Bold, "22"),
+    (Attribute::Faint, "22"),
+    (Attribute::Italic, "23"),
+    (
+        Attributes::new(
+            Attribute::Underline.bits()
+                | Attribute::UnderlineDouble.bits()
+                | Attribute::UnderlineDouble.bits(),
+        ),
+        "24",
+    ),
+    (
+        Attributes::new(Attribute::Blink.bits() | Attribute::RapidBlink.bits()),
+        "25",
+    ),
+    (Attribute::Inverse, "27"),
+    (Attribute::Invisible, "28"),
+    (Attribute::Strikethrough, "29"),
+    (Attribute::Frame, "54"),
+    (Attribute::Encircle, "54"),
+    (Attribute::Overline, "55"),
+];
+
+static SEP: &str = ";";
+
+const _: () = assert!(SGR.len() == Attribute::COUNT);
+const _: () = assert!(SGR_UNSET.len() == Attribute::COUNT - 3); // Some attributes are merged.
+
 
 #[cfg(test)]
 mod tests {
@@ -270,7 +285,7 @@ mod tests {
 
     #[test]
     fn empty_attributes() {
-        let attrs = Attribute::None;
+        let attrs = Attributes::None;
         assert_eq!(attrs.bits(), 0);
         assert!(attrs.is_empty());
         assert!(!attrs.is_some());
@@ -279,7 +294,7 @@ mod tests {
 
     #[test]
     fn single_attribute() {
-        let bold = Attribute::Bold;
+        let bold = Attributes::Bold;
         assert!(bold.contains(Attribute::Bold));
         assert!(!bold.contains(Attribute::Italic));
         assert!(bold.is_some());
@@ -360,7 +375,7 @@ mod tests {
     fn clear() {
         let mut attrs = Attribute::Bold | Attribute::Italic;
         attrs.clear();
-        assert!(attrs.is_empty());
+        assert!(attrs.is_none());
     }
 
     mod sgr {

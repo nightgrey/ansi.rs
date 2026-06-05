@@ -1,6 +1,3 @@
-use std::str::FromStr;
-use crate::{Bit, Bits, BitsError, BitsIter};
-
 /// Define a flag enum and a concrete set newtype around it.
 ///
 /// Emits, on the *caller's* side:
@@ -79,35 +76,26 @@ macro_rules! bits {
                 ($bit::$variant, stringify!($variant)),
                 )*
             ];
+         }
+        impl const $crate::Bits for $bits {
+            type Bit = $bit;
 
             // The empty set is always the zero integer, independent of any
             // declared flag. Tying it to a variant (e.g. a `None = 1 << 0`
             // flag) would give a non-zero "empty" and break `is_empty`,
             // `contains`, `intersects` and iteration.
-            const None: $repr = 0;
-         }
-        impl const $crate::Bits for $bits {
-            type Bit = $bit;
-
-           #[allow(non_upper_case_globals)]
-            const None: Self::None = Self::new(Attribute::None);
+            #[allow(non_upper_case_globals)]
+            const None: Self = Self::from_repr(0);
 
             #[allow(non_upper_case_globals)]
-            const All: Self = Self::from_repr($( ($bit::$variant as Self::Repr) )|+;);
+            const All: Self = Self::from_repr($( ($bit::$variant as $repr) )|+);
         }
 
         #[allow(non_upper_case_globals)]
-        impl const $bits {
+        impl $bits {
             $(
-            pub const $variant: Self = Self($value);
+            pub const $variant: Self = Self($value as $repr);
             )*
-        }
-
-        impl const Default for $bit {
-            #[inline]
-            fn default() -> Self {
-                Self::None as Self
-            }
         }
 
         impl core::str::FromStr for $bit {
@@ -120,18 +108,11 @@ macro_rules! bits {
             }
         }
 
-        impl const Default for $bits {
-            #[inline]
-            fn default() -> Self {
-                Self::None
-            }
-        }
-
         impl core::str::FromStr for $bits {
             type Err = $crate::BitsError;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let mut parsed_flags = <Self as $crate::Bits>::empty();
+                let mut parsed_flags = <Self as $crate::Bits>::None;
 
                 // If the input is empty then return an empty set of flags
                 if s.trim().is_empty() {
@@ -306,7 +287,7 @@ macro_rules! bits {
         impl<I: core::marker::Copy + [ const ] Into<$bits>> const core::cmp::PartialEq<I> for $bits {
             #[inline]
             fn eq(&self, other: &I) -> bool {
-                self.0 == $crate::Bits::to_repr((*other).into())
+                self.0 == $crate::Base::into_repr((*other).into())
             }
         }
 
@@ -346,7 +327,7 @@ macro_rules! bits {
 
         impl<I: Into<$bits>> FromIterator<I> for $bits {
             fn from_iter<T: IntoIterator<Item=I>>(iter: T) -> Self {
-                let mut set = <$bits as $crate::Bits>::empty();
+                let mut set = <$bits as $crate::Bits>::None;
                 set.extend(iter);
                 set
             }

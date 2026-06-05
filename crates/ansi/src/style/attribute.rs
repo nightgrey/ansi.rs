@@ -164,12 +164,12 @@ impl Attribute {
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn iter_sgr(self) -> impl Iterator<Item = (&'static str, Attribute)> {
+    pub fn iter_sgr(self) -> impl Iterator<Item=(&'static str, Attribute)> {
         SGR.iter()
             .filter_map(move |&(attr, sgr)| attr.contains(self).then_some((sgr, attr)))
     }
 
-    pub fn iter_sgr_unset(self) -> impl Iterator<Item = (&'static str, Attribute)> {
+    pub fn iter_sgr_unset(self) -> impl Iterator<Item=(&'static str, Attribute)> {
         SGR_UNSET
             .iter()
             .filter_map(move |&(attr, sgr)| self.contains(attr).then_some((sgr, attr)))
@@ -420,5 +420,7 @@ mod tests {
         assert!(all.contains(Attribute::Bold));
         assert!(all.contains(Attribute::Italic));
         assert!(all.contains(Attribute::Overline));
+
+        assert!(all.is_all());
     }
 }

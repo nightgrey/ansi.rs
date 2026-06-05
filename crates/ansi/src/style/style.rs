@@ -6,7 +6,6 @@ use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
 use std::ops::{BitAnd, BitOr, BitXor, BitXorAssign, Not, Sub, SubAssign};
 use utils::separate_by;
-
 #[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, Sub, SubAssign)]
 pub struct Style {
     pub attributes: Attribute,
@@ -81,7 +80,7 @@ impl Style {
         ..Self::None
     };
 
-    pub const fn from_attribute(attribute: Attribute) -> Self {
+    pub fn from_attribute(attribute: Attribute) -> Self {
         Self {
             attributes: attribute,
             foreground: Color::None,
@@ -126,12 +125,12 @@ impl Style {
 
     /// Set the background color.
     #[inline]
-    pub const fn background(mut self, color: Color) -> Self {
+    pub fn background(mut self, color: Color) -> Self {
         self.background = color;
         self
     }
 
-    pub const fn foreground(mut self, color: Color) -> Self {
+    pub fn foreground(mut self, color: Color) -> Self {
         self.foreground = color;
         self
     }

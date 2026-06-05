@@ -8,6 +8,7 @@
 #![feature(exact_size_is_empty)]
 #![feature(slice_range)]
 #![feature(const_default)]
+#![feature(const_heap)]
 extern crate core;
 
 pub mod drawing;

@@ -58,7 +58,7 @@ const MINIMUM_ALLOC: usize = 1024;
 /// Maximum string payload that fits in a u16 length prefix.
 const MAX_ENTRY_LEN: usize = u16::MAX as usize;
 
-impl Arena {
+impl const  Arena {
     pub const EMPTY: Self = Self {
         inner: vec![],
         count: 0,
@@ -319,28 +319,28 @@ pub const trait AsOffset {
     fn as_offset(self) -> usize;
 }
 
-impl AsOffset for usize {
+impl const AsOffset for usize {
     #[inline]
     fn as_offset(self) -> usize {
         self
     }
 }
 
-impl AsOffset for Grapheme {
+impl const AsOffset for Grapheme {
     #[inline]
     fn as_offset(self) -> usize {
         Grapheme::as_offset(&self)
     }
 }
 
-impl AsOffset for &Grapheme {
+impl const AsOffset for &Grapheme {
     #[inline]
     fn as_offset(self) -> usize {
         Grapheme::as_offset(self)
     }
 }
 
-impl AsOffset for &mut Grapheme {
+impl const AsOffset for &mut Grapheme {
     #[inline]
     fn as_offset(self) -> usize {
         Grapheme::as_offset(self)

@@ -65,7 +65,14 @@ pub struct Grapheme {
     value: u32,
 }
 
-impl Grapheme {
+impl const Grapheme {
+    /// Bitmask covering the low 24 payload bits.
+    const PAYLOAD_MASK: u32 = 0x00FF_FFFF;
+    /// The sentinel tag value marking an extended (arena-stored) grapheme.
+    const EXTENDED_TAG: u8 = 0x01;
+    /// The sentinel tag value marking a wide-character continuation cell.
+    const CONTINUATION_TAG: u8 = 0x02;
+
     /// Empty cell content (no character).
     pub const EMPTY: Self = Self { value: 0 };
     /// Placeholder for the trailing cells of a wide grapheme.
@@ -88,15 +95,18 @@ impl Grapheme {
     ///
     /// Panics if the string exceeds 4 bytes and the arena is full (16 MiB).
     /// Use [`try_extended`](Self::try_extended) for the fallible variant.
-    pub fn extended(value: impl Encode, arena: &mut Arena) -> Self {
-        Self::try_extended(value, arena).unwrap()
+    pub fn extended(value: impl [ const ] Encode, arena: &mut Arena) -> Self {
+        match Self::try_extended(value, arena) {
+            Ok(g) => g,
+            Err(e) => panic!("Failed to encode value as an extended grapheme."),
+        }
     }
 
     /// Fallible version of [`extended`](Self::extended).
     ///
     /// Returns `Err` only if the string exceeds 4 bytes and the arena cannot
     /// allocate space for it.
-    pub fn try_extended(value: impl Encode, arena: &mut Arena) -> Result<Self, GraphemeError> {
+    pub fn try_extended(value: impl [ const ] Encode, arena: &mut Arena) -> Result<Self, GraphemeError> {
         value.try_extended(arena)
     }
 
@@ -106,9 +116,9 @@ impl Grapheme {
     /// - `'\0'` produces [`SPACE`](Self::EMPTY) since NUL is
     ///   indistinguishable from padding in the inline encoding.
     /// - Performs manual UTF-8 encoding since `char::encode_utf8` is not
-    ///   available in `const fn`. Every Unicode scalar value fits in ≤4
+    ///   available in `fn`. Every Unicode scalar value fits in ≤4
     ///   UTF-8 bytes, so this always produces an inline grapheme.
-    pub const fn inline(value: impl [const] Encode) -> Self {
+    pub fn inline(value: impl [ const ] Encode) -> Self {
         match value.try_inline() {
             Ok(g) => g,
             Err(_e) => panic!("Failed to encode value as an inline grapheme"),
@@ -116,18 +126,9 @@ impl Grapheme {
     }
 
     /// Try to create an inline grapheme without an arena.
-    pub const fn try_inline(value: impl [const] Encode) -> Result<Self, GraphemeError> {
+    pub fn try_inline(value: impl [ const ] Encode) -> Result<Self, GraphemeError> {
         value.try_inline()
     }
-
-    /// Bitmask covering the low 24 payload bits.
-    const PAYLOAD_MASK: u32 = 0x00FF_FFFF;
-
-    /// The sentinel tag value marking an extended (arena-stored) grapheme.
-    const EXTENDED_TAG: u8 = 0x01;
-
-    /// The sentinel tag value marking a wide-character continuation cell.
-    const CONTINUATION_TAG: u8 = 0x02;
 
     /// Create an extended grapheme from an arena offset.
     ///
@@ -136,7 +137,7 @@ impl Grapheme {
     /// The caller must ensure `offset` refers to a valid, live entry in a
     /// [`Arena`]. This is memory-safe (no UB), but a bogus offset will
     /// produce garbage when resolved.
-    pub fn offset(offset: impl AsOffset) -> Self {
+    pub fn offset(offset: impl [ const ] AsOffset) -> Self {
         let offset = offset.as_offset();
         /// Maximum addressable offset in the arena (24-bit, = 16 MiB − 1).
         debug_assert!(
@@ -149,19 +150,19 @@ impl Grapheme {
     }
 
     /// Returns `true` if this grapheme is empty (no character) or a continuation.
-    pub const fn is_none(&self) -> bool {
+    pub fn is_none(&self) -> bool {
         self.is_empty() || self.is_continuation()
     }
 
     /// Returns `true` if this grapheme is empty (no character).
     #[inline]
-    pub const fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self == &Self::EMPTY
     }
 
     /// Returns `true` if this grapheme is a wide-character continuation marker.
     #[inline]
-    pub const fn is_continuation(self) -> bool {
+    pub fn is_continuation(self) -> bool {
         (self.value >> 24) as u8 == Self::CONTINUATION_TAG
     }
 
@@ -170,14 +171,14 @@ impl Grapheme {
     /// Both [`EMPTY`](Self::EMPTY) and any real inline UTF-8 encoding count as
     /// inline; the sentinel tags (extended, continuation) do not.
     #[inline]
-    pub const fn is_inline(self) -> bool {
+    pub fn is_inline(self) -> bool {
         let tag = (self.value >> 24) as u8;
         tag != Self::EXTENDED_TAG && tag != Self::CONTINUATION_TAG
     }
 
     /// Returns `true` if this grapheme is stored in a [`Arena`].
     #[inline]
-    pub const fn is_extended(self) -> bool {
+    pub fn is_extended(self) -> bool {
         (self.value >> 24) as u8 == Self::EXTENDED_TAG
     }
 
@@ -215,6 +216,39 @@ impl Grapheme {
         self.try_as_char().unwrap_or(char::REPLACEMENT_CHARACTER)
     }
 
+    // ── Internal constructors ──────────────────────────────────────────
+
+    /// Pack up to 4 UTF-8 bytes into a `u32` via little-endian interpretation.
+    /// Unused trailing bytes are zero, and the high byte cannot be `0x01` for
+    /// any valid UTF-8 input ≤4 bytes.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure `bytes` is valid UTF-8, non-empty, and ≤4 bytes long.
+    pub unsafe fn from_bytes(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() <= char::MAX_LEN_UTF8 && !bytes.is_empty());
+        let mut buf = [0u8; char::MAX_LEN_UTF8];
+        // const-compatible slice copy
+        let mut i = 0;
+        while i < bytes.len() {
+            buf[i] = bytes[i];
+            i += 1;
+        }
+        Self {
+            value: u32::from_le_bytes(buf),
+        }
+    }
+
+    // ── Internal helpers ───────────────────────────────────────────────
+
+    /// The 24-bit arena offset for an extended grapheme.
+    #[inline]
+    pub fn as_offset(&self) -> usize {
+        (self.value & Self::PAYLOAD_MASK) as usize
+    }
+}
+
+impl Grapheme {
     /// Resolve this grapheme to a `&str`.
     ///
     /// This is the **primary** way to read a grapheme. On little-endian
@@ -243,6 +277,12 @@ impl Grapheme {
         }
     }
 
+
+    /// Resolve this grapheme to a byte slice.
+    pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
+        self.as_str(arena).as_bytes()
+    }
+
     /// Interpret the inline bytes as a `&str`.
     ///
     /// # Safety
@@ -252,12 +292,6 @@ impl Grapheme {
     pub fn as_inline_str(&self) -> &str {
         unsafe { std::str::from_utf8_unchecked(self.as_inline_bytes()) }
     }
-
-    /// Resolve this grapheme to a byte slice.
-    pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
-        self.as_str(arena).as_bytes()
-    }
-
     /// Extract the inline UTF-8 bytes as a slice.
     ///
     /// On little-endian targets this is a direct pointer cast into `self`;
@@ -265,37 +299,6 @@ impl Grapheme {
     pub fn as_inline_bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, self.inline_len()) }
     }
-    // ── Internal constructors ──────────────────────────────────────────
-
-    /// Pack up to 4 UTF-8 bytes into a `u32` via little-endian interpretation.
-    /// Unused trailing bytes are zero, and the high byte cannot be `0x01` for
-    /// any valid UTF-8 input ≤4 bytes.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure `bytes` is valid UTF-8, non-empty, and ≤4 bytes long.
-    pub const unsafe fn from_bytes(bytes: &[u8]) -> Self {
-        debug_assert!(bytes.len() <= char::MAX_LEN_UTF8 && !bytes.is_empty());
-        let mut buf = [0u8; char::MAX_LEN_UTF8];
-        // const-compatible slice copy
-        let mut i = 0;
-        while i < bytes.len() {
-            buf[i] = bytes[i];
-            i += 1;
-        }
-        Self {
-            value: u32::from_le_bytes(buf),
-        }
-    }
-
-    // ── Internal helpers ───────────────────────────────────────────────
-
-    /// The 24-bit arena offset for an extended grapheme.
-    #[inline]
-    pub fn as_offset(&self) -> usize {
-        (self.value & Self::PAYLOAD_MASK) as usize
-    }
-
     /// Byte length of the inline UTF-8 data, determined by scanning for the
     /// first zero padding byte.
     pub fn inline_len(self) -> usize {

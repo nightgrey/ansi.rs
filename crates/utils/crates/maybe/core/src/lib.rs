@@ -2,6 +2,7 @@
 #![feature(const_destruct)]
 #![feature(const_default)]
 #![feature(const_option_ops)]
+#![feature(const_cmp)]
 pub use maybe_derive::Maybe;
 use std::marker::Destruct;
 
@@ -9,6 +10,7 @@ use std::marker::Destruct;
 /// providing [`Option`]-like combinators without wrapping.
 #[allow(non_upper_case_globals, non_snake_case)]
 pub const trait Maybe: Sized {
+    #[allow(non_upper_case_globals)]
     /// No value.
     const None: Self;
 
@@ -32,7 +34,12 @@ pub const trait Maybe: Sized {
     /// let x: Foo = Foo::None;
     /// assert_eq!(x.is_none(), true);
     /// ```
-    fn is_none(&self) -> bool;
+    fn is_none(&self) -> bool
+    where
+        Self: [ const ] PartialEq<Self> + [ const ] Destruct,
+    {
+        self == &Self::None
+    }
 
     /// Returns `true` if [`Self`] is a "Some" value.
     ///
@@ -55,7 +62,10 @@ pub const trait Maybe: Sized {
     /// assert_eq!(x.is_some(), false);
     /// ```
     #[inline]
-    fn is_some(&self) -> bool {
+    fn is_some(&self) -> bool
+    where
+        Self: [ const ] PartialEq<Self> + [ const ] Destruct,
+    {
         !self.is_none()
     }
 
@@ -78,9 +88,9 @@ pub const trait Maybe: Sized {
     /// assert_eq!(x.map(|_| "rgb"), None);
     /// ```
     #[inline]
-    fn map<U>(self, f: impl [const] FnOnce(Self) -> U + [const] Destruct) -> Option<U>
+    fn map<U>(self, f: impl [ const ] FnOnce(Self) -> U + [ const ] Destruct) -> Option<U>
     where
-        Self: [const] Destruct,
+        Self: [ const ] PartialEq<Self> + [ const ] Destruct,
     {
         if self.is_some() { Some(f(self)) } else { None }
     }
@@ -123,9 +133,9 @@ pub const trait Maybe: Sized {
     /// assert_eq!(item_2_0, None);
     /// ```
     #[inline]
-    fn and_then<U>(self, f: impl [const] FnOnce(Self) -> U + [const] Destruct) -> Option<U>
+    fn and_then<U>(self, f: impl [ const ] FnOnce(Self) -> U + [ const ] Destruct) -> Option<U>
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { Some(f(self)) } else { None }
     }
@@ -154,13 +164,13 @@ pub const trait Maybe: Sized {
     /// assert_eq!(x.map_or(42, |_| 3), 42);
     /// ```
     #[inline]
-    fn map_or<U: [const] Destruct>(
+    fn map_or<U: [ const ] Destruct>(
         self,
         default: U,
-        f: impl [const] FnOnce(Self) -> U + [const] Destruct,
+        f: impl [ const ] FnOnce(Self) -> U + [ const ] Destruct,
     ) -> U
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { f(self) } else { default }
     }
@@ -208,11 +218,11 @@ pub const trait Maybe: Sized {
     #[inline]
     fn map_or_else<U>(
         self,
-        default: impl [const] FnOnce() -> U + [const] Destruct,
-        f: impl [const] FnOnce(Self) -> U + [const] Destruct,
+        default: impl [ const ] FnOnce() -> U + [ const ] Destruct,
+        f: impl [ const ] FnOnce(Self) -> U + [ const ] Destruct,
     ) -> U
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { f(self) } else { default() }
     }
@@ -240,12 +250,12 @@ pub const trait Maybe: Sized {
     ///
     /// [default value]: Default::default
     #[inline]
-    fn map_or_default<U: [const] Default + [const] Destruct>(
+    fn map_or_default<U: [ const ] Default + [ const ] Destruct>(
         self,
-        f: impl [const] FnOnce(Self) -> U + [const] Destruct,
+        f: impl [ const ] FnOnce(Self) -> U + [ const ] Destruct,
     ) -> U
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() {
             f(self)
@@ -289,7 +299,7 @@ pub const trait Maybe: Sized {
     #[inline]
     fn or(self, other: Self) -> Self
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { self } else { other }
     }
@@ -315,9 +325,9 @@ pub const trait Maybe: Sized {
     /// assert_eq!(Color::None.or_else(none_color), Color::None);
     /// ```
     #[inline]
-    fn or_else(self, f: impl [const] FnOnce() -> Self + [const] Destruct) -> Self
+    fn or_else(self, f: impl [ const ] FnOnce() -> Self + [ const ] Destruct) -> Self
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { self } else { f() }
     }
@@ -360,7 +370,7 @@ pub const trait Maybe: Sized {
     #[inline]
     fn and(self, other: Self) -> Self
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { other } else { Self::None }
     }
@@ -399,9 +409,9 @@ pub const trait Maybe: Sized {
     /// assert_eq!(Color::Rgb(0, 0, 255).filter(has_blue), Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
-    fn filter(self, f: impl [const] FnOnce(&Self) -> bool + [const] Destruct) -> Self
+    fn filter(self, f: impl [ const ] FnOnce(&Self) -> bool + [ const ] Destruct) -> Self
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() && f(&self) {
             self
@@ -438,7 +448,10 @@ pub const trait Maybe: Sized {
     /// assert_eq!(x, Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
-    fn get_or_insert(&mut self, value: Self) -> &mut Self where Self: [const] Destruct {
+    fn get_or_insert(&mut self, value: Self) -> &mut Self
+    where
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
+    {
         if self.is_none() {
             *self = value;
         }
@@ -470,9 +483,9 @@ pub const trait Maybe: Sized {
     /// assert_eq!(x, Color::Rgb(0, 0, 255));
     /// ```
     #[inline]
-    fn get_or_insert_with(&mut self, f: impl [const] FnOnce() -> Self + [const] Destruct) -> &mut Self
+    fn get_or_insert_with(&mut self, f: impl [ const ] FnOnce() -> Self + [ const ] Destruct) -> &mut Self
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_none() {
             let _ = core::mem::replace(self, f());
@@ -559,14 +572,17 @@ pub const trait Maybe: Sized {
     #[inline]
     fn maybe(self) -> Option<Self>
     where
-        Self: [const] Destruct,
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
     {
         if self.is_some() { Some(self) } else { None }
     }
 
     #[doc(alias = "maybe")]
     #[inline]
-    fn option(self) -> Option<Self> where Self: [const] Destruct {
+    fn option(self) -> Option<Self>
+    where
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
+    {
         self.maybe()
     }
     /// Converts [`Option<Self>`] to [`Self`].
@@ -590,7 +606,10 @@ pub const trait Maybe: Sized {
     /// assert_eq!(Foo::from_option(x), Foo::None);
     /// ```
     #[inline]
-    fn from_option(option: Option<Self>) -> Self where Self: [const] Destruct {
+    fn from_option(option: Option<Self>) -> Self
+    where
+        Self: [ const ] Destruct + [ const ] PartialEq<Self>,
+    {
         option.unwrap_or(Self::None)
     }
 }
@@ -1008,7 +1027,10 @@ mod tests {
     mod generic {
         use super::*;
 
-        fn fallback<T: Maybe>(a: T, b: T) -> T {
+        fn fallback<T: Maybe>(a: T, b: T) -> T
+        where
+            T: PartialEq<T>,
+        {
             a.or(b)
         }
 

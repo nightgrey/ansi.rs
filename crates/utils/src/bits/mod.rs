@@ -3,6 +3,19 @@
 #[macro_use]
 pub mod macros;
 
-mod bits;
+mod bit;
+pub use bit::*;
 
+pub mod bits;
 pub use bits::*;
+
+pub mod iter;
+pub use iter::*;
+
+pub mod error;
+
+pub use error::*;
+
+
+pub mod other;
+pub use other::*;

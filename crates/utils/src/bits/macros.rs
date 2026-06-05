@@ -6,8 +6,8 @@ macro_rules! bits {
         bits = $bits:ident,
         bit = $(#[$m:meta])* $vis:vis enum $bit:ident: $repr:ty {
             $($(#[$am:meta])* $variant:ident = $value:expr),+ $(,)?
-        },
-        empty = $empty:ident
+        }
+        $(,)?
     ) => {
         // Bit
         $(#[$m])*
@@ -16,6 +16,11 @@ macro_rules! bits {
         #[derive_const(Clone, Default, PartialOrd, Ord, PartialEq, Eq)]
         $vis enum $bit { $($(#[$am])* $variant = $value),+ }
 
+        /// A set of [`
+        #[doc = stringify!($bit)]
+        /// `] flags.
+        $vis type $bits = $crate::Bits<$bit>;
+
         impl const $crate::Bit for $bit {
             type Repr = $repr;
 
@@ -23,7 +28,11 @@ macro_rules! bits {
             const COUNT: usize = Self::LIST.len();
 
             const ALL: $repr = $( ($bit::$variant as $repr) )|+;
-            const EMPTY: Self::Repr = Self::$empty.into();
+            // The empty set is always the zero integer, independent of any
+            // declared flag. Tying it to a variant (e.g. a `None = 1 << 0`
+            // flag) would give a non-zero "empty" and break `is_empty`,
+            // `contains`, `intersects` and iteration.
+            const EMPTY: $repr = 0;
         }
 
         impl const std::ops::BitAnd for $bit {

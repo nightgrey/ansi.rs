@@ -21,13 +21,12 @@
 //! const bit-operators. The structure is the point.
 //! ----------------------------------------------------------------------
 
-use core::fmt::{self, Debug, Formatter};
+use core::fmt::Debug;
 use std::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Rem, RemAssign, Sub,
     SubAssign,
 };
 use std::marker::Destruct;
-use thiserror::Error;
 
 /// A single flag: one variant of a bit enum.
 ///
@@ -78,14 +77,14 @@ pub const trait Bit: Sized
 
 #[repr(transparent)]
 #[derive(Copy)]
-#[derive_const(Clone, derive_more::Deref, derive_more::DerefMut)]
+#[derive_const(Clone)]
 pub struct Bits<B: Bit>(B::Repr);
 
 impl<B: [ const ] Bit> const Bits<B> {
     /// Every flag, in declaration order. Drives iteration and counting.
-    const LIST: &'static [B] = B::LIST;
+    pub const LIST: &'static [B] = B::LIST;
     /// Number of declared flags.
-    const COUNT: usize = B::COUNT;
+    pub const COUNT: usize = B::COUNT;
 
     /// The empty set.
     pub fn empty() -> Self {
@@ -126,12 +125,16 @@ impl<B: [ const ] Bit> const Bits<B> {
         }
     }
 
-    /// Wrap raw bits, or `None` if any unknown bit is set.
+    /// Wrap raw bits, panicking if any bit outside [`Bit::ALL`] is set.
+    ///
+    /// Use [`try_from_bits`](Self::try_from_bits) for a fallible version, or
+    /// [`from_bits_truncated`](Self::from_bits_truncated) to silently drop
+    /// unknown bits.
     #[inline]
     pub fn from_bits(bits: impl [ const ] Into<B::Repr>) -> Self {
         match Self::try_from_bits(bits) {
             Ok(b) => b,
-            Err(_) => panic!("invalid bits"),
+            Err(_) => panic!("Bits::from_bits: unknown bits set"),
         }
     }
 
@@ -289,9 +292,14 @@ impl<B: Bit> core::fmt::Debug for Bits<B> {
 impl<B: [ const ] Bit, I: core::marker::Copy + [ const ] Into<Bits<B>>> const core::cmp::PartialEq<I> for Bits<B> {
     #[inline]
     fn eq(&self, other: &I) -> bool {
-        *self == (*other).into()
+        // Compare the underlying repr directly. Going through `==` on `Bits`
+        // would re-enter this same impl (`Bits<B>: Into<Bits<B>>`) and recurse
+        // forever.
+        self.0 == (*other).into().0
     }
 }
+
+impl<B: Bit> Eq for Bits<B> {}
 
 impl<B: [ const ] Bit> const core::default::Default for Bits<B> {
     #[inline]
@@ -450,12 +458,11 @@ impl<B: Bit> ExactSizeIterator for BitsIter<B> {
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum BitsError {
-    #[error("invalid bits")]
-    Invalid,
     #[error("unknown bits set")]
     Unknown,
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
 
@@ -480,7 +487,6 @@ mod test {
             Encircle = (1 << 13),
             Overline = (1 << 14),
         },
-        empty = None
     }
 
     #[test]
@@ -489,5 +495,26 @@ mod test {
         assert!(a.contains(Attribute::Bold));
         assert!(a.contains(Attribute::Italic));
         assert!(a.contains(Attribute::Underline));
+    }
+
+    #[test]
+    fn empty_semantics() {
+        let e = Attributes::empty();
+        assert!(e.is_empty());
+        assert_eq!(e.count(), 0, "empty set must yield no flags");
+        assert_eq!(e.bits(), 0, "empty set must be the zero integer");
+
+        let bold: Attributes = Attribute::Bold.into();
+        assert!(e.is_disjoint(bold));
+        assert!(!e.intersects(bold));
+        assert!(bold.contains(e), "every set contains the empty set");
+    }
+
+    #[test]
+    fn iter_excludes_zero_and_counts() {
+        let a = Attribute::Bold | Attribute::Underline;
+        let v: Vec<_> = a.iter().collect();
+        assert_eq!(v, [Attribute::Bold, Attribute::Underline]);
+        assert_eq!(a.count(), 2);
     }
 }

@@ -46,5 +46,4 @@ pub mod ansi;
 pub mod bits;
 
 pub use ansi::*;
-#[macro_use]
 pub use bits::*;

@@ -126,14 +126,14 @@ impl<W: std::fmt::Write> FmtEscape for W {
 #[macro_export]
 macro_rules! escape {
     ($dst:expr, $arg: expr) => {
-           $dst.escape($arg)
+           $dst.write_escape($arg)
     };
     ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
         use $crate::{WriteEscape, FmtEscape, Escape};
-        let mut result: std::io::Result<()> = $dst.escape($first);
+        let mut result: std::io::Result<()> = $dst.write_escape($first);
         $(
                 if result.is_ok() {
-                  result = $dst.escape($args);
+                  result = $dst.write_escape($args);
                 }
         )*
         result

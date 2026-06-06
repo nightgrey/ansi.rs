@@ -8,7 +8,7 @@
 
 use ansi::{Attribute, Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
-use gloss::{Arena, Cell, Grapheme};
+use ui::{Arena, Cell, Grapheme};
 use std::hint::black_box;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 

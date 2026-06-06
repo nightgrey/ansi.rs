@@ -1,5 +1,5 @@
 use ansi::Color;
-use gloss::*;
+use ui::*;
 use std::io::{self};
 
 fn main() -> io::Result<()> {

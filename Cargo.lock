@@ -814,42 +814,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gloss"
-version = "0.1.0"
-dependencies = [
- "ansi",
- "bilge",
- "bitflags",
- "bon",
- "compact_str",
- "criterion",
- "derive_more",
- "fast-strip-ansi",
- "fixedbitset",
- "geometry",
- "hi_sparse_bitset",
- "itertools 0.14.0",
- "maybe",
- "memchr",
- "number",
- "packed_struct",
- "paste",
- "rustix",
- "slotmap",
- "smallvec 2.0.0-alpha.12",
- "taffy 0.10.1",
- "tagged",
- "terminal",
- "thiserror",
- "tree",
- "unicode-linebreak",
- "unicode-segmentation",
- "unicode-width",
- "utils",
- "vt-push-parser",
-]
-
-[[package]]
 name = "grid"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1825,6 +1789,42 @@ dependencies = [
  "taffy 0.9.2",
  "thiserror",
  "trace",
+]
+
+[[package]]
+name = "ui"
+version = "0.1.0"
+dependencies = [
+ "ansi",
+ "bilge",
+ "bitflags",
+ "bon",
+ "compact_str",
+ "criterion",
+ "derive_more",
+ "fast-strip-ansi",
+ "fixedbitset",
+ "geometry",
+ "hi_sparse_bitset",
+ "itertools 0.14.0",
+ "maybe",
+ "memchr",
+ "number",
+ "packed_struct",
+ "paste",
+ "rustix",
+ "slotmap",
+ "smallvec 2.0.0-alpha.12",
+ "taffy 0.10.1",
+ "tagged",
+ "terminal",
+ "thiserror",
+ "tree",
+ "unicode-linebreak",
+ "unicode-segmentation",
+ "unicode-width",
+ "utils",
+ "vt-push-parser",
 ]
 
 [[package]]

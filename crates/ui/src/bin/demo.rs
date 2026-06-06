@@ -1,5 +1,5 @@
-use gloss::mock::*;
-use gloss::*;
+use ui::mock::*;
+use ui::*;
 use std::io::{self, stdout};
 
 fn main() -> io::Result<()> {

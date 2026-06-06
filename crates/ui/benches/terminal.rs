@@ -3,7 +3,7 @@ use ansi::{Color, Style};
 use criterion::*;
 use criterion::{Criterion, criterion_group, criterion_main};
 use geometry::{Bound, Point, Position, p};
-use gloss::*;
+use ui::*;
 use std::hint::black_box;
 use std::io;
 use tree::At;

@@ -9,7 +9,7 @@ members = [
     "crates/utils/crates/tagged/derive",
     "crates/utils/crates/maybe/core",
     "crates/utils/crates/maybe/derive",
-    "crates/gloss",
+    "crates/ui",
     "crates/terminal",
     "crates/number", "crates/utils-derive",
 ]
@@ -21,7 +21,7 @@ geometry = { path = "crates/geometry" }
 utils = { path = "crates/utils" }
 utils-derive = { path = "crates/utils-derive" }
 tree = { path = "crates/utils/crates/tree" }
-gloss = { path = "crates/gloss" }
+ui = { path = "crates/ui" }
 terminal = { path = "crates/terminal" }
 number = { path = "crates/number" }
 

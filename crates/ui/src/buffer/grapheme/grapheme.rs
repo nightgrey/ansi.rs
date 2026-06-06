@@ -86,7 +86,7 @@ impl const Grapheme {
     };
     /// A grapheme representing a replacement character ().
     pub const REPLACEMENT: Self = Self::inline(char::REPLACEMENT_CHARACTER);
-    
+
     /// Create a grapheme from a string slice.
     ///
     /// If the string fits in 4 UTF-8 bytes, it is stored inline (no arena
@@ -262,7 +262,7 @@ impl Grapheme {
     /// # Example
     ///
     /// ```
-    /// # use gloss::{Grapheme, Arena};
+    /// # use ui::{Grapheme, Arena};
     /// let arena = Arena::new();
     /// let g = Grapheme::inline('A');
     /// assert_eq!(g.as_str(&arena), "A");

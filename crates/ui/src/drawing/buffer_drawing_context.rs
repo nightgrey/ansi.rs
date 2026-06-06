@@ -502,7 +502,7 @@ mod tests {
 
         let footer_left = document.insert_at(Element::Div().padding(1), At::Child(footer));
         let footer_left_content =
-            document.insert_at(Element::Span("Gloss Rendering"), At::Child(footer_left));
+            document.insert_at(Element::Span("ui Rendering"), At::Child(footer_left));
 
         let footer_right = document.insert_at(Element::Div().padding(1), At::Child(footer));
         let footer_right_content =
@@ -914,7 +914,7 @@ mod tests {
         }
     }
 
-    /// End-to-end coverage of the `crates/gloss/src/bin/main.rs` scene:
+    /// End-to-end coverage of the `crates/ui/src/bin/main.rs` scene:
     /// root with padding + red background, transparent text element, a
     /// bordered container with three colored children. Asserts the
     /// characteristics the crate binary renders.

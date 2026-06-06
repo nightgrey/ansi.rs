@@ -69,6 +69,12 @@ impl const Attribute {
             reset: "25",
         },
         Meta {
+            attribute: Attribute::Frame,
+            name: "Frame",
+            set: "51",
+            reset: "54",
+        },
+        Meta {
             attribute: Attribute::Encircle,
             name: "Encircle",
             set: "52",
@@ -762,7 +768,7 @@ mod tests {
 
         #[test]
         fn sgr_frame_encircle_overline() {
-            let attrs = Attribute::Frame | Attribute::Overline;
+            let attrs = Attribute::Frame | Attribute::Encircle | Attribute::Overline;
             dbg!(&attrs.iter().collect::<Vec<_>>());
             let sgr: Vec<&'static str> = attrs.iter_sgr().collect();
             dbg!(&sgr);

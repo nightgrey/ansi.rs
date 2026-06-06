@@ -1,5 +1,5 @@
 use super::{Arena, Grapheme};
-use crate::AsOffset;
+use crate::{Offsetted, Encodeable};
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
 use std::fmt::{Debug, from_fn};
@@ -51,8 +51,6 @@ pub struct Cell {
 }
 
 impl const Cell {
-    pub const DEFAULT: Self = Self::EMPTY;
-
     pub const EMPTY: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 0,
@@ -73,6 +71,19 @@ impl const Cell {
             style,
         }
     }
+
+    /// Create a cell from a character with the given style.
+    ///
+    /// The character is always stored inline (every Unicode scalar value fits
+    /// in 4 UTF-8 bytes).
+    pub fn inline_measured(encode: impl [ const ] Encodeable, width: usize) -> Self {
+        Self {
+            grapheme: Grapheme::inline(encode),
+            width: width as u8,
+            style: Style::None,
+        }
+    }
+
 
     #[inline]
     pub fn grapheme(&self) -> Grapheme {
@@ -179,7 +190,7 @@ impl const Cell {
     /// Does **not** release arena storage — call
     /// [`release`](Self::release) first if needed.
     pub fn clear(&mut self) {
-        *self = Self::DEFAULT;
+        *self = Self::EMPTY;
     }
     pub fn eq_bitwise(&self, other: &Self) -> bool {
         (self.grapheme == other.grapheme)
@@ -196,9 +207,9 @@ impl Cell {
     /// [`release`](Self::release) first if needed.
     pub fn clear_and_release(&mut self, arena: &mut Arena) {
         self.release(arena);
-        *self = Self::DEFAULT;
+        *self = Self::EMPTY;
     }
-    
+
     /// Release any arena storage held by this cell's grapheme.
     ///
     /// Call this before the cell is dropped or overwritten if its grapheme
@@ -256,25 +267,32 @@ impl Cell {
         self
     }
 
+    pub fn char(char: char) -> Self {
+        Self::inline(char)
+    }
+
+    pub fn char_measured(char: char, width: usize) -> Self {
+        Self::inline_measured(char, width)
+    }
+
     /// Create a cell from a character with the given style.
     ///
     /// The character is always stored inline (every Unicode scalar value fits
     /// in 4 UTF-8 bytes).
-    pub fn inline(char: char) -> Self {
-        Self {
-            grapheme: Grapheme::inline(char),
-            width: char.width().unwrap_or(0) as u8,
-            style: Style::None,
-        }
+    pub fn inline(encode: impl Encodeable) -> Self {
+        let width = encode.width();
+        Self::inline_measured(encode, width)
     }
 
-    pub fn extended(str: &str, arena: &mut Arena) -> Self {
-        let width = str.width() as u8;
-        let grapheme = Grapheme::extended(str, arena);
+    pub fn extended(encode: impl Encodeable, arena: &mut Arena) -> Self {
+        let width = encode.width();
+        Self::extended_measured(encode, width, arena)
+    }
 
+    pub fn extended_measured(encode: impl Encodeable, width: usize, arena: &mut Arena) -> Self {
         Self {
-            grapheme,
-            width,
+            grapheme: Grapheme::extended(encode, arena),
+            width: width as u8,
             style: Style::None,
         }
     }
@@ -307,7 +325,6 @@ impl Cell {
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)
     }
-
 }
 impl const Default for Cell {
     fn default() -> Self {
@@ -329,7 +346,7 @@ impl Debug for Cell {
         let g = from_fn(|f| match grapheme.or(Some(Grapheme::EMPTY)) {
             Some(grapheme) if grapheme.is_inline() => f.write_str(grapheme.as_inline_str()),
             Some(grapheme) if grapheme.is_extended() => {
-                write!(f, "Offset({:?})", grapheme.as_offset())
+                write!(f, "Offset({:?})", grapheme.offset())
             }
             Some(grapheme) if grapheme.is_continuation() => f.write_str(".."),
             _ => unreachable!(),

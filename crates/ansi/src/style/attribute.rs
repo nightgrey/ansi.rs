@@ -87,7 +87,7 @@ impl const Attribute {
             reset: "55",
         },
     ];
-    const COUNT: usize = Self::META.len();
+    pub const COUNT: usize = Self::META.len();
 
     pub const None: Self = Self(0);
     pub const Bold: Self = Self(1 << 1);
@@ -302,9 +302,9 @@ impl Attribute {
     /// ```
     /// use ansi::Attribute;
     ///
-    /// assert!(Attribute::meta().any(|(meta)| meta.name() == "Bold"));
-    /// assert!(Attribute::meta().any(|(meta)| meta.name() == "Italic"));
-    /// assert_eq!(Attribute::meta().count(), Attribute::COUNT);
+    /// assert!(Attribute::All.meta().any(|meta| meta.name == "Bold"));
+    /// assert!(Attribute::All.meta().any(|meta| meta.name == "Italic"));
+    /// assert_eq!(Attribute::All.meta().count(), Attribute::COUNT);
     /// ```
     #[inline]
     pub fn meta(self) -> impl Iterator<Item=Meta> {
@@ -330,7 +330,7 @@ impl Attribute {
     ///
     /// let attrs = Attribute::Bold | Attribute::Italic;
     ///
-    /// assert_eq!(attrs.names().map(|(name, _)| name).collect::<Vec<_>>(), vec!["Bold", "Italic"]);
+    /// assert_eq!(attrs.names().collect::<Vec<_>>(), vec!["Bold", "Italic"]);
     /// ```
     #[inline]
     pub fn names(self) -> impl Iterator<Item=&'static str> {
@@ -345,7 +345,7 @@ impl Attribute {
     /// use ansi::Attribute;
     ///
     /// let attrs = Attribute::Bold | Attribute::Italic;
-    /// assert_eq!(attrs.sgr(), "1;3");
+    /// assert_eq!(attrs.to_sgr_string(), "1;3");
     /// ```
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
@@ -356,7 +356,7 @@ impl Attribute {
 
         self.meta()
             .map(|meta| meta.set())
-            .intersperse(",")
+            .intersperse(";")
             .collect()
     }
 
@@ -375,7 +375,7 @@ impl Attribute {
     ///
     /// let attrs = Attribute::Bold | Attribute::Italic;
     ///
-    /// assert_eq!(attrs.sgr_unset(), "22;23");
+    /// assert_eq!(attrs.to_reset_string(), "22;23");
     /// ```
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
@@ -386,13 +386,13 @@ impl Attribute {
 
         self.meta()
             .map(|meta| meta.reset())
-            .intersperse(",")
+            .intersperse(";")
             .collect()
     }
 
 
     pub fn to_reset_bytes(&self) -> &[u8] {
-        let sgr = self.to_sgr_string();
+        let sgr = self.to_reset_string();
 
         unsafe { slice::from_raw_parts(sgr.as_ptr(), sgr.len()) }
     }

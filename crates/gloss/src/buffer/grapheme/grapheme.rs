@@ -1,8 +1,9 @@
 use super::{Arena, GraphemeError};
-use crate::AsOffset;
+use crate::Offsetted;
 use std::fmt;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
+use derive_more::Deref;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// A compact grapheme-cluster handle stored in 4 bytes.
@@ -85,7 +86,7 @@ impl const Grapheme {
     };
     /// A grapheme representing a replacement character ().
     pub const REPLACEMENT: Self = Self::inline(char::REPLACEMENT_CHARACTER);
-
+    
     /// Create a grapheme from a string slice.
     ///
     /// If the string fits in 4 UTF-8 bytes, it is stored inline (no arena
@@ -95,7 +96,7 @@ impl const Grapheme {
     ///
     /// Panics if the string exceeds 4 bytes and the arena is full (16 MiB).
     /// Use [`try_extended`](Self::try_extended) for the fallible variant.
-    pub fn extended(value: impl [ const ] Encode, arena: &mut Arena) -> Self {
+    pub fn extended(value: impl [ const ] Encodeable, arena: &mut Arena) -> Self {
         match Self::try_extended(value, arena) {
             Ok(g) => g,
             Err(e) => panic!("Failed to encode value as an extended grapheme."),
@@ -106,8 +107,8 @@ impl const Grapheme {
     ///
     /// Returns `Err` only if the string exceeds 4 bytes and the arena cannot
     /// allocate space for it.
-    pub fn try_extended(value: impl [ const ] Encode, arena: &mut Arena) -> Result<Self, GraphemeError> {
-        value.try_extended(arena)
+    pub fn try_extended(value: impl [ const ] Encodeable, arena: &mut Arena) -> Result<Self, GraphemeError> {
+        value.try_encode(Some(arena))
     }
 
     /// Create an inline grapheme.
@@ -118,16 +119,16 @@ impl const Grapheme {
     /// - Performs manual UTF-8 encoding since `char::encode_utf8` is not
     ///   available in `fn`. Every Unicode scalar value fits in ≤4
     ///   UTF-8 bytes, so this always produces an inline grapheme.
-    pub fn inline(value: impl [ const ] Encode) -> Self {
-        match value.try_inline() {
+    pub fn inline(value: impl [ const ] Encodeable) -> Self {
+        match value.try_encode(None) {
             Ok(g) => g,
             Err(_e) => panic!("Failed to encode value as an inline grapheme"),
         }
     }
 
     /// Try to create an inline grapheme without an arena.
-    pub fn try_inline(value: impl [ const ] Encode) -> Result<Self, GraphemeError> {
-        value.try_inline()
+    pub fn try_inline(value: impl [ const ] Encodeable) -> Result<Self, GraphemeError> {
+        value.try_encode(None)
     }
 
     /// Create an extended grapheme from an arena offset.
@@ -137,8 +138,8 @@ impl const Grapheme {
     /// The caller must ensure `offset` refers to a valid, live entry in a
     /// [`Arena`]. This is memory-safe (no UB), but a bogus offset will
     /// produce garbage when resolved.
-    pub fn offset(offset: impl [ const ] AsOffset) -> Self {
-        let offset = offset.as_offset();
+    pub fn offset(offset: impl [ const ] Offsetted) -> Self {
+        let offset = offset.offset();
         /// Maximum addressable offset in the arena (24-bit, = 16 MiB − 1).
         debug_assert!(
             offset <= Grapheme::PAYLOAD_MASK as usize,
@@ -332,42 +333,52 @@ impl fmt::Debug for Grapheme {
     }
 }
 
-pub const trait Encode {
-    fn try_inline(self) -> Result<Grapheme, GraphemeError>;
-    fn try_extended(self, arena: &mut Arena) -> Result<Grapheme, GraphemeError>;
+pub enum EncodeableKind {
+    Empty,
+    Inline,
+    Extended,
+}
+pub const trait Encodeable: EncodeableWidth {
+    fn kind(self) -> EncodeableKind;
+    fn try_encode(self, arena: Option<&mut Arena>) -> Result<Grapheme, GraphemeError>;
+    fn encode(self, arena: Option<&mut Arena>) -> Grapheme;
 }
 
-impl Encode for &str {
-    fn try_inline(self) -> Result<Grapheme, GraphemeError> {
-        let bytes = self.as_bytes();
-        let len = bytes.len();
-
+impl Encodeable for &str {
+    fn kind(self) -> EncodeableKind {
+        let len = self.len();
         match len {
-            0 => Ok(Grapheme::EMPTY),
-            ..=char::MAX_LEN_UTF8 => Ok(unsafe { Grapheme::from_bytes(bytes) }),
-            _ => Err(GraphemeError::ArenaRequired {
-                len,
+            0 => EncodeableKind::Empty,
+            ..=char::MAX_LEN_UTF8 => EncodeableKind::Inline,
+            _ => EncodeableKind::Extended,
+        }
+    }
+    fn try_encode(self, arena: Option<&mut Arena>) -> Result<Grapheme, GraphemeError> {
+        let bytes = self.as_bytes();
+        match self.kind() {
+            EncodeableKind::Empty => Ok(Grapheme::EMPTY),
+            EncodeableKind::Inline => Ok(unsafe { Grapheme::from_bytes(bytes) }),
+            EncodeableKind::Extended => arena.map_or(Err(GraphemeError::ArenaRequired {
+                len: bytes.len(),
                 max: char::MAX_LEN_UTF8,
-            }),
+            }), |a| a.try_insert(self)),
         }
     }
-
-    fn try_extended(self, arena: &mut Arena) -> Result<Grapheme, GraphemeError> {
-        let bytes = self.as_bytes();
-        let len = bytes.len();
-
-        match len {
-            0 => Ok(Grapheme::EMPTY),
-            ..=char::MAX_LEN_UTF8 => Ok(unsafe { Grapheme::from_bytes(bytes) }),
-            _ => arena.try_insert(self),
-        }
+    fn encode(self, arena: Option<&mut Arena>) -> Grapheme {
+        self.try_encode(arena).unwrap()
     }
 }
 
-impl const Encode for char {
-    fn try_inline(self) -> Result<Grapheme, GraphemeError> {
+impl const Encodeable for char {
+    fn kind(self) -> EncodeableKind {
+        EncodeableKind::Inline
+    }
+    fn try_encode(self, arena: Option<&mut Arena>) -> Result<Grapheme, GraphemeError> {
+        Ok(Encodeable::encode(self, arena))
+    }
+    fn encode(self, arena: Option<&mut Arena>) -> Grapheme {
         let u32 = self as u32;
-        Ok(Grapheme {
+        Grapheme {
             value: u32::from_le_bytes(match u32 {
                 0x00..=0x7F => [u32 as u8, 0, 0, 0],
                 0x80..=0x7FF => [(0xC0 | (u32 >> 6)) as u8, (0x80 | (u32 & 0x3F)) as u8, 0, 0],
@@ -384,10 +395,23 @@ impl const Encode for char {
                     (0x80 | (u32 & 0x3F)) as u8,
                 ],
             }),
-        })
+        }
     }
-    fn try_extended(self, _arena: &mut Arena) -> Result<Grapheme, GraphemeError> {
-        Self::try_inline(self)
+}
+
+pub trait EncodeableWidth {
+    fn width(&self) -> usize;
+}
+
+impl EncodeableWidth for &str {
+    fn width(&self) -> usize {
+        UnicodeWidthStr::width(*self)
+    }
+}
+
+impl EncodeableWidth for char {
+    fn width(&self) -> usize {
+        UnicodeWidthChar::width(*self).unwrap_or(0)
     }
 }
 
@@ -560,6 +584,6 @@ mod tests {
         let g = Grapheme::extended(family, &mut arena);
         assert!(g.is_extended());
         // Offset should be 0 since it's the first entry.
-        assert_eq!(g.as_offset(), 0);
+        assert_eq!(g.offset(), 0);
     }
 }

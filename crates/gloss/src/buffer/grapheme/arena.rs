@@ -89,8 +89,8 @@ impl const Arena {
     }
 
     /// Retrieve a UTF-8 grapheme cluster by offset.
-    pub fn get(&self, offset: impl [ const ] AsOffset) -> &str {
-        let offset = offset.as_offset();
+    pub fn get(&self, offset: impl [ const ] Offsetted) -> &str {
+        let offset = offset.offset();
         let entry_start = offset + PREFIX_SIZE;
         let entry_len = self.get_len(offset);
         let entry_end = entry_start + entry_len;
@@ -118,8 +118,8 @@ impl const Arena {
 
     /// Read the string length from the 2-byte LE prefix at `offset`.
     #[inline]
-    pub fn get_len(&self, offset: impl [ const ] AsOffset) -> usize {
-        let offset = offset.as_offset();
+    pub fn get_len(&self, offset: impl [ const ] Offsetted) -> usize {
+        let offset = offset.offset();
         u16::from_le_bytes([self.inner[offset], self.inner[offset + 1]]) as usize
     }
 
@@ -204,8 +204,8 @@ impl Arena {
     /// Remove stored grapheme
     ///
     /// Zeroes the entry and adds the region to the free list.
-    pub fn remove(&mut self, offset: impl AsOffset) {
-        let offset = offset.as_offset();
+    pub fn remove(&mut self, offset: impl Offsetted) {
+        let offset = offset.offset();
         let entry_start = offset + PREFIX_SIZE;
         let entry_len = self.get_len(offset);
         let entry_end = entry_start + entry_len;
@@ -319,34 +319,34 @@ impl std::fmt::Debug for Arena {
     }
 }
 
-pub const trait AsOffset {
-    fn as_offset(self) -> usize;
+pub const trait Offsetted {
+    fn offset(self) -> usize;
 }
 
-impl const AsOffset for usize {
+impl const Offsetted for usize {
     #[inline]
-    fn as_offset(self) -> usize {
+    fn offset(self) -> usize {
         self
     }
 }
 
-impl const AsOffset for Grapheme {
+impl const Offsetted for Grapheme {
     #[inline]
-    fn as_offset(self) -> usize {
+    fn offset(self) -> usize {
         Grapheme::as_offset(&self)
     }
 }
 
-impl const AsOffset for &Grapheme {
+impl const Offsetted for &Grapheme {
     #[inline]
-    fn as_offset(self) -> usize {
+    fn offset(self) -> usize {
         Grapheme::as_offset(self)
     }
 }
 
-impl const AsOffset for &mut Grapheme {
+impl const Offsetted for &mut Grapheme {
     #[inline]
-    fn as_offset(self) -> usize {
+    fn offset(self) -> usize {
         Grapheme::as_offset(self)
     }
 }

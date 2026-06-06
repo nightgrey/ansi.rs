@@ -8,7 +8,6 @@ use std::ops;
 use std::str::FromStr;
 use thiserror::Error;
 
-
 type Repr = u16;
 
 #[repr(transparent)]
@@ -344,11 +343,6 @@ impl const Attribute {
     pub fn bits(self) -> Repr {
         self.0
     }
-
-    #[inline]
-    pub fn to_inner(self) -> Repr {
-        self.0
-    }
 }
 
 impl Attribute {
@@ -578,7 +572,7 @@ impl const Maybe for Attribute {
     const None: Self = Attribute::from_bits_retained(0);
 }
 
-const _: () = assert!(Attribute::META.len() == Attribute::COUNT);
+const _: () = assert!(Attribute::COUNT == Attribute::COUNT);
 
 #[derive(Copy, Clone, Debug)]
 pub struct Iter {
@@ -591,7 +585,7 @@ impl const Iterator for Iter {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < Attribute::META.len() {
+        while self.index < Attribute::COUNT {
             let bit = Attribute::META[self.index];
             self.index += 1;
 
@@ -608,7 +602,7 @@ impl const Iterator for Iter {
         let mut count = 0;
         let mut index = self.index;
 
-        while index < Attribute::META.len() {
+        while index < Attribute::COUNT {
             let meta = Attribute::META[index];
 
             if self.inner & meta.attribute == meta.attribute {
@@ -663,26 +657,21 @@ pub struct MetaIter {
     remaining: usize,
 }
 
-
 impl const Iterator for MetaIter {
     type Item = Meta;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
-            return None;
+        while self.index < Attribute::COUNT {
+            let meta = Attribute::META[self.index];
+            self.index += 1;
+
+            if self.inner.contains(meta.attribute) {
+                self.remaining -= 1;
+                return Some(meta);
+            }
         }
 
-        self.index += 1;
-        self.remaining -= 1;
-
-        let meta = Attribute::META.get(self.index)?;
-
-
-        if !self.inner.contains(meta.attribute) {
-            return self.next();
-        }
-
-        Some(*meta)
+        None
     }
 }
 

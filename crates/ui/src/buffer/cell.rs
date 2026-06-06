@@ -114,10 +114,8 @@ impl const Cell {
 
     /// Returns `true` if this cell has nothing to draw: no glyph *and* no style.
     ///
-    /// An empty cell that carries a style (e.g. a background colour) is *not*
-    /// blank — it must still be painted as a styled space. Use this, rather
-    /// than [`is_empty`](Self::is_space), when deciding whether a cell can be
-    /// skipped or cleared with an erase.
+    /// An empty cell that carries a style (e.g. a background colour) must still
+    /// be painted as a styled space.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.is_space() && self.style.is_empty()

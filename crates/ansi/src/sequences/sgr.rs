@@ -89,7 +89,7 @@ impl SelectGraphicRenditionTransition {
 
 impl Escape for SelectGraphicRenditionTransition {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use crate::EscapeWrite as _;
+        use crate::WriteEscape as _;
         use std::io::Write as _;
 
         let (from, to) = (self.from, self.to);
@@ -112,10 +112,10 @@ impl Escape for SelectGraphicRenditionTransition {
                 separate!(w.write_all(b"49")?);
             }
             (Color::None, to) => {
-                separate!(w.escape(to.as_background())?);
+                separate!(w.write_escape(to.as_background())?);
             }
             (_, to) => {
-                separate!(w.escape(to.as_background())?);
+                separate!(w.write_escape(to.as_background())?);
             }
         };
         match (from.foreground, to.foreground) {
@@ -124,10 +124,10 @@ impl Escape for SelectGraphicRenditionTransition {
                 separate!(w.write_all(b"39")?);
             }
             (Color::None, to) => {
-                separate!(w.escape(to.as_foreground())?);
+                separate!(w.write_escape(to.as_foreground())?);
             }
             (_, to) => {
-                separate!(w.escape(to.as_foreground())?);
+                separate!(w.write_escape(to.as_foreground())?);
             }
         };
 
@@ -136,10 +136,10 @@ impl Escape for SelectGraphicRenditionTransition {
             match (from.contains(attr), to.contains(attr)) {
                 (true, true) | (false, false) => continue,
                 (true, false) => {
-                    separate!(w.write_all(attr.sgr_reset().as_bytes())?);
+                    separate!(w.write_all(attr.to_reset_bytes())?);
                 }
                 (false, true) => {
-                    separate!(w.write_all(attr.sgr().as_bytes())?);
+                    separate!(w.write_all(attr.to_sgr_bytes())?);
                 }
             }
         }

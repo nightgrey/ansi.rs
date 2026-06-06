@@ -1,7 +1,7 @@
 use super::Counting;
 use crate::raster::Pen;
 use crate::{Arena, Buffer, BufferDiff, Cell, Run, TrackingBuffer};
-use ansi::EscapeWrite;
+use ansi::WriteEscape;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
 use geometry::{Point, Row};
@@ -77,7 +77,7 @@ impl<W: Write> Presenter<W> {
     }
 
     pub fn get_writer(&self) -> &W {
-       self.writer.as_ref().get_ref()
+        self.writer.as_ref().get_ref()
     }
 
     /// Returns the active capability set.
@@ -111,7 +111,7 @@ impl<W: Write> Presenter<W> {
 
     /// Enter the alternate screen buffer.
     pub fn enter_alt_screen(&mut self) -> io::Result<()> {
-        self.writer.escape(AlternateScreen::Set)?;
+        self.writer.write_escape(AlternateScreen::Set)?;
         self.invalidated = true;
         Ok(())
     }
@@ -222,9 +222,9 @@ impl<W: Write> Presenter<W> {
 
     fn begin_frame(&mut self, _w: usize, _h: usize, force_full: bool) -> io::Result<()> {
         if self.capabilities.use_sync_output() {
-            self.writer.escape(SynchronizedOutput::Set)?;
+            self.writer.write_escape(SynchronizedOutput::Set)?;
         }
-        self.writer.escape(TextCursorEnable::Reset)?;
+        self.writer.write_escape(TextCursorEnable::Reset)?;
 
         if force_full {
             // Fullscreen homes + erases the screen; inline mode claims/rewinds
@@ -233,8 +233,8 @@ impl<W: Write> Presenter<W> {
             // clear the flag for both modes — otherwise inline would re-take
             // the full-paint path on every frame and never diff.
             if !self.is_inline() {
-                self.writer.escape(Home)?;
-                self.writer.escape(EraseDisplay)?;
+                self.writer.write_escape(Home)?;
+                self.writer.write_escape(EraseDisplay)?;
                 self.pen.clear();
             }
             self.invalidated = false;
@@ -249,9 +249,9 @@ impl<W: Write> Presenter<W> {
     /// over an emission error.
     fn finish_frame(&mut self) -> io::Result<()> {
         let style = self.pen.reset(&mut self.writer);
-        let cursor = self.writer.escape(TextCursorEnable::Set);
+        let cursor = self.writer.write_escape(TextCursorEnable::Set);
         let sync = if self.capabilities.use_sync_output() {
-            self.writer.escape(SynchronizedOutput::Reset)
+            self.writer.write_escape(SynchronizedOutput::Reset)
         } else {
             Ok(())
         };
@@ -307,7 +307,7 @@ impl<W: Write> Presenter<W> {
             }
             stats.runs += 1;
             self.pen.reset(&mut self.writer)?;
-            self.writer.escape(EraseLineToEnd)?;
+            self.writer.write_escape(EraseLineToEnd)?;
         }
         Ok(())
     }
@@ -354,7 +354,7 @@ impl<W: Write> Presenter<W> {
                 stats.runs += 1;
             }
             self.pen.reset(&mut self.writer)?;
-            self.writer.escape(EraseLineToEnd)?;
+            self.writer.write_escape(EraseLineToEnd)?;
         }
 
         self.inline_shrink(prev_height, height)
@@ -389,7 +389,7 @@ impl<W: Write> Presenter<W> {
                 stats.runs += 1;
             }
             self.pen.reset(&mut self.writer)?;
-            self.writer.escape(EraseLineToEnd)?;
+            self.writer.write_escape(EraseLineToEnd)?;
         }
 
         // Track the final pen position so the next inline frame can CUU+CR
@@ -495,7 +495,7 @@ impl<W: Write> Presenter<W> {
             // Reset SGR first so the erase clears to the default background
             // rather than smearing the pen's current colour (BCE).
             self.pen.reset(&mut self.writer)?;
-            self.writer.escape(EraseLineToEnd)?;
+            self.writer.write_escape(EraseLineToEnd)?;
             Ok(true)
         } else {
             Ok(false)
@@ -555,9 +555,9 @@ impl<W: Write> Presenter<W> {
     /// Rewind the pen to the top-left of the claimed region (CUU + CR).
     fn inline_rewind(&mut self) -> io::Result<()> {
         if self.pen.row > 0 {
-            self.writer.escape(CursorUp(self.pen.row))?;
+            self.writer.write_escape(CursorUp(self.pen.row))?;
         }
-        self.writer.escape(CarriageReturn)?;
+        self.writer.write_escape(CarriageReturn)?;
         self.pen.origin();
         Ok(())
     }
@@ -571,11 +571,11 @@ impl<W: Write> Presenter<W> {
         for _ in height..prev_height {
             self.pen
                 .relative_position(self.pen.row + 1, 0, &mut self.writer)?;
-            self.writer.escape(EraseLineToEnd)?;
+            self.writer.write_escape(EraseLineToEnd)?;
         }
         if self.pen.row > (height - 1) as u16 {
             let up = self.pen.row - (height - 1) as u16;
-            self.writer.escape(CursorUp(up))?;
+            self.writer.write_escape(CursorUp(up))?;
             self.pen.row = (height - 1) as u16;
         }
         self.inline.as_mut().expect("inline state").height = height;
@@ -1940,6 +1940,5 @@ mod tests {
             inl.frame(&solid, &arena);
             inl.frame(&next, &arena);
         }
-
     }
 }

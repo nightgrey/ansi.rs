@@ -1,4 +1,4 @@
-use ansi::EscapeWrite;
+use ansi::WriteEscape;
 use ansi::{Style, sequences::*};
 use std::io;
 
@@ -26,7 +26,7 @@ impl Pen {
     /// 1. Relative (CUU/CUD + CUF/CUB)
     /// 2. CR + relative vertical + CUF
     /// 3. VPA + CHA (if capabilities allow)
-    pub fn position(&mut self, row: u16, col: u16, w: &mut impl EscapeWrite) -> io::Result<()> {
+    pub fn position(&mut self, row: u16, col: u16, w: &mut impl WriteEscape) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -67,34 +67,34 @@ impl Pen {
         if min == cost_relative && cost_relative > 0 {
             // Relative moves
             if dr > 0 {
-                w.escape(CursorDown(dr as u16))?;
+                w.write_escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as u16))?;
+                w.write_escape(CursorUp((-dr) as u16))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as u16))?;
+                w.write_escape(CursorForward(dc as u16))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as u16))?;
+                w.write_escape(CursorBackward((-dc) as u16))?;
             }
         } else if min == cost_cr {
-            w.escape(CarriageReturn)?;
+            w.write_escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as u16))?;
+                w.write_escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as u16))?;
+                w.write_escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col))?;
+                w.write_escape(CursorForward(col))?;
             }
         } else if min == cost_vpa_cha {
             if dr != 0 {
-                w.escape(VerticalPositionAbsolute(row))?;
+                w.write_escape(VerticalPositionAbsolute(row))?;
             }
             if dc != 0 || dr != 0 {
-                w.escape(HorizontalPositionAbsolute(col))?;
+                w.write_escape(HorizontalPositionAbsolute(col))?;
             }
         } else {
-            w.escape(CursorPosition(row, col))?;
+            w.write_escape(CursorPosition(row, col))?;
         }
 
         self.row = row;
@@ -109,7 +109,7 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn relative_position(&mut self, row: u16, col: u16, w: &mut impl EscapeWrite) -> io::Result<()> {
+    pub fn relative_position(&mut self, row: u16, col: u16, w: &mut impl WriteEscape) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -126,25 +126,25 @@ impl Pen {
         let cost_cr = 1 + vert_cost + CursorForward(col).cost();
 
         if cost_cr < cost_relative {
-            w.escape(CarriageReturn)?;
+            w.write_escape(CarriageReturn)?;
             if dr > 0 {
-                w.escape(CursorDown(dr as u16))?;
+                w.write_escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as u16))?;
+                w.write_escape(CursorUp((-dr) as u16))?;
             }
             if col > 0 {
-                w.escape(CursorForward(col))?;
+                w.write_escape(CursorForward(col))?;
             }
         } else if cost_relative > 0 {
             if dr > 0 {
-                w.escape(CursorDown(dr as u16))?;
+                w.write_escape(CursorDown(dr as u16))?;
             } else if dr < 0 {
-                w.escape(CursorUp((-dr) as u16))?;
+                w.write_escape(CursorUp((-dr) as u16))?;
             }
             if dc > 0 {
-                w.escape(CursorForward(dc as u16))?;
+                w.write_escape(CursorForward(dc as u16))?;
             } else if dc < 0 {
-                w.escape(CursorBackward((-dc) as u16))?;
+                w.write_escape(CursorBackward((-dc) as u16))?;
             }
         }
 
@@ -156,12 +156,12 @@ impl Pen {
 
     /// Update the pen (SGR state) to match `target`, emitting only
     /// the diff. No-op if the style is already current.
-    pub fn style(&mut self, to: Style, w: &mut impl EscapeWrite) -> io::Result<()> {
+    pub fn style(&mut self, to: Style, w: &mut impl WriteEscape) -> io::Result<()> {
         if self.style == to {
             return Ok(());
         }
 
-        w.escape(SGR::transition(self.style, to))?;
+        w.write_escape(SGR::transition(self.style, to))?;
         self.style = to;
 
         Ok(())
@@ -170,7 +170,7 @@ impl Pen {
     /// Reset the pen to default, emitting SGR 0 only if the pen is dirty.
     pub fn reset(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         if !self.style.is_none() {
-            w.escape(SGR::reset())?;
+            w.write_escape(SGR::reset())?;
             self.style = Style::None;
         }
         Ok(())

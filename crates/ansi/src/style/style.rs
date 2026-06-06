@@ -1,81 +1,83 @@
 use crate::{Attribute, Color, Escape};
-use bitflags::Flags;
-use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use maybe::Maybe;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
-use std::ops::{BitAnd, BitOr, BitXor, BitXorAssign, Not, Sub, SubAssign};
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Sub, SubAssign,
+};
 use utils::separate_by;
-#[derive(Copy, Clone, Eq, PartialEq, BitOr, BitOrAssign, BitAnd, BitAndAssign, Sub, SubAssign)]
+
+#[derive_const(Eq, Clone, PartialEq)]
+#[derive(Copy)]
 pub struct Style {
     pub attributes: Attribute,
     pub foreground: Color,
     pub background: Color,
 }
 #[allow(non_upper_case_globals)]
-impl Style {
+impl const Style {
     pub const None: Style = Self {
         attributes: Attribute::None,
         foreground: Color::None,
         background: Color::None,
     };
 
-    pub const Bold: Self = Style {
+    pub const Bold: Self = Self {
         attributes: Attribute::Bold,
         ..Self::None
     };
 
-    pub const Faint: Self = Style {
+    pub const Faint: Self = Self {
         attributes: Attribute::Faint,
         ..Self::None
     };
 
-    pub const Italic: Self = Style {
+    pub const Italic: Self = Self {
         attributes: Attribute::Italic,
         ..Self::None
     };
 
-    pub const Underline: Self = Style {
+    pub const Underline: Self = Self {
         attributes: Attribute::Underline,
         ..Self::None
     };
 
-    pub const Blink: Self = Style {
+    pub const Blink: Self = Self {
         attributes: Attribute::Blink,
         ..Self::None
     };
 
-    pub const RapidBlink: Self = Style {
+    pub const RapidBlink: Self = Self {
         attributes: Attribute::RapidBlink,
         ..Self::None
     };
 
-    pub const Reverse: Self = Style {
+    pub const Reverse: Self = Self {
         attributes: Attribute::Inverse,
         ..Self::None
     };
 
-    pub const Conceal: Self = Style {
+    pub const Conceal: Self = Self {
         attributes: Attribute::Invisible,
         ..Self::None
     };
 
-    pub const Strikethrough: Self = Style {
+    pub const Strikethrough: Self = Self {
         attributes: Attribute::Strikethrough,
         ..Self::None
     };
 
-    pub const Frame: Self = Style {
+    pub const Frame: Self = Self {
         attributes: Attribute::Frame,
         ..Self::None
     };
 
-    pub const Encircle: Self = Style {
+    pub const Encircle: Self = Self {
         attributes: Attribute::Encircle,
         ..Self::None
     };
 
-    pub const Overline: Self = Style {
+    pub const Overline: Self = Self {
         attributes: Attribute::Overline,
         ..Self::None
     };
@@ -104,11 +106,6 @@ impl Style {
     /// Insert attribute flags.
     pub fn insert(&mut self, attributes: Attribute) {
         self.attributes.insert(attributes);
-    }
-
-    /// Set attribute flags.
-    pub fn set(&mut self, attributes: Attribute, value: bool) {
-        self.attributes.set(attributes, value);
     }
 
     /// Remove attribute flags.
@@ -344,7 +341,64 @@ impl Style {
     }
 }
 
-impl BitXor for Style {
+impl BitOr for Style {
+    type Output = Self;
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            attributes: BitOr::bitor(self.attributes, rhs.attributes),
+            foreground: BitOr::bitor(self.foreground, rhs.foreground),
+            background: BitOr::bitor(self.background, rhs.background),
+        }
+    }
+}
+
+impl BitOrAssign for Style {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = BitOr::bitor(*self, rhs);
+    }
+}
+
+impl Sub for Style {
+    type Output = Self;
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            attributes: Sub::sub(self.attributes, rhs.attributes),
+            foreground: Sub::sub(self.foreground, rhs.foreground),
+            background: Sub::sub(self.background, rhs.background),
+        }
+    }
+}
+
+impl SubAssign for Style {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = Sub::sub(*self, rhs);
+    }
+}
+
+impl BitAnd for Style {
+    type Output = Self;
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self {
+            attributes: BitAnd::bitand(self.attributes, rhs.attributes),
+            foreground: BitAnd::bitand(self.foreground, rhs.foreground),
+            background: BitAnd::bitand(self.background, rhs.background),
+        }
+    }
+}
+
+impl BitAndAssign for Style {
+    #[inline]
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = BitAnd::bitand(*self, rhs);
+    }
+}
+
+impl const BitXor for Style {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
@@ -352,13 +406,13 @@ impl BitXor for Style {
     }
 }
 
-impl BitXorAssign for Style {
+impl const BitXorAssign for Style {
     fn bitxor_assign(&mut self, rhs: Self) {
         *self = *self ^ rhs;
     }
 }
 
-impl Not for Style {
+impl const Not for Style {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -409,8 +463,7 @@ impl Debug for Style {
 
 impl Escape for Style {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        use crate::EscapeWrite as _;
-        use std::io::Write as _;
+        use crate::WriteEscape as _;
 
         if self.is_none() {
             return Ok(());
@@ -418,25 +471,33 @@ impl Escape for Style {
 
         w.write_all(b"\x1B[")?;
 
-        separate_by!({ w.write_all(b";") });
+        separate_by! {
+            w.write_all(b";")?
+        };
 
-        if self.background.is_some() {
-            separate!(w.escape(self.background.as_background())?);
+       if self.background.is_some() {
+            separate! {
+                w.write_escape(self.background.as_background())?
+            };
         }
 
         if self.foreground.is_some() {
-            separate!(w.escape(self.foreground.as_foreground())?);
+            separate! {
+                w.write_escape(self.foreground.as_foreground())?
+            };
         }
 
         // Attributes (bold, underline, etc.)
-        separate!(w.write(self.attributes.sgr().as_bytes())?);
+        separate! {
+            w.write(self.attributes.to_sgr_bytes())?
+        };
 
         w.write_all(b"m")
     }
 }
 
 #[allow(non_upper_case_globals)]
-impl Maybe for Style {
+impl const Maybe for Style {
     const None: Self = Self {
         attributes: Attribute::None,
         foreground: Color::None,

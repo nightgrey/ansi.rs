@@ -6,7 +6,7 @@ pub use mode::*;
 pub use sequences::*;
 
 use crate::Escape;
-use crate::EscapeWrite;
+use crate::WriteEscape;
 
 sequence!(
     /// (25) Text Cursor Enable Mode (DECTCEM) is a mode that shows/hides the cursor.
@@ -38,8 +38,8 @@ sequence!(
         Reset,
     } => |this, w| {
         match this {
-            AlternateScreen::Set => w.escape(SetMode(DecMode::AlternateScreen)),
-            AlternateScreen::Reset => w.escape(ResetMode(DecMode::AlternateScreen)),
+            AlternateScreen::Set => w.write_escape(SetMode(DecMode::AlternateScreen)),
+            AlternateScreen::Reset => w.write_escape(ResetMode(DecMode::AlternateScreen)),
         }
     }
 );

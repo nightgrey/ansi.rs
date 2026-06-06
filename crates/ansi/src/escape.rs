@@ -1,4 +1,4 @@
-pub trait Escape {
+pub const trait Escape {
     fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
 }
 
@@ -9,24 +9,24 @@ impl<T: AsRef<str>> Escape for T {
     }
 }
 
-pub trait EscapeWrite {
-    fn escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
+pub const trait WriteEscape {
+    fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
 }
 
-impl<W: std::io::Write> EscapeWrite for W {
+impl<W: std::io::Write> WriteEscape for W {
     #[inline]
-    fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
+    fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
         escape.escape(self)
     }
 }
 
-pub trait EscapeFmt {
-    fn escape(&mut self, escape: impl Escape) -> std::fmt::Result;
+pub trait FmtEscape {
+    fn fmt_escape(&mut self, escape: impl Escape) -> std::fmt::Result;
 }
 
-impl<W: std::fmt::Write> EscapeFmt for W {
+impl<W: std::fmt::Write> FmtEscape for W {
     #[inline]
-    fn escape(&mut self, escape: impl Escape) -> std::fmt::Result {
+    fn fmt_escape(&mut self, escape: impl Escape) -> std::fmt::Result {
         use std::io::Cursor;
 
         // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
@@ -36,8 +36,8 @@ impl<W: std::fmt::Write> EscapeFmt for W {
             error: std::fmt::Result,
         }
 
-        impl<Inner: std::fmt::Write> EscapeWrite for Adapter<'_, Inner> {
-            fn escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
+        impl<Inner: std::fmt::Write> WriteEscape for Adapter<'_, Inner> {
+            fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
                 let mut buf = Vec::<u8>::new();
                 let mut cursor = Cursor::new(&mut buf);
 
@@ -61,7 +61,7 @@ impl<W: std::fmt::Write> EscapeFmt for W {
             error: Ok(()),
         };
 
-        match EscapeWrite::escape(&mut adapter, escape) {
+        match WriteEscape::write_escape(&mut adapter, escape) {
             Ok(()) => Ok(()),
             Err(..) => {
                 // Check whether the error came from the underlying `Write`.
@@ -129,7 +129,7 @@ macro_rules! escape {
            $dst.escape($arg)
     };
     ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
-        use $crate::{EscapeWrite, EscapeFmt, Escape};
+        use $crate::{WriteEscape, FmtEscape, Escape};
         let mut result: std::io::Result<()> = $dst.escape($first);
         $(
                 if result.is_ok() {
@@ -144,5 +144,5 @@ macro_rules! escape {
 ///
 /// A single-value, functional version of [`escape!`].
 pub fn escape(w: &mut impl std::io::Write, escape: impl Escape) -> std::io::Result<()> {
-    EscapeWrite::escape(w, escape)
+    WriteEscape::write_escape(w, escape)
 }

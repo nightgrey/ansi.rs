@@ -100,7 +100,7 @@ impl Cost for VerticalPositionAbsolute {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EscapeWrite;
+    use crate::WriteEscape;
 
     macro_rules! assert_cost {
         (@$sequence:expr) => {
@@ -108,7 +108,7 @@ mod tests {
             let expected = {
                 use crate::Escape;
                 let mut buf = Vec::new();
-                buf.escape($sequence).and_then(|_| Ok(buf.len())).unwrap()
+                buf.write_escape($sequence).and_then(|_| Ok(buf.len())).unwrap()
             };
             let label = $sequence;
             assert_eq!(actual, expected, "Cost of {label:?} expected to be {expected}, but was {actual}");

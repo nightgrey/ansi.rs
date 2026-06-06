@@ -2,7 +2,7 @@ use super::pen::Pen;
 use crate::Cell;
 use crate::{Arena, Buffer};
 use ansi::escape;
-use ansi::{Escape, EscapeFmt, EscapeWrite};
+use ansi::{Escape, FmtEscape, WriteEscape};
 use ansi::sequences::*;
 use geometry::{Resolve, Row};
 use std::io;
@@ -85,20 +85,20 @@ impl Rasterer {
         let height = next.height;
 
         if self.capabilities.use_sync_output() {
-            self.output.escape(SynchronizedOutput::Set)?;
+            self.output.write_escape(SynchronizedOutput::Set)?;
         }
 
         // Force a full repaint when prev can't be trusted to reflect the
         // terminal's current state.
         let invalidated = self.invalidated || prev.width != width || prev.height != height;
         if invalidated {
-            self.output.escape(Home)?;
-            self.output.escape(EraseDisplay)?;
+            self.output.write_escape(Home)?;
+            self.output.write_escape(EraseDisplay)?;
             self.pen.clear();
             self.invalidated = false;
         }
 
-        self.output.escape(TextCursorEnable::Reset)?;
+        self.output.write_escape(TextCursorEnable::Reset)?;
 
         for y in 0..height {
             Self::row(
@@ -117,10 +117,10 @@ impl Rasterer {
             )?;
         }
 
-        self.output.escape(SelectGraphicRendition::RESET)?;
-        self.output.escape(TextCursorEnable::Set)?;
+        self.output.write_escape(SelectGraphicRendition::RESET)?;
+        self.output.write_escape(TextCursorEnable::Set)?;
         if self.capabilities.use_sync_output() {
-            self.output.escape(SynchronizedOutput::Reset)?;
+            self.output.write_escape(SynchronizedOutput::Reset)?;
         }
 
         Ok(())
@@ -155,7 +155,7 @@ impl Rasterer {
 
     /// Enter alternate screen buffer.
     pub fn enter_alt_screen(&mut self) {
-        self.output.escape(AlternateScreen::Set).unwrap();
+        self.output.write_escape(AlternateScreen::Set).unwrap();
         self.invalidated = true;
     }
 
@@ -202,10 +202,10 @@ impl Rasterer {
         let invalidated = self.invalidated || prev.width != width || prev.height != height;
 
         if self.capabilities.use_sync_output() {
-            self.output.escape(SynchronizedOutput::Set)?;
+            self.output.write_escape(SynchronizedOutput::Set)?;
         }
 
-        self.output.escape(TextCursorEnable::Reset)?;
+        self.output.write_escape(TextCursorEnable::Reset)?;
 
         let inline = self.inline.as_mut().unwrap();
 
@@ -229,7 +229,7 @@ impl Rasterer {
                 }
 
                 self.pen.reset(&mut self.output)?;
-                self.output.escape(EraseLineToEnd)?;
+                self.output.write_escape(EraseLineToEnd)?;
             }
 
             self.pen.row = (height - 1) as u16;
@@ -251,9 +251,9 @@ impl Rasterer {
             }
 
             if self.pen.row > 0 {
-                self.output.escape(CursorUp(self.pen.row))?;
+                self.output.write_escape(CursorUp(self.pen.row))?;
             }
-            self.output.escape(CarriageReturn)?;
+            self.output.write_escape(CarriageReturn)?;
             self.pen.origin();
 
             for y in 0..height {
@@ -278,11 +278,11 @@ impl Rasterer {
                 for _ in height..prev_height {
                     self.pen
                         .relative_position(self.pen.row + 1, 0, &mut self.output)?;
-                    self.output.escape(EraseLineToEnd)?;
+                    self.output.write_escape(EraseLineToEnd)?;
                 }
                 if self.pen.row > (height - 1) as u16 {
                     let up = self.pen.row - ((height - 1) as u16);
-                    self.output.escape(CursorUp(up))?;
+                    self.output.write_escape(CursorUp(up))?;
                     self.pen.row = (height - 1) as u16;
                 }
                 inline.height = height;
@@ -292,10 +292,10 @@ impl Rasterer {
         self.invalidated = false;
 
         self.pen.reset(&mut self.output)?;
-        self.output.escape(TextCursorEnable::Set)?;
+        self.output.write_escape(TextCursorEnable::Set)?;
 
         if self.capabilities.sync_output {
-            self.output.escape(SynchronizedOutput::Reset)?;
+            self.output.write_escape(SynchronizedOutput::Reset)?;
         }
 
         Ok(())
@@ -338,7 +338,7 @@ impl Rasterer {
         match last_non_default_cell {
             None => {
                 cursor.reset(output)?;
-                output.escape(EraseLineToEnd)?;
+                output.write_escape(EraseLineToEnd)?;
             }
             Some(emit_end) => {
                 let mut col = first;
@@ -352,7 +352,7 @@ impl Rasterer {
 
                 if emit_end < last {
                     cursor.reset(output)?;
-                    output.escape(EraseLineToEnd)?;
+                    output.write_escape(EraseLineToEnd)?;
                 }
             }
         }
@@ -852,8 +852,8 @@ mod tests {
                 rest.iter().position(|&b| b == b'H').map_or(false, |h_pos| {
                     rest[..h_pos].contains(&b';')
                         && rest[..h_pos]
-                            .iter()
-                            .all(|b| b.is_ascii_digit() || *b == b';')
+                        .iter()
+                        .all(|b| b.is_ascii_digit() || *b == b';')
                 })
             }
         });

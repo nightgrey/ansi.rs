@@ -1,10 +1,10 @@
 use crate::{ColorSpace, Escape};
-use maybe::Maybe;
+use maybe::{Maybe, MaybeConst};
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 
-#[derive_const(Default, Clone, Eq, PartialEq)]
-#[derive(Copy, Maybe)]
+#[derive_const(Eq, Clone, PartialEq, MaybeConst)]
+#[derive(Copy, Default)]
 pub enum Color {
     #[default]
     None,
@@ -28,10 +28,10 @@ pub enum Color {
     Index(u8),
     Rgb(u8, u8, u8),
 }
-impl Color {
+impl const Color {
     #[inline]
     #[must_use]
-    pub const fn intersection(self, other: Self) -> Self {
+    pub fn intersection(self, other: Self) -> Self {
         match (self, other) {
             (Color::None, _) | (_, Color::None) => Color::None,
             (a, b) if a == b => a,
@@ -41,7 +41,7 @@ impl Color {
 
     #[inline]
     #[must_use]
-    pub const fn difference(self, rhs: Self) -> Self {
+    pub fn difference(self, rhs: Self) -> Self {
         match (self, rhs) {
             (Color::None, _) => Color::None,
             (x, Color::None) => x,
@@ -50,7 +50,7 @@ impl Color {
     }
     #[inline]
     #[must_use]
-    pub const fn union(self, other: Self) -> Self {
+    pub fn union(self, other: Self) -> Self {
         match (self, other) {
             (x, Color::None) | (Color::None, x) => x,
             (_, x) => x,
@@ -92,21 +92,8 @@ impl Color {
             _ => None,
         }
     }
-
-    pub fn escape_background(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.as_background().escape(w)
-    }
-
-    pub fn escape_foreground(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.as_foreground().escape(w)
-    }
-
-    pub fn escape_underline(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        self.as_underline().escape(w)
-    }
 }
-
-impl From<u32> for Color {
+impl const From<u32> for Color {
     fn from(value: u32) -> Self {
         Color::Rgb(
             ((value >> 16) & 0xFF) as u8,
@@ -116,13 +103,13 @@ impl From<u32> for Color {
     }
 }
 
-impl From<(u8, u8, u8)> for Color {
+impl const From<(u8, u8, u8)> for Color {
     fn from(value: (u8, u8, u8)) -> Self {
         Color::Rgb(value.0, value.1, value.2)
     }
 }
 
-impl From<u8> for Color {
+impl const From<u8> for Color {
     fn from(value: u8) -> Self {
         match value {
             0 => Color::Black,

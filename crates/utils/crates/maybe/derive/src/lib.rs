@@ -1,6 +1,8 @@
-use proc_macro::TokenStream;
+use proc_macro::{TokenStream};
+use std::str::FromStr;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
+use syn::__private::TokenStream2;
 
 /// Derive the `Maybe` trait for an enum.
 ///
@@ -43,11 +45,15 @@ use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
 #[proc_macro_derive(Maybe, attributes(none, maybe))]
 pub fn derive_maybe(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    derive_maybe_inner(&input, false).into()
+}
 
-    match derive_maybe_inner(&input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+/// Const variant of `Maybe` derive.
+/// Only works for enums without generics or where clauses.
+#[proc_macro_derive(MaybeConst, attributes(none, maybe))]
+pub fn derive_maybe_const(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derive_maybe_inner(&input, true).into()
 }
 
 fn has_attr(attrs: &[syn::Attribute], ident: &str) -> bool {
@@ -70,17 +76,36 @@ fn has_maybe_default(attrs: &[syn::Attribute]) -> bool {
     })
 }
 
-fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
     let name = &input.ident;
     let (impl_generic, generic, where_clause) = input.generics.split_for_impl();
+
+    // Validate const constraints
+    if is_const {
+        if !input.generics.params.is_empty() {
+            return Error::new_spanned(
+                name,
+                "derive_const(Maybe) requires no generic parameters",
+            )
+                .to_compile_error();
+        }
+        if input.generics.where_clause.is_some() {
+            return Error::new_spanned(
+                name,
+                "derive_const(Maybe) requires no where clause",
+            )
+                .to_compile_error();
+        }
+    }
 
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
         _ => {
-            return Err(Error::new_spanned(
+            return Error::new_spanned(
                 name,
                 "Maybe can only be derived for enums",
-            ))
+            )
+                .to_compile_error();
         }
     };
 
@@ -92,27 +117,33 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
         .collect();
 
     let none_variant = match attr_none.len() {
-        0 => variants.iter().find(|v| v.ident == "None").ok_or_else(|| {
-            Error::new_spanned(
-                name,
-                "No #[none] attribute and no variant named `None`. \
+        0 => match variants.iter().find(|v| v.ident == "None") {
+            Some(v) => v,
+            None => {
+                return Error::new_spanned(
+                    name,
+                    "No #[none] attribute and no variant named `None`. \
                      Mark a unit variant with #[none] or name one `None`.",
-            )
-        })?,
+                )
+                    .to_compile_error();
+            }
+        },
         1 => attr_none[0],
         _ => {
-            return Err(Error::new_spanned(
+            return Error::new_spanned(
                 &attr_none[1].ident,
                 "Multiple #[none] variants — mark exactly one",
-            ))
+            )
+                .to_compile_error();
         }
     };
 
     if !matches!(none_variant.fields, Fields::Unit) {
-        return Err(Error::new_spanned(
+        return Error::new_spanned(
             &none_variant.ident,
             "The none variant must be a unit variant (no fields)",
-        ));
+        )
+            .to_compile_error();
     }
 
     let none_ident = &none_variant.ident;
@@ -124,28 +155,44 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
         .filter(|v| has_maybe_default(&v.attrs))
         .collect();
 
-    let _default_ident = match attr_default.len() {
+    let default_ident = match attr_default.len() {
         0 => none_ident,
         1 => {
             let v = attr_default[0];
             if !matches!(v.fields, Fields::Unit) {
-                return Err(Error::new_spanned(
+                return Error::new_spanned(
                     &v.ident,
                     "#[maybe(default)] variant must be a unit variant (no fields)",
-                ));
+                )
+                    .to_compile_error();
             }
             &v.ident
         }
         _ => {
-            return Err(Error::new_spanned(
+            return Error::new_spanned(
                 &attr_default[1].ident,
                 "Multiple #[maybe(default)] variants — mark at most one",
-            ))
+            )
+                .to_compile_error();
         }
     };
 
-    Ok(quote! {
-        impl #impl_generic Maybe for #name #generic #where_clause {
+    let maybe_const = TokenStream2::from_str(if is_const { "const" } else { "" }).unwrap();
+    // Generate code based on const or non-const
+    generate_impls(name, impl_generic, generic, where_clause, none_ident, default_ident, maybe_const)
+}
+
+fn generate_impls(
+    name: &syn::Ident,
+    impl_generic: syn::ImplGenerics,
+    generic: syn::TypeGenerics,
+    where_clause: Option<&syn::WhereClause>,
+    none_ident: &syn::Ident,
+    default_ident: &syn::Ident,
+    maybe_const: TokenStream2,
+) -> TokenStream2 {
+    quote! {
+        impl #maybe_const #impl_generic Maybe for #name #generic #where_clause {
             #[allow(non_upper_case_globals)]
             const None: Self = #name::#none_ident;
 
@@ -156,7 +203,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
         }
 
 
-        impl #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
+        impl #maybe_const #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
             #[inline]
             fn from(value: Option<#name #generic>) -> Self {
                 match value {
@@ -166,7 +213,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
             }
         }
 
-        impl #impl_generic PartialEq<Option<#name #generic>> for #name #generic #where_clause {
+        impl #maybe_const #impl_generic PartialEq<Option<#name #generic>> for #name #generic #where_clause {
             #[inline]
             fn eq(&self, other: &Option<#name #generic>) -> bool {
                 match other {
@@ -176,7 +223,7 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
             }
         }
 
-        impl #impl_generic PartialEq<#name #generic> for Option<#name #generic> #where_clause {
+        impl #maybe_const #impl_generic PartialEq<#name #generic> for Option<#name #generic> #where_clause {
             #[inline]
             fn eq(&self, other: &#name #generic) -> bool {
                 match self {
@@ -185,6 +232,5 @@ fn derive_maybe_inner(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
                 }
             }
         }
-
-    })
+    }
 }

@@ -2,11 +2,10 @@ use super::pen::Pen;
 use crate::Cell;
 use crate::{Arena, Buffer};
 use ansi::escape;
-use ansi::{Escape, FmtEscape, WriteEscape};
+use ansi::{WriteEscape};
 use ansi::sequences::*;
-use geometry::{Resolve, Row};
+use geometry::{Row};
 use std::io;
-use std::io::Write as _;
 use terminal::Capabilities;
 
 /// Emits escape sequences to apply a frame to the terminal.
@@ -161,7 +160,7 @@ impl Rasterer {
 
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
-        escape!(
+        let _ = escape!(
             self.output,
             SelectGraphicRendition::RESET,
             AlternateScreen::Reset,

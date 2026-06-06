@@ -489,7 +489,7 @@ impl Escape for Style {
 
         // Attributes (bold, underline, etc.)
         separate! {
-            w.write(self.attributes.to_sgr_bytes())?
+            w.write(&self.attributes.to_sgr_bytes())?
         };
 
         w.write_all(b"m")

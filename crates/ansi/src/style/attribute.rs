@@ -2,12 +2,11 @@ use crate::Escape;
 use derive_more::{AsRef, Deref};
 use maybe::Maybe;
 use std::borrow::Cow;
-use std::{fmt, slice};
+use std::fmt;
 use std::iter::FusedIterator;
 use std::ops;
 use std::str::FromStr;
 use thiserror::Error;
-use utils::separate_by;
 
 
 type Repr = u16;
@@ -67,6 +66,24 @@ impl const Attribute {
             name: "RapidBlink",
             set: "6",
             reset: "25",
+        },
+        Meta {
+            attribute: Attribute::Inverse,
+            name: "Inverse",
+            set: "7",
+            reset: "27",
+        },
+        Meta {
+            attribute: Attribute::Invisible,
+            name: "Invisible",
+            set: "8",
+            reset: "28",
+        },
+        Meta {
+            attribute: Attribute::Strikethrough,
+            name: "Strikethrough",
+            set: "9",
+            reset: "29",
         },
         Meta {
             attribute: Attribute::Frame,
@@ -283,18 +300,7 @@ impl const Attribute {
             index: 0,
         }
     }
-    #[inline]
-    pub fn bits(self) -> Repr {
-        self.0
-    }
 
-    #[inline]
-    pub fn to_inner(self) -> Repr {
-        self.0
-    }
-}
-
-impl Attribute {
     /// Returns an iterator over the meta data for every attribute defined in [`Self`].
     ///
     /// # Example
@@ -307,11 +313,8 @@ impl Attribute {
     /// assert_eq!(Attribute::All.meta().count(), Attribute::COUNT);
     /// ```
     #[inline]
-    pub fn meta(self) -> impl Iterator<Item=Meta> {
-        Self::META
-            .iter()
-            .filter(move |meta| self.contains(meta.attribute))
-            .copied()
+    pub fn meta(self) -> MetaIter {
+        MetaIter { inner: self, index: 0, remaining: self.count() }
     }
 
     /// Returns an iterator over the SGR parameters for each attribute.
@@ -337,6 +340,18 @@ impl Attribute {
         self.meta().map(|meta| meta.name())
     }
 
+    #[inline]
+    pub fn bits(self) -> Repr {
+        self.0
+    }
+
+    #[inline]
+    pub fn to_inner(self) -> Repr {
+        self.0
+    }
+}
+
+impl Attribute {
     /// Returns the semicolon-separated SGR parameters to set attributes.
     ///
     /// # Example
@@ -350,20 +365,17 @@ impl Attribute {
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn to_sgr_string(self) -> Cow<'static, str> {
-        if self.is_none() {
-            return Cow::Borrowed("");
-        }
-
         self.meta()
             .map(|meta| meta.set())
             .intersperse(";")
             .collect()
     }
 
-    pub fn to_sgr_bytes(&self) -> &[u8] {
-        let sgr = self.to_sgr_string();
-
-        unsafe { slice::from_raw_parts(sgr.as_ptr(), sgr.len()) }
+    pub fn to_sgr_bytes(&self) -> Cow<'static, [u8]> {
+        match self.to_sgr_string() {
+            Cow::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
+            Cow::Owned(s) => Cow::Owned(s.into_bytes()),
+        }
     }
 
     /// Returns the semicolon-separated SGR parameters to reset attributes.
@@ -390,11 +402,11 @@ impl Attribute {
             .collect()
     }
 
-
-    pub fn to_reset_bytes(&self) -> &[u8] {
-        let sgr = self.to_reset_string();
-
-        unsafe { slice::from_raw_parts(sgr.as_ptr(), sgr.len()) }
+    pub fn to_reset_bytes(&self) -> Cow<'static, [u8]> {
+        match self.to_reset_string() {
+            Cow::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
+            Cow::Owned(s) => Cow::Owned(s.into_bytes()),
+        }
     }
 
     /// Returns a string representation of the attributes.
@@ -456,7 +468,7 @@ impl FromStr for Attribute {
         Ok(out)
     }
 }
-impl From<Repr> for Attribute {
+impl const From<Repr> for Attribute {
     #[inline]
     fn from(value: Repr) -> Self {
         Attribute::new(value)
@@ -532,7 +544,7 @@ impl const ops::Not for Attribute {
         self.complement()
     }
 }
-impl IntoIterator for Attribute {
+impl const IntoIterator for Attribute {
     type Item = Attribute;
     type IntoIter = Iter;
 
@@ -574,7 +586,7 @@ pub struct Iter {
     index: usize,
 }
 
-impl Iterator for Iter {
+impl const Iterator for Iter {
     type Item = Attribute;
 
     #[inline]
@@ -642,6 +654,41 @@ impl const Meta {
 
     fn reset(&self) -> &'static str {
         self.reset
+    }
+}
+
+pub struct MetaIter {
+    inner: Attribute,
+    index: usize,
+    remaining: usize,
+}
+
+
+impl const Iterator for MetaIter {
+    type Item = Meta;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
+
+        self.index += 1;
+        self.remaining -= 1;
+
+        let meta = Attribute::META.get(self.index)?;
+
+
+        if !self.inner.contains(meta.attribute) {
+            return self.next();
+        }
+
+        Some(*meta)
+    }
+}
+
+impl ExactSizeIterator for MetaIter {
+    fn len(&self) -> usize {
+        self.remaining
     }
 }
 

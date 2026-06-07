@@ -1,6 +1,6 @@
 use super::Counting;
 use crate::raster::Pen;
-use crate::{Arena, Buffer, BufferDiff, Cell, Run, TrackingBuffer};
+use crate::{Arena, Buffer, BufferDiff, Cells, Cell, Run, TrackingBuffer};
 use ansi::WriteEscape;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
@@ -297,7 +297,7 @@ impl<W: Write> Presenter<W> {
         // cell) and EL its tail to drop any leftover content past the last.
         for y in 0..height {
             let row = &next[Row(y)];
-            let Some(end) = Cell::content_end(row) else {
+            let Some(end) = Cells(row).last() else {
                 continue;
             };
             self.move_pen(y as u16, 0)?;
@@ -346,7 +346,7 @@ impl<W: Write> Presenter<W> {
         for y in 0..height {
             self.move_pen(y as u16, 0)?;
             let row = &next[Row(y)];
-            if let Some(end) = Cell::content_end(row) {
+            if let Some(end) = Cells(row).last() {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -380,7 +380,7 @@ impl<W: Write> Presenter<W> {
                 self.writer.write_all(b"\n")?;
             }
             let row = &next[Row(y)];
-            if let Some(end) = Cell::content_end(row) {
+            if let Some(end) = Cells(row).last() {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -395,7 +395,7 @@ impl<W: Write> Presenter<W> {
         // back to the top of the claimed region.
         self.pen.row = (height - 1) as u16;
         let last_row = &next[Row(height - 1)];
-        self.pen.col = Cell::content_end(last_row).map_or(0, |end| end as u16 + 1);
+        self.pen.col = Cells(last_row).last().map_or(0, |end| end as u16 + 1);
 
         Ok(())
     }

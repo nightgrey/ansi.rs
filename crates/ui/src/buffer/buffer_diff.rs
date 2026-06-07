@@ -1,8 +1,9 @@
-use crate::buffer::{BaseCells, Buffer, Cell};
-use crate::{Map, TrackingBuffer};
+use crate::buffer::{Buffer, Cell};
+use crate::{CellsIter, Map, TrackingBuffer};
 use derive_more::{AsRef, Deref};
 use geometry::Point;
 use std::iter::FusedIterator;
+use super::{Cells};
 
 /// A zero-allocation buffer diffing iterator
 ///
@@ -134,7 +135,7 @@ impl<'a> Run<'a> {
     #[inline]
     pub fn iter(&self) -> RunIter<'a> {
         RunIter {
-            inner: Cell::base_cells(self.cells),
+            inner: Cells(self.cells).run(),
             x: self.x,
             y: self.y,
         }
@@ -173,7 +174,7 @@ impl<'a> IntoIterator for Run<'a> {
 /// column by the run's absolute `x`/`y`.
 #[derive(Clone, Debug)]
 pub struct RunIter<'a> {
-    inner: BaseCells<'a>,
+    inner: CellsIter<'a>,
     x: u16,
     y: u16,
 }

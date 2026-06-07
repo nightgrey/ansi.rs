@@ -1,5 +1,5 @@
 use super::pen::Pen;
-use crate::Cell;
+use crate::{Cell, Cells};
 use crate::{Arena, Buffer};
 use ansi::escape;
 use ansi::{WriteEscape};
@@ -219,7 +219,7 @@ impl Rasterer {
                 }
 
                 let row = &next[Row(y)];
-                let last_content = Cell::content_end(row);
+                let last_content = Cells(row).last();
 
                 if let Some(end) = last_content {
                     for col in 0..=end {
@@ -233,7 +233,7 @@ impl Rasterer {
 
             self.pen.row = (height - 1) as u16;
             let last_row = &next[Row(height - 1)];
-            self.pen.col = match Cell::content_end(last_row) {
+            self.pen.col = match Cells(last_row).last() {
                 Some(end) => end as u16 + 1,
                 None => 0,
             };
@@ -328,7 +328,7 @@ impl Rasterer {
         let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
 
         let last_non_default_cell =
-            Cell::content_end(&next[first..=last]).map(|offset| first + offset);
+            Cells(&next[first..=last]).last().map(|offset| first + offset);
 
         match cursor_mode {
             CursorMode::Absolute => cursor.position(y as u16, first as u16, output),

@@ -1,6 +1,4 @@
-use crate::{
-    Arena, Buffer, BufferDrawingContext, Document, DoubleBuffer, DrawingContext, Rasterer,
-};
+use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Rasterer};
 use derive_more::{Deref, DerefMut};
 use geometry::Size;
 use std::io;
@@ -50,20 +48,20 @@ impl<'a> Engine<'a> {
 
         buffer.clear();
 
-        let mut ctx = BufferDrawingContext::new(buffer, arena);
+        let mut ctx = BufferPainter::new(buffer, arena);
         ctx.paint(document);
     }
 
     pub fn paint_with<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut BufferDrawingContext<'_>),
+        F: FnOnce(&mut BufferPainter<'_>),
     {
         let buffer = &mut self.buffer.back;
         let arena = &mut self.arena;
         let _document = &self.document;
 
         buffer.clear();
-        let mut ctx = BufferDrawingContext::new(buffer, arena);
+        let mut ctx = BufferPainter::new(buffer, arena);
         f(&mut ctx);
         ctx.finish();
     }

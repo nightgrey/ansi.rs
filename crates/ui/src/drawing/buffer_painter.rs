@@ -1,14 +1,13 @@
 use crate::symbols::Symbol;
-use crate::{Arena, Buffer, Cell, DrawingOptions};
+use crate::{Arena, Buffer, CellsMut, DrawingOptions};
 use crate::{Border, DrawingContext};
-use ansi::{Attribute, Color, Style};
+use ansi::{Color, Style};
 use bon::Builder;
 use derive_more::{Deref, DerefMut};
 use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos};
 use number::{SaturatingAdd, SaturatingSub};
 use smallvec::SmallVec;
 use std::io;
-use std::ops::Sub;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -26,19 +25,19 @@ pub struct State {
 // the current context state. All methods are `const` to enable static
 // construction without runtime overhead.
 #[derive(Debug, Clone, Default, Builder, Copy)]
-pub struct BufferDrawingOptions {
+pub struct BufferPainterOptions {
     pub style: Option<Style>,
     pub glyph: Option<char>,
     pub border: Option<Border>,
 }
 
-impl BufferDrawingOptions {
-    fn new() -> BufferDrawingOptions {
+impl BufferPainterOptions {
+    fn new() -> BufferPainterOptions {
         Self::default()
     }
 }
 
-impl From<DrawingOptions> for BufferDrawingOptions {
+impl From<DrawingOptions> for BufferPainterOptions {
     fn from(value: DrawingOptions) -> Self {
         Self {
             style: value.layout.map(Into::into),
@@ -54,7 +53,7 @@ impl From<DrawingOptions> for BufferDrawingOptions {
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
 #[derive(Debug, Deref, DerefMut)]
-pub struct BufferDrawingContext<'a> {
+pub struct BufferPainter<'a> {
     buffer: &'a mut Buffer,
     arena: &'a mut Arena,
     #[deref]
@@ -63,7 +62,7 @@ pub struct BufferDrawingContext<'a> {
     stacks: SmallVec<State, 16>,
 }
 
-impl<'buf> BufferDrawingContext<'buf> {
+impl<'buf> BufferPainter<'buf> {
     /// Create a new context spanning the full buffer.
     pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut Arena) -> Self {
         let clip = buffer.bounds(); // full buffer rect
@@ -81,30 +80,6 @@ impl<'buf> BufferDrawingContext<'buf> {
         }
     }
 
-    /// Set the foreground color for subsequent draw operations.
-    pub fn foreground(&mut self, color: Color) -> &mut Self {
-        self.style.foreground = color;
-        self
-    }
-
-    /// Set the background color for subsequent draw operations.
-    pub fn background(&mut self, color: Color) -> &mut Self {
-        self.style.background = color;
-        self
-    }
-
-    /// Set the text attributes for subsequent draw operations.
-    pub fn attributes(&mut self, attributes: Attribute) -> &mut Self {
-        self.style.attributes = attributes;
-        self
-    }
-
-    /// Reset state to defaults without affecting the stack.
-    pub fn reset(&mut self) -> &mut Self {
-        self.state = State::default();
-        self
-    }
-
     fn to_local<T: Translate<Point>>(&self, value: T) -> T::Output {
         value.translate(&self.origin)
     }
@@ -115,9 +90,9 @@ impl<'buf> BufferDrawingContext<'buf> {
     }
 }
 
-impl<'a> DrawingContext for BufferDrawingContext<'a> {
+impl<'a> DrawingContext for BufferPainter<'a> {
     type Error = io::Error;
-    type Options = BufferDrawingOptions;
+    type Options = BufferPainterOptions;
 
     fn current_clip(&self) -> Rect {
         self.clip
@@ -166,7 +141,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn rect(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.rect_with(rect, BufferDrawingOptions::default())
+        self.rect_with(rect, BufferPainterOptions::default())
     }
 
     fn rect_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
@@ -187,7 +162,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn outline(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.outline_with(rect, BufferDrawingOptions::default())
+        self.outline_with(rect, BufferPainterOptions::default())
     }
 
     fn outline_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
@@ -230,7 +205,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn border(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.border_with(rect, BufferDrawingOptions::default())
+        self.border_with(rect, BufferPainterOptions::default())
     }
 
     fn border_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
@@ -285,7 +260,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn text(&mut self, position: impl Into<Point>, str: impl AsRef<str>) -> usize {
-        self.text_with(position, str, BufferDrawingOptions::default())
+        self.text_with(position, str, BufferPainterOptions::default())
     }
 
     fn text_with(
@@ -331,8 +306,9 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
                 // the whole grapheme stays within this row.
                 let start = position.y as usize * self.buffer.width + col as usize;
                 let row_end = start + (right - col) as usize;
-                Cell::set_grapheme(
-                    &mut self.buffer[start..row_end],
+                CellsMut(
+                    &mut self.buffer[start..row_end]
+                ).write(
                     grapheme,
                     width as usize,
                     self.arena,
@@ -347,7 +323,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn char(&mut self, position: impl Into<Point>, char: char) -> usize {
-        self.char_with(position, char, BufferDrawingOptions::default())
+        self.char_with(position, char, BufferPainterOptions::default())
     }
 
     fn char_with(
@@ -373,7 +349,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn horizontal_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
-        self.horizontal_line_with(position, length, BufferDrawingOptions::default())
+        self.horizontal_line_with(position, length, BufferPainterOptions::default())
     }
 
     fn horizontal_line_with(
@@ -400,7 +376,7 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
     }
 
     fn vertical_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
-        self.vertical_line_with(position, length, BufferDrawingOptions::default())
+        self.vertical_line_with(position, length, BufferPainterOptions::default())
     }
 
     fn vertical_line_with(
@@ -525,8 +501,8 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> BufferDrawingContext<'a> {
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena)
+    fn renderer<'a>(context: &'a mut Context) -> BufferPainter<'a> {
+        BufferPainter::new(&mut context.buffer, &mut context.arena)
     }
 
     #[test]
@@ -712,7 +688,7 @@ mod tests {
 
         document.compute_layout(Space::new(20u32, 10u32));
 
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
@@ -757,7 +733,7 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         let div_bounds = document.border_bounds(child_div);
         let text_bounds = document.border_bounds(text_id);
@@ -797,7 +773,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // First child
         assert_eq!(
@@ -833,7 +809,7 @@ mod tests {
         root.padding = (1, 1).into();
 
         document.compute_layout(Space::new(10u32, 5u32));
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         let h = context.buffer.bounds().height() as usize;
         let w = context.buffer.bounds().width() as usize;
@@ -865,7 +841,7 @@ mod tests {
         });
 
         document.compute_layout(Space::new(10u32, 4u32));
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Bold border: top-left ┏, top ━, top-right ┓, etc.
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('┏'));
@@ -897,7 +873,7 @@ mod tests {
         });
 
         document.compute_layout(Space::new(10u32, 3u32));
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Every cell that isn't the glyph itself should still carry the
         // root's red backdrop — the span must not overwrite it.
@@ -950,7 +926,7 @@ mod tests {
         document.insert_at(Element::Span("C"), At::Child(c));
 
         document.compute_layout(Space::new(20u32, 20u32));
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         let w = context.buffer.bounds().width() as usize;
         let h = context.buffer.bounds().height() as usize;
@@ -1034,7 +1010,7 @@ mod tests {
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        BufferDrawingContext::new(&mut context.buffer, &mut context.arena).paint(&document);
+        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
 
         // Side by side in row layout
         assert_eq!(

@@ -1,4 +1,4 @@
-use crate::{Arena, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, TrackingBuffer};
+use crate::{Arena, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, TrackingBuffer, CellsMut};
 use ansi::Style;
 use core::slice::IterMut;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
@@ -52,7 +52,7 @@ impl Buffer {
 
     /// Create a buffer from a slice of fixed elements.
     #[must_use]
-    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Arena) -> Self {
+    pub fn from_lines<'a>(lines: impl IntoIterator<Item=&'a str>, arena: &mut Arena) -> Self {
         let lines = lines.into_iter().collect::<Vec<_>>();
         let height = lines.len();
         let width = lines
@@ -148,7 +148,7 @@ impl Buffer {
     /// Print the given string until the end of the given index.
     pub fn set_string(
         &mut self,
-        index: impl BufferIndex<Output = [Cell]>,
+        index: impl BufferIndex<Output=[Cell]>,
         string: impl AsRef<str>,
         arena: &mut Arena,
     ) -> Option<usize> {
@@ -164,9 +164,11 @@ impl Buffer {
                     Some((symbol, width))
                 })
             {
+
+
                 // Writes the base cell and fills its continuations; advances the
                 // cursor by the grapheme's column span.
-                i += Cell::set_grapheme(&mut slice[i..], grapheme, width, arena);
+                i += CellsMut(&mut slice[i..]).write(grapheme, width, arena);
             }
             Some(i)
         } else {
@@ -425,7 +427,7 @@ impl Buffer {
     }
 
     // Row operations
-    pub fn push_row(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row(&mut self, row: impl IntoIterator<Item=Cell>) {
         let row = row.into_iter();
         let (input_len, _) = row.size_hint();
         assert_ne!(input_len, 0);
@@ -469,7 +471,7 @@ impl Buffer {
         Some(row)
     }
 
-    pub fn insert_row(&mut self, index: usize, row: impl IntoIterator<Item = Cell>) {
+    pub fn insert_row(&mut self, index: usize, row: impl IntoIterator<Item=Cell>) {
         if index > self.height {
             return;
         }
@@ -583,17 +585,17 @@ impl Buffer {
         self[row * width..row * width + width].iter_mut()
     }
 
-    pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item = &Cell> {
+    pub fn iter_rect(&self, rect: &Rect) -> impl Iterator<Item=&Cell> {
         rect.steps().map(|point| &self[point])
     }
 
-    pub fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &Cell)> {
+    pub fn indexed_iter(&self) -> impl Iterator<Item=((usize, usize), &Cell)> {
         self.iter()
             .enumerate()
             .map(move |(idx, i)| ((idx / self.width, idx % self.width), i))
     }
 
-    pub fn indexed_iter_mut(&mut self) -> impl Iterator<Item = ((usize, usize), &mut Cell)> {
+    pub fn indexed_iter_mut(&mut self) -> impl Iterator<Item=((usize, usize), &mut Cell)> {
         let cols = self.width;
 
         self.iter_mut()
@@ -601,11 +603,11 @@ impl Buffer {
             .map(move |(idx, i)| ((idx / cols, idx % cols), i))
     }
 
-    pub fn iter_rows(&self) -> impl Iterator<Item = Iter<'_, Cell>> {
+    pub fn iter_rows(&self) -> impl Iterator<Item=Iter<'_, Cell>> {
         (0..self.height).map(move |row| self.iter_row(row))
     }
 
-    pub fn iter_cols(&self) -> impl Iterator<Item = StepBy<Iter<'_, Cell>>> {
+    pub fn iter_cols(&self) -> impl Iterator<Item=StepBy<Iter<'_, Cell>>> {
         (0..self.width).map(move |col| self.iter_col(col))
     }
 

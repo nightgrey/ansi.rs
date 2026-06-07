@@ -317,6 +317,9 @@ impl fmt::Debug for Grapheme {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             grapheme if grapheme.is_empty() => f.debug_tuple("Grapheme::Empty").finish(),
+            grapheme if grapheme.is_continuation() => {
+                f.debug_tuple("Grapheme::Continuation").finish()
+            }
             grapheme if grapheme.is_inline() => f
                 .debug_tuple("Grapheme::Inline")
                 .field(&self.as_inline_str())
@@ -325,9 +328,6 @@ impl fmt::Debug for Grapheme {
                 .debug_tuple("Grapheme::Extended")
                 .field(&self.as_offset())
                 .finish(),
-            grapheme if grapheme.is_continuation() => {
-                f.debug_tuple("Grapheme::Continuation").finish()
-            }
             _ => unreachable!(),
         }
     }
@@ -438,7 +438,6 @@ mod tests {
     fn space_is_not_empty() {
         let g = Grapheme::inline(' ');
         assert!(!g.is_empty());
-        assert_eq!(g, Grapheme::EMPTY);
     }
 
     #[test]
@@ -529,7 +528,7 @@ mod tests {
         let g2 = Grapheme::extended(family, &mut arena);
         assert_eq!(g2.as_str(&arena), family);
 
-        assert_eq!(Grapheme::EMPTY.as_str(&arena), " ");
+        assert_eq!(Grapheme::EMPTY.as_str(&arena), "");
     }
 
     #[test]
@@ -547,8 +546,7 @@ mod tests {
         assert!(dbg.contains("Z"));
 
         let g2 = Grapheme::EMPTY;
-        let dbg2 = format!("{g2:?}");
-        assert!(dbg2.contains("EMPTY"));
+        assert_eq!(format!("{g2:?}"), "Grapheme::Empty");
     }
 
     // Pin the invariant: SOH (0x01) is stored inline, not mistaken for
@@ -571,10 +569,9 @@ mod tests {
         assert!(!g.is_empty());
         assert!(!g.is_inline());
         assert!(!g.is_extended());
-
         let arena = Arena::new();
         assert_eq!(g.as_str(&arena), "");
-        assert!(format!("{g:?}").contains("CONTINUATION"));
+        assert_eq!(format!("{g:?}"), "Grapheme::Continuation");
     }
 
     #[test]

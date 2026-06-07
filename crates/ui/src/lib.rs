@@ -33,5 +33,7 @@ pub use engine::*;
 
 mod document;
 pub mod mock;
+pub mod utils;
 
 pub use document::*;
+pub use utils::*;

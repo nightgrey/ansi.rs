@@ -3,10 +3,50 @@ use derive_more::{AsRef, Deref};
 use maybe::Maybe;
 use std::borrow::Cow;
 use std::fmt;
-use std::iter::FusedIterator;
+use std::iter::Map;
+use std::marker::Destruct;
 use std::ops;
 use std::str::FromStr;
 use thiserror::Error;
+
+macro_rules! variants {
+    (
+        $(
+            $(#[$attr:meta])*
+                $variant:ident {
+                    position: $position:expr,
+                    name: $name:expr,
+                    set: $set:expr,
+                    reset: $reset:expr,
+                }
+        ),+
+        $(,)?
+    ) => {
+            pub const META: &'static [Meta] = &[
+                $(
+                    Meta {
+                        attribute: Attribute::$variant,
+                        name: $name,
+                        set: $set,
+                        reset: $reset,
+                    },
+                )+
+            ];
+
+            pub const COUNT: usize = Self::META.len();
+
+
+            pub const None: Self = Self(0);
+            // Bit‑flag constants – these match the enum variants.
+            // `None` is explicitly given (bit 0), but its Meta entry is omitted
+            // (no set/reset). You can choose to include/exclude it.
+            $(
+                $(#[$attr])*
+                pub const $variant: Self = Self(1 << $position);
+            )+
+            pub const All: Self = $(Self::$variant)|+;
+    };
+}
 
 type Repr = u16;
 
@@ -17,123 +57,92 @@ pub struct Attribute(Repr);
 
 #[allow(non_upper_case_globals)]
 impl const Attribute {
-    const META: &'static [Meta] = &[
-        Meta {
-            attribute: Attribute::Bold,
+    variants! {
+        Bold {
+            position: 0,
             name: "Bold",
             set: "1",
             reset: "22",
         },
-        Meta {
-            attribute: Attribute::Faint,
+        Faint {
+            position: 1,
             name: "Faint",
             set: "2",
             reset: "22",
         },
-        Meta {
-            attribute: Attribute::Italic,
+        Italic {
+            position: 2,
             name: "Italic",
             set: "3",
             reset: "23",
         },
-        Meta {
-            attribute: Attribute::Underline,
+        Underline {
+            position: 3,
             name: "Underline",
             set: "4",
             reset: "24",
         },
-        Meta {
-            attribute: Attribute::UnderlineDouble,
-            name: "UnderlineDouble",
-            set: "21",
-            reset: "24",
-        },
-        Meta {
-            attribute: Attribute::UnderlineCurly,
-            name: "UnderlineCurly",
-            set: "24",
-            reset: "24",
-        },
-        Meta {
-            attribute: Attribute::Blink,
+        Blink {
+            position: 4,
             name: "Blink",
             set: "5",
             reset: "25",
         },
-        Meta {
-            attribute: Attribute::RapidBlink,
+        RapidBlink {
+            position: 5,
             name: "RapidBlink",
             set: "6",
             reset: "25",
         },
-        Meta {
-            attribute: Attribute::Inverse,
+        Inverse {
+            position: 6,
             name: "Inverse",
             set: "7",
             reset: "27",
         },
-        Meta {
-            attribute: Attribute::Invisible,
+        Invisible {
+            position: 7,
             name: "Invisible",
             set: "8",
             reset: "28",
         },
-        Meta {
-            attribute: Attribute::Strikethrough,
+        Strikethrough {
+            position: 8,
             name: "Strikethrough",
             set: "9",
             reset: "29",
         },
-        Meta {
-            attribute: Attribute::Frame,
+        UnderlineDouble {
+            position: 9,
+            name: "UnderlineDouble",
+            set: "21",
+            reset: "24",
+        },
+        UnderlineCurly {
+            position: 10,
+            name: "UnderlineCurly",
+            set: "23",
+            reset: "24",
+        },
+        Frame {
+            position: 11,
             name: "Frame",
             set: "51",
             reset: "54",
         },
-        Meta {
-            attribute: Attribute::Encircle,
+        Encircle {
+            position: 12,
             name: "Encircle",
             set: "52",
             reset: "54",
         },
-        Meta {
-            attribute: Attribute::Overline,
+        Overline {
+            position: 13,
             name: "Overline",
             set: "53",
             reset: "55",
         },
-    ];
-    pub const COUNT: usize = Self::META.len();
-
-    pub const None: Self = Self(0);
-    pub const Bold: Self = Self(1 << 1);
-    pub const Faint: Self = Self(1 << 2);
-    pub const Italic: Self = Self(1 << 3);
-    pub const Underline: Self = Self(1 << 4);
-    pub const UnderlineDouble: Self = Self(1 << 13);
-    pub const UnderlineCurly: Self = Self(1 << 14);
-    pub const Blink: Self = Self(1 << 5);
-    pub const RapidBlink: Self = Self(1 << 6);
-    pub const Inverse: Self = Self(1 << 7);
-    pub const Invisible: Self = Self(1 << 8);
-    pub const Strikethrough: Self = Self(1 << 9);
-    pub const Frame: Self = Self(1 << 10);
-    pub const Encircle: Self = Self(1 << 11);
-    pub const Overline: Self = Self(1 << 12);
-    pub const All: Self = Self::Bold
-        | Self::Faint
-        | Self::Italic
-        | Self::Underline
-        | Self::UnderlineDouble
-        | Self::UnderlineCurly
-        | Self::Blink
-        | Self::RapidBlink
-        | Self::Inverse
-        | Self::Invisible
-        | Self::Strikethrough
-        | Self::Frame
-        | Self::Encircle
-        | Self::Overline;
+    }
 
 
     /// Creates an empty attribute.
@@ -160,7 +169,7 @@ impl const Attribute {
 
     #[inline]
     pub fn try_from_bits(bits: Repr) -> Result<Self, ParseAttributeError> {
-        if false || bits == Self::All.bits() {
+        if false || bits == Self::All.into_inner() {
             Ok(Self(bits))
         } else {
             Err(ParseAttributeError::Unknown(bits))
@@ -174,7 +183,7 @@ impl const Attribute {
 
     #[inline]
     pub fn from_bits_truncated(bits: Repr) -> Self {
-        Self(bits & Self::All.bits())
+        Self(bits & Self::All.into_inner())
     }
 
     #[inline]
@@ -188,18 +197,34 @@ impl const Attribute {
     }
 
     #[inline]
+    pub fn try_from_position(position: usize) -> Result<Self, ParseAttributeError> {
+        if position >= Self::COUNT {
+            return Err(ParseAttributeError::Invalid(position as u16));
+        }
+        Ok(Self(1 << position))
+    }
+
+    #[inline]
+    pub fn from_position(position: usize) -> Self {
+        match Self::try_from_position(position) {
+            Ok(attr) => attr,
+            Err(_) => panic!("invalid position"),
+        }
+    }
+
+    #[inline]
     pub fn count_ones(self) -> u32 {
         self.0.count_ones()
     }
 
     #[inline]
     pub fn known(self) -> Self {
-        Self(self.0 & Self::All.bits())
+        Self(self.0 & Self::All.into_inner())
     }
 
     #[inline]
     pub fn unknown(self) -> Self {
-        Self(self.0 & !Self::All.bits())
+        Self(self.0 & !Self::All.into_inner())
     }
 
     #[inline]
@@ -214,7 +239,7 @@ impl const Attribute {
 
     #[inline]
     pub fn is_all(self) -> bool {
-        self.0 == Self::All.bits()
+        self.0 == Self::All.into_inner()
     }
 
     #[inline]
@@ -258,13 +283,13 @@ impl const Attribute {
     #[inline]
     #[must_use]
     pub fn symmetric_difference(self, other: Self) -> Self {
-        Self((self.0 ^ other.0) & Self::All.bits())
+        Self((self.0 ^ other.0) & Self::All.into_inner())
     }
 
     #[inline]
     #[must_use]
     pub fn complement(self) -> Self {
-        Self(!self.0 & Self::All.bits())
+        Self(!self.0 & Self::All.into_inner())
     }
 
     #[inline]
@@ -279,7 +304,7 @@ impl const Attribute {
 
     #[inline]
     pub fn toggle(&mut self, other: Self) {
-        self.0 = (self.0 ^ other.0) & Self::All.bits();
+        self.0 = (self.0 ^ other.0) & Self::All.into_inner();
     }
 
     #[inline]
@@ -294,10 +319,7 @@ impl const Attribute {
 
     #[inline]
     pub fn iter(self) -> Iter {
-        Iter {
-            inner: self.known(),
-            index: 0,
-        }
+        Iter::new(self.into_inner())
     }
 
     /// Returns an iterator over the meta data for every attribute defined in [`Self`].
@@ -313,7 +335,7 @@ impl const Attribute {
     /// ```
     #[inline]
     pub fn meta(self) -> MetaIter {
-        MetaIter { inner: self, index: 0, remaining: self.count() }
+        MetaIter::new(self.into_inner())
     }
 
     /// Returns an iterator over the SGR parameters for each attribute.
@@ -340,7 +362,7 @@ impl const Attribute {
     }
 
     #[inline]
-    pub fn bits(self) -> Repr {
+    pub fn into_inner(self) -> Repr {
         self.0
     }
 }
@@ -540,11 +562,11 @@ impl const ops::Not for Attribute {
 }
 impl const IntoIterator for Attribute {
     type Item = Attribute;
-    type IntoIter = Iter;
+    type IntoIter = Map<Iter, fn(usize) -> Attribute>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        self.iter().map(|i| Attribute::new((i as u16).saturating_sub(1)))
     }
 }
 impl Extend<Attribute> for Attribute {
@@ -572,57 +594,205 @@ impl const Maybe for Attribute {
     const None: Self = Attribute::from_bits_retained(0);
 }
 
-const _: () = assert!(Attribute::COUNT == Attribute::COUNT);
-
-#[derive(Copy, Clone, Debug)]
-pub struct Iter {
-    inner: Attribute,
-    index: usize,
+#[derive(Debug, Clone, Deref)]
+pub struct MetaIter {
+    inner: Iter,
 }
 
-impl const Iterator for Iter {
-    type Item = Attribute;
+impl const MetaIter {
+    #[inline]
+    pub fn new(value: u16) -> Self {
+        Self { inner: Iter::new(value) }
+    }
+}
+
+impl const Iterator for MetaIter {
+    type Item = Meta;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.inner.next()?;
+
+        Some(Meta::from_position(next))
+    }
+
 
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.index < Attribute::COUNT {
-            let bit = Attribute::META[self.index];
-            self.index += 1;
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 
-            if (self.inner & bit.attribute) == bit.attribute {
-                return Some(bit.attribute);
-            }
+    #[inline]
+    fn count(self) -> usize {
+        self.inner.count()
+    }
+
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        if let Some(last) = self.inner.last() {
+            return Some(Meta::from_position(last));
         }
-
         None
     }
 
     #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let mut count = 0;
-        let mut index = self.index;
-
-        while index < Attribute::COUNT {
-            let meta = Attribute::META[index];
-
-            if self.inner & meta.attribute == meta.attribute {
-                count += 1;
-            }
-
-            index += 1;
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        let mut i = 0;
+        while self.inner.0 != 0 && i < n {
+            self.inner.clear_max();
+            i += 1;
         }
+        self.next()
+    }
 
-        (count, Some(count))
+    #[inline]
+    fn fold<B, F>(mut self, init: B, mut f: F) -> B
+    where
+        F: [ const ] FnMut(B, Self::Item) -> B + [ const ] Destruct,
+    {
+        let mut accum = init;
+        while let Some(item) = self.next() {
+            accum = f(accum, item);
+        }
+        accum
+    }
+
+    #[inline]
+    fn max(self) -> Option<Self::Item> {
+        self.last()
+    }
+
+    #[inline]
+    fn min(self) -> Option<Self::Item> {
+        if self.inner.0 != 0 {
+            Some(Meta::from_position(self.inner.min_bit()))
+        } else {
+            None
+        }
+    }
+
+    fn is_sorted(self) -> bool {
+        true
+    }
+}
+impl ExactSizeIterator for MetaIter {
+    fn len(&self) -> usize {
+        self.count_ones()
+    }
+}
+
+#[derive(Debug, Clone, Deref)]
+#[repr(transparent)]
+pub struct Iter(u16);
+
+impl const Iter {
+    #[inline]
+    pub fn new(value: Repr) -> Self {
+        Self(value)
+    }
+
+    #[inline]
+    fn max_bit(&self) -> usize {
+        self.0.trailing_zeros() as usize
+    }
+
+    #[inline]
+    fn min_bit(&self) -> usize {
+        (<u16>::BITS - 1 - self.0.leading_zeros()) as usize
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        self.0.count_ones() as usize
+    }
+
+    #[inline]
+    fn clear_max(&mut self) {
+        self.0 &= self.0.wrapping_sub(1);
+    }
+}
+
+impl const Iterator for Iter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 != 0 {
+            let position = self.max_bit();
+            self.clear_max();
+            Some(position)
+        } else {
+            None
+        }
+    }
+
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let sz = self.count_ones();
+        (sz, Some(sz))
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        self.count_ones()
+    }
+
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        if self.0 != 0 {
+            Some(self.min_bit())
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        let mut i = 0;
+        while self.0 != 0 && i < n {
+            self.clear_max();
+            i += 1;
+        }
+        self.next()
+    }
+
+    #[inline]
+    fn fold<B, F>(mut self, init: B, mut f: F) -> B
+    where
+        F: [ const ] FnMut(B, Self::Item) -> B + [ const ] Destruct,
+    {
+        let mut accum = init;
+        while self.0 != 0 {
+            accum = f(accum, self.max_bit());
+            self.clear_max();
+        }
+        accum
+    }
+
+    #[inline]
+    fn max(self) -> Option<Self::Item> {
+        self.last()
+    }
+
+    #[inline]
+    fn min(self) -> Option<Self::Item> {
+        if self.0 != 0 {
+            Some(self.max_bit())
+        } else {
+            None
+        }
+    }
+
+    fn is_sorted(self) -> bool {
+        true
     }
 }
 impl ExactSizeIterator for Iter {
-    #[inline]
     fn len(&self) -> usize {
-        self.size_hint().0
+        self.count_ones()
     }
 }
-impl FusedIterator for Iter {}
 
+const _: () = assert!(Attribute::COUNT == Attribute::COUNT);
 
 #[derive(Copy, Clone, Debug, Deref, AsRef)]
 pub struct Meta {
@@ -634,6 +804,14 @@ pub struct Meta {
     pub reset: &'static str,
 }
 impl const Meta {
+    fn from_position(position: usize) -> Self {
+        Attribute::META[position]
+    }
+
+    fn from_attribute(attr: Attribute) -> Self {
+        Self::from_position(attr.0.trailing_zeros() as usize)
+    }
+
     fn attribute(&self) -> Attribute {
         self.attribute
     }
@@ -648,36 +826,6 @@ impl const Meta {
 
     fn reset(&self) -> &'static str {
         self.reset
-    }
-}
-
-pub struct MetaIter {
-    inner: Attribute,
-    index: usize,
-    remaining: usize,
-}
-
-impl const Iterator for MetaIter {
-    type Item = Meta;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.index < Attribute::COUNT {
-            let meta = Attribute::META[self.index];
-            self.index += 1;
-
-            if self.inner.contains(meta.attribute) {
-                self.remaining -= 1;
-                return Some(meta);
-            }
-        }
-
-        None
-    }
-}
-
-impl ExactSizeIterator for MetaIter {
-    fn len(&self) -> usize {
-        self.remaining
     }
 }
 
@@ -700,7 +848,7 @@ mod tests {
     #[test]
     fn empty_attributes() {
         let attrs = Attribute::None;
-        assert_eq!(attrs.bits(), 0);
+        assert_eq!(attrs.into_inner(), 0);
         assert!(attrs.is_empty());
         assert!(!attrs.is_some());
         assert_eq!(attrs.iter_sgr().count(), 0);
@@ -805,7 +953,6 @@ mod tests {
         #[test]
         fn sgr_frame_encircle_overline() {
             let attrs = Attribute::Frame | Attribute::Encircle | Attribute::Overline;
-            dbg!(&attrs.iter().collect::<Vec<_>>());
             let sgr: Vec<&'static str> = attrs.iter_sgr().collect();
             dbg!(&sgr);
             assert!(sgr.contains(&"51")); // Frame

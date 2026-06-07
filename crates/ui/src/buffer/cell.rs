@@ -106,6 +106,20 @@ impl const Cell {
         self.grapheme == Grapheme::CONTINUATION
     }
 
+    /// Number of grid columns the cursor advances after this base cell.
+    ///
+    /// This is the cell's [`width`](Self::width) clamped to at least `1`:
+    /// cleared cells are zero-width but still occupy a single column, so they
+    /// must advance the cursor. This is the single source of truth for the
+    /// "a base cell occupies `max(width, 1)` columns" rule shared by diffing,
+    /// run iteration, and presentation. Continuation cells are not base cells
+    /// and should be skipped via [`is_continuation`](Self::is_continuation)
+    /// rather than advanced over with this.
+    #[inline]
+    pub fn advance(&self) -> usize {
+        (self.width as usize).max(1)
+    }
+
     /// Returns `true` if this cell's grapheme is empty (and would be rendered as a space).
     #[inline]
     pub fn is_space(&self) -> bool {
@@ -323,7 +337,121 @@ impl Cell {
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)
     }
+
+    /// Iterates the base cells of a row slice in column order.
+    ///
+    /// See [`BaseCells`]. Shorthand for `BaseCells::new(cells)`.
+    #[inline]
+    pub fn base_cells(cells: &[Cell]) -> BaseCells<'_> {
+        BaseCells::new(cells)
+    }
+
+    /// Writes a measured grapheme as a base cell at `cells[0]` and fills the
+    /// following `width - 1` cells with continuations, establishing the
+    /// wide-cell invariant in one place. Returns the column span written
+    /// (`max(width, 1)`) — how far the writing cursor advances.
+    ///
+    /// A zero-width grapheme still consumes its base slot (span `1`).
+    /// Continuation fill is clamped to `cells`, so a slice shorter than the
+    /// grapheme's width (a clip at the row edge) truncates instead of panicking.
+    /// The base cell keeps its existing style; callers that style text should
+    /// apply it to `cells[0]` afterwards.
+    pub fn set_grapheme(cells: &mut [Cell], grapheme: &str, width: usize, arena: &mut Arena) -> usize {
+        let span = width.max(1);
+        if let Some((base, rest)) = cells.split_first_mut() {
+            base.set_str_measured(grapheme, width, arena);
+            for cell in rest.iter_mut().take(span - 1) {
+                *cell = Cell::CONTINUATION;
+            }
+        }
+        span
+    }
+
+    /// Index of the last cell in `row` that must be drawn, or `None` if the row
+    /// is entirely blank.
+    ///
+    /// This is the single source of truth for "where does a row's drawable
+    /// content end" — used to trim trailing blanks before an erase-to-end.
+    /// A cleared cell that carries a style (e.g. a background colour) is *not*
+    /// blank and must still be painted, so this tests [`is_empty`](Self::is_empty)
+    /// (glyph *and* style absent), not [`is_space`](Self::is_space).
+    #[inline]
+    pub fn content_end(row: &[Cell]) -> Option<usize> {
+        row.iter().rposition(|cell| !cell.is_empty())
+    }
 }
+
+/// Iterator over the base cells of a row slice, in left-to-right column order.
+///
+/// This is the single source of truth for walking a row's cells: continuation
+/// cells (the trailing positions of a wide grapheme) are skipped because they
+/// are implicitly covered by their base cell, and each base cell advances the
+/// column cursor by [`Cell::advance`] so cleared cells still occupy a column.
+///
+/// Each item is `(column, cell)` where `column` is the cell's starting column
+/// relative to the start of the slice.
+#[derive(Clone, Debug)]
+pub struct BaseCells<'a> {
+    cells: &'a [Cell],
+    idx: usize,
+    col: u16,
+}
+
+impl<'a> BaseCells<'a> {
+    #[inline]
+    pub fn new(cells: &'a [Cell]) -> Self {
+        Self {
+            cells,
+            idx: 0,
+            col: 0,
+        }
+    }
+
+    /// The slice index the iterator will read next.
+    #[inline]
+    pub fn index(&self) -> usize {
+        self.idx
+    }
+
+    /// The column the next yielded cell will start at.
+    #[inline]
+    pub fn column(&self) -> u16 {
+        self.col
+    }
+}
+
+impl<'a> Iterator for BaseCells<'a> {
+    type Item = (u16, &'a Cell);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let cell = self.cells.get(self.idx)?;
+
+            // Continuations are absorbed by their base cell. Empty (cleared)
+            // cells are *not* continuations and must be yielded.
+            if cell.is_continuation() {
+                self.idx += 1;
+                continue;
+            }
+
+            let col = self.col;
+            let advance = cell.advance();
+            self.col += advance as u16;
+            self.idx += advance;
+            return Some((col, cell));
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // The remaining slice could be entirely continuations, so the lower
+        // bound is 0; each base cell consumes at least one slot.
+        (0, Some(self.cells.len().saturating_sub(self.idx)))
+    }
+}
+
+impl std::iter::FusedIterator for BaseCells<'_> {}
+
 impl const Default for Cell {
     fn default() -> Self {
         Self::EMPTY

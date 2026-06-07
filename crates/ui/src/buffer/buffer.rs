@@ -163,15 +163,9 @@ impl Buffer {
                     Some((symbol, width))
                 })
             {
-                slice[i].set_str_measured(grapheme, width, arena);
-
-                let next_symbol = i + width;
-                i += 1;
-                // Reset following cells if multi-width (they would be hidden by the grapheme),
-                while i < next_symbol {
-                    slice[i] = Cell::CONTINUATION;
-                    i += 1;
-                }
+                // Writes the base cell and fills its continuations; advances the
+                // cursor by the grapheme's column span.
+                i += Cell::set_grapheme(&mut slice[i..], grapheme, width, arena);
             }
             Some(i)
         } else {

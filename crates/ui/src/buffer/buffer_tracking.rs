@@ -277,12 +277,12 @@ impl TrackingBuffer {
     }
 
     /// Iterates over marked row indices.
-    pub fn iter_marked(&self) -> impl Iterator<Item = usize> + '_ {
+    pub fn iter_marked(&self) -> impl Iterator<Item=usize> + '_ {
         self.bits.ones()
     }
 
     /// Iterates over unmarked row indices.
-    pub fn iter_unmarked(&self) -> impl Iterator<Item = usize> + '_ {
+    pub fn iter_unmarked(&self) -> impl Iterator<Item=usize> + '_ {
         self.bits.zeroes()
     }
 
@@ -373,7 +373,7 @@ impl TrackingBuffer {
         arena: &mut Arena,
     ) -> Option<usize>
     where
-        I: BufferIndex<Output = [Cell]>,
+        I: BufferIndex<Output=[Cell]>,
     {
         let written = self.inner.set_string(index, string, arena)?;
         self.mark_all();
@@ -434,13 +434,13 @@ impl TrackingBuffer {
     }
 
     /// Appends a row and leaves the new row unmarked.
-    pub fn push_row_unmarked(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row_unmarked(&mut self, row: impl IntoIterator<Item=Cell>) {
         self.inner.push_row(row);
         self.bits.grow(self.inner.height);
     }
 
     /// Appends a row and marks it.
-    pub fn push_row_marked(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row_marked(&mut self, row: impl IntoIterator<Item=Cell>) {
         self.push_row_unmarked(row);
         self.mark(self.height - 1);
     }
@@ -492,7 +492,7 @@ impl TrackingBuffer {
 
     /// Inserts a row and marks rows shifted down.
     /// The inserted row is unmarked.
-    pub fn insert_row(&mut self, idx: usize, row: impl IntoIterator<Item = Cell>) {
+    pub fn insert_row(&mut self, idx: usize, row: impl IntoIterator<Item=Cell>) {
         if idx > self.height {
             return;
         }
@@ -680,7 +680,7 @@ impl TrackingBufferIndex for PositionLike {
     }
 }
 
-impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
+impl<I: BufferIndex<Index=usize>> TrackingBufferIndex for Range<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let start = self.start.into_slice_index(tracking_buffer);
         let end = self.end.into_slice_index(tracking_buffer);
@@ -703,7 +703,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
         Ok(())
     }
 }
-impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeInclusive<I> {
+impl<I: BufferIndex<Index=usize>> TrackingBufferIndex for RangeInclusive<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let start = self.start().clone().into_slice_index(tracking_buffer);
         let end = self.end().clone().into_slice_index(tracking_buffer);
@@ -725,7 +725,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeInclusive<I> {
         Ok(())
     }
 }
-impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeFrom<I> {
+impl<I: BufferIndex<Index=usize>> TrackingBufferIndex for RangeFrom<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let start = self.start.into_slice_index(tracking_buffer);
 
@@ -739,7 +739,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeFrom<I> {
         Ok(())
     }
 }
-impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeTo<I> {
+impl<I: BufferIndex<Index=usize>> TrackingBufferIndex for RangeTo<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let end = self.end.into_slice_index(tracking_buffer);
 
@@ -753,7 +753,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeTo<I> {
         Ok(())
     }
 }
-impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeToInclusive<I> {
+impl<I: BufferIndex<Index=usize>> TrackingBufferIndex for RangeToInclusive<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let end = self.end.into_slice_index(tracking_buffer);
 

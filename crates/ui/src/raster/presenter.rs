@@ -297,7 +297,7 @@ impl<W: Write> Presenter<W> {
         // cell) and EL its tail to drop any leftover content past the last.
         for y in 0..height {
             let row = &next[Row(y)];
-            let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) else {
+            let Some(end) = Cell::content_end(row) else {
                 continue;
             };
             self.move_pen(y as u16, 0)?;
@@ -346,7 +346,7 @@ impl<W: Write> Presenter<W> {
         for y in 0..height {
             self.move_pen(y as u16, 0)?;
             let row = &next[Row(y)];
-            if let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) {
+            if let Some(end) = Cell::content_end(row) {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -368,7 +368,6 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
-        let width = next.width;
         let height = next.height;
 
         if let Some(inline) = self.inline.as_mut() {
@@ -381,7 +380,7 @@ impl<W: Write> Presenter<W> {
                 self.writer.write_all(b"\n")?;
             }
             let row = &next[Row(y)];
-            if let Some(end) = (0..width).rev().find(|&x| !row[x].is_empty()) {
+            if let Some(end) = Cell::content_end(row) {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -396,10 +395,7 @@ impl<W: Write> Presenter<W> {
         // back to the top of the claimed region.
         self.pen.row = (height - 1) as u16;
         let last_row = &next[Row(height - 1)];
-        self.pen.col = (0..width)
-            .rev()
-            .find(|&x| !last_row[x].is_empty())
-            .map_or(0, |end| end as u16 + 1);
+        self.pen.col = Cell::content_end(last_row).map_or(0, |end| end as u16 + 1);
 
         Ok(())
     }
@@ -683,7 +679,7 @@ fn emit_cell<W: Write>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -> 
         pen.col += 1;
     } else {
         w.write_all(bytes)?;
-        pen.col += cell.width().max(1) as u16;
+        pen.col += cell.advance() as u16;
     }
     Ok(())
 }

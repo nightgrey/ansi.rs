@@ -219,7 +219,7 @@ impl Rasterer {
                 }
 
                 let row = &next[Row(y)];
-                let last_content = (0..width).rev().find(|&x| !row[x].is_space());
+                let last_content = Cell::content_end(row);
 
                 if let Some(end) = last_content {
                     for col in 0..=end {
@@ -233,7 +233,7 @@ impl Rasterer {
 
             self.pen.row = (height - 1) as u16;
             let last_row = &next[Row(height - 1)];
-            self.pen.col = match (0..width).rev().find(|&x| !last_row[x].is_space()) {
+            self.pen.col = match Cell::content_end(last_row) {
                 Some(end) => end as u16 + 1,
                 None => 0,
             };
@@ -317,7 +317,7 @@ impl Rasterer {
     ) -> io::Result<()> {
         let diff = |x: usize| match prev {
             Some(prev) => next[x] != prev[x],
-            None => !next[x].is_space(),
+            None => !next[x].is_empty(),
         };
 
         let first = match (0..width).find(|&x| diff(x)) {
@@ -327,7 +327,8 @@ impl Rasterer {
 
         let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
 
-        let last_non_default_cell = (first..=last).rev().find(|&x| !next[x].is_space());
+        let last_non_default_cell =
+            Cell::content_end(&next[first..=last]).map(|offset| first + offset);
 
         match cursor_mode {
             CursorMode::Absolute => cursor.position(y as u16, first as u16, output),

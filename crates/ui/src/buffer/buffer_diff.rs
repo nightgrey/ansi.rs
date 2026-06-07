@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Cell};
+use crate::buffer::{BaseCells, Buffer, Cell};
 use crate::{BitSet, TrackingBuffer};
 use derive_more::{AsRef, Deref};
 use geometry::Point;
@@ -134,10 +134,9 @@ impl<'a> Run<'a> {
     #[inline]
     pub fn iter(&self) -> RunIter<'a> {
         RunIter {
+            inner: Cell::base_cells(self.cells),
             x: self.x,
             y: self.y,
-            cells: self.cells,
-            idx: 0,
         }
     }
 
@@ -168,12 +167,15 @@ impl<'a> IntoIterator for Run<'a> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+/// Yields the base cells of a [`Run`] as [`Change`]s, in column order.
+///
+/// A thin wrapper over [`BaseCells`] that offsets each cell's slice-relative
+/// column by the run's absolute `x`/`y`.
+#[derive(Clone, Debug)]
 pub struct RunIter<'a> {
+    inner: BaseCells<'a>,
     x: u16,
     y: u16,
-    cells: &'a [Cell],
-    idx: usize,
 }
 
 impl<'a> Iterator for RunIter<'a> {
@@ -181,30 +183,17 @@ impl<'a> Iterator for RunIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let cell = self.cells.get(self.idx)?;
-
-            // Skip continuation tails of wide glyphs — the base already redraws
-            // them. Empty cells are *not* continuations: they are cleared cells
-            // and must be yielded so a blank gets emitted over the old glyph.
-            if cell.is_continuation() {
-                self.idx += 1;
-                continue;
-            }
-
-            let w = (cell.width() as u16).max(1);
-            let x = self.x;
-            self.x += w;
-            self.idx += w as usize;
-            return Some(Change { x, y: self.y, cell });
-        }
+        let (col, cell) = self.inner.next()?;
+        Some(Change {
+            x: self.x + col,
+            y: self.y,
+            cell,
+        })
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // The remaining slice could be entirely continuations, so the lower
-        // bound is 0. Each base cell consumes at least 1 slot, giving the
-        // upper bound.
-        (0, Some(self.cells.len().saturating_sub(self.idx)))
+        self.inner.size_hint()
     }
 }
 
@@ -324,7 +313,7 @@ impl<'a> DiffStrategy<'a> for ByCells {
                     continue;
                 }
 
-                state.pos += (current.width() as usize).max(1);
+                state.pos += current.advance();
 
                 if current != &state.prev[i] {
                     let x = (i % state.width) as u16;
@@ -384,7 +373,7 @@ impl<'a> DiffStrategy<'a> for ByDirty {
                     state.x += 1;
                     continue;
                 }
-                state.x += (cell.width() as usize).max(1);
+                state.x += cell.advance();
                 if *cell != state.prev[i] {
                     return Some(Change {
                         x: (i % state.width) as u16,
@@ -440,7 +429,7 @@ impl<'a> DiffStrategy<'a> for ByRuns {
                 continue;
             }
 
-            state.pos += (cell.width() as usize).max(1);
+            state.pos += cell.advance();
             if cell != &state.prev[i] {
                 break i;
             }
@@ -466,7 +455,7 @@ impl<'a> DiffStrategy<'a> for ByRuns {
                 break;
             }
 
-            state.pos += (cell.width() as usize).max(1);
+            state.pos += cell.advance();
         }
 
         // Cap at `row_end` defensively: a malformed buffer with a wide cell

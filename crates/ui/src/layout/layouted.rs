@@ -373,6 +373,11 @@ pub trait Layouted: Sized {
         self
     }
 
+    fn no_border(mut self) -> Self {
+        self.layout().border = Border::None;
+        self
+    }
+
     /// Sets the background color of this element.
     ///
     /// This value cascades to its child elements.

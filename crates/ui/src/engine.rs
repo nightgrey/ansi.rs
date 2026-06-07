@@ -75,7 +75,7 @@ impl<'a> Engine<'a> {
         let back = &mut self.buffer.back;
         let front = &mut self.buffer.front;
         let arena = &mut self.arena;
- 
+
         self.presenter.present(front, back, arena)?;
         self.presenter.flush()?;
         Ok(())

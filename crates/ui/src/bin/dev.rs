@@ -21,7 +21,7 @@ fn main() -> io::Result<()> {
 
     engine.insert(
         Element::Span("Mystical")
-            .margin((1, 1))
+            .margin((4, 4))
             .color(Color::Red)
             .bold(),
     );

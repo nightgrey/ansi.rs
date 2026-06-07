@@ -298,6 +298,9 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         let mut col = position.x;
         let mut n = 0;
 
+        /*
+        ;
+
         for grapheme in UnicodeSegmentation::graphemes(str.as_ref(), true) {
             if grapheme.contains(char::is_control) {
                 continue;
@@ -317,13 +320,7 @@ impl<'a> DrawingContext for BufferPainter<'a> {
                 // the whole grapheme stays within this row.
                 let start = position.y as usize * self.buffer.width + col as usize;
                 let row_end = start + (right - col) as usize;
-                CellsMut(
-                    &mut self.buffer[start..row_end]
-                ).write(
-                    grapheme,
-                    width as usize,
-                    self.arena,
-                );
+
                 self.buffer[start].set_style(style);
                 n += width as usize;
             }
@@ -331,6 +328,8 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         }
 
         n
+        */
+        self.buffer.set_string_styled(position..clip.max, str, style, self.arena).unwrap_or(0)
     }
 
     fn char(&mut self, position: impl Into<Point>, char: char) -> usize {

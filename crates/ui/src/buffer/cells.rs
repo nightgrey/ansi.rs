@@ -1,5 +1,6 @@
 use crate::{Arena, Cell};
 use derive_more::{AsRef, Deref, DerefMut, From, Index, IndexMut, IntoIterator};
+use ansi::Style;
 
 /// A slice of cells
 ///
@@ -73,6 +74,19 @@ impl<'a> CellsMut<'a> {
         let span = width.max(1);
         if let Some((base, rest)) = self.0.split_first_mut() {
             base.set_str_measured(grapheme, width, arena);
+            for cell in rest.iter_mut().take(span - 1) {
+                *cell = Cell::CONTINUATION;
+            }
+        }
+        span
+    }
+
+
+    /// Writes a measured grapheme.
+    pub fn write_styled(&mut self, grapheme: &str, width: usize, style: Style, arena: &mut Arena) -> usize {
+        let span = width.max(1);
+        if let Some((base, rest)) = self.0.split_first_mut() {
+             base.set_str_measured(grapheme, width, arena).set_style(style);
             for cell in rest.iter_mut().take(span - 1) {
                 *cell = Cell::CONTINUATION;
             }

@@ -12,6 +12,7 @@
 #![feature(const_index)]
 #![feature(const_try)]
 #![feature(bound_copied)]
+#![feature(const_clone)]
 extern crate core;
 
 pub mod drawing;

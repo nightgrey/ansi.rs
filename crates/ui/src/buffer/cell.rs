@@ -1,5 +1,5 @@
 use super::{Arena, Grapheme};
-use crate::{Offsetted, Encodeable};
+use crate::{Encodeable, Offsetted};
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
 use std::fmt::{Debug, from_fn};
@@ -28,7 +28,8 @@ const _: () = assert!(core::mem::size_of::<Cell>() == 16);
 /// ```
 ///
 /// For now, `Style` is a mock and the struct may be slightly larger.
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Copy)]
+#[derive_const(Clone, Eq, PartialEq)]
 #[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
@@ -72,18 +73,6 @@ impl const Cell {
         }
     }
 
-    /// Create a cell from a character with the given style.
-    ///
-    /// The character is always stored inline (every Unicode scalar value fits
-    /// in 4 UTF-8 bytes).
-    pub fn inline_measured(encode: impl [ const ] Encodeable, width: usize) -> Self {
-        Self {
-            grapheme: Grapheme::inline(encode),
-            width: width as u8,
-            style: Style::None,
-        }
-    }
-
     #[inline]
     pub fn grapheme(&self) -> Grapheme {
         self.grapheme
@@ -106,7 +95,7 @@ impl const Cell {
     }
 
     /// Returns the number of grid columns the cursor advances.
-    /// 
+    ///
     /// Used for diffing, run iteration and presentation.
     #[inline]
     pub fn advance(&self) -> usize {
@@ -213,6 +202,18 @@ impl const Cell {
 }
 
 impl Cell {
+    /// Create a cell from a character with the given style.
+    ///
+    /// The character is always stored inline (every Unicode scalar value fits
+    /// in 4 UTF-8 bytes).
+    pub fn inline_measured(encode: impl Encodeable, width: usize) -> Self {
+        Self {
+            grapheme: Grapheme::inline(encode),
+            width: width as u8,
+            style: Style::None,
+        }
+    }
+
     /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call
@@ -345,6 +346,7 @@ impl const Default for Cell {
     }
 }
 
+
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_space() && self.style.is_empty() {
@@ -359,7 +361,7 @@ impl Debug for Cell {
         let g = from_fn(|f| match grapheme.or(Some(Grapheme::EMPTY)) {
             Some(grapheme) if grapheme.is_inline() => f.write_str(grapheme.as_inline_str()),
             Some(grapheme) if grapheme.is_extended() => {
-                write!(f, "Offset({:?})", grapheme.offset())
+                write!(f, "Offset")
             }
             Some(grapheme) if grapheme.is_continuation() => f.write_str(".."),
             _ => unreachable!(),

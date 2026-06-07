@@ -1,324 +1,366 @@
+use crate::Grapheme;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use thiserror::Error;
+
 /// An arena for extended grapheme clusters.
 ///
-/// When a grapheme cluster exceeds 4 UTF-8 bytes (e.g., emoji ZWJ sequences),
-/// it's stored here and referenced by a 24-bit offset from the
-/// [`Grapheme`](Grapheme) handle.
+/// When a grapheme cluster exceeds 4 UTF-8 bytes (e.g. emoji ZWJ sequences),
+/// it is stored here and referenced by a 24-bit offset carried in an extended
+/// [`Grapheme`] handle.
 ///
-/// Inspired by notcurses' `egcpool`, this arena is designed for the specific
-/// access pattern of a terminal framebuffer:
+/// Inspired by notcurses' `egcpool`, this arena is tuned for a *damage-based*
+/// terminal framebuffer: cells are overwritten and released individually
+/// between full clears, so reclamation has to actually defragment rather than
+/// merely leak space until the next `clear`.
 ///
-/// - **Append-first allocation**: new entries are appended to the end (amortised
-///   O(1) via doubling growth).
-/// - **Free-list reclamation**: released entries are tracked in a free list,
-///   enabling O(n_free) gap reuse without scanning the entire arena.
-/// - **Bulk clear**: calling [`clear`](Self::clear) resets the entire arena,
-///   invalidating all outstanding grapheme handles. This is the "erase plane"
-///   operation.
+/// ## Allocation strategy
+///
+/// - **Best-fit reuse** of freed regions, then **append** at the high-water
+///   mark, then `Full`.
+/// - **Coalescing** on release: a freed region merges with its immediately
+///   adjacent free neighbours, so repeated churn cannot fragment the arena
+///   into permanently-unusable slivers.
+/// - **Tail truncation**: when a freed (or coalesced) region reaches the end
+///   of the backing buffer, the buffer length shrinks (capacity is retained).
+///   This keeps `len` at the true high-water mark instead of growing forever.
+/// - **Bulk clear** via [`clear`](Self::clear) resets everything — the "erase
+///   plane" operation — invalidating all outstanding handles.
 ///
 /// ## Storage format
 ///
-/// Each entry is stored as a 2-byte little-endian length prefix followed by the
-/// raw UTF-8 bytes. This avoids the fragility of NUL-terminated scanning (where
-/// adjacent released entries could merge) and enables O(1) release.
+/// Each *live* entry is a 2-byte little-endian length prefix followed by the
+/// raw UTF-8 bytes:
 ///
 /// ```text
 /// [len_lo] [len_hi] [utf8 bytes ...]
 /// ```
 ///
-/// The arena is **not** a deduplication interner — each `stash` gets its own
-/// slot. This avoids HashMap overhead and keeps the common path (inline
-/// graphemes that never touch the arena) at zero cost.
-#[derive(Clone)]
+/// The explicit prefix (rather than NUL-termination) gives O(1) release and
+/// keeps adjacent released entries from being mistaken for one. Free regions
+/// store *no* in-band metadata; their bounds live in the two indexes below.
+///
+/// ## Free-region indexes
+///
+/// Two ordered indexes describe the same set of free regions:
+///
+/// - `by_offset: offset -> size` — supports O(log n) neighbour lookup for
+///   coalescing.
+/// - `by_size: (size, offset)` — supports O(log n) best-fit selection.
+///
+/// Free regions are kept disjoint, never adjacent (always coalesced), and
+/// never touching the tail (always truncated). An intrusive free list (links
+/// stored in the freed bytes, à la `malloc`) is deliberately avoided: the
+/// smallest entry is 3 bytes, far too small to hold link pointers.
+///
+/// The arena is **not** a deduplicating interner — each insert gets its own
+/// region. This keeps the common path (inline graphemes that never touch the
+/// arena) at zero cost.
+#[derive(Clone, Default)]
 pub struct Arena {
-    /// Contiguous byte storage. Each entry is a length-prefixed UTF-8 string.
+    /// Contiguous byte storage; `len()` is the high-water mark.
     inner: Vec<u8>,
-
-    /// Bytes actively occupied by stored graphemes (including length prefixes).
+    /// Bytes occupied by *live* entries (including their length prefixes).
     count: usize,
-
-    /// Free list of released regions: `(offset, total_len)` including prefix.
-    /// Sorted by size ascending for best-fit allocation.
-    free: Vec<Slot>,
+    /// Free regions keyed by offset, for coalescing. `offset -> size`.
+    by_offset: BTreeMap<usize, usize>,
+    /// Free regions keyed by `(size, offset)`, for best-fit allocation.
+    by_size: BTreeSet<(usize, usize)>,
 }
 
-/// A released region in the arena available for reuse.
-#[derive(Debug, Clone, Copy)]
-struct Slot {
-    offset: usize,
-    len: usize,
-}
-
-/// Size of the length prefix for each arena entry (2 bytes, little-endian u16).
+/// Size of the length prefix for each entry (2 bytes, little-endian `u16`).
 const PREFIX_SIZE: usize = 2;
 
-/// Minimum allocation size for the arena backing storage.
-/// Avoids repeated tiny allocations for the first few extended graphemes.
+/// Minimum backing-buffer allocation, to avoid a flurry of tiny reallocations
+/// for the first few extended graphemes.
 const MINIMUM_ALLOC: usize = 1024;
 
-/// Maximum string payload that fits in a u16 length prefix.
+/// Maximum string payload addressable by the `u16` length prefix.
 const MAX_ENTRY_LEN: usize = u16::MAX as usize;
 
-impl const Arena {
+impl Arena {
+    /// An empty arena usable in const contexts.
     pub const EMPTY: Self = Self {
-        inner: vec![],
+        inner: Vec::new(),
         count: 0,
-        free: vec![],
+        by_offset: BTreeMap::new(),
+        by_size: BTreeSet::new(),
     };
-    /// Maximum arena size: 16 MiB. This is the addressable range of the
-    /// 24-bit offset stored in an extended [`Grapheme`](crate::Grapheme).
+
+    /// Maximum arena size: 16 MiB − 1, the addressable range of the 24-bit
+    /// offset stored in an extended [`Grapheme`].
     pub const MAX_CAPACITY: usize = (1 << 24) - 1; // 0x00FF_FFFF = 16,777,215
 
     /// Create a new, empty arena.
-    pub fn new() -> Self {
-        Self {
-            inner: Vec::new(),
-            count: 0,
-            free: Vec::new(),
-        }
+    pub const fn new() -> Self {
+        Self::EMPTY
     }
 
-    /// Create a arena with pre-allocated capacity (in bytes).
-    ///
-    /// Capacity is clamped to [`MAX_POOL_SIZE`](Self::MAX_CAPACITY).
+    /// Create an arena with pre-allocated capacity (in bytes), clamped to
+    /// [`MAX_CAPACITY`](Self::MAX_CAPACITY).
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: Vec::with_capacity(capacity.min(Self::MAX_CAPACITY)),
-            count: 0,
-            free: Vec::new(),
+            ..Self::EMPTY
         }
     }
 
-    /// Retrieve a UTF-8 grapheme cluster by offset.
-    pub fn get(&self, offset: impl [ const ] Offsetted) -> &str {
-        let offset = offset.offset();
-        let entry_start = offset + PREFIX_SIZE;
-        let entry_len = self.get_len(offset);
-        let entry_end = entry_start + entry_len;
+    // ── Queries ─────────────────────────────────────────────────────────
 
-        if entry_start > self.inner.len() {
-            panic!("arena offset out of bounds")
-        }
+    /// Resolve an extended [`Grapheme`] to its stored `&str`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the handle does not refer to a live entry in this arena
+    /// (out of bounds, or a freed/`clear`ed slot). In debug builds, also
+    /// asserts the handle is actually extended.
+    pub fn get(&self, grapheme: Grapheme) -> &str {
+        let offset = self.offset_of(grapheme);
 
-        if entry_len == 0 {
-            panic!("string length is zero at given offset");
-        }
+        // Bounds checks run *before* any indexing so a bad handle yields a
+        // clear panic rather than an opaque index-out-of-bounds.
+        let payload_start = offset + PREFIX_SIZE;
+        assert!(payload_start <= self.inner.len(), "arena offset out of bounds");
 
-        if entry_end > self.inner.len() {
-            panic!("arena entry extends past end of arena")
-        }
+        let len = self.entry_len(offset);
+        assert_ne!(len, 0, "resolving a freed or empty arena entry");
 
-        // SAFETY: We only store valid UTF-8 via `stash`, and the debug
-        // assertions above guard against released / corrupt entries.
-        unsafe {
-            std::str::from_utf8_unchecked(
-                self.inner.get_unchecked(entry_start..entry_end).as_ref()
-            )
-        }
+        let payload_end = payload_start + len;
+        assert!(payload_end <= self.inner.len(), "arena entry extends past end");
+
+        // SAFETY: only valid UTF-8 is ever stored (via `try_insert`), and the
+        // bounds above guarantee `payload_start..payload_end` is in range.
+        unsafe { std::str::from_utf8_unchecked(self.inner.get_unchecked(payload_start..payload_end)) }
     }
 
-    /// Read the string length from the 2-byte LE prefix at `offset`.
-    #[inline]
-    pub fn get_len(&self, offset: impl [ const ] Offsetted) -> usize {
-        let offset = offset.offset();
-        u16::from_le_bytes([self.inner[offset], self.inner[offset + 1]]) as usize
-    }
-
-    /// Number of bytes actively used by stored graphemes.
+    /// Bytes occupied by live entries (including length prefixes).
     #[inline]
     pub fn count(&self) -> usize {
         self.count
     }
 
-    /// Total byte capacity currently allocated by the arena's backing storage.
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-
-    /// Total number of bytes in the arena (including freed gaps).
+    /// High-water mark of the backing buffer, in bytes (live + interior free).
     #[inline]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    /// Returns `true` if the arena has no live entries.
+    /// Capacity currently allocated by the backing buffer.
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    /// `true` if no live entries remain.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
-}
 
-impl Arena {
-    /// Inserts a UTF-8 grapheme cluster and returns its offset.
+    /// Interior free bytes available for reuse. With tail-truncation this is
+    /// exactly `len() - count()`.
+    #[inline]
+    pub fn free_bytes(&self) -> usize {
+        self.inner.len() - self.count
+    }
+
+    /// Number of distinct (coalesced) free regions — a fragmentation gauge.
+    #[inline]
+    pub fn free_region_count(&self) -> usize {
+        self.by_offset.len()
+    }
+
+    // ── Mutation ────────────────────────────────────────────────────────
+
+    /// Insert a UTF-8 grapheme cluster, returning an extended [`Grapheme`].
     ///
-    /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
+    /// Called by [`Grapheme::extended`](Grapheme::extended) when a
     /// cluster exceeds 4 bytes.
     pub fn try_insert(&mut self, value: &str) -> Result<Grapheme, GraphemeError> {
         let len = value.len();
         if len > MAX_ENTRY_LEN {
-            return Err(GraphemeError::TooLong {
-                len,
-                max: MAX_ENTRY_LEN,
-            });
+            return Err(GraphemeError::TooLong { len, max: MAX_ENTRY_LEN });
         }
+
         let needed = PREFIX_SIZE + len;
         let offset = self.allocate(needed)?;
 
-        let len_bytes = (len as u16).to_le_bytes();
-
-        let slice = self.inner.as_mut_slice();
-
-        // Write length prefix + payload into the allocated region.
-        // For the gap path, the region is already within `self.arena.len()`.
-        // For the append path, we extended via `extend_from_slice` in `allocate`.
-        slice[offset] = len_bytes[0];
-        slice[offset + 1] = len_bytes[1];
-        slice[offset + PREFIX_SIZE..offset + needed].copy_from_slice(value.as_bytes());
+        let prefix = (len as u16).to_le_bytes();
+        self.inner[offset] = prefix[0];
+        self.inner[offset + 1] = prefix[1];
+        self.inner[offset + PREFIX_SIZE..offset + needed].copy_from_slice(value.as_bytes());
 
         self.count += needed;
-        Ok(Grapheme::offset(offset))
+        Ok(Grapheme::from_offset(offset))
     }
 
-    /// Store a length-prefixed UTF-8 grapheme cluster and return its offset.
+    /// Infallible [`try_insert`](Self::try_insert).
     ///
-    /// This is called by [`Grapheme::encode`](crate::Grapheme::extended) when the
-    /// cluster exceeds 4 bytes.
+    /// # Panics
+    ///
+    /// Panics if the arena is full or the value exceeds the entry-length limit.
     pub fn insert(&mut self, value: &str) -> Grapheme {
         match self.try_insert(value) {
-            Ok(offset) => offset,
-            Err(err) => panic!("failed to insert grapheme"),
+            Ok(grapheme) => grapheme,
+            Err(err) => panic!("failed to insert grapheme: {err}"),
         }
     }
 
-
-    /// Reset the arena entirely, invalidating **all** outstanding grapheme
-    /// handles that reference this arena.
+    /// Release a stored grapheme, coalescing with adjacent free regions and
+    /// truncating the buffer if the result reaches the tail.
     ///
-    /// This is the "erase plane" operation — fast O(1) via `Vec::clear`.
+    /// # Panics
+    ///
+    /// Panics on an out-of-bounds handle or a double-release.
+    pub fn remove(&mut self, grapheme: Grapheme) {
+        let offset = self.offset_of(grapheme);
+
+        let payload_start = offset + PREFIX_SIZE;
+        assert!(payload_start <= self.inner.len(), "releasing out-of-bounds offset");
+
+        let entry_len = self.entry_len(offset);
+        assert_ne!(entry_len, 0, "double-release detected (length prefix is zero)");
+
+        let total = PREFIX_SIZE + entry_len;
+        assert!(offset + total <= self.inner.len(), "releasing entry past end");
+
+        // Poison the prefix so a stale handle to *this* offset reads length 0
+        // and panics, rather than yielding stale content. Best-effort: once a
+        // region is reused, a stale handle into it resolves to the new entry.
+        self.inner[offset] = 0;
+        self.inner[offset + 1] = 0;
+        self.count -= total;
+
+        let mut start = offset;
+        let mut size = total;
+
+        // Coalesce with the immediately-preceding free region, if adjacent.
+        if let Some((&prev_offset, &prev_size)) = self.by_offset.range(..start).next_back() {
+            if prev_offset + prev_size == start {
+                self.free_remove(prev_offset, prev_size);
+                start = prev_offset;
+                size += prev_size;
+            }
+        }
+
+        // Coalesce with the immediately-following free region, if present.
+        if let Some(&next_size) = self.by_offset.get(&(start + size)) {
+            self.free_remove(start + size, next_size);
+            size += next_size;
+        }
+
+        if start + size == self.inner.len() {
+            // Region reaches the tail — shed it. Capacity is retained.
+            self.inner.truncate(start);
+        } else {
+            self.free_insert(start, size);
+        }
+    }
+
+    /// Reset the arena entirely, invalidating **all** outstanding handles that
+    /// reference it. O(1) — the "erase plane" operation.
     pub fn clear(&mut self) {
         self.inner.clear();
-        self.free.clear();
+        self.by_offset.clear();
+        self.by_size.clear();
         self.count = 0;
     }
 
-    /// Remove stored grapheme
-    ///
-    /// Zeroes the entry and adds the region to the free list.
-    pub fn remove(&mut self, offset: impl Offsetted) {
-        let offset = offset.offset();
-        let entry_start = offset + PREFIX_SIZE;
-        let entry_len = self.get_len(offset);
-        let entry_end = entry_start + entry_len;
+    // ── Internals ───────────────────────────────────────────────────────
 
-        if entry_start >= self.inner.len() {
-            panic!("releasing out-of-bounds offset");
-        }
-
-        if entry_len == 0 {
-            panic!("double-release detected (entry_len is 0)");
-        }
-
-        let total = PREFIX_SIZE + entry_len;
-
-        // Zero only the 2-byte length prefix (stash overwrites the payload).
-        self.inner[offset..entry_start].fill(0);
-        self.count = self.count.saturating_sub(total);
-
-        // Insert into the free list, maintaining sort by ascending size
-        // for best-fit allocation.
-        let slot = Slot { offset, len: total };
-        let pos = self.free.partition_point(|s| s.len < total);
-        self.free.insert(pos, slot);
+    /// Resolve a handle to its arena offset, asserting it is extended.
+    #[inline]
+    fn offset_of(&self, grapheme: Grapheme) -> usize {
+        debug_assert!(
+            grapheme.is_extended(),
+            "passed a non-extended grapheme to the arena; its low 24 bits are not an offset"
+        );
+        grapheme.as_offset()
     }
 
+    /// Read the entry length from the 2-byte little-endian prefix at `offset`.
+    #[inline]
+    fn entry_len(&self, offset: usize) -> usize {
+        u16::from_le_bytes([self.inner[offset], self.inner[offset + 1]]) as usize
+    }
 
-    /// Allocate `needed` contiguous bytes in the arena.
-    ///
-    /// 1. **Free-list path**: find the smallest free slot that fits (best-fit).
-    ///    Leftover space is re-inserted into the free list if large enough.
-    /// 2. **Append path**: extend the backing vec with doubling growth.
-    /// 3. **Full**: arena has reached `MAX_POOL_SIZE` with no usable gaps.
-    fn allocate(&mut self, len: usize) -> Result<usize, GraphemeError> {
-        // Path 1: try the free list (best-fit).
-        if let Some(offset) = self.allocate_free(len) {
+    /// Register a free region in both indexes.
+    #[inline]
+    fn free_insert(&mut self, offset: usize, size: usize) {
+        debug_assert!(size > 0);
+        self.by_offset.insert(offset, size);
+        self.by_size.insert((size, offset));
+    }
+
+    /// Remove a free region from both indexes.
+    #[inline]
+    fn free_remove(&mut self, offset: usize, size: usize) {
+        self.by_offset.remove(&offset);
+        self.by_size.remove(&(size, offset));
+    }
+
+    /// Allocate `needed` contiguous bytes: best-fit reuse, else append.
+    fn allocate(&mut self, needed: usize) -> Result<usize, GraphemeError> {
+        // Best-fit: smallest free region with `size >= needed`; ties broken by
+        // lowest offset (address-ordered, friendlier to locality).
+        if let Some(&(size, offset)) = self.by_size.range((needed, 0)..).next() {
+            self.free_remove(offset, size);
+            if size > needed {
+                // Track the remainder — even a sub-prefix sliver — so it can
+                // coalesce later instead of leaking until `clear`.
+                self.free_insert(offset + needed, size - needed);
+            }
             return Ok(offset);
         }
 
-        // Path 2: append to the end.
-        if self.inner.len() + len <= Self::MAX_CAPACITY {
+        // Append at the high-water mark with doubling growth.
+        if self.inner.len() + needed <= Self::MAX_CAPACITY {
             let offset = self.inner.len();
-            self.ensure(offset + len);
-            // Extend with zeros; stash will overwrite immediately.
-            self.inner.resize(offset + len, 0);
+            self.grow_to(offset + needed);
+            // `resize` zero-fills; `try_insert` overwrites the whole region.
+            self.inner.resize(offset + needed, 0);
             return Ok(offset);
         }
 
-        // Path 3: no room.
         Err(GraphemeError::Full)
     }
 
-    /// Search the free list for the smallest slot >= `needed` bytes.
-    ///
-    /// Because the free list is sorted by size, the first match is best-fit.
-    /// If the slot is significantly larger, the remainder is re-inserted.
-    fn allocate_free(&mut self, needed: usize) -> Option<usize> {
-        // Binary search for the first slot with len >= needed.
-        let idx = self.free.partition_point(|s| s.len < needed);
-        if idx >= self.free.len() {
-            return None;
-        }
-
-        let slot = self.free.remove(idx);
-        let leftover = slot.len - needed;
-
-        // If the leftover is large enough to hold at least a minimal entry
-        // (PREFIX_SIZE + 1 byte), re-insert it as a new free slot.
-        if leftover > PREFIX_SIZE {
-            let remainder = Slot {
-                offset: slot.offset + needed,
-                len: leftover,
-            };
-            let pos = self.free.partition_point(|s| s.len < leftover);
-            self.free.insert(pos, remainder);
-        }
-
-        Some(slot.offset)
-    }
-
-    /// Ensure the backing vec has capacity for at least `min_capacity` bytes,
-    /// using a doubling growth strategy clamped to `MAX_POOL_SIZE`.
-    fn ensure(&mut self, min_capacity: usize) {
-        if self.inner.capacity() >= min_capacity {
+    /// Ensure the backing buffer can hold `min_len` bytes without reallocating
+    /// on the subsequent `resize`, using doubling growth clamped to capacity.
+    fn grow_to(&mut self, min_len: usize) {
+        if self.inner.capacity() >= min_len {
             return;
         }
-
-        // Double current capacity, but at least MINIMUM_ALLOC, at most MAX_POOL_SIZE.
         let target = (self.inner.capacity() * 2)
             .max(MINIMUM_ALLOC)
-            .max(min_capacity)
+            .max(min_len)
             .min(Self::MAX_CAPACITY);
-
         self.inner.reserve(target - self.inner.len());
     }
 }
 
-impl Default for Arena {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Debug for Arena {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GraphemePool")
+impl fmt::Debug for Arena {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Arena")
             .field("len", &self.inner.len())
-            .field("used", &self.count)
+            .field("live", &self.count)
+            .field("free", &self.free_bytes())
+            .field("free_regions", &self.by_offset.len())
             .field("capacity", &self.inner.capacity())
-            .field("free_slots", &self.free.len())
             .finish()
     }
 }
 
+// ── Offset abstraction ──────────────────────────────────────────────────────
+
+/// Types convertible to a 24-bit arena offset.
+///
+/// Kept as a `const` trait so the existing
+/// [`Grapheme::offset`](crate::Grapheme::offset) constructor's `[const]` bound
+/// keeps resolving. Note: the blanket impls for `Grapheme`/`&Grapheme` were
+/// removed deliberately — they let an *inline* grapheme be passed where an
+/// offset was expected, silently reinterpreting UTF-8 bytes as an offset.
+/// The arena now takes `Grapheme` directly and gates on `is_extended`.
 pub const trait Offsetted {
     fn offset(self) -> usize;
 }
@@ -330,55 +372,39 @@ impl const Offsetted for usize {
     }
 }
 
-impl const Offsetted for Grapheme {
-    #[inline]
-    fn offset(self) -> usize {
-        Grapheme::as_offset(&self)
-    }
-}
+// ── Errors ──────────────────────────────────────────────────────────────────
 
-impl const Offsetted for &Grapheme {
-    #[inline]
-    fn offset(self) -> usize {
-        Grapheme::as_offset(self)
-    }
-}
-
-impl const Offsetted for &mut Grapheme {
-    #[inline]
-    fn offset(self) -> usize {
-        Grapheme::as_offset(self)
-    }
-}
-
-use packed_struct::prelude::bits::ByteArray;
-// ── GraphemePoolError ───────────────────────────────────────────────────────
-use crate::Grapheme;
-use thiserror::Error;
-
-#[derive_const(Error)]
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum GraphemeError {
-    /// The arena has reached its 16 MiB limit with no reclaimable gaps.
+    /// The arena reached its 16 MiB limit with no reclaimable space.
     #[error("grapheme arena is full (16 MiB limit reached)")]
     Full,
 
-    /// The given string exceeds the maximum length encodable.
-    #[error("length {len} exceeds maximum ({max} bytes)")]
+    /// The string exceeds the maximum entry length encodable in the prefix.
+    #[error("grapheme of {len} bytes exceeds the maximum entry length ({max} bytes)")]
     TooLong { len: usize, max: usize },
 
-    /// The given string requires an arena to encode.
-    #[error("length {len} exceeds maximum ({max} bytes)")]
+    /// The string is too long to inline and requires an arena to encode.
+    #[error("grapheme of {len} bytes needs an arena (inline holds at most {max} bytes)")]
     ArenaRequired { len: usize, max: usize },
-
-    /// An unexpected error occurred.
-    #[error("unknown error")]
-    Unknown,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Cross-check the two free indexes and the `free_bytes == len - count`
+    /// invariant after an operation.
+    fn check_invariants(arena: &Arena) {
+        assert_eq!(arena.by_offset.len(), arena.by_size.len());
+        let mut sum = 0;
+        for (&offset, &size) in &arena.by_offset {
+            assert!(arena.by_size.contains(&(size, offset)));
+            assert!(offset + size < arena.inner.len(), "free region must not touch the tail");
+            sum += size;
+        }
+        assert_eq!(sum, arena.free_bytes());
+    }
 
     #[test]
     fn new_arena_is_empty() {
@@ -389,95 +415,152 @@ mod tests {
     }
 
     #[test]
-    fn stash_and_resolve() {
+    fn insert_and_resolve() {
         let mut arena = Arena::new();
         let s = "hello, 世界!";
-
-        let offset = arena.try_insert(s).unwrap();
-        assert_eq!(arena.get(offset), s);
+        let g = arena.try_insert(s).unwrap();
+        assert_eq!(arena.get(g), s);
         assert_eq!(arena.count(), PREFIX_SIZE + s.len());
+        check_invariants(&arena);
     }
 
     #[test]
-    fn stash_multiple() {
+    fn insert_multiple() {
         let mut arena = Arena::new();
-        let entries = [
-            "alpha",
-            "bravo",
-            "charlie",
-            "👨\u{200D}👩\u{200D}👧\u{200D}👦",
-        ];
-
-        let offsets: Vec<_> = entries
-            .iter()
-            .map(|s| arena.try_insert(s).unwrap())
-            .collect();
-
-        for (offset, expected) in offsets.iter().zip(entries.iter()) {
-            assert_eq!(arena.get(*offset), *expected);
+        let entries = ["alpha", "bravo", "charlie", "👨\u{200D}👩\u{200D}👧\u{200D}👦"];
+        let handles: Vec<_> = entries.iter().map(|s| arena.insert(s)).collect();
+        for (h, expected) in handles.iter().zip(entries.iter()) {
+            assert_eq!(arena.get(*h), *expected);
         }
+        check_invariants(&arena);
     }
 
     #[test]
-    fn release_and_reuse_via_free_list() {
+    fn reuse_interior_slot() {
         let mut arena = Arena::new();
-
-        let s1 = "hello!"; // 6 bytes + 2 prefix = 8
-        let s2 = "world!"; // 6 bytes + 2 prefix = 8
-        let offset1 = arena.try_insert(s1).unwrap();
-        let _offset2 = arena.try_insert(s2).unwrap();
-
+        let g1 = arena.try_insert("hello!").unwrap(); // [0,8)
+        let _g2 = arena.try_insert("world!").unwrap(); // [8,16) — holds the tail
         let len_before = arena.len();
 
-        // Release s1, creating a free slot.
-        arena.remove(offset1);
-        assert_eq!(arena.len(), len_before); // arena hasn't shrunk
+        arena.remove(g1); // interior free (0,8)
+        assert_eq!(arena.len(), len_before, "interior remove does not shrink len");
 
-        // Stash something that fits in the freed slot.
-        let s3 = "reuse!"; // same size — should land at offset1
-        let offset3 = arena.try_insert(s3).unwrap();
-        assert_eq!(offset3, offset1);
-        assert_eq!(arena.get(offset3), s3);
-
-        // Pool length should not have grown.
-        assert_eq!(arena.len(), len_before);
+        let g3 = arena.try_insert("reuse!").unwrap(); // best-fit -> offset 0
+        assert_eq!(g3.as_offset(), g1.as_offset());
+        assert_eq!(arena.len(), len_before, "reuse did not grow the arena");
+        assert_eq!(arena.get(g3), "reuse!");
+        check_invariants(&arena);
     }
 
     #[test]
-    fn free_list_best_fit() {
+    fn tail_remove_truncates() {
         let mut arena = Arena::new();
+        let g1 = arena.try_insert("aaaaaa").unwrap(); // [0,8)
+        let g2 = arena.try_insert("bbbbbb").unwrap(); // [8,16)
+        assert_eq!(arena.len(), 16);
 
-        // Create slots of varying sizes.
-        let small = arena.try_insert("ab").unwrap(); // 4 total
-        let _medium_offset = arena.try_insert("medium").unwrap(); // 8 total
-        let large = arena.try_insert("a]larger-entry").unwrap(); // 16 total
+        arena.remove(g2);
+        assert_eq!(arena.len(), 8, "tail release shrinks len");
+        arena.remove(g1);
+        assert_eq!(arena.len(), 0);
+        assert!(arena.is_empty());
+        check_invariants(&arena);
+    }
 
-        // Release small and large, keeping medium alive.
-        arena.remove(small);
-        arena.remove(large);
+    #[test]
+    fn coalesce_enables_large_alloc() {
+        // Two adjacent 8-byte gaps must merge to fit a 16-byte entry without
+        // growing the buffer. (A non-coalescing allocator would append.)
+        let mut arena = Arena::new();
+        let ga = arena.try_insert("aaaaaa").unwrap(); // [0,8)
+        let gb = arena.try_insert("bbbbbb").unwrap(); // [8,16)
+        let _gc = arena.try_insert("cccccc").unwrap(); // [16,24) tail guard
+        let len_before = arena.len();
 
-        // A 4-byte request should pick the small slot (best-fit).
-        let s = "xy"; // 2 + 2 = 4 total
-        let offset = arena.try_insert(s).unwrap();
-        assert_eq!(offset, small);
+        arena.remove(ga);
+        arena.remove(gb); // coalesces -> single free region (0,16)
+        assert_eq!(arena.free_bytes(), 16);
+
+        let big = "DDDDDDDDDDDDDD"; // 14 + 2 = 16 total
+        let gd = arena.try_insert(big).unwrap();
+        assert_eq!(gd.as_offset(), ga.as_offset());
+        assert_eq!(arena.len(), len_before, "coalesced gap absorbed the entry");
+        assert_eq!(arena.get(gd), big);
+        check_invariants(&arena);
+    }
+
+    #[test]
+    fn best_fit_picks_smallest() {
+        let mut arena = Arena::new();
+        let small = arena.try_insert("ab").unwrap(); // [0,4)
+        let _med = arena.try_insert("medium").unwrap(); // [4,12)
+        let big = arena.try_insert("bigger-entry!!").unwrap(); // 14+2 -> [12,28)
+        let _guard = arena.try_insert("g").unwrap(); // [28,31) tail guard
+
+        arena.remove(small); // free (0,4)
+        arena.remove(big); // free (12,16)
+
+        let g = arena.try_insert("xy").unwrap(); // needs 4 -> best-fit (0,4)
+        assert_eq!(g.as_offset(), small.as_offset());
+        check_invariants(&arena);
+    }
+
+    #[test]
+    fn sub_prefix_sliver_is_not_leaked() {
+        // A 2-byte remainder (< PREFIX_SIZE+1, so never independently usable)
+        // must stay trackable and coalesce later, not vanish.
+        let mut arena = Arena::new();
+        let ge = arena.try_insert("EEEEEE").unwrap(); // [0,8)
+        let gg = arena.try_insert("g").unwrap(); // [8,11) guard
+        arena.remove(ge); // free (0,8)
+
+        let gf = arena.try_insert("FFFF").unwrap(); // 4+2=6 -> offset 0, sliver (6,2)
+        assert_eq!(gf.as_offset(), ge.as_offset());
+        assert_eq!(arena.free_bytes(), 2, "sliver tracked, not dropped");
+
+        // Releasing the guard coalesces with the sliver and truncates the tail
+        // down to the end of F (6). If the sliver had leaked, len would be 8.
+        arena.remove(gg);
+        assert_eq!(arena.len(), 6);
+        assert_eq!(arena.free_bytes(), 0);
+        check_invariants(&arena);
+    }
+
+    #[test]
+    fn churn_returns_to_high_water_mark() {
+        let mut arena = Arena::new();
+        let mut handles = Vec::new();
+        for i in 0..200 {
+            handles.push(arena.insert(&format!("entry-{i:04}-padding")));
+        }
+        let peak = arena.len();
+
+        for h in handles.drain(..) {
+            arena.remove(h);
+        }
+        assert_eq!(arena.len(), 0, "full drain truncates to nothing");
+
+        for i in 0..200 {
+            arena.insert(&format!("entry-{i:04}-padding"));
+        }
+        assert_eq!(arena.len(), peak, "no unbounded growth across churn");
+        check_invariants(&arena);
     }
 
     #[test]
     fn clear_resets_everything() {
         let mut arena = Arena::new();
-        arena.try_insert("some text here").unwrap();
-        arena.try_insert("more text").unwrap();
-
-        // Release one to populate the free list.
-        let off = arena.try_insert("temp").unwrap();
-        arena.remove(off);
-
-        assert!(!arena.is_empty());
+        arena.insert("some text here");
+        arena.insert("more text");
+        let temp = arena.insert("temp");
+        arena.remove(temp);
 
         arena.clear();
         assert!(arena.is_empty());
         assert_eq!(arena.len(), 0);
         assert_eq!(arena.count(), 0);
+        assert_eq!(arena.free_bytes(), 0);
+        check_invariants(&arena);
     }
 
     #[test]
@@ -488,116 +571,9 @@ mod tests {
     }
 
     #[test]
-    fn release_is_exact() {
+    fn too_long_is_rejected() {
         let mut arena = Arena::new();
-
-        let s1 = "alpha-entry";
-        let s2 = "bravo-entry";
-
-        let off1 = arena.try_insert(s1).unwrap();
-        let off2 = arena.try_insert(s2).unwrap();
-
-        let total_used = arena.count();
-        let s1_cost = PREFIX_SIZE + s1.len();
-        let s2_cost = PREFIX_SIZE + s2.len();
-        assert_eq!(total_used, s1_cost + s2_cost);
-
-        // Releasing s1 should subtract exactly its cost.
-        arena.remove(off1);
-        assert_eq!(arena.count(), s2_cost);
-
-        // s2 should still be intact.
-        assert_eq!(arena.get(off2), s2);
-
-        // Releasing s2 should bring us to zero.
-        arena.remove(off2);
-        assert_eq!(arena.count(), 0);
-    }
-
-    #[test]
-    fn free_list_splits_large_slots() {
-        let mut arena = Arena::new();
-
-        // Stash a large entry, then release it.
-        let big = "a]]relatively-large-entry-here!"; // 30 bytes + 2 = 32 total
-        let big_offset = arena.try_insert(big).unwrap();
-        arena.remove(big_offset);
-
-        // Stash something much smaller — should reuse the slot and split.
-        let small = "hi"; // 2 + 2 = 4 total
-        let small_offset = arena.try_insert(small).unwrap();
-        assert_eq!(small_offset, big_offset);
-
-        // The remainder (32 - 4 = 28 bytes) should be on the free list.
-        assert_eq!(arena.free.len(), 1);
-        assert_eq!(
-            arena.free[0].len,
-            PREFIX_SIZE + big.len() - (PREFIX_SIZE + small.len())
-        );
-    }
-
-    #[test]
-    fn doubling_growth_strategy() {
-        let mut arena = Arena::new();
-
-        // First allocation should jump to at least MINIMUM_ALLOC.
-        arena.try_insert("hello").unwrap();
-        assert!(
-            arena.capacity() >= MINIMUM_ALLOC,
-            "expected capacity >= {MINIMUM_ALLOC}, got {}",
-            arena.capacity()
-        );
-
-        // Subsequent allocations shouldn't cause capacity to grow linearly.
-        let cap_after_first = arena.capacity();
-        for i in 0..10 {
-            arena
-                .try_insert(&format!("entry-{i:04}-some-padding"))
-                .unwrap();
-        }
-        assert!(arena.capacity() <= cap_after_first * 4);
-    }
-
-    #[test]
-    fn string_too_long_is_rejected() {
-        let mut arena = Arena::new();
-
-        // A string just at the limit should succeed.
-        // (We can't easily create a 65535-byte string in a test, so test the
-        // error path with a mock check.)
         let long = "x".repeat(MAX_ENTRY_LEN + 1);
-        let result = arena.try_insert(&long);
-        assert!(matches!(result, Err(GraphemeError::TooLong { .. })));
-    }
-
-    #[test]
-    fn gap_reclamation_under_pressure() {
-        let mut arena = Arena::new();
-
-        let mut offsets = Vec::new();
-        for i in 0..100 {
-            let s = format!("entry-{i:04}-padding-to-be-longer");
-            offsets.push(arena.try_insert(&s).unwrap());
-        }
-
-        let len_when_full = arena.len();
-
-        // Release every other entry.
-        for i in (0..100).step_by(2) {
-            arena.remove(offsets[i]);
-        }
-
-        // Pool length unchanged but used is roughly halved.
-        assert_eq!(arena.len(), len_when_full);
-        assert!(arena.count() < len_when_full);
-
-        // Re-stashing entries of the same size should reuse freed slots.
-        let arena_len_before = arena.len();
-        for i in (0..100).step_by(2) {
-            let s = format!("entry-{i:04}-padding-to-be-longer");
-            arena.try_insert(&s).unwrap();
-        }
-        // Pool should not have grown — everything went into gaps.
-        assert_eq!(arena.len(), arena_len_before);
+        assert!(matches!(arena.try_insert(&long), Err(GraphemeError::TooLong { .. })));
     }
 }

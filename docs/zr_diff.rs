@@ -2,6 +2,8 @@
 //!
 //! Emits minimal VT output by diffing previous/next framebuffers while
 //! preserving grapheme/style correctness and deterministic terminal state.
+//!
+//! FNV-1a 64-bit row fingerprinting for damage detection.
 
 use core::ptr;
 use core::mem;
@@ -111,10 +113,6 @@ const ZR_SCROLL_MIN_DIRTY_LINES: u32 = 4;
 const ZR_DIFF_DIRTY_ROW_COUNT_UNKNOWN: u32 = 0xFFFFFFFF;
 const ZR_DIFF_RECT_INDEX_NONE: u32 = 0xFFFFFFFF;
 const ZR_DIFF_BASELINE_SPACE: u8 = b' ';
-
-// FNV-1a 64-bit row fingerprint constants.
-const ZR_FNV64_OFFSET_BASIS: u64 = 14695981039346656037;
-const ZR_FNV64_PRIME: u64 = 1099511628211;
 
 // --- Helper structs and functions ---
 
@@ -342,6 +340,10 @@ fn zr_row_links_targets_eq(a: &ZrFb, ay: u32, b: &ZrFb, by: u32) -> bool {
 }
 
 fn zr_hash_bytes_fnv1a64(bytes: &[u8]) -> u64 {
+    // FNV-1a 64-bit row fingerprint constants.
+    const ZR_FNV64_OFFSET_BASIS: u64 = 14695981039346656037;
+    const ZR_FNV64_PRIME: u64 = 1099511628211;
+
     let mut h = ZR_FNV64_OFFSET_BASIS;
     for &b in bytes {
         h ^= b as u64;

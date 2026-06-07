@@ -314,7 +314,6 @@ impl TrackingBuffer {
         }
 
         self.inner.resize(next_width, next_height);
-
     }
 
     /// Writes `string` starting at `start` and marks `start.y`.

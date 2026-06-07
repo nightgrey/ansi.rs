@@ -326,14 +326,18 @@ impl<'a> DrawingContext for BufferDrawingContext<'a> {
             }
 
             if col >= left {
-                self.buffer[pos!(position.y, col)]
-                    .set_str_measured(grapheme, width as usize, self.arena)
-                    .set_style(style);
-
-                // Clear continuation cells for wide characters.
-                for dx in 1..width {
-                    self.buffer[pos!(position.y, col + dx)] = Cell::CONTINUATION;
-                }
+                // Write the base cell and its continuations in one place, then
+                // style the base. The clip guarantees `col + width <= right`, so
+                // the whole grapheme stays within this row.
+                let start = position.y as usize * self.buffer.width + col as usize;
+                let row_end = start + (right - col) as usize;
+                Cell::set_grapheme(
+                    &mut self.buffer[start..row_end],
+                    grapheme,
+                    width as usize,
+                    self.arena,
+                );
+                self.buffer[start].set_style(style);
                 n += width as usize;
             }
             col += width;

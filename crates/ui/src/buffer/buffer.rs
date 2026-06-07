@@ -6,6 +6,7 @@ use geometry::Resolve;
 use geometry::{Bound, Intersect, Point, Rect};
 use std::fmt::Debug;
 use std::iter::StepBy;
+use std::ops::Range;
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
@@ -206,34 +207,44 @@ impl Buffer {
 
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
-    pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.insert_line_area(y, n, cell, self.bounds());
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) -> Range<usize> {
+        self.insert_line_area(y, n, cell, self.bounds())
     }
 
     /// Delete `n` lines at row `y`, shifting remaining lines up (ANSI DL).
     /// Operates on the full buffer width.
-    pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.delete_line_area(y, n, cell, self.bounds());
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) -> Range<usize> {
+        self.delete_line_area(y, n, cell, self.bounds())
     }
 
     /// Insert `n` cells at `(x, y)`, shifting cells right (ANSI ICH).
     /// Operates on the full buffer width.
-    pub fn insert_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
-        self.insert_cell_area(row, col, n, cell, self.bounds());
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn insert_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) -> Range<usize> {
+        self.insert_cell_area(row, col, n, cell, self.bounds())
     }
 
     /// Delete `n` cells at `(x, y)`, shifting cells left (ANSI DCH).
     /// Operates on the full buffer width.
-    pub fn delete_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
-        self.delete_cell_area(row, col, n, cell, self.bounds());
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn delete_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) -> Range<usize> {
+        self.delete_cell_area(row, col, n, cell, self.bounds())
     }
 
     /// Insert `n` lines at row `y` within specific bounds.
     /// Lines at `y` and below are shifted down; lines pushed beyond `bounds.max.y` are lost.
     /// New lines are filled with `cell`.
-    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) -> Range<usize> {
         if n == 0 {
-            return;
+            return 0..0;
         }
 
         // Clip to buffer bounds and ensure y is within bounds
@@ -246,7 +257,7 @@ impl Buffer {
         let width = bounds.width() as usize;
 
         if width == 0 || y >= max_y {
-            return;
+            return 0..0;
         }
 
         // Move lines down (backwards to prevent overwriting)
@@ -262,13 +273,19 @@ impl Buffer {
             let start = row * self.width() + min_x;
             self[start..start + width].fill(cell);
         }
+
+        // Every row from the insertion point to the bottom of the region was
+        // either shifted down or filled.
+        y..max_y
     }
 
     /// Delete `n` lines at row `y` within specific bounds.
     /// Lines below shift up; new blank lines appear at bottom of bounds.
-    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) -> Range<usize> {
         if n == 0 {
-            return;
+            return 0..0;
         }
         let bounds = self.clip(&bounds);
         let min_x = bounds.min.x as usize;
@@ -279,7 +296,7 @@ impl Buffer {
         let width = bounds.width() as usize;
 
         if width == 0 || y >= max_y {
-            return;
+            return 0..0;
         }
 
         let row_stride = self.width();
@@ -297,13 +314,26 @@ impl Buffer {
             let start = row * row_stride + min_x;
             self[start..start + width].fill(cell);
         }
+
+        // Every row from the deletion point to the bottom of the region was
+        // either shifted up or cleared.
+        y..max_y
     }
 
     /// Insert `n` cells at `(x, y)` within specific bounds (ANSI ICH).
     /// Cells shift right; cells pushed beyond right margin are lost.
-    pub fn insert_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: Rect) {
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn insert_cell_area(
+        &mut self,
+        row: usize,
+        col: usize,
+        n: usize,
+        cell: Cell,
+        bounds: Rect,
+    ) -> Range<usize> {
         if n == 0 {
-            return;
+            return 0..0;
         }
 
         let bounds = self.clip(&bounds);
@@ -314,14 +344,14 @@ impl Buffer {
 
         // Validate y is within vertical bounds
         if row < min_y || row >= max_y {
-            return;
+            return 0..0;
         }
 
         let x = col.clamp(min_x, max_x);
         let n = n.min(max_x - x);
 
         if n == 0 {
-            return;
+            return 0..0;
         }
 
         let row_offset = row * self.width();
@@ -338,13 +368,24 @@ impl Buffer {
         let fill_start = row_offset + x;
         let fill_end = fill_start + n;
         self[fill_start..fill_end].fill(cell);
+
+        row..row + 1
     }
 
     /// Delete `n` cells at `(x, y)` within specific bounds (ANSI DCH).
     /// Cells shift left; new blank cells appear at right margin.
-    pub fn delete_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: Rect) {
+    ///
+    /// Returns the range of rows whose contents changed (empty if none did).
+    pub fn delete_cell_area(
+        &mut self,
+        row: usize,
+        col: usize,
+        n: usize,
+        cell: Cell,
+        bounds: Rect,
+    ) -> Range<usize> {
         if n == 0 {
-            return;
+            return 0..0;
         }
 
         let bounds = self.clip(&bounds);
@@ -354,14 +395,14 @@ impl Buffer {
         let max_y = bounds.max.y as usize;
 
         if row < min_y || row >= max_y {
-            return;
+            return 0..0;
         }
 
         let x = col.clamp(min_x, max_x);
         let n = n.min(max_x - x);
 
         if n == 0 {
-            return;
+            return 0..0;
         }
 
         let fill_cell = cell;
@@ -379,6 +420,8 @@ impl Buffer {
         let clear_start = row_offset + max_x - n;
         let clear_end = row_offset + max_x;
         self[clear_start..clear_end].fill(fill_cell);
+
+        row..row + 1
     }
 
     // Row operations

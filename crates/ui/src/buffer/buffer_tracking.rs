@@ -380,57 +380,58 @@ impl TrackingBuffer {
         Some(written)
     }
 
-    /// Inserts `n` rows at `y` and marks rows from `y` to the bottom.
+    /// Inserts `n` rows at `y` and marks exactly the rows the buffer changed.
     pub fn insert_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.inner.insert_line(y, n, cell);
-        self.mark(y..);
+        let changed = self.inner.insert_line(y, n, cell);
+        self.mark(changed);
     }
 
-    /// Deletes `n` rows at `y` and marks rows from `y` to the bottom.
+    /// Deletes `n` rows at `y` and marks exactly the rows the buffer changed.
     pub fn delete_line(&mut self, y: usize, n: usize, cell: Cell) {
-        self.inner.delete_line(y, n, cell);
-        self.mark(y..);
+        let changed = self.inner.delete_line(y, n, cell);
+        self.mark(changed);
     }
 
-    /// Inserts `n` cells into `row` at `col` and marks `row`.
+    /// Inserts `n` cells into `row` at `col` and marks exactly the rows the
+    /// buffer changed.
     pub fn insert_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
-        self.inner.insert_cell(row, col, n, cell);
-
-        if n > self.width {
-            self.mark(row..row + n / self.width);
-        } else {
-            self.mark(row);
-        }
+        let changed = self.inner.insert_cell(row, col, n, cell);
+        self.mark(changed);
     }
 
-    /// Deletes `n` cells from `row` at `col` and marks `row`.
+    /// Deletes `n` cells from `row` at `col` and marks exactly the rows the
+    /// buffer changed.
     pub fn delete_cell(&mut self, row: usize, col: usize, n: usize, cell: Cell) {
-        self.inner.delete_cell(row, col, n, cell);
-        self.mark(row);
+        let changed = self.inner.delete_cell(row, col, n, cell);
+        self.mark(changed);
     }
 
-    /// Inserts `n` rows within `bounds` and marks rows inside `bounds`.
+    /// Inserts `n` rows within `bounds` and marks exactly the rows the buffer
+    /// changed.
     pub fn insert_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
-        self.inner.insert_line_area(y, n, cell, bounds);
-        self.mark(bounds.min.y as usize..bounds.max.y as usize);
+        let changed = self.inner.insert_line_area(y, n, cell, bounds);
+        self.mark(changed);
     }
 
-    /// Deletes `n` rows within `bounds` and marks rows inside `bounds`.
+    /// Deletes `n` rows within `bounds` and marks exactly the rows the buffer
+    /// changed.
     pub fn delete_line_area(&mut self, y: usize, n: usize, cell: Cell, bounds: Rect) {
-        self.inner.delete_line_area(y, n, cell, bounds);
-        self.mark(bounds.min.y as usize..bounds.max.y as usize);
+        let changed = self.inner.delete_line_area(y, n, cell, bounds);
+        self.mark(changed);
     }
 
-    /// Inserts `n` cells within `bounds` and marks `row`.
+    /// Inserts `n` cells within `bounds` and marks exactly the rows the buffer
+    /// changed.
     pub fn insert_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: Rect) {
-        self.inner.insert_cell_area(row, col, n, cell, bounds);
-        self.mark(row);
+        let changed = self.inner.insert_cell_area(row, col, n, cell, bounds);
+        self.mark(changed);
     }
 
-    /// Deletes `n` cells within `bounds` and marks `row`.
+    /// Deletes `n` cells within `bounds` and marks exactly the rows the buffer
+    /// changed.
     pub fn delete_cell_area(&mut self, row: usize, col: usize, n: usize, cell: Cell, bounds: Rect) {
-        self.inner.delete_cell_area(row, col, n, cell, bounds);
-        self.mark(row);
+        let changed = self.inner.delete_cell_area(row, col, n, cell, bounds);
+        self.mark(changed);
     }
 
     /// Appends a row and leaves the new row unmarked.
@@ -927,6 +928,19 @@ mod tests {
         let mut t = TrackingBuffer::new(4, 3);
         t.unmark_all();
         t.insert_cell(1, 0, 1, Cell::EMPTY);
+        assert!(!t.is_marked(0));
+        assert!(t.is_marked(1));
+        assert!(!t.is_marked(2));
+    }
+
+    #[test]
+    fn insert_cell_with_large_n_still_marks_only_its_row() {
+        // Regression: the old heuristic marked `row..row + n / width` for
+        // `n > width`, over-marking rows the buffer never touched. `insert_cell`
+        // clamps `n` to the row's width, so only `row` ever changes.
+        let mut t = TrackingBuffer::new(4, 3);
+        t.unmark_all();
+        t.insert_cell(1, 0, 99, Cell::EMPTY);
         assert!(!t.is_marked(0));
         assert!(t.is_marked(1));
         assert!(!t.is_marked(2));

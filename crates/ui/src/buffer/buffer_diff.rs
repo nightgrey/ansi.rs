@@ -1,5 +1,5 @@
 use crate::buffer::{BaseCells, Buffer, Cell};
-use crate::{BitSet, TrackingBuffer};
+use crate::{Map, TrackingBuffer};
 use derive_more::{AsRef, Deref};
 use geometry::Point;
 use std::iter::FusedIterator;
@@ -243,7 +243,7 @@ impl<'a> BaseDiffState<'a> {
 pub struct DirtyDiffState<'a> {
     prev: &'a [Cell],
     next: &'a [Cell],
-    bits: &'a BitSet,
+    bits: &'a Map,
     height: usize,
     width: usize,
     y: usize,
@@ -252,7 +252,7 @@ pub struct DirtyDiffState<'a> {
 
 impl<'a> DirtyDiffState<'a> {
     pub fn is_marked(&self, y: usize) -> bool {
-        self.bits.contains(y)
+        self.bits.contains(y as u64)
     }
 }
 

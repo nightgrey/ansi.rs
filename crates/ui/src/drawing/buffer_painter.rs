@@ -150,11 +150,22 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         let glyph = options.glyph.unwrap_or(self.glyph);
 
         if let Some(clipped) = self.intersect(local_rect) {
-            for pos in clipped.steps() {
-                let index: usize = self.buffer.bounds().resolve(pos);
-                self.buffer[index]
-                    .set_char(glyph, self.arena)
-                    .set_style(style);
+            // Fill row by row over contiguous cell slices. Hoisting the buffer
+            // width, glyph width and arena out of the loop turns each cell into
+            // a plain field write — no per-cell 2D→1D resolve and no per-cell
+            // grapheme-width recomputation.
+            let buf_width = self.buffer.width;
+            let glyph_width = glyph.width().unwrap_or(0);
+            let arena = &mut *self.arena;
+            let (left, right) = (clipped.left() as usize, clipped.right() as usize);
+            let row_len = right - left;
+
+            for y in clipped.top() as usize..clipped.bottom() as usize {
+                let start = y * buf_width + left;
+                for cell in &mut self.buffer[start..start + row_len] {
+                    cell.set_char_measured(glyph, glyph_width, arena)
+                        .set_style(style);
+                }
             }
         }
 
@@ -365,10 +376,15 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         let end = (local_origin.x.saturating_add(length), local_origin.y);
 
         if self.clip.contains(&local_origin) && self.clip.contains(&end) {
-            for offset in 0..length {
-                self.buffer[pos!(local_origin.y, local_origin.x.saturating_add(offset))]
-                    .set_style(style)
-                    .set_char(glyph, self.arena);
+            // The whole run lives on one row and is contiguous in memory.
+            let buf_width = self.buffer.width;
+            let glyph_width = glyph.width().unwrap_or(0);
+            let arena = &mut *self.arena;
+            let start = local_origin.y as usize * buf_width + local_origin.x as usize;
+
+            for cell in &mut self.buffer[start..start + length as usize] {
+                cell.set_char_measured(glyph, glyph_width, arena)
+                    .set_style(style);
             }
         }
 
@@ -392,10 +408,18 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         let end = (local_origin.x, local_origin.y.saturating_add(length));
 
         if self.clip.contains(&local_origin) && self.clip.contains(&end) {
-            for offset in 0..length {
-                self.buffer[pos!(local_origin.y.saturating_add(offset), local_origin.x)]
-                    .set_style(style)
-                    .set_char(glyph, self.arena);
+            // Vertical runs stride by the buffer width; walk a running index
+            // instead of resolving a fresh 2D coordinate for each cell.
+            let buf_width = self.buffer.width;
+            let glyph_width = glyph.width().unwrap_or(0);
+            let arena = &mut *self.arena;
+            let mut index = local_origin.y as usize * buf_width + local_origin.x as usize;
+
+            for _ in 0..length {
+                self.buffer[index]
+                    .set_char_measured(glyph, glyph_width, arena)
+                    .set_style(style);
+                index += buf_width;
             }
         }
 

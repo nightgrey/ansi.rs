@@ -1,9 +1,14 @@
-use ansi::Color;
+use ansi::{escape, Color, TextCursorEnable};
 use ui::*;
 use std::io::{self};
+use std::thread::sleep;
+use std::time::Duration;
 
 fn main() -> io::Result<()> {
-    let mut engine = Engine::new(40, 10);
+    let mut stdout = io::stdout();
+    escape!(&mut stdout, TextCursorEnable::Reset);
+
+    let mut engine = Engine::new(40, 20);
     let _root = engine.root_id();
 
     engine.set_root(
@@ -23,10 +28,24 @@ fn main() -> io::Result<()> {
         Element::Span("Mystical")
             .margin((4, 4))
             .color(Color::Red)
-            .bold(),
+            .bold().border(Border::Solid),
     );
 
-    engine.render(&mut io::stdout())?;
+    let debug = engine.insert(Element::Span("Debug"));
 
+    engine.render(&mut stdout)?;
+
+    engine.set_root(
+        Element::Div()
+    );
+
+    loop {
+        let time = std::time::Instant::now();
+        engine.render(&mut stdout)?;
+
+        let after = time.elapsed();
+        engine.set(debug, Element::Span(format!("Time ({:?})", after)));
+        sleep(Duration::from_millis(100));
+    }
     Ok(())
 }

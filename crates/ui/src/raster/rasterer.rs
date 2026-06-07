@@ -161,7 +161,7 @@ impl Rasterer {
     /// Exit alternate screen buffer.
     pub fn exit_alt_screen(&mut self) {
         let _ = escape!(
-            self.output,
+            &mut self.output,
             SelectGraphicRendition::RESET,
             AlternateScreen::Reset,
             SelectGraphicRendition::RESET

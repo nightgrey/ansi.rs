@@ -120,7 +120,7 @@ impl<W: Write> Presenter<W> {
     /// Exit the alternate screen buffer.
     pub fn exit_alt_screen(&mut self) -> io::Result<()> {
         ansi::escape!(
-            self.writer,
+            &mut self.writer,
             SGR::reset(),
             AlternateScreen::Reset,
             SGR::reset()

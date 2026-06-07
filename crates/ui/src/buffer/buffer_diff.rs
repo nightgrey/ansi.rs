@@ -29,24 +29,8 @@ pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
 impl<'a> BufferDiff<'a, ByCells> {
     /// A zero-allocation diffing iterator over changed cells.
     pub fn cells(prev: &'a Buffer, next: &'a Buffer) -> Self {
-        assert_eq!(
-            prev.width, next.width,
-            "buffers must have the same width: prev={}, next={}",
-            prev.width, next.width,
-        );
-
-        let width = prev.width;
-        let height = prev.height.min(next.height);
-
         BufferDiff {
-            state: BaseDiffState {
-                next,
-                prev,
-                width,
-                height,
-                len: width * height,
-                pos: 0,
-            },
+            state: BaseDiffState::new(prev, next),
             strategy: ByCells,
         }
     }
@@ -64,24 +48,8 @@ impl<'a> BufferDiff<'a, ByRuns> {
     ///
     /// See [`BufferDiff`] and the [`ByRuns`] [`DiffStrategy`] for details.
     pub fn runs(prev: &'a Buffer, next: &'a Buffer) -> Self {
-        assert_eq!(
-            prev.width, next.width,
-            "buffers must have the same width: prev={}, next={}",
-            prev.width, next.width,
-        );
-
-        let width = prev.width;
-        let height = prev.height.min(next.height);
-
         BufferDiff {
-            state: BaseDiffState {
-                next,
-                prev,
-                width,
-                height,
-                len: width * height,
-                pos: 0,
-            },
+            state: BaseDiffState::new(prev, next),
             strategy: ByRuns,
         }
     }
@@ -130,13 +98,6 @@ impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
         Strategy::size_hint(&self.state)
     }
 }
-impl<'a, Strategy: DiffStrategy<'a>> ExactSizeIterator for BufferDiff<'a, Strategy> {
-    fn len(&self) -> usize {
-        let (min, max) = self.size_hint();
-        min.max(max.unwrap_or(min))
-    }
-}
-
 impl<'a, Strategy: DiffStrategy<'a>> FusedIterator for BufferDiff<'a, Strategy> {}
 
 /// A changed cell.
@@ -190,9 +151,12 @@ impl<'a> Run<'a> {
     }
 
     /// Amount of base cells in this run.
+    ///
+    /// Counts every non-continuation cell, matching what [`Self::iter`] yields:
+    /// cleared cells are zero-width but are *not* continuations, so they count.
     #[inline]
     pub fn count(&self) -> usize {
-        self.cells.iter().filter(|c| c.width() > 0).count()
+        self.cells.iter().filter(|c| !c.is_continuation()).count()
     }
 }
 
@@ -258,6 +222,32 @@ pub struct BaseDiffState<'a> {
     pos: usize,
 }
 
+impl<'a> BaseDiffState<'a> {
+    /// Builds the shared state for a [`BufferDiff`] over the overlapping
+    /// (shorter) region of two equal-width buffers.
+    ///
+    /// **Panics** if the buffers differ in width.
+    fn new(prev: &'a Buffer, next: &'a Buffer) -> Self {
+        assert_eq!(
+            prev.width, next.width,
+            "buffers must have the same width: prev={}, next={}",
+            prev.width, next.width,
+        );
+
+        let width = prev.width;
+        let height = prev.height.min(next.height);
+
+        BaseDiffState {
+            next,
+            prev,
+            width,
+            height,
+            len: width * height,
+            pos: 0,
+        }
+    }
+}
+
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].
 #[derive(Debug)]
@@ -283,7 +273,8 @@ mod sealed {
 
 /// Strategy for iterating over the differences between two buffers.
 ///
-/// This trait is sealed: only [`ByCells`] and [`ByRuns`] implement it.
+/// This trait is sealed: only [`ByCells`], [`ByRuns`], and [`ByDirty`]
+/// implement it.
 pub trait DiffStrategy<'a>: Default + sealed::Sealed {
     /// The type of items yielded by the diff.
     type Item;
@@ -795,6 +786,22 @@ mod tests {
             let via_iter: Vec<_> = run.iter().map(|c| c.x).collect();
             let via_into: Vec<_> = run.into_iter().map(|c| c.x).collect();
             assert_eq!(via_iter, via_into);
+        }
+
+        #[test]
+        fn count_includes_cleared_cells_and_matches_iter() {
+            // Regression: `count` used to filter on `width() > 0`, which dropped
+            // cleared cells. A cleared cell (`Cell::EMPTY`) is zero-width but is
+            // NOT a continuation, so `iter` yields it and `count` must too.
+            let cells = [Cell::inline('a'), Cell::EMPTY, Cell::CONTINUATION];
+            let run = Run {
+                x: 0,
+                y: 0,
+                cells: &cells,
+            };
+            assert_eq!(run.count(), run.iter().count());
+            // 'a' and the cleared cell count; the continuation does not.
+            assert_eq!(run.count(), 2);
         }
 
         #[test]

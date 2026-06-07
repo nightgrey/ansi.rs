@@ -1,31 +1,31 @@
-///! !A [`Buffer`] with per-row change tracking.
-///!
-///! `TrackingBuffer` wraps a [`Buffer`] and keeps one marker bit per row.
-///! Read-only access mirrors the inner buffer through [`Deref`]. Mutating
-///! operations are provided as dedicated methods that mark the rows they touch.
-///! A subsequent [`diff`](crate::buffer::buffer_tracking::TrackingBuffer::diff) can then skip unmarked rows.
-///!
-///! # Terminology
-///!
-///! - A **marked** row may have changed since the last call to
-///!   [`unmark_all`](crate::buffer::buffer_tracking::TrackingBuffer::unmark_all) or [`clean`](crate::buffer::buffer_tracking::TrackingBuffer::clean).
-///! - An **unmarked** row is assumed unchanged.
-///! - A buffer is **dirty** when at least one row is marked.
-///! - A buffer is **clean** when no rows are marked.
-///!
-///! # Lifecycle
-///!
-///! 1. Create a `TrackingBuffer`. By default, all rows are marked so the first
-///!    diff sees the full buffer.
-///! 2. Mutate the buffer through tracking-aware methods.
-///! 3. Call [`diff`](crate::buffer::buffer_tracking::TrackingBuffer::diff) and apply the produced changes.
-///! 4. Call [`unmark_all`](crate::buffer::buffer_tracking::TrackingBuffer::unmark_all) or [`clean`](crate::buffer::buffer_tracking::TrackingBuffer::clean) before
-///!    rendering the next frame.
-///!
-///! # Invariants
-///!
-///! - `self.bits.len() == self.inner.height`.
-///! - Row `y` is marked iff `self.bits.contains(y)`.
+//! A [`Buffer`] with per-row change tracking.
+//!
+//! `TrackingBuffer` wraps a [`Buffer`] and keeps one marker bit per row.
+//! Read-only access mirrors the inner buffer through [`Deref`]. Mutating
+//! operations are provided as dedicated methods that mark the rows they touch.
+//! A subsequent [`diff`](TrackingBuffer::diff) can then skip unmarked rows.
+//!
+//! # Terminology
+//!
+//! - A **marked** row may have changed since the last call to
+//!   [`unmark_all`](TrackingBuffer::unmark_all) or [`clean`](TrackingBuffer::clean).
+//! - An **unmarked** row is assumed unchanged.
+//! - A buffer is **dirty** when at least one row is marked.
+//! - A buffer is **clean** when no rows are marked.
+//!
+//! # Lifecycle
+//!
+//! 1. Create a `TrackingBuffer`. By default, all rows are marked so the first
+//!    diff sees the full buffer.
+//! 2. Mutate the buffer through tracking-aware methods.
+//! 3. Call [`diff`](TrackingBuffer::diff) and apply the produced changes.
+//! 4. Call [`unmark_all`](TrackingBuffer::unmark_all) or [`clean`](TrackingBuffer::clean) before
+//!    rendering the next frame.
+//!
+//! # Invariants
+//!
+//! - `self.bits.len() == self.inner.height`.
+//! - Row `y` is marked iff `self.bits.contains(y)`.
 use crate::{Arena, Buffer, BufferDiff, BufferIndex, ByDirty, Cell};
 use derive_more::{AsRef, Deref, From};
 pub use fixedbitset::IndexRange as TrackingRange;
@@ -130,7 +130,11 @@ impl TrackingBuffer {
 
     /// Wraps an existing [`Buffer`] and leaves every row unmarked.
     pub fn from_buffer_unmarked(buffer: Buffer) -> Self {
-        Self::new_unmarked(buffer.width, buffer.height)
+        let bits = BitSet::with_capacity(buffer.height);
+        Self {
+            inner: buffer,
+            bits,
+        }
     }
 
     // ----------------------------------------------------------
@@ -285,21 +289,6 @@ impl TrackingBuffer {
     // ----------------------------------------------------------
     // Inner buffer access
     // ----------------------------------------------------------
-
-    /// Returns the inner buffer.
-    #[inline]
-    pub fn buffer(&self) -> &Buffer {
-        &self.inner
-    }
-
-    /// Returns the inner buffer mutably without marking rows.
-    ///
-    /// This is an escape hatch. Mutations performed through this reference are
-    /// not tracked. Prefer the tracking-aware mutators on `TrackingBuffer`
-    /// whenever possible.
-    pub fn buffer_mut_untracked(&mut self) -> &mut Buffer {
-        &mut self.inner
-    }
 
     /// Consumes the tracking wrapper and returns the inner [`Buffer`].
     ///
@@ -462,50 +451,33 @@ impl TrackingBuffer {
     pub fn pop_row(&mut self) -> Option<Vec<Cell>> {
         let row = self.inner.pop_row()?;
 
-        let mut next_bits = BitSet::with_capacity(self.inner.height - 1);
-
-        for i in self.bits.ones().take(self.inner.height - 1) {
-            next_bits.set(i, self.bits[i]);
+        // The popped row was the last one, so every surviving marker keeps its
+        // index. Rebuild at the new height to drop the trailing bit.
+        let new_height = self.inner.height;
+        let mut bits = BitSet::with_capacity(new_height);
+        for i in 0..new_height {
+            bits.set(i, self.bits.contains(i));
         }
-
-        self.bits = next_bits;
+        self.bits = bits;
 
         Some(row)
     }
 
     /// Removes row and does not mark the rows shifted up.
     pub fn remove_row_unmarked(&mut self, idx: usize) -> Option<Vec<Cell>> {
-        let old_height = self.height;
-        let row = self.inner.remove_row(idx)?; // idx < old_len guaranteed
+        let row = self.inner.remove_row(idx)?; // idx < old height guaranteed
 
-        // Rebuild bitset without the removed bit
-        let new_height = old_height - 1;
+        // Removing row `idx` shifts everything below it up by one:
+        // `new[i] = old[i]` for `i < idx`, and `new[i] = old[i + 1]` otherwise.
+        // Shifted rows keep their existing marks (this method does not add any).
+        let new_height = self.inner.height;
         let mut bits = BitSet::with_capacity(new_height);
-
-        let min = self.bits.minimum();
-        for i in min.map_or_else(|| idx, |min| if min < idx { min } else { idx })..idx {
-            bits.set(i, unsafe { self.bits.contains_unchecked(i) });
-        }
-
-        // The new row is unmarked.
-        bits.set(idx, false);
-
-        for i in
-            min.map_or_else(|| new_height, |min| if min < idx { min } else { idx + 1 })..new_height
-        {
-            bits.set(i, unsafe { self.bits.contains_unchecked(i - 1) });
-        }
-
         for i in 0..idx {
-            bits.set(i, unsafe { self.bits.contains_unchecked(i) });
+            bits.set(i, self.bits.contains(i));
         }
-
-        if self.bits.contains_any_in_range(idx..new_height) {
-            for i in idx..new_height {
-                bits.set(i, unsafe { self.bits.contains_unchecked(i + 1) });
-            }
+        for i in idx..new_height {
+            bits.set(i, self.bits.contains(i + 1));
         }
-
         self.bits = bits;
 
         Some(row)
@@ -513,7 +485,7 @@ impl TrackingBuffer {
 
     /// Removes row and marks the rows shifted up.
     pub fn remove_row_marked(&mut self, idx: usize) -> Option<Vec<Cell>> {
-        self.remove_row_unmarked(idx).inspect(|row| {
+        self.remove_row_unmarked(idx).inspect(|_row| {
             self.mark(idx..);
         })
     }
@@ -525,29 +497,19 @@ impl TrackingBuffer {
             return;
         }
 
-        let old_height = self.height;
         self.inner.insert_row(idx, row);
 
-        // Rebuild bitset with a new unmarked bit at `idx`
-        let new_height = old_height + 1;
+        // Inserting at `idx` shifts everything from `idx` down by one:
+        // `new[i] = old[i]` for `i < idx`, the inserted row at `idx` is left
+        // unmarked, and `new[i] = old[i - 1]` for `i > idx`.
+        let new_height = self.inner.height;
         let mut bits = BitSet::with_capacity(new_height);
-
-        let min = self.bits.minimum();
-        for i in min.map_or_else(|| idx, |min| if min < idx { min } else { idx })..idx {
-            bits.set(i, unsafe { self.bits.contains_unchecked(i) });
+        for i in 0..idx {
+            bits.set(i, self.bits.contains(i));
         }
-
-        // The new row is unmarked.
-        bits.set(idx, false);
-
-        for i in min.map_or_else(
-            || new_height,
-            |min| if min < idx + 1 { min } else { idx + 1 },
-        )..new_height
-        {
-            bits.set(i, unsafe { self.bits.contains_unchecked(i - 1) });
+        for i in (idx + 1)..new_height {
+            bits.set(i, self.bits.contains(i - 1));
         }
-
         self.bits = bits;
     }
 
@@ -565,15 +527,19 @@ impl TrackingBuffer {
     }
 
     /// Returns the inner buffer.
+    #[inline]
     pub fn as_inner(&self) -> &Buffer {
         &self.inner
     }
 
-    /// Returns the inner buffer mutably.
+    /// Returns the inner buffer mutably **without marking rows**.
     ///
-    /// # Safety
-    /// This method allows mutating the inner buffer without marking rows and is thought of as an escape hatch.
-    pub unsafe fn as_mut_inner(&mut self) -> &mut Buffer {
+    /// This is an escape hatch: mutations made through this reference are not
+    /// tracked, so a subsequent [`diff`](Self::diff) may miss them. It is a
+    /// logic hazard, not a memory-safety one — prefer the tracking-aware
+    /// mutators on `TrackingBuffer` whenever possible.
+    #[inline]
+    pub fn as_mut_inner(&mut self) -> &mut Buffer {
         &mut self.inner
     }
 }
@@ -719,7 +685,8 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
         let start = self.start.into_slice_index(tracking_buffer);
         let end = self.end.into_slice_index(tracking_buffer);
 
-        if end >= tracking_buffer.height {
+        // `end` is exclusive, so `end == height` is the in-bounds "whole buffer".
+        if end > tracking_buffer.height {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.bits.insert_range(start..end);
@@ -729,7 +696,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
         let start = self.start.into_slice_index(tracking_buffer);
         let end = self.end.into_slice_index(tracking_buffer);
 
-        if end >= tracking_buffer.height {
+        if end > tracking_buffer.height {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.bits.remove_range(start..end);
@@ -774,8 +741,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeFrom<I> {
 }
 impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeTo<I> {
     fn try_mark(self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
-        let _end = self.end.into_slice_index(tracking_buffer);
-        let end = tracking_buffer.height;
+        let end = self.end.into_slice_index(tracking_buffer);
 
         tracking_buffer.bits.insert_range(..end);
         Ok(())
@@ -991,5 +957,84 @@ mod tests {
         let t = TrackingBuffer::from(Buffer::from_lines(["abc"], &mut arena));
         assert_eq!(t.width(), 3);
         assert_eq!(t.height(), 1);
+    }
+
+    #[test]
+    fn from_buffer_unmarked_preserves_contents() {
+        // Regression: this used to discard the buffer and allocate a fresh,
+        // empty one of the same size.
+        let mut arena = Arena::new();
+        let buf = Buffer::from_lines(["abc"], &mut arena);
+        let t = TrackingBuffer::from_buffer_unmarked(buf.clone());
+        assert!(t.is_clean());
+        assert_eq!(t.as_inner(), &buf);
+    }
+
+    #[test]
+    fn mark_range_to_only_marks_below_end() {
+        // Regression: `RangeTo::try_mark` ignored its endpoint and marked the
+        // whole buffer.
+        let mut t = TrackingBuffer::new_unmarked(2, 5);
+        t.mark(..3);
+        assert!(t.is_marked(0));
+        assert!(t.is_marked(1));
+        assert!(t.is_marked(2));
+        assert!(!t.is_marked(3));
+        assert!(!t.is_marked(4));
+        assert_eq!(t.count_marked(), 3);
+    }
+
+    #[test]
+    fn mark_exclusive_range_up_to_height_is_in_bounds() {
+        // Regression: `0..height` is the natural "mark all rows" for an
+        // exclusive range and must not be rejected as out of bounds.
+        let mut t = TrackingBuffer::new_unmarked(2, 4);
+        assert!(t.try_mark(0..4).is_ok());
+        assert_eq!(t.count_marked(), 4);
+        // One past the end is still out of bounds.
+        let mut t = TrackingBuffer::new_unmarked(2, 4);
+        assert!(t.try_mark(0..5).is_err());
+        assert!(t.is_clean());
+    }
+
+    #[test]
+    fn remove_row_unmarked_shifts_markers_up() {
+        let mut t = TrackingBuffer::new_unmarked(2, 4);
+        // Mark rows 0 and 3.
+        t.mark(0);
+        t.mark(3);
+        // Remove row 1: row 3 shifts up to index 2, row 0 stays put.
+        t.remove_row_unmarked(1);
+        assert_eq!(t.height(), 3);
+        assert!(t.is_marked(0));
+        assert!(!t.is_marked(1));
+        assert!(t.is_marked(2));
+    }
+
+    #[test]
+    fn insert_row_shifts_markers_down_and_leaves_new_row_unmarked() {
+        let mut t = TrackingBuffer::new_unmarked(2, 3);
+        t.mark(0);
+        t.mark(2);
+        // Insert at index 1: the new row is unmarked, old rows 1 and 2 shift to
+        // 2 and 3.
+        t.insert_row(1, [Cell::EMPTY, Cell::EMPTY]);
+        assert_eq!(t.height(), 4);
+        assert!(t.is_marked(0));
+        assert!(!t.is_marked(1));
+        assert!(!t.is_marked(2));
+        assert!(t.is_marked(3));
+    }
+
+    #[test]
+    fn pop_row_drops_only_the_last_marker() {
+        let mut t = TrackingBuffer::new_unmarked(2, 3);
+        t.mark(0);
+        t.mark(2);
+        t.pop_row();
+        assert_eq!(t.height(), 2);
+        assert!(t.is_marked(0));
+        assert!(!t.is_marked(1));
+        assert_eq!(t.count_marked(), 1);
     }
 }

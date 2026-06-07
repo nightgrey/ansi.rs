@@ -1586,6 +1586,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparsemap"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e2b8ba6d40f719606295ab19809a6ebd153c0786f1af19ff9e5ecada05e8145"
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1815,6 +1821,7 @@ dependencies = [
  "rustix",
  "slotmap",
  "smallvec 2.0.0-alpha.12",
+ "sparsemap",
  "taffy 0.10.1",
  "tagged",
  "terminal",

@@ -34,10 +34,11 @@ struct InlineState {
 /// 1. Construct with [`Presenter::new`] (fullscreen) or
 ///    [`Presenter::inline`].
 /// 2. Optionally attach capabilities via [`with_capabilities`](Self::with_capabilities).
-/// 3. Call [`present`](Self::present) (or [`present_tracking`](Self::present_tracking))
+/// 3. Call [`present`](Self::present) (or [`present_tracking`](Self::present_tracked))
 ///    once per frame.
 /// 4. On resize, alt-screen toggle, or external terminal corruption, call
 ///    [`invalidate`](Self::invalidate) to force a full repaint next frame.
+#[derive(Debug)]
 pub struct Presenter<W: Write> {
     writer: Counting<BufWriter<W>>,
     pen: Pen,
@@ -172,7 +173,7 @@ impl<W: Write> Presenter<W> {
     /// Unmarked rows are assumed identical to `prev`. The caller is
     /// responsible for clearing the dirty bits after this call (e.g. via
     /// [`TrackingBuffer::unmark_all`]).
-    pub fn present_tracking(
+    pub fn present_tracked(
         &mut self,
         prev: &Buffer,
         next: &TrackingBuffer,
@@ -201,7 +202,7 @@ impl<W: Write> Presenter<W> {
         stats.bytes = self.writer.count();
         Ok(stats)
     }
-
+    
     /// Flush any buffered output to the underlying writer.
     pub fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()
@@ -214,6 +215,18 @@ impl<W: Write> Presenter<W> {
             .into_inner()
             .into_inner()
             .map_err(|e| e.into_error())
+    }
+    
+    /// Clear the presenter's internal state, resetting the pen and invalidating
+    /// the next frame.
+    pub fn clear(&mut self) {
+        self.writer.reset();
+        self.pen.clear();
+        self.invalidated = true;
+        if let Some(inline) = self.inline.as_mut() {
+            inline.is_first = true;
+            inline.height = 0;
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -1090,7 +1103,7 @@ mod tests {
         next.unmark_all();
         next.set_line(Point { x: 0, y: 1 }, "X", &mut arena);
 
-        presenter.present_tracking(&prev, &next, &arena).unwrap();
+        presenter.present_tracked(&prev, &next, &arena).unwrap();
         let all = presenter.get_writer().get_ref();
         let frame = String::from_utf8_lossy(&all[mark..]).into_owned();
 
@@ -1564,7 +1577,7 @@ mod tests {
             s
         }
 
-        /// Roundtrip driver for [`Presenter::present_tracking`].
+        /// Roundtrip driver for [`Presenter::present_tracked`].
         ///
         /// Mirrors the real dirty-tracking contract: the caller writes changes into a
         /// [`TrackingBuffer`] (whose `IndexMut` marks the touched row), presents, then
@@ -1614,7 +1627,7 @@ mod tests {
                 }
 
                 self.presenter
-                    .present_tracking(&self.prev, &self.tracking, arena)
+                    .present_tracked(&self.prev, &self.tracking, arena)
                     .unwrap();
 
                 self.prev.copy_from_slice(self.tracking.as_inner().as_ref());

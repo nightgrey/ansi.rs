@@ -1,9 +1,9 @@
-use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Rasterer};
+use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter, Rasterer};
 use derive_more::{Deref, DerefMut};
 use geometry::Size;
 use std::io;
 
-#[derive(Debug, Deref, DerefMut, Clone)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Engine<'a> {
     space: Size,
     #[deref]
@@ -11,7 +11,7 @@ pub struct Engine<'a> {
     pub document: Document<'a>,
     pub buffer: DoubleBuffer,
     pub arena: Arena,
-    rasterer: Rasterer,
+    presenter: Presenter<io::Stdout>,
 }
 
 impl<'a> Engine<'a> {
@@ -21,7 +21,7 @@ impl<'a> Engine<'a> {
             document: Document::new(),
             buffer: DoubleBuffer::new(width, height),
             arena: Arena::new(),
-            rasterer: Rasterer::inline(width, height),
+            presenter: Presenter::inline(io::stdout()),
         }
     }
 
@@ -75,9 +75,10 @@ impl<'a> Engine<'a> {
         let back = &mut self.buffer.back;
         let front = &mut self.buffer.front;
         let arena = &mut self.arena;
-
-        self.rasterer.present(front, back, arena)?;
-        self.rasterer.flush(w)
+ 
+        self.presenter.present(front, back, arena)?;
+        self.presenter.flush()?;
+        Ok(())
     }
 
     pub fn render(&mut self, w: &mut impl io::Write) -> io::Result<()> {
@@ -91,7 +92,7 @@ impl<'a> Engine<'a> {
     }
 
     pub fn invalidate(&mut self) {
-        self.rasterer.invalidate();
+        self.presenter.invalidate();
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
@@ -100,13 +101,13 @@ impl<'a> Engine<'a> {
             self.space.height = height as u16;
 
             self.buffer.resize(width, height);
-            self.rasterer.resize(width, height);
+            self.presenter.resize(width, height);
         }
     }
 
     pub fn clear(&mut self) {
         self.buffer.clear();
-        self.rasterer.clear();
+        self.presenter.clear();
         self.document.clear();
         self.buffer.clear();
     }

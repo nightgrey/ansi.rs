@@ -1,6 +1,7 @@
 mod color;
 mod color_space;
 mod escape;
+pub mod parse;
 
 pub use color::*;
 pub use color_space::*;

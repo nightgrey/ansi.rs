@@ -2,7 +2,17 @@ use crate::parser::{ByteStr, Params};
 
 pub trait Handler {
     /// Draw a character to the screen and update states.
-    fn print(&mut self, _byte: char) {}
+    fn printable(&mut self, _byte: char) {}
+
+    /// Draw a run of printable characters in a single call. The parser batches
+    /// contiguous printable text between control bytes and hands it over here.
+    /// Defaults to dispatching each char individually via [`Handler::printable`];
+    /// override it to avoid per-char dispatch on text-heavy streams.
+    fn printables(&mut self, str: &str) {
+        for ch in str.chars() {
+            self.printable(ch);
+        }
+    }
 
     /// Execute a C0 or C1 control function.
     fn execute(&mut self, _byte: u8) {}

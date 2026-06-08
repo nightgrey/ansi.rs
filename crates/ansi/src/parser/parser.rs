@@ -35,6 +35,20 @@ impl Parser {
         }
     }
 
+    /// Signal end of input. Any buffered partial UTF-8 codepoint is resolved as
+    /// U+FFFD and the parser is reset to [`State::Ground`]. Incomplete control
+    /// sequences (a CSI/OSC/DCS cut off mid-stream) are discarded without
+    /// dispatch, matching standard VT behavior. Call this when the producer is
+    /// done and any dangling bytes should be flushed rather than held for a
+    /// future `advance`.
+    pub fn flush(&mut self, handler: &mut impl Handler) {
+        if !self.utf8.is_empty() {
+            handler.printable(char::REPLACEMENT_CHARACTER);
+        }
+        self.state = State::Ground;
+        self.clear();
+    }
+
     #[inline]
     fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
         let prev_state = self.state;
@@ -61,62 +75,43 @@ impl Parser {
             self.action(handler, action, byte);
         }
     }
-    /// Continue assembling a partial UTF-8 codepoint from a previous call.
+    /// Continue assembling a partial UTF-8 codepoint buffered from a previous
+    /// call. The buffer always holds a valid incomplete prefix (1..=3 bytes
+    /// starting with a multibyte lead), so we only ever pull enough new bytes to
+    /// finish that single codepoint — never bytes belonging to the next one.
     /// Returns the number of bytes from `bytes` consumed.
     fn advance_utf8(&mut self, handler: &mut impl Handler, bytes: &[u8]) -> usize {
         let old_bytes = self.utf8.len();
-        // Try to fill the utf8 buffer (capacity 4) from the new input.
-        let to_copy = bytes.len().min(self.utf8.capacity() - old_bytes);
-        // SAFETY: bounds enforced by `to_copy` clamp above.
-        self.utf8
-            .try_extend_from_slice(&bytes[..to_copy])
-            .expect("utf8 buffer fit");
+        // Bytes still needed to finish the buffered codepoint.
+        let need = utf8_width(self.utf8[0]).saturating_sub(old_bytes);
+        let take = bytes.len().min(need);
+        // old_bytes + take <= utf8_width(..) <= 4, so this always fits.
+        debug_assert!(old_bytes + take <= self.utf8.capacity());
+        let _ = self.utf8.try_extend_from_slice(&bytes[..take]);
 
         match str::from_utf8(&self.utf8) {
-            // Buffer is now valid utf8: dispatch the first char and clear.
+            // Buffer is now a complete codepoint: dispatch it and clear.
             Ok(parsed) => {
                 let c = unsafe { parsed.chars().next().unwrap_unchecked() };
-                handler.print(c);
-
-                let total = c.len_utf8();
+                handler.printable(c);
                 self.utf8.clear();
-                total - old_bytes
+                take
             }
-            Err(err) => {
-                let valid_bytes = err.valid_up_to();
-                if valid_bytes > 0 {
-                    // The buffer contains a complete leading char plus extra
-                    // bytes. Dispatch the leading char and treat the extras as
-                    // a fresh sequence — but since we can't easily know how
-                    // many of `bytes` they belong to, we conservatively just
-                    // re-buffer them on the next iteration. The simplest path:
-                    // dispatch leading and return the bytes that were taken
-                    // from the new input only.
-                    let c = unsafe {
-                        let parsed = str::from_utf8_unchecked(&self.utf8[..valid_bytes]);
-                        parsed.chars().next().unwrap_unchecked()
-                    };
-                    handler.print(c);
-
-                    let consumed = valid_bytes - old_bytes;
+            // Couldn't finish: either the continuation bytes are malformed, or
+            // we still ran out of input.
+            Err(err) => match err.error_len() {
+                // Malformed sequence — emit one replacement and drop the
+                // buffered lead. Any new bytes we copied are left for the main
+                // loop to reprocess (`valid_up_to` is 0 here, so consume none).
+                Some(_) => {
+                    handler.printable('\u{FFFD}');
+                    let consumed = err.valid_up_to().saturating_sub(old_bytes);
                     self.utf8.clear();
-                    return consumed;
+                    consumed
                 }
-
-                match err.error_len() {
-                    // The leading bytes form an invalid sequence — emit
-                    // replacement char and skip the bad bytes.
-                    Some(invalid_len) => {
-                        handler.print('\u{FFFD}');
-                        let consumed = invalid_len - old_bytes;
-                        self.utf8.clear();
-                        consumed
-                    }
-                    // Still incomplete — keep what we have, return how many
-                    // we copied from `bytes`.
-                    None => to_copy,
-                }
-            }
+                // Still incomplete — keep the buffered prefix for the next call.
+                None => take,
+            },
         }
     }
 
@@ -213,25 +208,23 @@ impl Parser {
                             return len;
                         }
                         // Otherwise the bytes are genuinely malformed.
-                        handler.print('\u{FFFD}');
+                        handler.printable('\u{FFFD}');
                         valid_bytes + len
                     }
                     None => {
                         if num_chars < num_bytes {
                             // The partial codepoint is followed by ESC — drop
                             // it and start the escape sequence.
-                            handler.print('\u{FFFD}');
+                            handler.printable('\u{FFFD}');
                             self.state = State::Escape;
                             self.clear();
                             num_chars + 1
                         } else {
                             // Buffer the partial codepoint for the next call.
-                            let extra = num_bytes - valid_bytes;
-                            // utf8 buffer has capacity 4; partial UTF-8 is at
-                            // most 3 bytes, so this always fits.
-                            self.utf8
-                                .try_extend_from_slice(&bytes[valid_bytes..valid_bytes + extra])
-                                .expect("partial utf8 buffer fit");
+                            // A partial UTF-8 prefix is at most 3 bytes, so this
+                            // always fits the capacity-4 buffer.
+                            debug_assert!(num_bytes - valid_bytes <= self.utf8.capacity());
+                            let _ = self.utf8.try_extend_from_slice(&bytes[valid_bytes..]);
                             num_bytes
                         }
                     }
@@ -240,33 +233,61 @@ impl Parser {
         }
     }
 
-    /// Walk the chars of a validated str, dispatching prints and C0 executes.
-    /// Stops at the first C1 control char (0x80..=0x9F) without consuming it,
-    /// returning the byte offset where dispatch stopped.
+    /// Walk the chars of a validated str, dispatching printable runs in a
+    /// single [`Handler::printables`] call and C0 controls via
+    /// [`Handler::execute`]. Stops at the first C1 control char (0x80..=0x9F)
+    /// without consuming it, returning the byte offset where dispatch stopped.
     #[inline]
     fn dispatch_ground_chars(handler: &mut impl Handler, parsed: &str) -> usize {
-        let mut consumed = 0;
+        let mut run_start = 0;
+        let mut i = 0;
         for c in parsed.chars() {
             match c {
-                '\u{80}'..='\u{9F}' => return consumed,
-                '\x00'..='\x1F' => handler.execute(c as u8),
-                _ => handler.print(c),
+                '\u{80}'..='\u{9F}' => {
+                    if run_start < i {
+                        handler.printables(&parsed[run_start..i]);
+                    }
+                    return i;
+                }
+                '\x00'..='\x1F' => {
+                    if run_start < i {
+                        handler.printables(&parsed[run_start..i]);
+                    }
+                    handler.execute(c as u8);
+                    run_start = i + c.len_utf8();
+                }
+                _ => {}
             }
-            consumed += c.len_utf8();
+            i += c.len_utf8();
         }
-        consumed
+
+        if run_start < i {
+            handler.printables(&parsed[run_start..i]);
+        }
+        i
     }
 
-    /// Walk ASCII bytes without UTF-8 char decoding.
+    /// Walk ASCII bytes without UTF-8 char decoding, batching printable runs
+    /// into [`Handler::printables`] calls.
     #[inline]
     fn dispatch_ground_ascii(handler: &mut impl Handler, bytes: &[u8]) -> usize {
-        for &byte in bytes {
-            match byte {
-                0x00..=0x1F => handler.execute(byte),
-                _ => handler.print(byte as char),
+        let mut run_start = 0;
+        for (i, &byte) in bytes.iter().enumerate() {
+            if byte < 0x20 {
+                if run_start < i {
+                    // SAFETY: the caller validated `bytes` is ASCII, so every
+                    // sub-slice is valid UTF-8.
+                    handler.printables(unsafe { str::from_utf8_unchecked(&bytes[run_start..i]) });
+                }
+                handler.execute(byte);
+                run_start = i + 1;
             }
         }
 
+        if run_start < bytes.len() {
+            // SAFETY: ASCII, see above.
+            handler.printables(unsafe { str::from_utf8_unchecked(&bytes[run_start..]) });
+        }
         bytes.len()
     }
 
@@ -277,7 +298,7 @@ impl Parser {
 
             Action::Clear => self.clear(),
 
-            Action::Print => handler.print(byte as char),
+            Action::Print => handler.printable(byte as char),
             Action::Execute => handler.execute(byte),
 
             Action::Collect => self.intermediates.push(byte),
@@ -321,6 +342,19 @@ impl Parser {
         self.params.clear();
         self.intermediates.clear();
         self.utf8.clear();
+    }
+}
+
+/// Total byte length of a UTF-8 codepoint given its leading byte. Buffered
+/// partials always start with a multibyte lead (`0xC2..=0xF4`); anything else
+/// is treated as a single byte.
+#[inline]
+const fn utf8_width(lead: u8) -> usize {
+    match lead {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => 1,
     }
 }
 
@@ -503,7 +537,7 @@ mod tests {
     }
 
     impl Handler for Recorder {
-        fn print(&mut self, ch: char) {
+        fn printable(&mut self, ch: char) {
             self.values.push(Value::Print(ch));
         }
         fn execute(&mut self, byte: u8) {
@@ -1221,5 +1255,126 @@ mod tests {
             Harness::run(b"\x1B[!p"),
             vec![Value::Csi(Parameters::new(), inter(b"!"), 'p')],
         );
+    }
+
+    // ---- OSC / DCS UTF-8 payload (R1) -----------------------------------
+
+    #[test]
+    fn osc_payload_preserves_utf8() {
+        // OSC 0 ; é ST — the title contains é (C3 A9). High bytes must reach
+        // the handler as raw OSC bytes rather than being dropped.
+        assert_eq!(
+            Harness::run(b"\x1B]0;\xC3\xA9\x07"),
+            vec![
+                Value::Osc,
+                Value::OscByte(b'0'),
+                Value::OscByte(b';'),
+                Value::OscByte(0xC3),
+                Value::OscByte(0xA9),
+                Value::OscTermination(0x07),
+            ],
+        );
+    }
+
+    #[test]
+    fn dcs_payload_preserves_utf8() {
+        // DCS q é ESC \ — DCS data with é (C3 A9).
+        assert_eq!(
+            Harness::run(b"\x1BPq\xC3\xA9\x1B\\"),
+            vec![
+                Value::Dcs(Parameters::new(), inter(b""), 'q'),
+                Value::DcsByte(0xC3),
+                Value::DcsByte(0xA9),
+                Value::DcsTermination(0x1B),
+                Value::Esc(inter(b""), b'\\'),
+            ],
+        );
+    }
+
+    // ---- flush (R2) -----------------------------------------------------
+
+    #[test]
+    fn flush_emits_replacement_for_partial_utf8() {
+        let mut h = Harness::default();
+        // First two bytes of 🦀 (F0 9F A6 80) — incomplete.
+        h.advance(&[0xF0, 0x9F]);
+        assert!(h.recorder.values.is_empty());
+        h.inner.flush(&mut h.recorder);
+        assert_eq!(h.recorder.values, vec![Value::Print('\u{FFFD}')]);
+    }
+
+    #[test]
+    fn flush_on_clean_boundary_emits_nothing() {
+        let mut h = Harness::default();
+        h.advance(b"ab");
+        let before = h.recorder.values.len();
+        h.inner.flush(&mut h.recorder);
+        assert_eq!(h.recorder.values.len(), before);
+    }
+
+    #[test]
+    fn flush_resets_to_ground() {
+        let mut h = Harness::default();
+        // Enter an incomplete CSI, then flush: the dangling sequence is
+        // discarded and subsequent text parses from ground.
+        h.advance(b"\x1B[1;2");
+        h.inner.flush(&mut h.recorder);
+        h.advance(b"x");
+        assert_eq!(h.recorder.values, vec![Value::Print('x')]);
+    }
+
+    // ---- Chunk-split invariance (R3) ------------------------------------
+
+    /// Feeding a byte stream in any number of chunks must produce the same
+    /// events as feeding it whole. This is the core guarantee of a streaming
+    /// parser and exercises the partial-UTF-8 buffering paths exhaustively.
+    #[test]
+    fn split_invariance() {
+        let corpus: &[&[u8]] = &[
+            b"Hello, world!",
+            "héllo 東京 🦀 mix".as_bytes(),
+            b"\x1B[1;31m\x1B[38;2;200;100;50mX\x1B[0m",
+            b"\x1B[38:2:255:128:0m",
+            b"\x1B]0;window \xC3\xA9 title\x07",
+            b"\x1BP1;2|device \xF0\x9F\xA6\x80 data\x1B\\",
+            b"abc\x07def\x1B7ghi",
+            &[b'a', 0xA0, b'b'],             // lone continuation
+            &[b'a', 0xC0, 0xAF, b'b'],       // overlong encoding
+            &[b'x', 0x9B, b'1', b'm'],       // raw 8-bit C1 CSI
+            "tail 🦀".as_bytes(),            // multibyte at the very end
+        ];
+
+        for input in corpus {
+            let whole = Harness::run(input);
+            for at in 0..=input.len() {
+                let mut h = Harness::default();
+                h.advance(&input[..at]);
+                h.advance(&input[at..]);
+                assert_eq!(
+                    h.recorder.values, whole,
+                    "split at {at} of {input:?} diverged from whole-feed",
+                );
+            }
+        }
+    }
+
+    /// A few two-point splits, to cover a partial codepoint straddling more
+    /// than one chunk boundary.
+    #[test]
+    fn split_invariance_two_points() {
+        let input = "a東🦀b".as_bytes();
+        let whole = Harness::run(input);
+        for i in 0..=input.len() {
+            for j in i..=input.len() {
+                let mut h = Harness::default();
+                h.advance(&input[..i]);
+                h.advance(&input[i..j]);
+                h.advance(&input[j..]);
+                assert_eq!(
+                    h.recorder.values, whole,
+                    "splits at {i},{j} diverged from whole-feed",
+                );
+            }
+        }
     }
 }

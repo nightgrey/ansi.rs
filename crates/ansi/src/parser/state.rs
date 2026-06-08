@@ -160,6 +160,9 @@ transitions! {
         0x1c..=0x1f => DcsByte,
         0x20..=0x7e => DcsByte,
         0x7f       => Ignore,
+        // High bytes are UTF-8 payload (0x80..=0x9f stay with `Anywhere` so ST
+        // terminates); deliver the rest so multibyte data isn't dropped.
+        0xa0..=0xff => DcsByte,
         on_exit   => DcsTermination
     },
 
@@ -177,6 +180,10 @@ transitions! {
         0x19       => Ignore,
         0x1c..=0x1f => Ignore,
         0x20..=0x7f => OscByte,
+        // High bytes are UTF-8 payload (0x80..=0x9f stay with `Anywhere` so ST
+        // terminates); deliver the rest so titles with emoji/non-Latin text
+        // aren't dropped.
+        0xa0..=0xff => OscByte,
         on_exit   => OscTermination
     }
 

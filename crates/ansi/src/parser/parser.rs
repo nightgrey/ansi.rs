@@ -13,6 +13,13 @@ pub struct Parser {
     pub utf8: ArrayVec<u8, 4>,
 }
 
+/// Selects which data-string handler [`Parser::advance_string`] dispatches to.
+#[derive(Clone, Copy)]
+enum Data {
+    Osc,
+    Dcs,
+}
+
 impl Parser {
     pub fn advance(&mut self, handler: &mut impl Handler, bytes: impl AsRef<[u8]>) {
         let mut i = 0;
@@ -24,14 +31,18 @@ impl Parser {
         }
 
         while i < bytes.len() {
-            match self.state {
-                State::Ground => i += self.advance_ground(handler, &bytes[i..]),
+            i += match self.state {
+                State::Ground => self.advance_ground(handler, &bytes[i..]),
+                // OSC/DCS data is the other bulk path: batch the run of data
+                // bytes into a single slice dispatch instead of pumping each
+                // byte through the state machine.
+                State::OscData => self.advance_string(handler, &bytes[i..], Data::Osc),
+                State::DcsData => self.advance_string(handler, &bytes[i..], Data::Dcs),
                 _ => {
-                    let byte = bytes[i];
-                    self.advance_byte(handler, byte);
-                    i += 1;
+                    self.advance_byte(handler, bytes[i]);
+                    1
                 }
-            }
+            };
         }
     }
 
@@ -135,10 +146,9 @@ impl Parser {
 
         let chars = &bytes[..num_chars];
         if chars.is_ascii() {
-            let processed = Self::dispatch_ground_ascii(handler, chars);
-            if processed < num_chars {
-                return processed;
-            }
+            // `dispatch_ground_ascii` always consumes the whole run: C0 controls
+            // execute in place and never stop it, and ASCII can't carry a C1.
+            Self::dispatch_ground_ascii(handler, chars);
 
             if num_chars < num_bytes {
                 self.state = State::Escape;
@@ -153,18 +163,10 @@ impl Parser {
             Ok(str) => {
                 let consumed = Self::dispatch_ground_chars(handler, str);
 
-                // If we stopped early on a C1 char encoded as utf8, hand the
-                // bytes after `consumed` back to the state machine unless the
-                // C1 char is first, in which case consume it now to guarantee
-                // progress.
+                // Stopped early on a C1 char encoded as utf8: resume via the
+                // state machine.
                 if consumed < num_chars {
-                    if consumed > 0 {
-                        return consumed;
-                    }
-
-                    let c = unsafe { str.chars().next().unwrap_unchecked() };
-                    self.advance_byte(handler, c as u8);
-                    return c.len_utf8();
+                    return self.stall_on_c1(handler, consumed, str);
                 }
 
                 let mut processed = num_chars;
@@ -181,17 +183,10 @@ impl Parser {
                 let parsed = unsafe { str::from_utf8_unchecked(&bytes[..valid_bytes]) };
                 let dispatched = Self::dispatch_ground_chars(handler, parsed);
 
-                // Stopped early inside the valid prefix: bail out so the state
-                // machine can take over with the C1 char unless it is first,
-                // in which case consume it now to guarantee progress.
+                // Stopped early inside the valid prefix on a C1 char: resume via
+                // the state machine.
                 if dispatched < valid_bytes {
-                    if dispatched > 0 {
-                        return dispatched;
-                    }
-
-                    let c = unsafe { parsed.chars().next().unwrap_unchecked() };
-                    self.advance_byte(handler, c as u8);
-                    return c.len_utf8();
+                    return self.stall_on_c1(handler, dispatched, parsed);
                 }
 
                 match err.error_len() {
@@ -231,6 +226,20 @@ impl Parser {
                 }
             }
         }
+    }
+
+    /// Resume a `Ground` printable run that stalled on a C1 control char. When
+    /// `dispatched > 0` we already emitted that many bytes, so return them and
+    /// let the main loop re-enter from the C1. Otherwise the C1 leads `rest`:
+    /// feed it to the state machine and consume its UTF-8 encoding so we always
+    /// make progress.
+    fn stall_on_c1(&mut self, handler: &mut impl Handler, dispatched: usize, rest: &str) -> usize {
+        if dispatched > 0 {
+            return dispatched;
+        }
+        let c = unsafe { rest.chars().next().unwrap_unchecked() };
+        self.advance_byte(handler, c as u8);
+        c.len_utf8()
     }
 
     /// Walk the chars of a validated str, dispatching printable runs in a
@@ -289,6 +298,38 @@ impl Parser {
             handler.printing(unsafe { str::from_utf8_unchecked(&bytes[run_start..]) });
         }
         bytes.len()
+    }
+
+    /// Process bytes while in an OSC or DCS *data* state. Batches the run of
+    /// data bytes up to the next control byte into a single slice dispatch
+    /// ([`Handler::osc_string`] / [`Handler::dcs_string`]), then returns so the
+    /// control byte is handled by the state machine. Returns the number of
+    /// bytes consumed — always >= 1, so the caller makes progress.
+    ///
+    /// `bytes` is non-empty. The data set `{0x20..=0x7e} ∪ {0xa0..=0xff}` is
+    /// exactly the bytes both states treat as raw payload, so one predicate
+    /// serves both. Everything else — C0 controls, DEL, and C1 (`0x80..=0x9f`)
+    /// — is left to [`Parser::advance_byte`], which applies the correct
+    /// per-state action (ST/BEL/ESC terminate, CAN/SUB abort, DCS C0 bytes
+    /// dispatch individually, OSC C0 bytes are ignored).
+    fn advance_string(&mut self, handler: &mut impl Handler, bytes: &[u8], kind: Data) -> usize {
+        let stop = bytes
+            .iter()
+            .position(|&b| b < 0x20 || (0x7f..=0x9f).contains(&b))
+            .unwrap_or(bytes.len());
+
+        // A control byte leads the slice: hand it to the state machine.
+        if stop == 0 {
+            self.advance_byte(handler, bytes[0]);
+            return 1;
+        }
+
+        let data = &bytes[..stop];
+        match kind {
+            Data::Osc => handler.osc_string(data),
+            Data::Dcs => handler.dcs_string(data),
+        }
+        stop
     }
 
     #[inline]
@@ -1376,5 +1417,73 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ---- Batched data-string dispatch (osc_string / dcs_string) ---------
+
+    /// Records the slices handed to the batched data handlers, overriding the
+    /// per-byte defaults so we can assert that batching actually happens (the
+    /// `Recorder` above only exercises the byte-by-byte fallback).
+    #[derive(Default)]
+    struct StringBatches {
+        osc: Vec<Vec<u8>>,
+        dcs: Vec<Vec<u8>>,
+    }
+
+    impl Handler for StringBatches {
+        fn osc_string(&mut self, bytes: &[u8]) {
+            self.osc.push(bytes.to_vec());
+        }
+        fn dcs_string(&mut self, bytes: &[u8]) {
+            self.dcs.push(bytes.to_vec());
+        }
+    }
+
+    fn batches(bytes: impl AsRef<[u8]>) -> StringBatches {
+        let mut parser = Parser::default();
+        let mut h = StringBatches::default();
+        parser.advance(&mut h, bytes);
+        h
+    }
+
+    #[test]
+    fn osc_data_dispatched_as_one_slice() {
+        let h = batches(b"\x1B]0;title\x1B\\");
+        assert_eq!(h.osc, vec![b"0;title".to_vec()]);
+        assert!(h.dcs.is_empty());
+    }
+
+    #[test]
+    fn dcs_data_dispatched_as_one_slice() {
+        let h = batches(b"\x1BP1;2|data\x1B\\");
+        assert_eq!(h.dcs, vec![b"data".to_vec()]);
+        assert!(h.osc.is_empty());
+    }
+
+    #[test]
+    fn osc_high_bytes_batched_with_ascii() {
+        // UTF-8 payload (é = C3 A9) is in the 0xa0..=0xff data set, so it batches
+        // together with the surrounding ASCII rather than splitting the run.
+        let h = batches(b"\x1B]0;\xC3\xA9!\x07");
+        assert_eq!(h.osc, vec![b"0;\xC3\xA9!".to_vec()]);
+    }
+
+    #[test]
+    fn osc_batch_splits_around_ignored_control() {
+        // An ignored C0 (BS = 0x08) inside the body splits the batch and is
+        // dropped — exactly what the per-byte path does (it emits no osc_byte).
+        let h = batches(b"\x1B]0;ab\x08cd\x07");
+        assert_eq!(h.osc, vec![b"0;ab".to_vec(), b"cd".to_vec()]);
+    }
+
+    #[test]
+    fn osc_string_batches_per_advance_chunk() {
+        // Chunked input yields one slice per chunk; concatenation matches the
+        // whole-feed body, so a buffering handler reconstructs it losslessly.
+        let mut parser = Parser::default();
+        let mut h = StringBatches::default();
+        parser.advance(&mut h, b"\x1B]0;ti");
+        parser.advance(&mut h, b"tle\x07");
+        assert_eq!(h.osc, vec![b"0;ti".to_vec(), b"tle".to_vec()]);
     }
 }

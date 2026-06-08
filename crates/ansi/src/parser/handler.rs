@@ -31,6 +31,16 @@ pub trait Handler {
     /// A byte of a DCS data string. C0 controls are also passed here.
     fn dcs_byte(&mut self, _byte: u8) {}
 
+    /// A run of DCS data bytes delivered in a single call. The parser batches
+    /// contiguous data between control bytes and hands it over here. Defaults to
+    /// dispatching each byte individually via [`Handler::dcs_byte`]; override it
+    /// to avoid per-byte dispatch on large device-control payloads (e.g. Sixel).
+    fn dcs_string(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.dcs_byte(byte);
+        }
+    }
+
     /// The DCS data string has been terminated.
     fn dcs_termination(&mut self, _byte: u8) {}
 
@@ -40,6 +50,17 @@ pub trait Handler {
 
     /// A byte of OSC data.
     fn osc_byte(&mut self, _byte: u8) {}
+
+    /// A run of OSC data bytes delivered in a single call. The parser batches
+    /// contiguous data between control bytes and hands it over here. Defaults to
+    /// dispatching each byte individually via [`Handler::osc_byte`]; override it
+    /// to avoid per-byte dispatch on large OSC payloads (e.g. base64 clipboard
+    /// or long hyperlink URIs).
+    fn osc_string(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.osc_byte(byte);
+        }
+    }
 
     /// The OSC string has been terminated.
     fn osc_termination(&mut self, _byte: u8) {}

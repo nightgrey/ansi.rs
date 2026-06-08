@@ -30,7 +30,8 @@ palette = "0.7.6"
 
 [dev-dependencies]
 criterion = "0.8.2"
-
+vt-push-parser = "0.13.1"
+vte = "0.15.0"
 [[bench]]
 name = "parser"
 harness = false

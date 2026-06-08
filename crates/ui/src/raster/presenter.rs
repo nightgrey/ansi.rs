@@ -1,4 +1,4 @@
-use super::Counting;
+use utils::Counting;
 use crate::raster::Pen;
 use crate::{Arena, Buffer, BufferDiff, Cells, Cell, Run, TrackingBuffer};
 use ansi::WriteEscape;
@@ -1146,7 +1146,7 @@ mod tests {
 
         use super::Presenter;
         use crate::{Arena, Buffer, Cell, TrackingBuffer};
-        use ansi::parser::{Handler, Inter, Params, Parser};
+        use ansi::parser::{Handler, ByteStr, Params, Parser};
         use ansi::{Attribute, Color, Style};
         use std::io::Cursor;
         use unicode_width::UnicodeWidthChar;
@@ -1368,7 +1368,7 @@ mod tests {
                 }
             }
 
-            fn csi(&mut self, params: Params<'_>, _intermediates: &Inter, final_char: char) {
+            fn csi(&mut self, params: Params<'_>, _intermediates: &ByteStr, final_char: char) {
                 let p: &[u16] = params.as_ref();
                 match final_char {
                     'A' => self.cy = self.cy.saturating_sub(arg(p, 0, 1) as usize),

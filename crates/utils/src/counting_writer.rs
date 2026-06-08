@@ -23,7 +23,7 @@
 //! assert_eq!(writer.bytes_written(), 2);
 //! ```
 
-use derive_more::{AsMut, AsRef};
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use std::borrow::Borrow;
 use std::io::{self, Write};
 
@@ -31,12 +31,14 @@ use std::io::{self, Write};
 ///
 /// Wraps any `Write` implementation and tracks the total number of bytes
 /// written through it. The counter can be reset between operations.
-#[derive(Debug, AsMut, AsRef)]
+#[derive(Debug, AsMut, AsRef, Deref, DerefMut)]
 pub struct Counting<W: ?Sized + Write> {
     /// Total bytes written since last reset.
-    bytes: u64,
+    count: u64,
     #[as_mut]
     #[as_ref]
+    #[deref]
+    #[deref_mut]
     /// The underlying writer.
     inner: W,
 }
@@ -45,19 +47,19 @@ impl<W: Write> Counting<W> {
     /// Create a new counting writer wrapping the given writer.
     #[inline]
     pub fn new(inner: W) -> Self {
-        Self { inner, bytes: 0 }
+        Self { inner, count: 0 }
     }
 
     /// Get the number of bytes written since the last reset.
     #[inline]
     pub fn count(&self) -> u64 {
-        self.bytes
+        self.count
     }
 
     /// Reset the byte counter to zero.
     #[inline]
     pub fn reset(&mut self) {
-        self.bytes = 0;
+        self.count = 0;
     }
 
     /// Unwraps this `CountingWriter<W>`, returning the underlying writer.
@@ -69,7 +71,7 @@ impl<W: Write> Counting<W> {
 impl<W: Write> Write for Counting<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = self.inner.write(buf)?;
-        self.bytes += n as u64;
+        self.count += n as u64;
         Ok(n)
     }
 
@@ -79,7 +81,7 @@ impl<W: Write> Write for Counting<W> {
 
     fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.inner.write_all(buf)?;
-        self.bytes += buf.len() as u64;
+        self.count += buf.len() as u64;
         Ok(())
     }
 }

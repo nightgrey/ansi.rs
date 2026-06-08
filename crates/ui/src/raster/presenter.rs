@@ -1330,7 +1330,7 @@ mod tests {
         }
 
         impl Handler for Emulator {
-            fn printable(&mut self, c: char) {
+            fn print(&mut self, c: char) {
                 let w = c.width().unwrap_or(0);
                 if w == 0 {
                     return; // zero-width (combining) — our generators don't produce these

@@ -2,15 +2,15 @@ use crate::parser::{ByteStr, Params};
 
 pub trait Handler {
     /// Draw a character to the screen and update states.
-    fn printable(&mut self, _byte: char) {}
+    fn print(&mut self, _byte: char) {}
 
     /// Draw a run of printable characters in a single call. The parser batches
     /// contiguous printable text between control bytes and hands it over here.
-    /// Defaults to dispatching each char individually via [`Handler::printable`];
+    /// Defaults to dispatching each char individually via [`Handler::print`];
     /// override it to avoid per-char dispatch on text-heavy streams.
-    fn printables(&mut self, str: &str) {
+    fn printing(&mut self, str: &str) {
         for ch in str.chars() {
-            self.printable(ch);
+            self.print(ch);
         }
     }
 

@@ -43,7 +43,7 @@ impl Parser {
     /// future `advance`.
     pub fn flush(&mut self, handler: &mut impl Handler) {
         if !self.utf8.is_empty() {
-            handler.printable(char::REPLACEMENT_CHARACTER);
+            handler.print(char::REPLACEMENT_CHARACTER);
         }
         self.state = State::Ground;
         self.clear();
@@ -93,7 +93,7 @@ impl Parser {
             // Buffer is now a complete codepoint: dispatch it and clear.
             Ok(parsed) => {
                 let c = unsafe { parsed.chars().next().unwrap_unchecked() };
-                handler.printable(c);
+                handler.print(c);
                 self.utf8.clear();
                 take
             }
@@ -104,7 +104,7 @@ impl Parser {
                 // buffered lead. Any new bytes we copied are left for the main
                 // loop to reprocess (`valid_up_to` is 0 here, so consume none).
                 Some(_) => {
-                    handler.printable('\u{FFFD}');
+                    handler.print('\u{FFFD}');
                     let consumed = err.valid_up_to().saturating_sub(old_bytes);
                     self.utf8.clear();
                     consumed
@@ -208,14 +208,14 @@ impl Parser {
                             return len;
                         }
                         // Otherwise the bytes are genuinely malformed.
-                        handler.printable('\u{FFFD}');
+                        handler.print('\u{FFFD}');
                         valid_bytes + len
                     }
                     None => {
                         if num_chars < num_bytes {
                             // The partial codepoint is followed by ESC — drop
                             // it and start the escape sequence.
-                            handler.printable('\u{FFFD}');
+                            handler.print('\u{FFFD}');
                             self.state = State::Escape;
                             self.clear();
                             num_chars + 1
@@ -234,7 +234,7 @@ impl Parser {
     }
 
     /// Walk the chars of a validated str, dispatching printable runs in a
-    /// single [`Handler::printables`] call and C0 controls via
+    /// single [`Handler::printing`] call and C0 controls via
     /// [`Handler::execute`]. Stops at the first C1 control char (0x80..=0x9F)
     /// without consuming it, returning the byte offset where dispatch stopped.
     #[inline]
@@ -245,13 +245,13 @@ impl Parser {
             match c {
                 '\u{80}'..='\u{9F}' => {
                     if run_start < i {
-                        handler.printables(&parsed[run_start..i]);
+                        handler.printing(&parsed[run_start..i]);
                     }
                     return i;
                 }
                 '\x00'..='\x1F' => {
                     if run_start < i {
-                        handler.printables(&parsed[run_start..i]);
+                        handler.printing(&parsed[run_start..i]);
                     }
                     handler.execute(c as u8);
                     run_start = i + c.len_utf8();
@@ -262,13 +262,13 @@ impl Parser {
         }
 
         if run_start < i {
-            handler.printables(&parsed[run_start..i]);
+            handler.printing(&parsed[run_start..i]);
         }
         i
     }
 
     /// Walk ASCII bytes without UTF-8 char decoding, batching printable runs
-    /// into [`Handler::printables`] calls.
+    /// into [`Handler::printing`] calls.
     #[inline]
     fn dispatch_ground_ascii(handler: &mut impl Handler, bytes: &[u8]) -> usize {
         let mut run_start = 0;
@@ -277,7 +277,7 @@ impl Parser {
                 if run_start < i {
                     // SAFETY: the caller validated `bytes` is ASCII, so every
                     // sub-slice is valid UTF-8.
-                    handler.printables(unsafe { str::from_utf8_unchecked(&bytes[run_start..i]) });
+                    handler.printing(unsafe { str::from_utf8_unchecked(&bytes[run_start..i]) });
                 }
                 handler.execute(byte);
                 run_start = i + 1;
@@ -286,7 +286,7 @@ impl Parser {
 
         if run_start < bytes.len() {
             // SAFETY: ASCII, see above.
-            handler.printables(unsafe { str::from_utf8_unchecked(&bytes[run_start..]) });
+            handler.printing(unsafe { str::from_utf8_unchecked(&bytes[run_start..]) });
         }
         bytes.len()
     }
@@ -298,7 +298,7 @@ impl Parser {
 
             Action::Clear => self.clear(),
 
-            Action::Print => handler.printable(byte as char),
+            Action::Print => handler.print(byte as char),
             Action::Execute => handler.execute(byte),
 
             Action::Collect => self.intermediates.push(byte),
@@ -537,7 +537,7 @@ mod tests {
     }
 
     impl Handler for Recorder {
-        fn printable(&mut self, ch: char) {
+        fn print(&mut self, ch: char) {
             self.values.push(Value::Print(ch));
         }
         fn execute(&mut self, byte: u8) {

@@ -16,10 +16,10 @@ use std::hint::black_box;
 struct Sink;
 
 impl Handler for Sink {
-    fn printable(&mut self, ch: char) {
+    fn print(&mut self, ch: char) {
         black_box(ch);
     }
-    fn printables(&mut self, s: &str) {
+    fn printing(&mut self, s: &str) {
         black_box(s);
     }
     fn execute(&mut self, byte: u8) {

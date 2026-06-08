@@ -27,16 +27,18 @@ utils-derive = { workspace = true }
 vte_generate_state_changes = "0.2.0"
 flagset = "0.4.7"
 palette = "0.7.6"
+pprof =  { version = "0.15.0", features = ["criterion", "flamegraph"] }
 
 [dev-dependencies]
-criterion = "0.8.2"
+criterion = { version = "0.8.2", features = ["html_reports"] }
 vt-push-parser = "0.13.1"
 vte = "0.15.0"
-bytesize = "2.3.1"
-flamegraph = "0.6.13"
+inferno = "0.11.21"
+benchkit = { version = "0.21.0", features = [ "full" ] }
 [[bench]]
 name = "parser"
 harness = false
+
 
 [lints]
 workspace = true

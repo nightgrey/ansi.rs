@@ -1,3 +1,4 @@
+
 //! Throughput benchmarks for the VT500 ANSI parser.
 //!
 //! Parser construction and fixture generation are excluded from the timed
@@ -6,37 +7,38 @@
 //! Results include callback dispatch, whose granularity differs by parser.
 //!
 //! Run with: `cargo bench -p ansi --bench parser`
+mod profiler;
 use ansi::parser;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
+use std::time::Duration;
 use derive_more::{AsRef, Deref};
+use profiler::{FlamegraphProfiler};
 
 fn parser_throughput(c: &mut Criterion) {
 
     for fixture in [
-        Fixture::prepare(
+        Fixture::define(
             "ascii",
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
         ),
-        Fixture::prepare(
+        Fixture::define(
             "utf8",
             "héllo 東京 🦀 \x1B[1m bold \x1B[0m"
         ),
-        Fixture::prepare(
+        Fixture::define(
             "dcs-osc",
             b"\x1B]0;window title here\x07\x1BP1;2|some device control data\x1B\\"
         ),
     ] {
         for scenario in [
             Scenario { label: "complete", chunk_size: None },
-            Scenario { label: "64b", chunk_size: Some(64) },
-            Scenario { label: "4kb", chunk_size: Some(4 * 1024) },
-            Scenario { label: "1b", chunk_size: Some(1) },
+            Scenario { label: "1kb", chunk_size: Some(1 * 1024) },
         ] {
             run(c, &fixture, &scenario);
         }
     }
-    
+
     fn run(
         c: &mut Criterion,
         fixture: &Fixture,
@@ -49,7 +51,7 @@ fn parser_throughput(c: &mut Criterion) {
             chunk_size
         ) = scenario.with(&fixture);
 
-        let mut group = c.benchmark_group(format!("parser/{fixture}/{scenario}", fixture = fixture.label, scenario = scenario.label));
+        let mut group = c.benchmark_group(format!("parser/{}/{}", fixture.label, scenario.label));
         group.throughput(Throughput::Bytes(data.len() as u64));
 
         for kind in Benchmark::ALL {
@@ -81,11 +83,10 @@ fn parser_throughput(c: &mut Criterion) {
                         || (vt_push_parser::VTPushParser::new(), Collector::default(), data.chunks(chunk_size)),
                         |(parser, collector, data)| {
                             use vt_push_parser::event::{VTEvent, EscInvalid};
-                            use vt_push_parser::VTPushParser;
                             for chunk in data {
                                 parser.feed_with(
                                     black_box(chunk),
-                                    &mut |event: vt_push_parser::event::VTEvent<'_>| {
+                                    &mut |event: VTEvent<'_>| {
                                         match event {
                                             VTEvent::Raw(s) => {
                                                 collector.push(s.len());
@@ -292,11 +293,6 @@ fn parser_throughput(c: &mut Criterion) {
     }
 }
 
-
-criterion_group!(benches, parser_throughput);
-criterion_main!(benches);
-
-
 // Harness
 
 #[derive(Clone, Deref, AsRef)]
@@ -310,17 +306,11 @@ struct Fixture{
 impl Fixture {
     const MIN: usize = 1024 * 1024;
 
-    fn prepare(label: &'static str, bytes: impl AsRef<[u8]>) -> Self {
+    fn define(label: &'static str, bytes: impl AsRef<[u8]>) -> Self {
         let bytes = bytes.as_ref();
-        let mut data = Vec::with_capacity(Self::MIN);
-        data.copy_from_slice(bytes);
-
-        if data.len() < Self::MIN {
-            data.repeat((Self::MIN) / bytes.len());
-        }
         Self {
             label,
-            data
+            data: if bytes.len() < Self::MIN { bytes.repeat(Self::MIN / bytes.len()) } else { bytes.to_vec() }
         }
     }
 }
@@ -341,3 +331,14 @@ impl Scenario {
     }
 }
 
+criterion_group!{
+    name = benches;
+    config = Criterion::default()
+        .save_baseline("parser".to_string())
+        .warm_up_time(Duration::from_millis(250))
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(1))
+        .with_profiler(FlamegraphProfiler::default());
+    targets = parser_throughput
+}
+criterion_main!(benches);

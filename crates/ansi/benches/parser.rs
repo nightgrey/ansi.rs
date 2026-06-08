@@ -14,7 +14,6 @@ use std::hint::black_box;
 use std::time::Duration;
 use derive_more::{AsRef, Deref};
 use profiler::{FlamegraphProfiler};
-
 fn parser_throughput(c: &mut Criterion) {
 
     for fixture in [

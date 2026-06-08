@@ -26,9 +26,14 @@ memchr = "2.8.0"
 utils-derive = { workspace = true }
 vte_generate_state_changes = "0.2.0"
 flagset = "0.4.7"
+palette = "0.7.6"
 
 [dev-dependencies]
 criterion = "0.8.2"
+
+[[bench]]
+name = "parser"
+harness = false
 
 [lints]
 workspace = true

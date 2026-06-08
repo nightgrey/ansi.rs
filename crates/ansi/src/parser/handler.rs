@@ -1,4 +1,4 @@
-use crate::parser::{Inter, Params};
+use crate::parser::{ByteStr, Params};
 
 pub trait Handler {
     /// Draw a character to the screen and update states.
@@ -8,15 +8,15 @@ pub trait Handler {
     fn execute(&mut self, _byte: u8) {}
 
     /// The final character of an escape sequence has arrived.
-    fn esc(&mut self, _intermediates: &Inter, _final_byte: u8) {}
+    fn esc(&mut self, _intermediates: &ByteStr, _final_byte: u8) {}
 
     /// A final character has arrived for a CSI sequence.
-    fn csi(&mut self, _params: Params<'_>, _intermediates: &Inter, _final_byte: char) {}
+    fn csi(&mut self, _params: Params<'_>, _intermediates: &ByteStr, _final_byte: char) {}
 
     /// Invoked when a final character arrives in first part of device control
     /// string. Subsequent bytes in the control string are delivered via
     /// [`Handler::dcs_byte`], and termination via [`Handler::dcs_termination`].
-    fn dcs(&mut self, _params: Params<'_>, _intermediates: &Inter, _final_char: char) {}
+    fn dcs(&mut self, _params: Params<'_>, _intermediates: &ByteStr, _final_char: char) {}
 
     /// A byte of a DCS data string. C0 controls are also passed here.
     fn dcs_byte(&mut self, _byte: u8) {}
@@ -26,7 +26,7 @@ pub trait Handler {
 
     /// Begin an operating system command. Subsequent body bytes are delivered
     /// via [`Handler::osc_byte`]; termination via [`Handler::osc_termination`].
-    fn osc(&mut self, _params: Params<'_>) {}
+    fn osc(&mut self) {}
 
     /// A byte of OSC data.
     fn osc_byte(&mut self, _byte: u8) {}

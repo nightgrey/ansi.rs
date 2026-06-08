@@ -8,9 +8,8 @@ pub struct Parser {
     pub state: State,
 
     pub params: ParametersBuilder,
-    pub intermediates: Intermediates,
+    pub intermediates: ByteString,
 
-    pub data: DataString,
     pub utf8: ArrayVec<u8, 4>,
 }
 
@@ -311,7 +310,7 @@ impl Parser {
             Action::DcsByte => handler.dcs_byte(byte),
             Action::DcsTermination => handler.dcs_termination(byte),
 
-            Action::OscDispatch => handler.osc(self.params.as_nested_slice()),
+            Action::OscDispatch => handler.osc(),
             Action::OscByte => handler.osc_byte(byte),
             Action::OscTermination => handler.osc_termination(byte),
         }
@@ -321,7 +320,6 @@ impl Parser {
     pub fn clear(&mut self) {
         self.params.clear();
         self.intermediates.clear();
-        self.data.clear();
         self.utf8.clear();
     }
 }
@@ -330,7 +328,7 @@ impl Parser {
 pub struct ParametersBuilder {
     #[deref]
     #[deref_mut]
-    inner: NestedRaw<u16, 16, 8>,
+    inner: NestedRaw<u16, 32, 32>,
     current: Option<u16>,
     group_active: bool,
     last_separator: Option<ParameterSeparator>,
@@ -373,10 +371,11 @@ impl ParametersBuilder {
             None if matches!(self.last_separator, Some(ParameterSeparator::Sub)) => {
                 self.push_sub_value(0);
             }
-            None => self
-                .inner
-                .try_push_one(0)
-                .expect("could not push empty parameter"),
+            // Drop on overflow: the CSI/DCS still dispatches with the capped
+            // params rather than panicking.
+            None => {
+                let _ = self.inner.try_push_one(0);
+            }
         }
 
         self.group_active = false;
@@ -401,26 +400,27 @@ impl ParametersBuilder {
         self.last_separator = None;
     }
 
+    // The push helpers drop values that exceed capacity (`NestedError::Overflow`)
+    // instead of panicking. A pathologically long parameter list still
+    // dispatches, just with the trailing params capped — mirroring the
+    // reference's cap-and-continue behavior, safely.
     fn push_value(&mut self, val: u16) {
         if self.group_active {
             self.push_sub_value(val);
         } else {
-            self.inner
-                .try_push_one(val)
-                .expect("could not push parameter");
+            let _ = self.inner.try_push_one(val);
         }
     }
 
     fn push_sub_value(&mut self, val: u16) {
         if self.group_active {
-            self.inner
-                .try_extend_one(val)
-                .expect("could not extend parameter");
+            let _ = self.inner.try_extend_one(val);
         } else {
-            self.inner
-                .try_push_one(val)
-                .expect("could not push parameter");
-            self.group_active = true;
+            // Only mark the group active if the value actually landed, so
+            // `group_active` bookkeeping stays consistent on overflow.
+            if self.inner.try_push_one(val).is_ok() {
+                self.group_active = true;
+            }
         }
     }
 }
@@ -430,7 +430,7 @@ mod tests {
     use super::*;
     use crate::params;
     use std::fmt::{Debug, Display};
-    use utils::{NestedConstructor, NestedVec};
+    use utils::NestedConstructor;
 
     #[derive(Clone, PartialEq, Eq)]
     struct AnsiChar(pub char);
@@ -472,12 +472,12 @@ mod tests {
     enum Value {
         Print(char),
         Execute(u8),
-        Esc(Intermediates, u8),
-        Csi(Parameters, Intermediates, char),
-        Dcs(Parameters, Intermediates, char),
+        Esc(ByteString, u8),
+        Csi(Parameters, ByteString, char),
+        Dcs(Parameters, ByteString, char),
         DcsByte(u8),
         DcsTermination(u8),
-        Osc(Parameters),
+        Osc,
         OscByte(u8),
         OscTermination(u8),
     }
@@ -491,7 +491,7 @@ mod tests {
                 Value::Dcs(p, i, c) => write!(f, "Dcs({:?}, {:?}, {:?})", p, i, AnsiChar::from(c)),
                 Value::DcsByte(b) => write!(f, "DcsByte({:?})", AnsiChar::from(b)),
                 Value::DcsTermination(b) => write!(f, "DcsTermination({:?})", AnsiChar::from(b)),
-                Value::Osc(p) => write!(f, "Osc({:?})", p),
+                Value::Osc => write!(f, "Osc"),
                 Value::OscByte(b) => write!(f, "OscByte({:?})", AnsiChar::from(b)),
                 Value::OscTermination(b) => write!(f, "OscTermination({:?})", AnsiChar::from(b)),
             }
@@ -509,18 +509,18 @@ mod tests {
         fn execute(&mut self, byte: u8) {
             self.values.push(Value::Execute(byte));
         }
-        fn esc(&mut self, intermediates: &Inter, final_byte: u8) {
+        fn esc(&mut self, intermediates: &ByteStr, final_byte: u8) {
             self.values
-                .push(Value::Esc(Intermediates::from(intermediates), final_byte));
+                .push(Value::Esc(ByteString::from(intermediates), final_byte));
         }
-        fn csi(&mut self, params: Params, intermediates: &Inter, final_byte: char) {
+        fn csi(&mut self, params: Params, intermediates: &ByteStr, final_byte: char) {
             self.values.push(Value::Csi(
                 params.to_nested_vec(),
                 intermediates.to_owned(),
                 final_byte,
             ));
         }
-        fn dcs(&mut self, params: Params, intermediates: &Inter, final_char: char) {
+        fn dcs(&mut self, params: Params, intermediates: &ByteStr, final_char: char) {
             self.values.push(Value::Dcs(
                 params.to_nested_vec(),
                 intermediates.to_owned(),
@@ -533,8 +533,8 @@ mod tests {
         fn dcs_termination(&mut self, byte: u8) {
             self.values.push(Value::DcsTermination(byte));
         }
-        fn osc(&mut self, params: Params) {
-            self.values.push(Value::Osc(params.to_nested_vec()));
+        fn osc(&mut self) {
+            self.values.push(Value::Osc);
         }
         fn osc_byte(&mut self, byte: u8) {
             self.values.push(Value::OscByte(byte));
@@ -564,8 +564,8 @@ mod tests {
             h.recorder.values.clone()
         }
     }
-    fn inter(b: &[u8]) -> Intermediates {
-        Intermediates::from(b)
+    fn inter(b: &[u8]) -> ByteString {
+        ByteString::from(b)
     }
 
     // ---- Ground / print / execute ---------------------------------------
@@ -861,7 +861,7 @@ mod tests {
         assert_eq!(
             Harness::run([0x9D, b'0', b';', b'h', b'i', 0x9C]),
             vec![
-                Value::Osc(Parameters::new()),
+                Value::Osc,
                 Value::OscByte(b'0'),
                 Value::OscByte(b';'),
                 Value::OscByte(b'h'),
@@ -892,7 +892,7 @@ mod tests {
         assert_eq!(
             Harness::run(b"\x1B]0;title\x1B\\"),
             vec![
-                Value::Osc(Parameters::new()),
+                Value::Osc,
                 Value::OscByte(b'0'),
                 Value::OscByte(b';'),
                 Value::OscByte(b't'),
@@ -912,7 +912,7 @@ mod tests {
         assert_eq!(
             Harness::run(b"\x1B]0;hi\x07"),
             vec![
-                Value::Osc(Parameters::new()),
+                Value::Osc,
                 Value::OscByte(b'0'),
                 Value::OscByte(b';'),
                 Value::OscByte(b'h'),
@@ -926,7 +926,7 @@ mod tests {
     fn osc_empty() {
         assert_eq!(
             Harness::run(b"\x1B]\x07"),
-            vec![Value::Osc(Parameters::new()), Value::OscTermination(0x07),],
+            vec![Value::Osc, Value::OscTermination(0x07),],
         );
     }
 
@@ -1039,7 +1039,7 @@ mod tests {
         assert_eq!(
             h.recorder.values,
             vec![
-                Value::Osc(Parameters::new()),
+                Value::Osc,
                 Value::OscByte(b'0'),
                 Value::OscByte(b';'),
                 Value::OscByte(b't'),
@@ -1067,6 +1067,159 @@ mod tests {
                 Value::Print('\u{1F3FF}'),
                 Value::Csi(params![[0]], inter(b""), 'm'),
             ],
+        );
+    }
+
+    // ---- Robustness / overflow -----------------------------------------
+
+    #[test]
+    fn param_overflow_does_not_panic() {
+        // A pathologically long parameter list must not panic. It dispatches
+        // with the trailing params dropped once capacity is reached.
+        let mut seq = Vec::from(b"\x1B[".as_slice());
+        for _ in 0..40 {
+            seq.extend_from_slice(b"1;");
+        }
+        seq.push(b'm');
+
+        let events = Harness::run(seq);
+        // Exactly one CSI dispatch, with the trailing params dropped once the
+        // builder hits capacity. `NestedRaw<_, 32, 32>` reserves one `starts`
+        // slot as a sentinel, so the group cap is 31.
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Value::Csi(params, i, c) => {
+                assert_eq!(*c, 'm');
+                assert_eq!(i, &inter(b""));
+                assert_eq!(params.len(), 31);
+            }
+            other => panic!("expected a single Csi dispatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn many_param_sgr_within_capacity() {
+        assert_eq!(
+            Harness::run(b"\x1B[1;2;3;4;5;6;7;8;9;10m"),
+            vec![Value::Csi(
+                params!([1], [2], [3], [4], [5], [6], [7], [8], [9], [10]),
+                inter(b""),
+                'm'
+            )],
+        );
+    }
+
+    // ---- SOS / standalone ST -------------------------------------------
+
+    #[test]
+    fn sos_string_is_silently_consumed() {
+        // ESC X ... ESC \ — SOS. Body bytes are ignored; only the trailing
+        // ESC \ produces an Esc dispatch (parallels PM/APC).
+        assert_eq!(
+            Harness::run(b"\x1BXjunk\x1B\\"),
+            vec![Value::Esc(inter(b""), b'\\')],
+        );
+    }
+
+    #[test]
+    fn c1_sos_string_is_silently_consumed() {
+        // 8-bit SOS introducer 0x98.
+        let mut seq = vec![0x98];
+        seq.extend_from_slice(b"junk\x1B\\");
+        assert_eq!(Harness::run(seq), vec![Value::Esc(inter(b""), b'\\')]);
+    }
+
+    #[test]
+    fn standalone_st_dispatches_as_esc() {
+        // ESC \ in ground is just an ESC dispatch.
+        assert_eq!(
+            Harness::run(b"\x1B\\"),
+            vec![Value::Esc(inter(b""), b'\\')],
+        );
+    }
+
+    // ---- OSC cancel -----------------------------------------------------
+
+    #[test]
+    fn osc_can_cancels() {
+        // CAN inside OSC terminates the string and executes the CAN, returning
+        // to ground.
+        assert_eq!(
+            Harness::run(b"\x1B]0;hi\x18"),
+            vec![
+                Value::Osc,
+                Value::OscByte(b'0'),
+                Value::OscByte(b';'),
+                Value::OscByte(b'h'),
+                Value::OscByte(b'i'),
+                Value::OscTermination(0x18),
+                Value::Execute(0x18),
+            ],
+        );
+    }
+
+    // ---- Malformed UTF-8 ------------------------------------------------
+
+    #[test]
+    fn lone_continuation_mid_stream_emits_replacement() {
+        // 0xBF is a UTF-8 continuation byte with no leader. (Bytes 0x80..=0x9F
+        // are C1 controls and dispatch as Execute instead — see the C1 tests.)
+        assert_eq!(
+            Harness::run(&[b'x', 0xBF, b'y']),
+            vec![
+                Value::Print('x'),
+                Value::Print('\u{FFFD}'),
+                Value::Print('y'),
+            ],
+        );
+    }
+
+    #[test]
+    fn overlong_encoding_emits_replacement() {
+        // 0xC0 0xAF is an overlong (illegal) encoding of '/'. Each invalid byte
+        // resolves to a replacement char.
+        assert_eq!(
+            Harness::run(&[b'a', 0xC0, 0xAF, b'b']),
+            vec![
+                Value::Print('a'),
+                Value::Print('\u{FFFD}'),
+                Value::Print('\u{FFFD}'),
+                Value::Print('b'),
+            ],
+        );
+    }
+
+    #[test]
+    fn truncated_multibyte_resolved_on_next_advance() {
+        // 東 = E6 9D B1 (3 bytes). Split after the first byte: the partial
+        // codepoint is buffered, then completed on the following call.
+        let mut h = Harness::default();
+        h.advance(&[b'a', 0xE6]);
+        assert_eq!(h.recorder.values, vec![Value::Print('a')]);
+        h.advance(&[0x9D, 0xB1, b'b']);
+        assert_eq!(
+            h.recorder.values,
+            vec![Value::Print('a'), Value::Print('東'), Value::Print('b')],
+        );
+    }
+
+    // ---- CSI edge cases -------------------------------------------------
+
+    #[test]
+    fn del_inside_csi_param_is_ignored() {
+        // 0x7F inside a CSI param is ignored; the sequence still dispatches.
+        assert_eq!(
+            Harness::run(b"\x1B[1;2\x7fm"),
+            vec![Value::Csi(params![[1], [2]], inter(b""), 'm')],
+        );
+    }
+
+    #[test]
+    fn csi_intermediate_only_soft_reset() {
+        // CSI ! p — DECSTR (soft reset): intermediate, no params.
+        assert_eq!(
+            Harness::run(b"\x1B[!p"),
+            vec![Value::Csi(Parameters::new(), inter(b"!"), 'p')],
         );
     }
 }

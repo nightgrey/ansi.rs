@@ -1,12 +1,9 @@
-use utils::{SmallByteStr, SmallByteString, NestedIter, NestedSlice, NestedVec};
+use utils::{SmallByteStr, SmallByteString, NestedSlice, NestedVec};
 
 /// Represents ANSI intermediates parameters, a sequence of bytes.
-pub type Intermediates = SmallByteString;
+pub type ByteString = SmallByteString;
 /// Represents borrowed ANSI intermediate parameters, a sequence of bytes.
-pub type Inter = SmallByteStr;
-
-pub type DataString = SmallByteString;
-pub type DataStr = SmallByteStr;
+pub type ByteStr = SmallByteStr;
 
 /// Represents ANSI parameters, a nested sequence of parameter values.
 pub type Parameters<const N: usize = 2, const M: usize = 0> = NestedVec<u16, N, M>;

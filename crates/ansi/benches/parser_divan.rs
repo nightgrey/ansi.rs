@@ -54,7 +54,7 @@ mod benches {
             fn csi(&mut self, _params: parser::Params<'_>, intermediates: &parser::ByteStr, final_byte: char) {
                 self.push(intermediates.len() + final_byte.len_utf8());
             }
-            fn dcs(&mut self, _params: parser::Params<'_>, intermediates: &parser::ByteStr, final_char: char) {
+            fn dcs_start(&mut self, _params: parser::Params<'_>, intermediates: &parser::ByteStr, final_char: char) {
                 self.push(intermediates.len() + final_char.len_utf8());
             }
             fn dcs_byte(&mut self, _byte: u8) {
@@ -63,10 +63,10 @@ mod benches {
             fn dcs_string(&mut self, bytes: &[u8]) {
                 self.push(bytes.len());
             }
-            fn dcs_termination(&mut self, _byte: u8) {
+            fn dcs_end(&mut self, _byte: u8) {
                 self.push(1);
             }
-            fn osc(&mut self) {
+            fn osc_start(&mut self) {
                 self.push(0);
             }
             fn osc_byte(&mut self, _byte: u8) {
@@ -75,7 +75,7 @@ mod benches {
             fn osc_string(&mut self, bytes: &[u8]) {
                 self.push(bytes.len());
             }
-            fn osc_termination(&mut self, _byte: u8) {
+            fn osc_end(&mut self, _byte: u8) {
                 self.push(1);
             }
         }

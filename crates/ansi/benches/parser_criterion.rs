@@ -207,7 +207,7 @@ fn parser_throughput(c: &mut Criterion) {
             self.push(intermediates.len() + final_byte.len_utf8());
         }
 
-        fn dcs(
+        fn dcs_start(
             &mut self,
             _params: parser::Params<'_>,
             intermediates: &parser::ByteStr,
@@ -224,11 +224,11 @@ fn parser_throughput(c: &mut Criterion) {
             self.push(bytes.len());
         }
 
-        fn dcs_termination(&mut self, _byte: u8) {
+        fn dcs_end(&mut self, _byte: u8) {
             self.push(1);
         }
 
-        fn osc(&mut self) {
+        fn osc_start(&mut self) {
             self.push(0);
         }
 
@@ -240,7 +240,7 @@ fn parser_throughput(c: &mut Criterion) {
             self.push(bytes.len());
         }
 
-        fn osc_termination(&mut self, _byte: u8) {
+        fn osc_end(&mut self, _byte: u8) {
             self.push(1);
         }
     }

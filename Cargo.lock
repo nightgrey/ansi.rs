@@ -68,6 +68,8 @@ name = "ansi"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "bilge",
+ "bitbag",
  "bitflags 2.11.1",
  "criterion 0.8.2",
  "derive_more",
@@ -350,6 +352,26 @@ name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
+
+[[package]]
+name = "bitbag"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa505579da82e3b60a080c49e97986a128c5f16d34df6ab14b450d623b2161ae"
+dependencies = [
+ "bitbag_derive",
+]
+
+[[package]]
+name = "bitbag_derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a405a96fd210c956a7c6a11c24a634ca794381856af07ab7238803ed71b2964"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "bitflags"

@@ -13,6 +13,7 @@ maybe = { workspace = true }
 maybe-derive = { workspace = true }
 derive_more = { workspace = true }
 arrayvec = { workspace = true }
+bilge = "0.3.0"
 strum = { version = "0.28", features = ["derive"] }
 memchr = "2.8.0"
 utils-derive = { workspace = true }

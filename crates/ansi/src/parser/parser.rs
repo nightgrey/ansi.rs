@@ -358,18 +358,18 @@ impl Parser {
 
             Action::DcsDispatch => {
                 self.params.finish();
-                handler.dcs(
+                handler.dcs_start(
                     self.params.as_nested_slice(),
                     self.intermediates.as_ref(),
                     byte as char,
                 );
             }
             Action::DcsByte => handler.dcs_byte(byte),
-            Action::DcsTermination => handler.dcs_termination(byte),
+            Action::DcsTermination => handler.dcs_end(byte),
 
-            Action::OscDispatch => handler.osc(),
+            Action::OscDispatch => handler.osc_start(),
             Action::OscByte => handler.osc_byte(byte),
-            Action::OscTermination => handler.osc_termination(byte),
+            Action::OscTermination => handler.osc_end(byte),
         }
     }
 
@@ -489,7 +489,7 @@ mod tests {
                 final_byte,
             ));
         }
-        fn dcs(&mut self, params: Params, intermediates: &ByteStr, final_char: char) {
+        fn dcs_start(&mut self, params: Params, intermediates: &ByteStr, final_char: char) {
             self.values.push(Value::Dcs(
                 params.to_nested_vec(),
                 intermediates.to_owned(),
@@ -499,16 +499,16 @@ mod tests {
         fn dcs_byte(&mut self, byte: u8) {
             self.values.push(Value::DcsByte(byte));
         }
-        fn dcs_termination(&mut self, byte: u8) {
+        fn dcs_end(&mut self, byte: u8) {
             self.values.push(Value::DcsTermination(byte));
         }
-        fn osc(&mut self) {
+        fn osc_start(&mut self) {
             self.values.push(Value::Osc);
         }
         fn osc_byte(&mut self, byte: u8) {
             self.values.push(Value::OscByte(byte));
         }
-        fn osc_termination(&mut self, byte: u8) {
+        fn osc_end(&mut self, byte: u8) {
             self.values.push(Value::OscTermination(byte));
         }
     }

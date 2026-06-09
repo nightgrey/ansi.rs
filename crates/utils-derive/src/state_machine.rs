@@ -1,11 +1,13 @@
 use quote::quote;
 use syn::{
-    braced, bracketed, Attribute, Error, Expr, Ident, LitInt, Path, Token, Visibility,
+    braced, bracketed, Attribute, Error, Expr, Ident, LitInt, Path, Token,
 };
 use syn::__private::TokenStream2;
 use syn::parse::{Parse, ParseStream};
 
 pub struct Machine {
+    action_attrs: Option<Vec<Attribute>>,
+    state_attrs: Option<Vec<Attribute>>,
     blocks: Vec<StateBlock>,
 }
 
@@ -50,24 +52,60 @@ pub enum Effect {
 
 impl Parse for Machine {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let mut action_attrs = None;
+        let mut state_attrs = None;
         let mut blocks = Vec::new();
 
         while !input.is_empty() {
-            blocks.push(input.parse()?);
+            let attrs = input.call(Attribute::parse_outer)?;
+
+            if input.peek(Token![enum]) {
+                input.parse::<Token![enum]>()?;
+                let name: Ident = input.parse()?;
+                input.parse::<Token![;]>()?;
+
+                let destination = match name.to_string().as_str() {
+                    "Action" => &mut action_attrs,
+                    "State" => &mut state_attrs,
+                    _ => {
+                        return Err(Error::new_spanned(
+                            name,
+                            "expected enum Action; or enum State;",
+                        ));
+                    }
+                };
+
+                if destination.replace(attrs).is_some() {
+                    return Err(Error::new_spanned(name, "duplicate enum declaration"));
+                }
+
+                continue;
+            }
+
+            blocks.push(StateBlock::parse_with_attrs(input, attrs)?);
 
             if input.peek(Token![,]) {
                 input.parse::<Token![,]>()?;
             }
         }
 
-        Ok(Self { blocks })
+        Ok(Self {
+            action_attrs,
+            state_attrs,
+            blocks,
+        })
     }
 }
 
 impl Parse for StateBlock {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
+        Self::parse_with_attrs(input, attrs)
+    }
+}
 
+impl StateBlock {
+    fn parse_with_attrs(input: ParseStream<'_>, attrs: Vec<Attribute>) -> syn::Result<Self> {
         let key = input.parse()?;
         input.parse::<Token![=>]>()?;
 
@@ -136,6 +174,7 @@ impl Parse for BytePattern {
 
         if input.peek(Token![..]) {
             input.parse::<Token![..]>()?;
+            input.parse::<Token![=]>()?;
             let end: LitInt = input.parse()?;
 
             Ok(Self::RangeInclusiveSyntax { start, end })
@@ -426,9 +465,13 @@ fn generate_state_enum(machine: &Machine) -> syn::Result<TokenStream2> {
         }
     });
 
+    let attrs = machine.state_attrs.as_ref().map_or_else(
+        || quote! { #[derive(Copy, Debug, Default)] },
+        |attrs| quote! { #(#attrs)* },
+    );
+
     Ok(quote! {
-        #[derive(Copy, Debug, Default)]
-        #[derive_const(Clone, PartialEq, Eq)]
+        #attrs
         pub enum State {
             #(#variants)*
         }
@@ -465,9 +508,13 @@ fn generate_action_enum(machine: &Machine) -> syn::Result<TokenStream2> {
         }
     });
 
+    let attrs = machine.action_attrs.as_ref().map_or_else(
+        || quote! { #[derive(Copy, Debug, Default)] },
+        |attrs| quote! { #(#attrs)* },
+    );
+
     Ok(quote! {
-        #[derive(Copy, Debug, Default)]
-        #[derive_const(Clone, PartialEq, Eq)]
+        #attrs
         pub enum Action {
             #(#variants)*
         }
@@ -555,7 +602,9 @@ fn last_path_ident(path: &Path) -> syn::Result<Ident> {
         .last()
         .map(|segment| segment.ident.clone())
         .ok_or_else(|| Error::new_spanned(path, "expected state path"))
-}fn is_default_attr(attr: &Attribute) -> bool {
+}
+
+fn is_default_attr(attr: &Attribute) -> bool {
     attr.path().is_ident("default")
 }
 
@@ -589,4 +638,66 @@ fn default_state_ident(machine: &Machine) -> syn::Result<Option<Ident>> {
     }
 
     Ok(found)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+
+    #[test]
+    fn enum_declaration_attributes_are_applied() {
+        let machine: Machine = syn::parse2(quote! {
+            #[derive(Copy, Debug, Default)]
+            enum Action;
+
+            #[derive(Copy, Debug, Default)]
+            enum State;
+
+            _ => {
+                0x1b => [Action::Execute, State::Ground],
+            },
+
+            #[default]
+            State::Ground => {
+                0x20..0x7f => Action::Print,
+            },
+        })
+        .unwrap();
+
+        let expanded = expand(machine).unwrap().to_string();
+
+        assert_eq!(expanded.matches("derive (Copy , Debug , Default)").count(), 2);
+        assert!(expanded.contains("pub enum Action"));
+        assert!(expanded.contains("pub enum State"));
+    }
+
+    #[test]
+    fn enum_declarations_remain_optional() {
+        let machine: Machine = syn::parse2(quote! {
+            #[default]
+            State::Ground => {
+                0x20..0x7f => Action::Print,
+            },
+        })
+        .unwrap();
+
+        let expanded = expand(machine).unwrap().to_string();
+
+        assert_eq!(expanded.matches("derive (Copy , Debug , Default)").count(), 2);
+    }
+
+    #[test]
+    fn rejects_duplicate_enum_declarations() {
+        let result = syn::parse2::<Machine>(quote! {
+            enum Action;
+            enum Action;
+        });
+        let error = match result {
+            Ok(_) => panic!("duplicate declaration should fail"),
+            Err(error) => error,
+        };
+
+        assert!(error.to_string().contains("duplicate enum declaration"));
+    }
 }

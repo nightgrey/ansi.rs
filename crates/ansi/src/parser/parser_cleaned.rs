@@ -40,7 +40,18 @@ state_machine! {
         0x00..=0x17 => Action::Execute,
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
-        0x20..=0x7f => Action::Print,
+        // 0x20..=0x7f => Action::Print,
+
+         0x20..=0x7f => [Action::Print, State::Utf8],
+        0xC2..=0xDF => [Action::Print, State::Utf8], // UTF8 2 byte sequence
+        0xE0..=0xEF => [Action::Print, State::Utf8], // UTF8 3 byte sequence
+        0xF0..=0xF4 => [Action::Print, State::Utf8], // UTF8 4 byte sequence,
+        _ => Action::Execute,
+    },
+
+    State::Utf8 => {
+        0x80..=0xBF => [Action::Print, State::Utf8], // Continuation byte
+        _ => Action::Execute,
     },
 
     // State: Escape
@@ -51,7 +62,7 @@ state_machine! {
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
         0x7f       => Action::Ignore,
-        0x20..=0x2f => [Action::Intermediate, State::EscapeIntermediate],
+        0x20..=0x2f => [Action::Collect, State::EscapeIntermediate],
         0x30..=0x4f => [Action::EscDispatch, State::Ground],
         0x51..=0x57 => [Action::EscDispatch, State::Ground],
         0x59       => [Action::EscDispatch, State::Ground],
@@ -71,7 +82,7 @@ state_machine! {
         0x00..=0x17 => Action::Execute,
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
-        0x20..=0x2f => Action::Intermediate,
+        0x20..=0x2f => Action::Collect,
         0x7f       => Action::Ignore,
         0x30..=0x7e => [Action::EscDispatch, State::Ground],
     },
@@ -84,11 +95,11 @@ state_machine! {
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
         0x7f       => Action::Ignore,
-        0x20..=0x2f => [Action::Intermediate, State::CsiIntermediate],
+        0x20..=0x2f => [Action::Collect, State::CsiIntermediate],
         0x3a       => State::CsiIgnore,
         0x30..=0x39 => [Action::Param, State::CsiParam],
         0x3b       => [Action::Param, State::CsiParam],
-        0x3c..=0x3f => [Action::Intermediate, State::CsiParam],
+        0x3c..=0x3f => [Action::Collect, State::CsiParam],
         0x40..=0x7e => [Action::CsiDispatch, State::Ground],
     },
 
@@ -112,7 +123,7 @@ state_machine! {
         0x7f       => Action::Ignore,
         0x3a       => Action::Param,
         0x3c..=0x3f => State::CsiIgnore,
-        0x20..=0x2f => [Action::Intermediate, State::CsiIntermediate],
+        0x20..=0x2f => [Action::Collect, State::CsiIntermediate],
         0x40..=0x7e => [Action::CsiDispatch, State::Ground],
     },
 
@@ -121,7 +132,7 @@ state_machine! {
         0x00..=0x17 => Action::Execute,
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
-        0x20..=0x2f => Action::Intermediate,
+        0x20..=0x2f => Action::Collect,
         0x7f       => Action::Ignore,
         0x30..=0x3f => State::CsiIgnore,
         0x40..=0x7e => [Action::CsiDispatch, State::Ground],
@@ -136,10 +147,10 @@ state_machine! {
         0x1c..=0x1f => Action::Ignore,
         0x7f       => Action::Ignore,
         0x3a       => State::DcsIgnore,
-        0x20..=0x2f => [Action::Intermediate, State::DcsIntermediate],
+        0x20..=0x2f => [Action::Collect, State::DcsIntermediate],
         0x30..=0x39 => [Action::Param, State::DcsParam],
         0x3b       => [Action::Param, State::DcsParam],
-        0x3c..=0x3f => [Action::Intermediate, State::DcsParam],
+        0x3c..=0x3f => [Action::Collect, State::DcsParam],
         0x40..=0x7e => State::DcsData,
     },
 
@@ -148,7 +159,7 @@ state_machine! {
         0x00..=0x17 => Action::Ignore,
         0x19       => Action::Ignore,
         0x1c..=0x1f => Action::Ignore,
-        0x20..=0x2f => Action::Intermediate,
+        0x20..=0x2f => Action::Collect,
         0x7f       => Action::Ignore,
         0x30..=0x3f => State::DcsIgnore,
         0x40..=0x7e => State::DcsData,
@@ -173,7 +184,7 @@ state_machine! {
         0x7f       => Action::Ignore,
         0x3a       => Action::Param,
         0x3c..=0x3f => Action::Param,
-        0x20..=0x2f => [Action::Intermediate, State::DcsIntermediate],
+        0x20..=0x2f => [Action::Collect, State::DcsIntermediate],
         0x40..=0x7e => State::DcsData,
     },
 
@@ -220,7 +231,7 @@ impl const Action {
     }
 }
 
-impl const State {
+impl State {
 
     pub fn is_some(&self) -> bool {
         *self != State::None
@@ -231,7 +242,10 @@ impl const State {
     }
     #[inline(always)]
     pub fn transition(self, byte: u8) -> (Action, Self) {
-        transition(self, byte)
+        eprintln!("State::{:?} + {:?}", self, byte as char);
+        let (action, next_state) = transition(self, byte);
+        eprintln!("  => [State::{:?}, Action::{:?}])", next_state, action);
+        (action, next_state)
     }
 
     #[inline(always)]
@@ -245,6 +259,7 @@ impl const State {
     }
 
 }
+
 #[derive(Debug, Default)]
 pub struct Parser {
     pub state: State,
@@ -263,6 +278,7 @@ impl Parser {
                 self.transition(handler, bytes[i]);
                 i += 1;
         }
+
     }
 
     /// Signal end of input. Any buffered partial UTF-8 codepoint is resolved as
@@ -291,7 +307,7 @@ impl Parser {
         let (action, next_state) = self.state.transition(byte);
         let prev_state = self.state;
 
-        if next_state.is_some() {
+        if next_state != prev_state {
             let exit_action = prev_state.exit();
             if exit_action.is_some() {
                 self.action(handler, exit_action, byte);
@@ -322,10 +338,15 @@ impl Parser {
 
             Action::Clear => self.clear(),
 
-            Action::Print => handler.print(byte as char),
+            Action::Print => match self.state {
+                State::Utf8 => {
+                    self.utf8.push(byte);
+                },
+                _ => handler.print(byte as char),
+            },
             Action::Execute => handler.execute(byte),
 
-            Action::Intermediate => self.intermediates.push(byte),
+            Action::Collect => self.intermediates.push(byte),
 
             Action::Param => match byte {
                 b'0'..=b'9' => self.params.push_digit(byte),

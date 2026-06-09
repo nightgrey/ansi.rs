@@ -36,7 +36,7 @@ transitions! {
     }
 
     Utf8 {
-        0x80..=0xBF => (Collect, Utf8), // Continuation byte
+        0x80..=0xBF => (Collect, Utf8),
     }
 
     Escape {

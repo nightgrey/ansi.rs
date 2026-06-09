@@ -34,11 +34,15 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 vt-push-parser = "0.13.1"
 vte = "0.15.0"
 inferno = "0.11.21"
-benchkit = { version = "0.21.0", features = [ "full" ] }
+divan = "0.1.21"
+
+
 [[bench]]
-name = "parser"
+name = "parser_criterion"
 harness = false
 
-
+[[bench]]
+name = "parser_divan"
+harness = false
 [lints]
 workspace = true

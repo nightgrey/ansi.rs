@@ -6,7 +6,7 @@
 //! `black_box` call on every parsed event.
 //! Results include callback dispatch, whose granularity differs by parser.
 //!
-//! Run with: `cargo bench -p ansi --bench parser`
+//! Run with: `cargo bench -p ansi --bench parser_criterion`
 mod profiler;
 use ansi::parser;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};

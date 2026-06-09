@@ -1,5 +1,5 @@
+use proc_macro2::{TokenStream, TokenTree, token_stream};
 use std::iter::Peekable;
-use proc_macro2::{token_stream, TokenStream, TokenTree};
 
 /// Parse `=> ActionIdent` and return the action token.
 pub fn parse_action(iter: &mut Peekable<token_stream::IntoIter>) -> TokenTree {
@@ -10,9 +10,7 @@ pub fn parse_action(iter: &mut Peekable<token_stream::IntoIter>) -> TokenTree {
 
 pub fn optional_punct(iter: &mut Peekable<token_stream::IntoIter>, c: char) -> bool {
     match iter.peek() {
-        Some(TokenTree::Punct(punct)) if punct.as_char() == c => {
-            iter.next().is_some()
-        }
+        Some(TokenTree::Punct(punct)) if punct.as_char() == c => iter.next().is_some(),
         _ => false,
     }
 }

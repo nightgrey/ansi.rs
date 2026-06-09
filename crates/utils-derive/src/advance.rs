@@ -1,10 +1,10 @@
 extern crate proc_macro;
 
-use std::iter::Peekable;
-use proc_macro2::{Ident, Span, TokenStream, TokenTree};
-use quote::{quote};
-use std::str::FromStr;
 use crate::utils::*;
+use proc_macro2::{Ident, Span, TokenStream, TokenTree};
+use quote::quote;
+use std::iter::Peekable;
+use std::str::FromStr;
 
 /// A single cell in the transition table: (action, target_state) or empty.
 type Cell = Option<(TokenTree, TokenTree)>;
@@ -43,7 +43,8 @@ pub fn advance_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     #(#arms),*
                 },
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     // ── Generate `entry(state)` and `exit(state)` functions ──
     let entry_arms = states
@@ -55,7 +56,8 @@ pub fn advance_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 None => quote!(Action::None),
             };
             quote!(State::#state => #action)
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     let exit_arms = states
         .iter()
@@ -66,13 +68,14 @@ pub fn advance_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 None => quote!(Action::None),
             };
             quote!(State::#state => #action)
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     quote!(
         /// Advance the state machine given current state and byte input.
         /// Returns a `Transition` containing the next state and the transition action.
         /// Use `entry(state)` / `exit(state)` to obtain the per‑state actions.
-        pub fn advance(state: State, byte: u8) -> Transition {
+        pub const fn advance(state: State, byte: u8) -> Transition {
             match state {
                 #(#match_arms,)*
                 State::None => Transition::new(State::None, Action::None),
@@ -80,7 +83,7 @@ pub fn advance_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
 
         /// Returns the entry action for the given state.
-        pub fn entry(state: State) -> Action {
+        pub const fn entry(state: State) -> Action {
             match state {
                 #(#entry_arms,)*
                 _ => Action::None,
@@ -88,19 +91,26 @@ pub fn advance_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
 
         /// Returns the exit action for the given state.
-        pub fn exit(state: State) -> Action {
+        pub const fn exit(state: State) -> Action {
             match state {
                 #(#exit_arms,)*
                 _ => Action::None,
             }
         }
 
-    ).into()
+    )
+    .into()
 }
 
-
-pub fn parse(mut iter: Peekable<proc_macro2::token_stream::IntoIter>) -> (Vec<Ident>, Vec<[Cell; 256]>, Vec<Option<TokenTree>>, Vec<Option<TokenTree>>, [Cell; 256]) {
-
+pub fn parse(
+    mut iter: Peekable<proc_macro2::token_stream::IntoIter>,
+) -> (
+    Vec<Ident>,
+    Vec<[Cell; 256]>,
+    Vec<Option<TokenTree>>,
+    Vec<Option<TokenTree>>,
+    [Cell; 256],
+) {
     let mut states: Vec<Ident> = Vec::new();
     let mut transitions: Vec<[Cell; 256]> = Vec::new();
     let mut entry_actions: Vec<Option<TokenTree>> = Vec::new();
@@ -207,9 +217,7 @@ pub fn parse(mut iter: Peekable<proc_macro2::token_stream::IntoIter>) -> (Vec<Id
 }
 /// Generate match arms for byte ranges instead of individual bytes.
 /// Consolidates consecutive bytes with the same transition into ranges.
-fn generate_byte_range_arms(
-    cells: &[Cell; 256],
-) -> Vec<TokenStream> {
+fn generate_byte_range_arms(cells: &[Cell; 256]) -> Vec<TokenStream> {
     let mut arms = Vec::new();
     let mut i = 0;
 

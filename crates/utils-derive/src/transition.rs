@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
-use proc_macro2::{token_stream, Ident, Span, TokenStream, TokenTree};
-use quote::{quote, ToTokens};
+use proc_macro2::{Ident, Span, TokenStream, TokenTree, token_stream};
+use quote::{ToTokens, quote};
 use std::iter::Peekable;
 
 /// A single cell in the transition table: (action, target_state) or empty.
@@ -172,7 +172,7 @@ pub fn transitions_inner(item: proc_macro::TokenStream) -> proc_macro::TokenStre
             #(#exits),*
         ];
     )
-        .into()
+    .into()
 }
 
 /// Parse `=> ActionIdent` and return the action token.

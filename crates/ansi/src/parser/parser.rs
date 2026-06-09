@@ -36,8 +36,8 @@ impl Parser {
                 // OSC/DCS data is the other bulk path: batch the run of data
                 // bytes into a single slice dispatch instead of pumping each
                 // byte through the state machine.
-                State::OscData => self.advance_string(handler, &bytes[i..], Data::Osc),
-                State::DcsData => self.advance_string(handler, &bytes[i..], Data::Dcs),
+                State::OscData => self.advance_string(handler, &bytes[i..]),
+                State::DcsData => self.advance_string(handler, &bytes[i..]),
                 _ => {
                     self.advance_byte(handler, bytes[i]);
                     1
@@ -312,7 +312,7 @@ impl Parser {
     /// — is left to [`Parser::advance_byte`], which applies the correct
     /// per-state action (ST/BEL/ESC terminate, CAN/SUB abort, DCS C0 bytes
     /// dispatch individually, OSC C0 bytes are ignored).
-    fn advance_string(&mut self, handler: &mut impl Handler, bytes: &[u8], kind: Data) -> usize {
+    fn advance_string(&mut self, handler: &mut impl Handler, bytes: &[u8]) -> usize {
         let stop = bytes
             .iter()
             .position(|&b| b < 0x20 || (0x7f..=0x9f).contains(&b))
@@ -325,9 +325,10 @@ impl Parser {
         }
 
         let data = &bytes[..stop];
-        match kind {
-            Data::Osc => handler.osc_string(data),
-            Data::Dcs => handler.dcs_string(data),
+        match self.state {
+            State::OscData => handler.osc_string(data),
+            State::DcsData => handler.dcs_string(data),
+            _ => unreachable!(),
         }
         stop
     }

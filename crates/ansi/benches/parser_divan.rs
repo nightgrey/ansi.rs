@@ -142,7 +142,6 @@ mod benches {
             Parser::VtPushParser => {
                 bencher
                     .with_inputs(|| {
-
                         (vt_push_parser::VTPushParser::new(), Collector::default(), data.chunks(chunk_size))
                     })
                     .bench_values(|(parser, collector, data)| {

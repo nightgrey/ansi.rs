@@ -18,6 +18,8 @@ strum = { version = "0.28", features = ["derive"] }
 memchr = "2.8.0"
 utils-derive = { workspace = true }
 pprof =  { version = "0.15.0", features = ["criterion", "flamegraph"] }
+utf8parse = "0.2.2"
+utf8-zero = "0.8.1"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }

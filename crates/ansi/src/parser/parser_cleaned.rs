@@ -1,8 +1,184 @@
-use arrayvec::ArrayVec;
 use crate::parser::{ByteString, Handler, ParametersBuilder};
 use utils::Nested;
 use utils_derive::state_machine;
 use bilge::prelude::*;
+use utf8parse::{Parser as Utf8Parser};
+
+#[derive(Debug, Default)]
+pub struct Parser {
+    pub state: State,
+
+    pub params: ParametersBuilder,
+    pub intermediates: ByteString,
+
+    // pub utf8: Utf8Parser,
+}
+
+impl Parser {
+    fn advance(&mut self, handler: &mut impl Handler, bytes: &[u8]) {
+        let mut i = 0;
+
+        while i < bytes.len() {
+        self.advance_byte(handler, bytes[i]);
+            i += 1;
+        }
+
+    }
+
+    pub fn clear(&mut self) {
+        self.params.clear();
+        self.intermediates.clear();
+    }
+
+    pub fn flush(&mut self, handler: &mut impl Handler) {
+        // if let Some(ch) = self.utf8.flush() {
+        //     handler.print(ch);
+        // }
+        self.state = State::Ground;
+        self.clear();
+    }
+
+    fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
+        // 1. If a UTF-8 scalar is pending, try to finish it before touching
+        //    the VT state machine.
+        // if self.utf8.is_pending() {
+        //     match self.utf8.advance(byte) {
+        //         Utf8Action::Pending => return,
+        //
+        //         Utf8Action::Print(ch) => {
+        //             handler.print(ch);
+        //             return;
+        //         }
+        //
+        //         Utf8Action::Invalid { reprocess } => {
+        //             handler.print(char::REPLACEMENT_CHARACTER);
+        //
+        //             if !reprocess {
+        //                 return;
+        //             }
+        //
+        //             // Fall through: current byte was not consumed.
+        //         }
+        //     }
+        // }
+
+        // // 2. Fast path for Ground printable bytes.
+        // if self.state == State::Ground {
+        //     match byte {
+        //         0x20..=0x7e => {
+        //             handler.print(byte as char);
+        //             return;
+        //         }
+        //
+        //         0x80..=0xff => {
+        //             match self.utf8.start(byte) {
+        //                 Utf8Action::Pending => return,
+        //
+        //                 Utf8Action::Print(ch) => {
+        //                     handler.print(ch);
+        //                     return;
+        //                 }
+        //
+        //                 Utf8Action::Invalid { .. } => {
+        //                     handler.print(char::REPLACEMENT_CHARACTER);
+        //                     return;
+        //                 }
+        //             }
+        //         }
+        //
+        //         _ => {}
+        //     }
+        // }
+
+        self.transition(handler, byte);
+    }
+
+    fn transition(&mut self, handler: &mut impl Handler, byte: u8) {
+
+        let (action, next_state) = self.state.transition(byte);
+        let prev_state = self.state;
+
+        if next_state != prev_state {
+            let exit_action = prev_state.exit();
+            if exit_action.is_some() {
+                self.action(handler, exit_action, byte);
+            }
+
+            if action.is_some() {
+                self.action(handler, action, byte);
+            }
+
+            let entry_action = next_state.entry();
+            if entry_action.is_some() {
+                self.action(handler, entry_action, byte);
+            }
+
+            self.state = next_state;
+        } else {
+            self.action(handler, action, byte);
+        }
+    }
+
+    fn advance_ground(&mut self, handler: &mut impl Handler, bytes: &[u8]) -> usize {
+        0
+    }
+
+    fn action(&mut self, handler: &mut impl Handler, action: Action, byte: u8) {
+        match action {
+            Action::None | Action::Ignore => {}
+
+            Action::Clear => self.clear(),
+
+            Action::Print => handler.print(byte as char),
+            Action::Execute => handler.execute(byte),
+
+            Action::Collect => self.intermediates.push(byte),
+
+            Action::Param => match byte {
+                b'0'..=b'9' => self.params.push_digit(byte),
+                b':' => self.params.push_sub(),
+                b';' => self.params.push_main(),
+                _ => {}
+            },
+
+            Action::EscDispatch => handler.esc(self.intermediates.as_ref(), byte),
+            Action::CsiDispatch => {
+                self.params.finish();
+                handler.csi(
+                    self.params.as_nested_slice(),
+                    self.intermediates.as_ref(),
+                    byte as char,
+                );
+            }
+
+            Action::DcsStart => {
+                self.params.finish();
+                handler.dcs_start(
+                    self.params.as_nested_slice(),
+                    self.intermediates.as_ref(),
+                    byte as char,
+                );
+            }
+            Action::DcsPut => handler.dcs_byte(byte),
+            Action::DcsEnd => handler.dcs_end(byte),
+
+            Action::OscStart => handler.osc_start(),
+            Action::OscPut => handler.osc_byte(byte),
+            Action::OscEnd => handler.osc_end(byte),
+        }
+    }
+
+}
+
+impl utf8parse::Receiver for Parser {
+    fn codepoint(&mut self, ch: char) {
+        self.intermediates.push(ch as u8);
+    }
+
+    fn invalid_sequence(&mut self) {
+        self.intermediates.push(b'?');
+    }
+}
 
 state_machine! {
     #[bitsize(8)]
@@ -40,18 +216,7 @@ state_machine! {
         0x00..=0x17 => Action::Execute,
         0x19       => Action::Execute,
         0x1c..=0x1f => Action::Execute,
-        // 0x20..=0x7f => Action::Print,
-
-         0x20..=0x7f => [Action::Print, State::Utf8],
-        0xC2..=0xDF => [Action::Print, State::Utf8], // UTF8 2 byte sequence
-        0xE0..=0xEF => [Action::Print, State::Utf8], // UTF8 3 byte sequence
-        0xF0..=0xF4 => [Action::Print, State::Utf8], // UTF8 4 byte sequence,
-        _ => Action::Execute,
-    },
-
-    State::Utf8 => {
-        0x80..=0xBF => [Action::Print, State::Utf8], // Continuation byte
-        _ => Action::Execute,
+        0x20..=0x7f => Action::Print,
     },
 
     // State: Escape
@@ -242,6 +407,7 @@ impl State {
     }
     #[inline(always)]
     pub fn transition(self, byte: u8) -> (Action, Self) {
+
         eprintln!("State::{:?} + {:?}", self, byte as char);
         let (action, next_state) = transition(self, byte);
         eprintln!("  => [State::{:?}, Action::{:?}])", next_state, action);
@@ -259,131 +425,6 @@ impl State {
     }
 
 }
-
-#[derive(Debug, Default)]
-pub struct Parser {
-    pub state: State,
-
-    pub params: ParametersBuilder,
-    pub intermediates: ByteString,
-
-    pub utf8: ArrayVec<u8, 4>,
-}
-
-impl Parser {
-    fn advance(&mut self, handler: &mut impl Handler, bytes: &[u8]) {
-        let mut i = 0;
-
-        while i < bytes.len() {
-                self.transition(handler, bytes[i]);
-                i += 1;
-        }
-
-    }
-
-    /// Signal end of input. Any buffered partial UTF-8 codepoint is resolved as
-    /// U+FFFD and the parser is reset to [`crate::parser::State::Ground`]. Incomplete control
-    /// sequences (a CSI/OSC/DCS cut off mid-stream) are discarded without
-    /// dispatch, matching standard VT behavior. Call this when the producer is
-    /// done and any dangling bytes should be flushed rather than held for a
-    /// future `advance`.
-    pub fn flush(&mut self, handler: &mut impl Handler) {
-        if !self.utf8.is_empty() {
-            handler.print(char::REPLACEMENT_CHARACTER);
-        }
-        self.state = State::Ground;
-        self.clear();
-    }
-
-    /// Reset parameter / intermediate / data buffers.
-    pub fn clear(&mut self) {
-        self.params.clear();
-        self.intermediates.clear();
-        self.utf8.clear();
-    }
-
-
-    fn transition(&mut self, handler: &mut impl Handler, byte: u8) {
-        let (action, next_state) = self.state.transition(byte);
-        let prev_state = self.state;
-
-        if next_state != prev_state {
-            let exit_action = prev_state.exit();
-            if exit_action.is_some() {
-                self.action(handler, exit_action, byte);
-            }
-
-            if action.is_some() {
-                self.action(handler, action, byte);
-            }
-
-            let entry_action = next_state.entry();
-            if entry_action.is_some() {
-                self.action(handler, entry_action, byte);
-            }
-
-            self.state = next_state;
-        } else {
-            self.action(handler, action, byte);
-        }
-    }
-
-    fn advance_ground(&mut self, handler: &mut impl Handler, bytes: &[u8]) -> usize {
-        0
-    }
-
-    fn action(&mut self, handler: &mut impl Handler, action: Action, byte: u8) {
-        match action {
-            Action::None | Action::Ignore => {}
-
-            Action::Clear => self.clear(),
-
-            Action::Print => match self.state {
-                State::Utf8 => {
-                    self.utf8.push(byte);
-                },
-                _ => handler.print(byte as char),
-            },
-            Action::Execute => handler.execute(byte),
-
-            Action::Collect => self.intermediates.push(byte),
-
-            Action::Param => match byte {
-                b'0'..=b'9' => self.params.push_digit(byte),
-                b':' => self.params.push_sub(),
-                b';' => self.params.push_main(),
-                _ => {}
-            },
-
-            Action::EscDispatch => handler.esc(self.intermediates.as_ref(), byte),
-            Action::CsiDispatch => {
-                self.params.finish();
-                handler.csi(
-                    self.params.as_nested_slice(),
-                    self.intermediates.as_ref(),
-                    byte as char,
-                );
-            }
-
-            Action::DcsStart => {
-                self.params.finish();
-                handler.dcs_start(
-                    self.params.as_nested_slice(),
-                    self.intermediates.as_ref(),
-                    byte as char,
-                );
-            }
-            Action::DcsPut => handler.dcs_byte(byte),
-            Action::DcsEnd => handler.dcs_end(byte),
-
-            Action::OscStart => handler.osc_start(),
-            Action::OscPut => handler.osc_byte(byte),
-            Action::OscEnd => handler.osc_end(byte),
-        }
-    }
-
-}
-
 
 #[cfg(test)]
 mod tests {

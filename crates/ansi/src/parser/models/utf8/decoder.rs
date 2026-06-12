@@ -6,10 +6,18 @@ use std::iter::FusedIterator;
 
 
 use super::dfa::{State, step_decode};
+/// One position in a lossy-decoded stream: either a well-formed Unicode scalar
+/// or an ill-formed spot that a caller renders as `U+FFFD`.
+///
+/// Unlike [`Event`], this never carries "incomplete" — a byte that is merely
+/// absorbed into an unfinished sequence produces no `Codepoint` at all (an
+/// empty [`Chunk`] / a skipped step in [`Chunks`]).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Codepoint {
-    Complete(char),
-    None,
+    /// A complete, well-formed Unicode scalar value.
+    Scalar(char),
+    /// An ill-formed maximal subpart — render as `U+FFFD`.
+    Invalid,
 }
 
 /// Incremental UTF-8 decoder.
@@ -69,26 +77,28 @@ impl Decoder {
     #[inline]
     pub fn advance(&mut self, byte: u8) -> Chunk {
         match self.next(byte) {
-            Event::Complete(c) => {
-                Chunk::from(Codepoint::Complete(c))
-            }
+            Event::Complete(c) => Chunk::single(Codepoint::Scalar(c)),
 
-            Event::Invalid | Event::Incomplete => Chunk::from(Codepoint::None),
+            // An invalid byte maps to a single replacement.
+            Event::Invalid => Chunk::single(Codepoint::Invalid),
+
+            // The byte was absorbed into an unfinished sequence: nothing to
+            // emit yet. (Mirrors `Chunks`, which loops on `Incomplete`.)
+            Event::Incomplete => Chunk::EMPTY,
 
             Event::Reprocess => {
-                // Then immediately feed the same byte again from the ground state.
-                match self.next(byte) {
-                    Event::Complete(c) => {
-                        Chunk::from([Codepoint::None, Codepoint::Complete(c)])
-                    }
-
-                    Event::Invalid | Event::Incomplete  => {
-                        Chunk::from([Codepoint::None, Codepoint::None])
-                    }
-                    Event::Reprocess => {
-                        Chunk::from([Codepoint::None, Codepoint::None])  // byte starts a new sequence
-                    }
-                }
+                // The maximal subpart of the prior sequence is ill-formed:
+                // emit one replacement, then reprocess this byte from the
+                // ground state.
+                let outcome = match self.next(byte) {
+                    Event::Complete(c) => Some(Codepoint::Scalar(c)),
+                    Event::Invalid => Some(Codepoint::Invalid),
+                    // The byte begins a fresh (possibly multi-byte) sequence,
+                    // so only the replacement is emitted now. A second
+                    // `Reprocess` is unreachable from the ground state.
+                    Event::Incomplete | Event::Reprocess => None,
+                };
+                Chunk::invalid_then(outcome)
             }
         }
     }
@@ -159,22 +169,38 @@ pub enum Event {
     Incomplete,
 }
 
+/// The 0, 1, or 2 [`Codepoint`]s produced by feeding a single byte to
+/// [`Decoder::advance`].
+///
+/// Feeding one byte yields at most two codepoints, and a two-codepoint result
+/// is *always* `[Invalid, _]`: the only way to emit two is when the byte ends
+/// an ill-formed maximal subpart (one replacement) and then begins a fresh
+/// sequence that itself resolves. So the chunk is exactly an optional leading
+/// replacement plus the outcome for the byte just fed.
 #[derive(Copy, Clone, Debug)]
 pub struct Chunk {
-    buf: [Codepoint; 2],
-    len: u8,
-    pos: u8,
+    /// A replacement emitted for a preceding ill-formed maximal subpart,
+    /// yielded before `outcome`.
+    leading_invalid: bool,
+    /// The outcome for the byte just fed: a scalar, a replacement, or `None`
+    /// when the byte was absorbed into an unfinished sequence.
+    outcome: Option<Codepoint>,
 }
 
-impl From<Codepoint> for Chunk {
-    fn from(c: Codepoint) -> Self {
-        Chunk { buf: [c, Codepoint::None], len: 1, pos: 0 }
+impl Chunk {
+    /// A chunk that yields nothing — the byte was absorbed but produced no
+    /// codepoint (an unfinished sequence).
+    pub const EMPTY: Self = Self { leading_invalid: false, outcome: None };
+
+    /// A chunk yielding exactly `c`.
+    const fn single(c: Codepoint) -> Self {
+        Self { leading_invalid: false, outcome: Some(c) }
     }
-}
 
-impl From<[Codepoint; 2]> for Chunk {
-    fn from(buf: [Codepoint; 2]) -> Self {
-        Self { buf, len: 2, pos: 0 }
+    /// A chunk yielding a leading [`Codepoint::Invalid`] followed by `outcome`
+    /// (which may be empty).
+    const fn invalid_then(outcome: Option<Codepoint>) -> Self {
+        Self { leading_invalid: true, outcome }
     }
 }
 
@@ -183,18 +209,16 @@ impl Iterator for Chunk {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.len {
-            return None;
+        if self.leading_invalid {
+            self.leading_invalid = false;
+            return Some(Codepoint::Invalid);
         }
-
-        let item = self.buf[self.pos as usize];
-        self.pos += 1;
-        Some(item)
+        self.outcome.take()
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = (self.len - self.pos) as usize;
+        let n = self.leading_invalid as usize + self.outcome.is_some() as usize;
         (n, Some(n))
     }
 }
@@ -221,12 +245,12 @@ impl<'d, I: Iterator<Item = u8>> Iterator for Chunks<'d, I> {
                 None => return None, // chunk exhausted — decoder may stay pending, by design
             };
             match self.decoder.next(byte) {
-                Event::Complete(c) => return Some(Codepoint::Complete(c)),
+                Event::Complete(c) => return Some(Codepoint::Scalar(c)),
                 Event::Incomplete => continue,
-                Event::Invalid => return Some(Codepoint::None),
+                Event::Invalid => return Some(Codepoint::Invalid),
                 Event::Reprocess => {
                     self.pending = Some(byte);
-                    return Some(Codepoint::None);
+                    return Some(Codepoint::Invalid);
                 }
             }
         }
@@ -234,11 +258,13 @@ impl<'d, I: Iterator<Item = u8>> Iterator for Chunks<'d, I> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.iter.size_hint().0;
-        (n, Some(n * 2))
+        // A run of incomplete bytes yields nothing, so the lower bound is 0.
+        // Each input byte yields at most two codepoints (a replacement plus a
+        // reprocessed scalar), and a stashed `pending` byte at most one more.
+        let pending = self.pending.is_some() as usize;
+        (0, self.iter.size_hint().1.map(|n| n * 2 + pending))
     }
 }
-impl<'d, I: Iterator<Item = u8>> ExactSizeIterator for Chunks<'d, I> {}
 impl<'d, I: Iterator<Item = u8>> FusedIterator for Chunks<'d, I> {}
 
 #[cfg(test)]
@@ -253,8 +279,8 @@ mod tests {
 
         for codepoint in decoder.advances(bytes.iter().copied()) {
             match codepoint {
-                Codepoint::Complete(c) => out.push(c),
-                Codepoint::None => out.push(char::REPLACEMENT_CHARACTER),
+                Codepoint::Scalar(c) => out.push(c),
+                Codepoint::Invalid => out.push(char::REPLACEMENT_CHARACTER),
             }
         }
 
@@ -318,16 +344,47 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn invalid_then_char_in_one_advance() {
-    //     let mut p = Parser::default();
-    //     assert_eq!(p.next(0xC3), Codepoint::Pending); // pending 2-byte seq
-    //     let mut steps = p.next(b'A'); // not a continuation
-    //     assert_eq!(steps.len(), 2);
-    //     assert_eq!(steps.next(), Codepoint::Invalid);
-    //     assert_eq!(steps.next(), Codepoint::Ok('A'));
-    //     assert_eq!(steps.next(), Codepoint::Pending);
-    // }
+    #[test]
+    fn advance_incomplete_yields_nothing() {
+        // Feeding bytes of an unfinished sequence must not emit a (spurious)
+        // replacement — `advance` yields an empty chunk until completion, then
+        // the single scalar. Regression for `advance`/`advances` disagreeing on
+        // the `Incomplete` case.
+        let mut p = Decoder::default();
+        let crab = "🦀".as_bytes(); // F0 9F A6 80
+
+        for &b in &crab[..3] {
+            assert_eq!(p.advance(b).count(), 0, "incomplete byte must yield nothing");
+            assert!(p.is_incomplete());
+        }
+        assert_eq!(
+            p.advance(crab[3]).collect::<Vec<_>>(),
+            vec![Codepoint::Scalar('🦀')]
+        );
+    }
+
+    #[test]
+    fn advance_invalid_then_reprocess() {
+        // C3 (2-byte lead) followed by 'A' (not a continuation): the lead is a
+        // maximal subpart → one replacement, then 'A' decodes normally.
+        let mut p = Decoder::default();
+        assert_eq!(p.advance(0xC3).count(), 0);
+        assert_eq!(
+            p.advance(b'A').collect::<Vec<_>>(),
+            vec![Codepoint::Invalid, Codepoint::Scalar('A')]
+        );
+    }
+
+    #[test]
+    fn chunks_all_incomplete_is_empty_with_zero_lower_bound() {
+        // Three bytes of a 4-byte sequence produce no codepoints; the iterator
+        // must be empty and its size_hint must promise a lower bound of 0.
+        let mut p = Decoder::default();
+        let mut it = p.advances(b"\xF0\x9F\xA6".iter().copied());
+        assert_eq!(it.size_hint().0, 0);
+        assert_eq!(it.by_ref().count(), 0);
+    }
+
     #[test]
     fn classic_ill_formed_sequences() {
         // Stray continuation byte.
@@ -358,7 +415,7 @@ mod tests {
         p.clear();
         assert!(!p.is_incomplete());
         assert_eq!(p.flush(), None);
-        assert_eq!(p.advance(b'x').next(), Some(Codepoint::Complete('x')));
+        assert_eq!(p.advance(b'x').next(), Some(Codepoint::Scalar('x')));
     }
 
     /// Differential test against std's lossy decoder over pseudo-random

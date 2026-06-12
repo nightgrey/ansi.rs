@@ -240,11 +240,12 @@ impl<'d, I: Iterator<Item = u8>> FusedIterator for Chunks<'d, I> {}
 #[cfg(test)]
 mod tests {
     use geometry::Bound;
+    use crate::Mode::Dec;
     use super::*;
 
     /// Decode a whole buffer byte-by-byte, replacing each `Invalid`
     /// with U+FFFD — the reference behaviour of `from_utf8_lossy`.
-    fn decode(bytes: &[u8]) -> String {
+    fn from_utf8_ours(bytes: &[u8]) -> String {
         let mut decoder = Decoder::new();
         let mut out = String::new();
 
@@ -262,11 +263,11 @@ mod tests {
         out
     }
 
-    macro_rules! assert_lossy {
-        ($bytes:expr) => {{
+    macro_rules! assert_decode {
+        ($bytes:expr, $expected:expr) => {{
             let bytes = $bytes;
-            let expected = String::from_utf8_lossy(bytes);
-            let actual = decode(bytes);
+            let expected = $expected;
+            let actual = from_utf8_ours(bytes);
             assert_eq!(
                 actual,
                 expected,
@@ -276,18 +277,21 @@ mod tests {
                 bytes
             )
         }};
+        ($bytes:expr) => {{
+            assert_decode!($bytes, String::from_utf8_lossy($bytes));
+        }};
     }
 
     #[test]
     fn ascii() {
-       assert_lossy!(b"Hello, World!");
+       assert_decode!(b"Hello, World!");
     }
 
     #[test]
     fn multibyte_scalars() {
         // 2-, 3-, 4-byte sequences incl. BMP edges and astral plane.
         let s = "héllo → € ｗｉｄｅ 𝄞 🦀 \u{7FF}\u{800}\u{FFFF}\u{10000}\u{10FFFF}";
-        assert_eq!(decode(s.as_bytes()), s);
+        assert_decode!((s.as_bytes()), s);
     }
 
     #[test]
@@ -307,7 +311,7 @@ mod tests {
     fn unicode_table_3_11_maximal_subparts() {
         // TUS §3.9: 61 F1 80 80 E1 80 C2 62 → a, FFFD, FFFD, FFFD, b
         assert_eq!(
-            decode(b"\x61\xF1\x80\x80\xE1\x80\xC2\x62"),
+            from_utf8_ours(b"\x61\xF1\x80\x80\xE1\x80\xC2\x62"),
             "a\u{FFFD}\u{FFFD}\u{FFFD}b"
         );
     }
@@ -325,34 +329,34 @@ mod tests {
     #[test]
     fn classic_ill_formed_sequences() {
         // Stray continuation byte.
-        assert_eq!(decode(b"\x80"), "\u{FFFD}");
+        assert_decode!((b"\x80"), "\u{FFFD}");
         // Overlong "/" (C0 AF): C0 invalid outright, AF stray.
-        assert_eq!(decode(b"\xC0\xAF"), "\u{FFFD}\u{FFFD}");
+        assert_decode!((b"\xC0\xAF"), "\u{FFFD}\u{FFFD}");
         // Overlong via E0.
-        assert_lossy!(b"\xE0\x80\xAF");
+        assert_decode!(b"\xE0\x80\xAF");
         // CESU-8 surrogate half ED A0 80.
-        assert_eq!(decode(b"\xED\xA0\x80"), "\u{FFFD}\u{FFFD}\u{FFFD}");
+        assert_decode!((b"\xED\xA0\x80"), "\u{FFFD}\u{FFFD}\u{FFFD}");
         // Above U+10FFFF.
-        assert_lossy!(b"\xF4\x90\x80\x80");
+        assert_decode!(b"\xF4\x90\x80\x80");
         // Never-valid bytes.
-        assert_eq!(decode(b"\xFE\xFFok"), "\u{FFFD}\u{FFFD}ok");
+        assert_decode!((b"\xFE\xFFok"), "\u{FFFD}\u{FFFD}ok");
     }
 
     #[test]
     fn truncated_at_eof_flushes_invalid() {
-        assert_eq!(decode(b"ok\xE2\x82"), "ok\u{FFFD}"); // half a €
-        assert_eq!(decode(b"\xF0\x9F\xA6"), "\u{FFFD}"); // ¾ of a 🦀
+        assert_decode!((b"ok\xE2\x82"), "ok\u{FFFD}"); // half a €
+        assert_decode!((b"\xF0\x9F\xA6"), "\u{FFFD}"); // ¾ of a 🦀
     }
 
     #[test]
     fn reset_discards_pending_silently() {
         let mut p = Decoder::default();
-        p.next(0xE2);
+        p.advance(0xE2);
         assert!(p.is_incomplete());
         p.clear();
         assert!(!p.is_incomplete());
-        assert_eq!(p.flush(), Some(Event::Incomplete));
-        assert_eq!(p.next(b'x'), Event::Complete('x'));
+        assert_eq!(p.flush(), None);
+        assert_eq!(p.advance(b'x').next(), Some(Codepoint::Complete('x')));
     }
 
     /// Differential test against std's lossy decoder over pseudo-random
@@ -387,7 +391,7 @@ mod tests {
                     buf.push((r >> 16) as u8);
                 }
             }
-            assert_lossy!(&buf);
+            assert_decode!(&buf);
         }
     }
 
@@ -396,9 +400,11 @@ mod tests {
     #[test]
     fn exhaustive_short_inputs() {
         for a in 0..=255u8 {
-            assert_lossy!(&[a]);
+            let vec = vec![a];
+            assert_decode!(&vec);
             for b in 0..=255u8 {
-                assert_lossy!(&[a, b]);
+                let vec = vec![a, b];
+                assert_decode!(&vec);
             }
         }
     }

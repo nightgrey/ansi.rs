@@ -315,7 +315,7 @@ pub fn validate_triple(state: State, bytes: &[u8]) -> State {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::models::utf8::decoder::Decoder;
+    use crate::parser::utf8::decoder::Decoder;
     use super::*;
 
     #[test]

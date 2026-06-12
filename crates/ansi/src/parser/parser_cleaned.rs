@@ -2,7 +2,7 @@ use crate::parser::{ByteString, Handler, ParametersBuilder};
 use utils::Nested;
 use utils_derive::state_machine;
 use bilge::prelude::*;
-use super::utf8::{Decoder};
+use crate::parser::utf8::{Decoder};
 
 #[derive(Debug, Default)]
 pub struct Parser {

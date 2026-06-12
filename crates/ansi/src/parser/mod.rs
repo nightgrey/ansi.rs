@@ -4,7 +4,6 @@ mod parser;
 mod state;
 pub mod parser_cleaned;
 mod parameters_builder;
-pub mod machine;
 
 pub(self) use parameters_builder::*;
 

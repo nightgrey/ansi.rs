@@ -63,7 +63,7 @@ impl Decoder {
         }
     }
 
-    /// Feed one byte, yielding the resulting [`Event`].
+    /// Feed one byte, yielding a [`Chunk`].
     ///
     /// Codepoints are automatically re-fed if necessary.
     #[inline]
@@ -93,6 +93,7 @@ impl Decoder {
         }
     }
 
+    /// Feed an iterator of bytes, yielding [`Chunks`].
     pub fn advances<I: Iterator<Item = u8>>(&mut self, bytes: I) -> Chunks<'_, I> {
         Chunks { decoder: self, iter: bytes, pending: None }
     }
@@ -157,7 +158,6 @@ pub enum Event {
     /// Byte was consumed, but sequence is not complete yet.
     Incomplete,
 }
-
 
 #[derive(Copy, Clone, Debug)]
 pub struct Chunk {
@@ -243,8 +243,6 @@ impl<'d, I: Iterator<Item = u8>> FusedIterator for Chunks<'d, I> {}
 
 #[cfg(test)]
 mod tests {
-    use geometry::Bound;
-    use crate::Mode::Dec;
     use super::*;
 
     /// Decode a whole buffer byte-by-byte, replacing each `Invalid`

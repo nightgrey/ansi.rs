@@ -2,8 +2,7 @@ use crate::parser::{ByteString, Handler, ParametersBuilder};
 use utils::Nested;
 use utils_derive::state_machine;
 use bilge::prelude::*;
-use crate::parser::utf8::{Decoder};
-
+use crate::parser::utf8::{Codepoint, Decoder};
 #[derive(Debug, Default)]
 pub struct Parser {
     pub state: State,
@@ -31,74 +30,34 @@ impl Parser {
     }
 
     pub fn flush(&mut self, handler: &mut impl Handler) {
-        // if let Some(ch) = self.utf8.flush() {
-        //     handler.print(ch);
-        // }
+        let _ = self.utf8.flush();
         self.state = State::Ground;
         self.clear();
     }
 
     fn advance_byte(&mut self, handler: &mut impl Handler, byte: u8) {
-        // 1. If a UTF-8 scalar is pending, try to finish it before touching
-        //    the VT state machine.
-        // if self.utf8.is_pending() {
-        //     match self.utf8.advance(byte) {
-        //         Utf8Action::Pending => return,
-        //
-        //         Utf8Action::Print(ch) => {
-        //             handler.print(ch);
-        //             return;
-        //         }
-        //
-        //         Utf8Action::Invalid { reprocess } => {
-        //             handler.print(char::REPLACEMENT_CHARACTER);
-        //
-        //             if !reprocess {
-        //                 return;
-        //             }
-        //
-        //             // Fall through: current byte was not consumed.
-        //         }
-        //     }
-        // }
+        if self.utf8.is_incomplete() {
+           for c in self.utf8.advance(byte) {
+                match c {
+                    Codepoint::Scalar(ch) => handler.print(ch),
+                    Codepoint::Invalid => handler.print(char::REPLACEMENT_CHARACTER),
+                }
+            }
+            return;
+        }
 
-        // // 2. Fast path for Ground printable bytes.
-        // if self.state == State::Ground {
-        //     match byte {
-        //         0x20..=0x7e => {
-        //             handler.print(byte as char);
-        //             return;
-        //         }
-        //
-        //         0x80..=0xff => {
-        //             match self.utf8.start(byte) {
-        //                 Utf8Action::Pending => return,
-        //
-        //                 Utf8Action::Print(ch) => {
-        //                     handler.print(ch);
-        //                     return;
-        //                 }
-        //
-        //                 Utf8Action::Invalid { .. } => {
-        //                     handler.print(char::REPLACEMENT_CHARACTER);
-        //                     return;
-        //                 }
-        //             }
-        //         }
-        //
-        //         _ => {}
-        //     }
-        // }
 
         self.transition(handler, byte);
     }
 
     fn transition(&mut self, handler: &mut impl Handler, byte: u8) {
-
+        println!("State::{:?} + {:?}", self.state, byte as char);
         let (action, next_state) = self.state.transition(byte);
         let prev_state = self.state;
 
+
         if next_state != prev_state {
+
             let exit_action = prev_state.exit();
             if exit_action.is_some() {
                 self.action(handler, exit_action, byte);
@@ -113,6 +72,19 @@ impl Parser {
                 self.action(handler, entry_action, byte);
             }
 
+            if entry_action.is_some() {
+                println!("  [Entry @ {:?}]", entry_action);
+            }
+
+            if action.is_some() {
+                println!("  => [State::{:?}, Action::{:?}])", next_state, action);
+            } else {
+                println!("  => [State::{:?}]", next_state);
+            }
+
+            if entry_action.is_some() {
+                println!("  [Exit @ {:?}]", exit_action);
+            }
             self.state = next_state;
         } else {
             self.action(handler, action, byte);
@@ -408,9 +380,7 @@ impl State {
     #[inline(always)]
     pub fn transition(self, byte: u8) -> (Action, Self) {
 
-        eprintln!("State::{:?} + {:?}", self, byte as char);
         let (action, next_state) = transition(self, byte);
-        eprintln!("  => [State::{:?}, Action::{:?}])", next_state, action);
         (action, next_state)
     }
 
@@ -571,7 +541,6 @@ mod tests {
             let mut h = Harness::default();
             h.advance(bytes);
 
-            dbg!(&h.recorder.values);
             h.recorder.values.clone()
         }
     }

@@ -6,6 +6,7 @@ use std::iter::FusedIterator;
 
 
 use super::dfa::{State, step_decode};
+
 /// One position in a lossy-decoded stream: either a well-formed Unicode scalar
 /// or an ill-formed spot that a caller renders as `U+FFFD`.
 ///

@@ -32,6 +32,10 @@ impl Decoder {
         Decoder { state: State::ACCEPT, codepoint: 0 }
     }
 
+    pub const fn is_empty(&self) -> bool {
+        self == &Self::EMPTY
+    }
+
     /// Returns `true` if bytes of an unfinished sequence have been absorbed.
     #[inline]
     pub const fn is_incomplete(&self) -> bool {
@@ -256,7 +260,7 @@ mod tests {
             }
         }
 
-        if let Some(Event::Invalid) = decoder.flush() {
+        if let Some(Event::Incomplete) = decoder.flush() {
             out.push(char::REPLACEMENT_CHARACTER);
         }
 

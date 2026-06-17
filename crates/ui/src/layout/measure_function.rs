@@ -72,11 +72,14 @@ pub fn measure_text_block(text: &str, wrap_width: Option<u32>, display: Display)
         let w = grapheme_cell_width(cluster, x, DEFAULT_TAB_WIDTH);
 
         if let Some(limit) = wrap_width
-            && limit > 0 && x > 0 && x + w > limit as usize {
-                max_x = max_x.max(x);
-                x = 0;
-                lines += 1;
-            }
+            && limit > 0
+            && x > 0
+            && x + w > limit as usize
+        {
+            max_x = max_x.max(x);
+            x = 0;
+            lines += 1;
+        }
 
         x += w;
         max_x = max_x.max(x);

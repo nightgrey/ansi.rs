@@ -1,4 +1,3 @@
-
 //! Throughput benchmarks for the VT500 ANSI parser.
 //!
 //! Parser construction and fixture generation are excluded from the timed
@@ -10,45 +9,38 @@
 mod profiler;
 use ansi::parser;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use derive_more::{AsRef, Deref};
+use profiler::FlamegraphProfiler;
 use std::hint::black_box;
 use std::time::Duration;
-use derive_more::{AsRef, Deref};
-use profiler::{FlamegraphProfiler};
 fn parser_throughput(c: &mut Criterion) {
-
     for fixture in [
         Fixture::define(
             "ascii",
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
         ),
-        Fixture::define(
-            "utf8",
-            "héllo 東京 🦀 \x1B[1m bold \x1B[0m"
-        ),
+        Fixture::define("utf8", "héllo 東京 🦀 \x1B[1m bold \x1B[0m"),
         Fixture::define(
             "dcs-osc",
-            b"\x1B]0;window title here\x07\x1BP1;2|some device control data\x1B\\"
+            b"\x1B]0;window title here\x07\x1BP1;2|some device control data\x1B\\",
         ),
     ] {
         for scenario in [
-            Scenario { label: "complete", chunk_size: None },
-            Scenario { label: "1kb", chunk_size: Some(1 * 1024) },
+            Scenario {
+                label: "complete",
+                chunk_size: None,
+            },
+            Scenario {
+                label: "1kb",
+                chunk_size: Some(1 * 1024),
+            },
         ] {
             run(c, &fixture, &scenario);
         }
     }
 
-    fn run(
-        c: &mut Criterion,
-        fixture: &Fixture,
-        scenario: &Scenario,
-    ) {
-        let (
-            fixture,
-            scenario,
-            data,
-            chunk_size
-        ) = scenario.with(&fixture);
+    fn run(c: &mut Criterion, fixture: &Fixture, scenario: &Scenario) {
+        let (fixture, scenario, data, chunk_size) = scenario.with(&fixture);
 
         let mut group = c.benchmark_group(format!("parser/{}/{}", fixture.label, scenario.label));
         group.throughput(Throughput::Bytes(data.len() as u64));
@@ -59,7 +51,13 @@ fn parser_throughput(c: &mut Criterion) {
                 &fixture,
                 |b, data| match kind {
                     Benchmark::Ours => b.iter_batched_ref(
-                        || (parser::Parser::default(), Collector::default(), data.chunks(chunk_size)),
+                        || {
+                            (
+                                parser::Parser::default(),
+                                Collector::default(),
+                                data.chunks(chunk_size),
+                            )
+                        },
                         |(parser, collector, data)| {
                             for chunk in data {
                                 parser.advance(collector, black_box(chunk));
@@ -69,7 +67,13 @@ fn parser_throughput(c: &mut Criterion) {
                         BatchSize::SmallInput,
                     ),
                     Benchmark::Vte => b.iter_batched_ref(
-                        || (vte::Parser::new(), Collector::default(), data.chunks(chunk_size)),
+                        || {
+                            (
+                                vte::Parser::new(),
+                                Collector::default(),
+                                data.chunks(chunk_size),
+                            )
+                        },
                         |(parser, collector, data)| {
                             for chunk in data {
                                 parser.advance(collector, black_box(chunk));
@@ -79,62 +83,69 @@ fn parser_throughput(c: &mut Criterion) {
                         BatchSize::SmallInput,
                     ),
                     Benchmark::VtPushParser => b.iter_batched_ref(
-                        || (vt_push_parser::VTPushParser::new(), Collector::default(), data.chunks(chunk_size)),
+                        || {
+                            (
+                                vt_push_parser::VTPushParser::new(),
+                                Collector::default(),
+                                data.chunks(chunk_size),
+                            )
+                        },
                         |(parser, collector, data)| {
-                            use vt_push_parser::event::{VTEvent, EscInvalid};
+                            use vt_push_parser::event::{EscInvalid, VTEvent};
                             for chunk in data {
-                                parser.feed_with(
-                                    black_box(chunk),
-                                    &mut |event: VTEvent<'_>| {
-                                        match event {
-                                            VTEvent::Raw(s) => {
-                                                collector.push(s.len());
-                                            }
-                                            VTEvent::EscInvalid(esc_invalid) => {
-                                                collector.push(match esc_invalid {
-                                                    EscInvalid::One(_) => 1,
-                                                    EscInvalid::Two(_, _) => 2,
-                                                    EscInvalid::Three(_, _, _) => 3,
-                                                    EscInvalid::Four(_, _, _, _) => 4,
-                                                });
-                                            }
-                                            VTEvent::Csi(sequence)=> {
-                                                collector.push(sequence.params.len() + sequence.intermediates.len());
-                                            }
-                                            VTEvent::Esc(sequence) => {
-                                                collector.push(sequence.intermediates.len() + 1);
-                                            }
-                                            VTEvent::C0(_) => {
-                                                collector.push(1);
-                                            }
-                                            VTEvent::Ss2(_) => {
-                                                collector.push(1);
-                                            }
-                                            VTEvent::Ss3(_) => {
-                                                collector.push(1);
-                                            }
-                                            VTEvent::DcsStart(dcs) => {
-                                                collector.push(dcs.params.len() + dcs.intermediates.len() + 1);
-
-                                            }
-                                            VTEvent::DcsData(s) | VTEvent::DcsEnd(s) => {
-                                                collector.push(s.len());
-                                            }
-                                            VTEvent::DcsCancel => {
-                                                collector.push(0);
-                                            }
-                                            VTEvent::OscStart => {
-                                                collector.push(0);
-                                            }
-                                            VTEvent::OscData(s) | VTEvent::OscEnd { data: s, .. } => {
-                                                collector.push(s.len());
-                                            }
-                                            VTEvent::OscCancel => {
-                                                collector.push(0);
-                                            }
+                                parser.feed_with(black_box(chunk), &mut |event: VTEvent<'_>| {
+                                    match event {
+                                        VTEvent::Raw(s) => {
+                                            collector.push(s.len());
                                         }
-                                    },
-                                );
+                                        VTEvent::EscInvalid(esc_invalid) => {
+                                            collector.push(match esc_invalid {
+                                                EscInvalid::One(_) => 1,
+                                                EscInvalid::Two(_, _) => 2,
+                                                EscInvalid::Three(_, _, _) => 3,
+                                                EscInvalid::Four(_, _, _, _) => 4,
+                                            });
+                                        }
+                                        VTEvent::Csi(sequence) => {
+                                            collector.push(
+                                                sequence.params.len()
+                                                    + sequence.intermediates.len(),
+                                            );
+                                        }
+                                        VTEvent::Esc(sequence) => {
+                                            collector.push(sequence.intermediates.len() + 1);
+                                        }
+                                        VTEvent::C0(_) => {
+                                            collector.push(1);
+                                        }
+                                        VTEvent::Ss2(_) => {
+                                            collector.push(1);
+                                        }
+                                        VTEvent::Ss3(_) => {
+                                            collector.push(1);
+                                        }
+                                        VTEvent::DcsStart(dcs) => {
+                                            collector.push(
+                                                dcs.params.len() + dcs.intermediates.len() + 1,
+                                            );
+                                        }
+                                        VTEvent::DcsData(s) | VTEvent::DcsEnd(s) => {
+                                            collector.push(s.len());
+                                        }
+                                        VTEvent::DcsCancel => {
+                                            collector.push(0);
+                                        }
+                                        VTEvent::OscStart => {
+                                            collector.push(0);
+                                        }
+                                        VTEvent::OscData(s) | VTEvent::OscEnd { data: s, .. } => {
+                                            collector.push(s.len());
+                                        }
+                                        VTEvent::OscCancel => {
+                                            collector.push(0);
+                                        }
+                                    }
+                                });
                             }
                             black_box((parser, collector));
                         },
@@ -145,7 +156,6 @@ fn parser_throughput(c: &mut Criterion) {
         }
 
         group.finish();
-
     }
 
     #[derive(Clone, Copy)]
@@ -186,10 +196,6 @@ fn parser_throughput(c: &mut Criterion) {
             self.push(ch.len_utf8());
         }
 
-        fn printing(&mut self, text: &str) {
-            self.push(text.len());
-        }
-
         fn execute(&mut self, _byte: u8) {
             self.push(1);
         }
@@ -220,10 +226,6 @@ fn parser_throughput(c: &mut Criterion) {
             self.push(1);
         }
 
-        fn dcs_string(&mut self, bytes: &[u8]) {
-            self.push(bytes.len());
-        }
-
         fn dcs_end(&mut self, _byte: u8) {
             self.push(1);
         }
@@ -234,10 +236,6 @@ fn parser_throughput(c: &mut Criterion) {
 
         fn osc_byte(&mut self, _byte: u8) {
             self.push(1);
-        }
-
-        fn osc_string(&mut self, bytes: &[u8]) {
-            self.push(bytes.len());
         }
 
         fn osc_end(&mut self, _byte: u8) {
@@ -295,7 +293,7 @@ fn parser_throughput(c: &mut Criterion) {
 // Harness
 
 #[derive(Clone, Deref, AsRef)]
-struct Fixture{
+struct Fixture {
     label: &'static str,
     #[deref]
     #[as_ref]
@@ -309,7 +307,11 @@ impl Fixture {
         let bytes = bytes.as_ref();
         Self {
             label,
-            data: if bytes.len() < Self::MIN { bytes.repeat(Self::MIN / bytes.len()) } else { bytes.to_vec() }
+            data: if bytes.len() < Self::MIN {
+                bytes.repeat(Self::MIN / bytes.len())
+            } else {
+                bytes.to_vec()
+            },
         }
     }
 }
@@ -317,7 +319,7 @@ impl Fixture {
 #[derive(Clone, Copy)]
 struct Scenario {
     label: &'static str,
-    chunk_size: Option<usize>
+    chunk_size: Option<usize>,
 }
 
 impl Scenario {
@@ -325,12 +327,12 @@ impl Scenario {
         self.chunk_size.unwrap_or(fixture.len())
     }
 
-    fn with<'a>(&'a self, fixture: &'a Fixture) -> (&'a Fixture, &'a Scenario, &'a [u8], usize)     {
+    fn with<'a>(&'a self, fixture: &'a Fixture) -> (&'a Fixture, &'a Scenario, &'a [u8], usize) {
         (fixture, self, &fixture.data, self.chunk_size(fixture))
     }
 }
 
-criterion_group!{
+criterion_group! {
     name = benches;
     config = Criterion::default()
         .save_baseline("parser".to_string())

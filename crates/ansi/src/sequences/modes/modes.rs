@@ -52,8 +52,7 @@ impl Modes {
     }
 
     pub fn is_permanently_set(&self, mode: &Mode) -> bool {
-        self.get(mode)
-            .is_some_and(ModeSetting::is_permanently_set)
+        self.get(mode).is_some_and(ModeSetting::is_permanently_set)
     }
 
     pub fn is_reset(&self, mode: &Mode) -> bool {

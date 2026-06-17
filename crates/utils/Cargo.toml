@@ -10,6 +10,7 @@ compact_bytes = "0.2.1"
 thiserror = { workspace = true }
 itertools = "0.14.0"
 number = { workspace = true }
+utils-derive = { workspace = true }
 
 [lints]
 workspace = true

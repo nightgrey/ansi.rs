@@ -120,17 +120,25 @@ impl Arena {
         // Bounds checks run *before* any indexing so a bad handle yields a
         // clear panic rather than an opaque index-out-of-bounds.
         let payload_start = offset + PREFIX_SIZE;
-        assert!(payload_start <= self.inner.len(), "arena offset out of bounds");
+        assert!(
+            payload_start <= self.inner.len(),
+            "arena offset out of bounds"
+        );
 
         let len = self.entry_len(offset);
         assert_ne!(len, 0, "resolving a freed or empty arena entry");
 
         let payload_end = payload_start + len;
-        assert!(payload_end <= self.inner.len(), "arena entry extends past end");
+        assert!(
+            payload_end <= self.inner.len(),
+            "arena entry extends past end"
+        );
 
         // SAFETY: only valid UTF-8 is ever stored (via `try_insert`), and the
         // bounds above guarantee `payload_start..payload_end` is in range.
-        unsafe { std::str::from_utf8_unchecked(self.inner.get_unchecked(payload_start..payload_end)) }
+        unsafe {
+            std::str::from_utf8_unchecked(self.inner.get_unchecked(payload_start..payload_end))
+        }
     }
 
     /// Bytes occupied by live entries (including length prefixes).
@@ -179,7 +187,10 @@ impl Arena {
     pub fn try_insert(&mut self, value: &str) -> Result<Grapheme, GraphemeError> {
         let len = value.len();
         if len > MAX_ENTRY_LEN {
-            return Err(GraphemeError::TooLong { len, max: MAX_ENTRY_LEN });
+            return Err(GraphemeError::TooLong {
+                len,
+                max: MAX_ENTRY_LEN,
+            });
         }
 
         let needed = PREFIX_SIZE + len;
@@ -216,13 +227,22 @@ impl Arena {
         let offset = self.offset_of(grapheme);
 
         let payload_start = offset + PREFIX_SIZE;
-        assert!(payload_start <= self.inner.len(), "releasing out-of-bounds offset");
+        assert!(
+            payload_start <= self.inner.len(),
+            "releasing out-of-bounds offset"
+        );
 
         let entry_len = self.entry_len(offset);
-        assert_ne!(entry_len, 0, "double-release detected (length prefix is zero)");
+        assert_ne!(
+            entry_len, 0,
+            "double-release detected (length prefix is zero)"
+        );
 
         let total = PREFIX_SIZE + entry_len;
-        assert!(offset + total <= self.inner.len(), "releasing entry past end");
+        assert!(
+            offset + total <= self.inner.len(),
+            "releasing entry past end"
+        );
 
         // Poison the prefix so a stale handle to *this* offset reads length 0
         // and panics, rather than yielding stale content. Best-effort: once a
@@ -400,7 +420,10 @@ mod tests {
         let mut sum = 0;
         for (&offset, &size) in &arena.by_offset {
             assert!(arena.by_size.contains(&(size, offset)));
-            assert!(offset + size < arena.inner.len(), "free region must not touch the tail");
+            assert!(
+                offset + size < arena.inner.len(),
+                "free region must not touch the tail"
+            );
             sum += size;
         }
         assert_eq!(sum, arena.free_bytes());
@@ -427,7 +450,12 @@ mod tests {
     #[test]
     fn insert_multiple() {
         let mut arena = Arena::new();
-        let entries = ["alpha", "bravo", "charlie", "👨\u{200D}👩\u{200D}👧\u{200D}👦"];
+        let entries = [
+            "alpha",
+            "bravo",
+            "charlie",
+            "👨\u{200D}👩\u{200D}👧\u{200D}👦",
+        ];
         let handles: Vec<_> = entries.iter().map(|s| arena.insert(s)).collect();
         for (h, expected) in handles.iter().zip(entries.iter()) {
             assert_eq!(arena.get(*h), *expected);
@@ -443,7 +471,11 @@ mod tests {
         let len_before = arena.len();
 
         arena.remove(g1); // interior free (0,8)
-        assert_eq!(arena.len(), len_before, "interior remove does not shrink len");
+        assert_eq!(
+            arena.len(),
+            len_before,
+            "interior remove does not shrink len"
+        );
 
         let g3 = arena.try_insert("reuse!").unwrap(); // best-fit -> offset 0
         assert_eq!(g3.as_offset(), g1.as_offset());
@@ -574,6 +606,9 @@ mod tests {
     fn too_long_is_rejected() {
         let mut arena = Arena::new();
         let long = "x".repeat(MAX_ENTRY_LEN + 1);
-        assert!(matches!(arena.try_insert(&long), Err(GraphemeError::TooLong { .. })));
+        assert!(matches!(
+            arena.try_insert(&long),
+            Err(GraphemeError::TooLong { .. })
+        ));
     }
 }

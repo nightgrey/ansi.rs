@@ -284,7 +284,7 @@ impl<'a> FromIterator<&'a SmallByteStr> for SmallByteString {
 
 impl FromIterator<SmallByteString> for SmallByteString {
     #[inline]
-    fn from_iter<T: IntoIterator<Item =SmallByteString>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = SmallByteString>>(iter: T) -> Self {
         SmallByteString(CompactBytes::new(
             iter.into_iter().collect::<Vec<_>>().concat().as_slice(),
         ))
@@ -911,7 +911,7 @@ impl Default for &mut SmallByteStr {
     }
 }
 
-impl<'a> const TryFrom<&'a SmallByteStr> for &'a str {
+impl <'a> const TryFrom<&'a SmallByteStr> for &'a str {
     type Error = std::str::Utf8Error;
 
     #[inline]
@@ -920,7 +920,7 @@ impl<'a> const TryFrom<&'a SmallByteStr> for &'a str {
     }
 }
 
-impl<'a> const TryFrom<&'a mut SmallByteStr> for &'a mut str {
+impl <'a> const TryFrom<&'a mut SmallByteStr> for &'a mut str {
     type Error = std::str::Utf8Error;
 
     #[inline]

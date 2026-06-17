@@ -1,10 +1,10 @@
 use super::pen::Pen;
-use crate::{Cell, Cells};
 use crate::{Arena, Buffer};
+use crate::{Cell, Cells};
+use ansi::WriteEscape;
 use ansi::escape;
-use ansi::{WriteEscape};
 use ansi::sequences::*;
-use geometry::{Row};
+use geometry::Row;
 use std::io;
 use terminal::Capabilities;
 
@@ -327,8 +327,9 @@ impl Rasterer {
 
         let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
 
-        let last_non_default_cell =
-            Cells(&next[first..=last]).last().map(|offset| first + offset);
+        let last_non_default_cell = Cells(&next[first..=last])
+            .last()
+            .map(|offset| first + offset);
 
         match cursor_mode {
             CursorMode::Absolute => cursor.position(y as u16, first as u16, output),
@@ -852,8 +853,8 @@ mod tests {
                 rest.iter().position(|&b| b == b'H').map_or(false, |h_pos| {
                     rest[..h_pos].contains(&b';')
                         && rest[..h_pos]
-                        .iter()
-                        .all(|b| b.is_ascii_digit() || *b == b';')
+                            .iter()
+                            .all(|b| b.is_ascii_digit() || *b == b';')
                 })
             }
         });

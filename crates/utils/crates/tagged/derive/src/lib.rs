@@ -2,7 +2,7 @@ use heck::{ToShoutySnakeCase, ToSnakeCase};
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Fields, ItemEnum};
+use syn::{Fields, ItemEnum, parse_macro_input};
 
 struct Variant {
     tag_const: proc_macro2::Ident,

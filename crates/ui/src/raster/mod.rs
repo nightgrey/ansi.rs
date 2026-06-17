@@ -1,7 +1,7 @@
 mod pen;
-mod rasterer;
 mod presenter;
+mod rasterer;
 
 pub use pen::*;
-pub use rasterer::*;
 pub use presenter::*;
+pub use rasterer::*;

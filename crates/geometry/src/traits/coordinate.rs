@@ -7,14 +7,12 @@ use crate::{Point, PointLike, Position, PositionLike};
 pub trait Coordinate: Copy + PartialEq + Eq + PartialOrd + Ord {
     fn new(x: u16, y: u16) -> Self;
 
-    
     fn x(&self) -> u16;
-    
+
     fn y(&self) -> u16;
 
-    
     fn set_x(&mut self, x: u16);
-    
+
     fn set_y(&mut self, y: u16);
 
     #[inline]

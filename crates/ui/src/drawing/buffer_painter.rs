@@ -329,7 +329,9 @@ impl<'a> DrawingContext for BufferPainter<'a> {
 
         n
         */
-        self.buffer.set_string_styled(position..clip.max, str, style, self.arena).unwrap_or(0)
+        self.buffer
+            .set_string_styled(position..clip.max, str, style, self.arena)
+            .unwrap_or(0)
     }
 
     fn char(&mut self, position: impl Into<Point>, char: char) -> usize {

@@ -84,14 +84,14 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]> {
     }
 
     /// Returns the flat array of all element values (concatenated group contents).
-    
+
     fn values(&self) -> &[T];
 
     /// Returns the slice of start indices for each group.
     ///
     /// The length of this slice equals the number of groups.
     /// The start indices refer to positions in `values()`.
-    
+
     fn starts(&self) -> &[usize];
 
     /// Returns a slice of all element values.

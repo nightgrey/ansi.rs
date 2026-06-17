@@ -18,7 +18,7 @@ use crate::Escape;
 #[repr(transparent)]
 pub struct SetMode<M = Mode>(pub M);
 
-impl<M> const SetMode<M> {
+impl <M> const SetMode<M> {
     #[inline]
     pub fn value(&self) -> &M {
         &self.0
@@ -82,7 +82,7 @@ pub type SM<M = Mode> = SetMode<M>;
 #[repr(transparent)]
 pub struct ResetMode<M = Mode>(pub M);
 
-impl<M> const ResetMode<M> {
+impl <M> const ResetMode<M> {
     #[inline]
     pub fn value(&self) -> &M {
         &self.0

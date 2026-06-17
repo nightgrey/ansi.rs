@@ -109,7 +109,12 @@ impl Pen {
     /// screen position. Evaluates two strategies:
     /// 1. Pure relative (CUU/CUD + CUF/CUB)
     /// 2. CR + vertical + CUF
-    pub fn relative_position(&mut self, row: u16, col: u16, w: &mut impl WriteEscape) -> io::Result<()> {
+    pub fn relative_position(
+        &mut self,
+        row: u16,
+        col: u16,
+        w: &mut impl WriteEscape,
+    ) -> io::Result<()> {
         if self.row == row && self.col == col {
             return Ok(());
         }
@@ -245,9 +250,7 @@ mod tests {
         let mut cursor = Pen::new();
         cursor.style = Style::default().bold();
         let mut buf = Vec::new();
-        cursor
-            .style(Style::default().bold(), &mut buf)
-            .unwrap();
+        cursor.style(Style::default().bold(), &mut buf).unwrap();
         assert!(buf.is_empty());
     }
 

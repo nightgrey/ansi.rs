@@ -1,8 +1,8 @@
-use proc_macro::{TokenStream};
-use std::str::FromStr;
+use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Meta};
+use std::str::FromStr;
 use syn::__private::TokenStream2;
+use syn::{Data, DeriveInput, Error, Fields, Meta, parse_macro_input};
 
 /// Derive the `Maybe` trait for an enum.
 ///
@@ -83,17 +83,11 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
     // Validate const constraints
     if is_const {
         if !input.generics.params.is_empty() {
-            return Error::new_spanned(
-                name,
-                "derive_const(Maybe) requires no generic parameters",
-            )
+            return Error::new_spanned(name, "derive_const(Maybe) requires no generic parameters")
                 .to_compile_error();
         }
         if input.generics.where_clause.is_some() {
-            return Error::new_spanned(
-                name,
-                "derive_const(Maybe) requires no where clause",
-            )
+            return Error::new_spanned(name, "derive_const(Maybe) requires no where clause")
                 .to_compile_error();
         }
     }
@@ -101,10 +95,7 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
         _ => {
-            return Error::new_spanned(
-                name,
-                "Maybe can only be derived for enums",
-            )
+            return Error::new_spanned(name, "Maybe can only be derived for enums")
                 .to_compile_error();
         }
     };
@@ -125,7 +116,7 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
                     "No #[none] attribute and no variant named `None`. \
                      Mark a unit variant with #[none] or name one `None`.",
                 )
-                    .to_compile_error();
+                .to_compile_error();
             }
         },
         1 => attr_none[0],
@@ -134,7 +125,7 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
                 &attr_none[1].ident,
                 "Multiple #[none] variants — mark exactly one",
             )
-                .to_compile_error();
+            .to_compile_error();
         }
     };
 
@@ -143,7 +134,7 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
             &none_variant.ident,
             "The none variant must be a unit variant (no fields)",
         )
-            .to_compile_error();
+        .to_compile_error();
     }
 
     let none_ident = &none_variant.ident;
@@ -164,7 +155,7 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
                     &v.ident,
                     "#[maybe(default)] variant must be a unit variant (no fields)",
                 )
-                    .to_compile_error();
+                .to_compile_error();
             }
             &v.ident
         }
@@ -173,13 +164,21 @@ fn derive_maybe_inner(input: &DeriveInput, is_const: bool) -> TokenStream2 {
                 &attr_default[1].ident,
                 "Multiple #[maybe(default)] variants — mark at most one",
             )
-                .to_compile_error();
+            .to_compile_error();
         }
     };
 
     let maybe_const = TokenStream2::from_str(if is_const { "const" } else { "" }).unwrap();
     // Generate code based on const or non-const
-    generate_impls(name, impl_generic, generic, where_clause, none_ident, default_ident, maybe_const)
+    generate_impls(
+        name,
+        impl_generic,
+        generic,
+        where_clause,
+        none_ident,
+        default_ident,
+        maybe_const,
+    )
 }
 
 fn generate_impls(

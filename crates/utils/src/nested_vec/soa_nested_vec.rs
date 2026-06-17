@@ -165,7 +165,7 @@ impl<T, Group: IntoIterator<Item = T>, const N: usize, const M: usize> FromItera
         };
 
         for group in iter {
-            nested.push(group)
+            nested.push(group);
         }
 
         nested

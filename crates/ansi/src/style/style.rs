@@ -475,7 +475,7 @@ impl Escape for Style {
             w.write_all(b";")?
         };
 
-       if self.background.is_some() {
+        if self.background.is_some() {
             separate! {
                 w.write_escape(self.background.as_background())?
             };
@@ -489,7 +489,7 @@ impl Escape for Style {
 
         // Attributes (bold, underline, etc.)
         separate! {
-            w.write(&self.attributes.to_sgr_bytes())?
+            w.write_all(&self.attributes.to_sgr_bytes())?
         };
 
         w.write_all(b"m")

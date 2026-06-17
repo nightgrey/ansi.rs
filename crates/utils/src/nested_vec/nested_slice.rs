@@ -31,10 +31,7 @@ impl<'a, T> NestedSlice<'a, T> {
             starts,
             values.len()
         );
-        Self {
-            starts,
-            values,
-        }
+        Self { starts, values }
     }
 }
 

@@ -45,3 +45,5 @@ pub mod counting_writer;
 pub use counting_writer::*;
 
 pub use ansi::*;
+
+pub use utils_derive::*;

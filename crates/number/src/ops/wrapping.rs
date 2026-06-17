@@ -2,7 +2,11 @@ use std::num::Wrapping;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
 pub const trait WrappingOps<Rhs = Self>:
-    [const] WrappingAdd<Rhs> + [const] WrappingSub<Rhs> + [const] WrappingMul<Rhs> + [const] WrappingDiv<Rhs> + [const] WrappingRem<Rhs>
+    [const] WrappingAdd<Rhs>
+    + [const] WrappingSub<Rhs>
+    + [const] WrappingMul<Rhs>
+    + [const] WrappingDiv<Rhs>
+    + [const] WrappingRem<Rhs>
 {
 }
 

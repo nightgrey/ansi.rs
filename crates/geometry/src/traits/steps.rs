@@ -7,11 +7,11 @@ pub trait Step<T> {
     ///
     /// Returns `(n, Some(n))` when `start <= end` within bounds,
     /// or `(0, None)` when `start > end`.
-    
+
     fn steps_between(&self, start: T, end: T) -> (usize, Option<usize>);
 
     /// Move `count` steps forward in row-major order, or `None` if out of bounds.
-    
+
     fn forward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `forward_checked`, but panics on overflow.
@@ -31,7 +31,7 @@ pub trait Step<T> {
     }
 
     /// Move `count` steps backward in row-major order, or `None` if out of bounds.
-    
+
     fn backward_checked(&self, start: T, count: usize) -> Option<T>;
 
     /// Like `backward_checked`, but panics on underflow.
@@ -179,13 +179,14 @@ impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator 
         }
 
         if let Some(plus_n) = self.bounds.forward_checked(self.front, n)
-            && plus_n < self.bounds.max() {
-                self.front = self
-                    .bounds
-                    .forward_checked(plus_n, 1)
-                    .expect("`Step` invariants not upheld");
-                return Some(plus_n);
-            }
+            && plus_n < self.bounds.max()
+        {
+            self.front = self
+                .bounds
+                .forward_checked(plus_n, 1)
+                .expect("`Step` invariants not upheld");
+            return Some(plus_n);
+        }
 
         None
     }
@@ -223,7 +224,7 @@ impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> Iterator 
                 pos.set_x(pos.x() + 1);
             }
             pos.set_x(self.bounds.min_x());
-            pos.set_y(pos.y() + 1)
+            pos.set_y(pos.y() + 1);
         }
         acc
     }
@@ -270,13 +271,14 @@ impl<P: Coordinate, B: Bound<Point = P> + Step<P> + Resolve<P, usize>> DoubleEnd
         }
 
         if let Some(minus_n) = self.bounds.backward_checked(self.back, n)
-            && minus_n < self.bounds.max() {
-                self.back = self
-                    .bounds
-                    .backward_checked(minus_n, 1)
-                    .expect("`Step` invariants not upheld");
-                return Some(minus_n);
-            }
+            && minus_n < self.bounds.max()
+        {
+            self.back = self
+                .bounds
+                .backward_checked(minus_n, 1)
+                .expect("`Step` invariants not upheld");
+            return Some(minus_n);
+        }
 
         None
     }

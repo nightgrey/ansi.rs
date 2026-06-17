@@ -48,7 +48,6 @@ impl<'a> Document<'a> {
         &mut self.elements[id]
     }
 
-
     /// Sets the node at the given id.
     pub fn set(&mut self, id: ElementId, node: Element<'a>) {
         self.elements.set(id, node);
@@ -117,7 +116,7 @@ impl<'a> Document<'a> {
         self.mark(id, Dirty::all());
     }
 
-    pub fn children(&self, id: ElementId) -> impl Iterator<Item=ElementId> + '_ {
+    pub fn children(&self, id: ElementId) -> impl Iterator<Item = ElementId> + '_ {
         self.elements.children(id)
     }
 
@@ -172,7 +171,7 @@ impl<'a> Document<'a> {
             &mut self.layouts,
             |known, available, _id, style| measure(known, available, style),
         )
-            .print_tree(self.root_id)
+        .print_tree(self.root_id)
     }
 
     fn clear_layout(&mut self, id: ElementId) {

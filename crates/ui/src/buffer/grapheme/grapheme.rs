@@ -61,10 +61,14 @@ impl const Grapheme {
     /// Distinct from [`EMPTY`](Self::EMPTY): a continuation cell carries no
     /// content of its own but marks that the previous cell spans into this
     /// column.
-    pub const CONTINUATION: Self = Self { repr: [0, 0, 0, Self::CONTINUATION_TAG] };
+    pub const CONTINUATION: Self = Self {
+        repr: [0, 0, 0, Self::CONTINUATION_TAG],
+    };
 
     /// The Unicode replacement character (`U+FFFD`), stored inline.
-    pub const REPLACEMENT: Self = Self { repr: [0xEF, 0xBF, 0xBD, 0x00] };
+    pub const REPLACEMENT: Self = Self {
+        repr: [0xEF, 0xBF, 0xBD, 0x00],
+    };
 
     /// Encode a `char` inline. Every scalar value fits in ≤4 UTF-8 bytes, so
     /// this never needs an arena. `'\0'` produces [`EMPTY`](Self::EMPTY).
@@ -146,7 +150,7 @@ impl Grapheme {
     pub fn inline(value: impl Encodeable) -> Self {
         match value.encode(None) {
             Ok(grapheme) => grapheme,
-            Err(err) => panic!("value exceeds 4 bytes and cannot be stored inline")
+            Err(err) => panic!("value exceeds 4 bytes and cannot be stored inline"),
         }
     }
 
@@ -271,9 +275,13 @@ impl fmt::Debug for Grapheme {
         } else if self.is_continuation() {
             f.debug_tuple("Grapheme::Continuation").finish()
         } else if self.is_extended() {
-            f.debug_tuple("Grapheme::Extended").field(&self.as_offset()).finish()
+            f.debug_tuple("Grapheme::Extended")
+                .field(&self.as_offset())
+                .finish()
         } else {
-            f.debug_tuple("Grapheme::Inline").field(&self.as_inline_str()).finish()
+            f.debug_tuple("Grapheme::Inline")
+                .field(&self.as_inline_str())
+                .finish()
         }
     }
 }
@@ -306,7 +314,10 @@ impl Encodeable for &str {
             1..=INLINE_CAPACITY => Ok(Grapheme::pack_inline(self.as_bytes())),
             len => match arena {
                 Some(arena) => arena.try_insert(self),
-                None => Err(GraphemeError::ArenaRequired { len, max: INLINE_CAPACITY }),
+                None => Err(GraphemeError::ArenaRequired {
+                    len,
+                    max: INLINE_CAPACITY,
+                }),
             },
         }
     }
@@ -417,7 +428,10 @@ mod tests {
     #[test]
     fn debug_output() {
         assert_eq!(format!("{:?}", Grapheme::EMPTY), "Grapheme::Empty");
-        assert_eq!(format!("{:?}", Grapheme::CONTINUATION), "Grapheme::Continuation");
+        assert_eq!(
+            format!("{:?}", Grapheme::CONTINUATION),
+            "Grapheme::Continuation"
+        );
         assert!(format!("{:?}", Grapheme::char('Z')).contains('Z'));
     }
 

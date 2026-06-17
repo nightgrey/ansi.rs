@@ -1,4 +1,6 @@
-use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter, Rasterer};
+use crate::{
+    Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter, Rasterer,
+};
 use derive_more::{Deref, DerefMut};
 use geometry::Size;
 use std::io;

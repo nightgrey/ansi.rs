@@ -46,11 +46,7 @@ impl<W: std::fmt::Write> FmtEscape for W {
                 unsafe {
                     self.inner
                         .write_str(&String::from_utf8_unchecked(buf))
-                        .map_err(|_| {
-                            std::io::Error::other(
-                                "Failed to write string",
-                            )
-                        })?;
+                        .map_err(|_| std::io::Error::other("Failed to write string"))?;
                 }
                 Ok(())
             }

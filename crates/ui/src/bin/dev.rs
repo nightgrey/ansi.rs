@@ -1,8 +1,8 @@
-use ansi::{escape, Color, TextCursorEnable};
-use ui::*;
+use ansi::{Color, TextCursorEnable, escape};
 use std::io::{self};
 use std::thread::sleep;
 use std::time::Duration;
+use ui::*;
 
 fn main() -> io::Result<()> {
     let mut stdout = io::stdout();

@@ -5,20 +5,20 @@ use std::ops::Not;
 use std::ops::*;
 
 pub const trait Integer:
-[ const ] Number
-+ [ const ] Eq
-+ [ const ] Ord
-+ [ const ] Not<Output=Self>
-+ [ const ] BitAnd<Output=Self>
-+ [ const ] BitAndAssign
-+ [ const ] BitOr<Output=Self>
-+ [ const ] BitOrAssign
-+ [ const ] BitXor<Output=Self>
-+ [ const ] BitXorAssign
-+ [ const ] Shl<usize, Output=Self>
-+ [ const ] Shr<usize, Output=Self>
-+ [ const ] ConditionalOps
-+ [ const ] WrappingOps
+    [const] Number
+    + [const] Eq
+    + [const] Ord
+    + [const] Not<Output = Self>
+    + [const] BitAnd<Output = Self>
+    + [const] BitAndAssign
+    + [const] BitOr<Output = Self>
+    + [const] BitOrAssign
+    + [const] BitXor<Output = Self>
+    + [const] BitXorAssign
+    + [const] Shl<usize, Output = Self>
+    + [const] Shr<usize, Output = Self>
+    + [const] ConditionalOps
+    + [const] WrappingOps
 {
     /// Convert from a string and radix (typically `2..=36`).
     ///
@@ -351,8 +351,8 @@ pub const trait Integer:
     fn pow(self, exp: u32) -> Self;
 }
 
-pub const trait Unsigned: [ const ] Integer + [ const ] BitOps {}
-pub const trait Signed: [ const ] Integer {}
+pub const trait Unsigned: [const] Integer + [const] BitOps {}
+pub const trait Signed: [const] Integer {}
 
 macro_rules! impl_integer {
     ($integer:ty, $signed:ty, $unsigned:ty) => {

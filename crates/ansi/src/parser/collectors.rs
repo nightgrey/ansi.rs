@@ -1,23 +1,62 @@
-use derive_more::{Deref, DerefMut};
+use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
 use utils::{NestedMut, NestedRaw, TryNestedMut};
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, Index, IndexMut, AsRef, AsMut)]
+pub struct Utf8 {
+    #[index]
+    #[index_mut]
+    #[as_ref(forward)]
+    #[as_mut(forward)]
+    inner: [u8; 4],
+    len: usize,
+}
+
+impl Utf8 {
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    pub fn set_len(&mut self, len: usize) {
+        self.len = len;
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.inner[..self.len]
+    }
+
+    #[inline]
+    pub fn as_mut_bytes(&mut self) -> &mut [u8] {
+        &mut self.inner[..self.len]
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+}
+
 #[derive(Deref, DerefMut, Debug, Default, Clone)]
-pub struct ParametersBuilder {
+pub struct Parameters {
     #[deref]
     #[deref_mut]
     inner: NestedRaw<u16, 32, 32>,
     current: Option<u16>,
-    group_active: bool,
-    last_separator: Option<ParameterSeparator>,
+    /// Whether the main parameter currently being built has sub-parameters,
+    /// i.e. a `:` separator has been seen since the last `;`. This is the one
+    /// bit that distinguishes `1:2` (sub) from `1;2` (new param) — `inner`
+    /// alone can't, since both leave `[1]` behind after the first value.
+    in_group: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ParameterSeparator {
-    Main,
-    Sub,
-}
-
-impl ParametersBuilder {
+impl Parameters {
     /// ECMA-48 caps parameters at 16383.
     const MAX: u16 = 16383;
 
@@ -37,7 +76,6 @@ impl ParametersBuilder {
     pub fn push_sub(&mut self) {
         let val = self.current.take().unwrap_or(0);
         self.push_sub_value(val);
-        self.last_separator = Some(ParameterSeparator::Sub);
     }
 
     /// Append current parameter as a main parameter (`;` separator).
@@ -45,9 +83,9 @@ impl ParametersBuilder {
     pub fn push_main(&mut self) {
         match self.current.take() {
             Some(val) => self.push_value(val),
-            None if matches!(self.last_separator, Some(ParameterSeparator::Sub)) => {
-                self.push_sub_value(0);
-            }
+            // Trailing empty sub (`1:;`) defaults to 0 within the group.
+            None if self.in_group => self.push_sub_value(0),
+            // Empty main param (`;`, `1;;`) becomes a new `[0]` group.
             // Drop on overflow: the CSI/DCS still dispatches with the capped
             // params rather than panicking.
             None => {
@@ -55,17 +93,14 @@ impl ParametersBuilder {
             }
         }
 
-        self.group_active = false;
-        self.last_separator = Some(ParameterSeparator::Main);
+        self.in_group = false;
     }
 
     /// Finalize the in-flight param at dispatch time.
     pub fn finish(&mut self) {
         match self.current.take() {
             Some(val) => self.push_value(val),
-            None if matches!(self.last_separator, Some(ParameterSeparator::Sub)) => {
-                self.push_sub_value(0);
-            }
+            None if self.in_group => self.push_sub_value(0),
             None => {}
         }
     }
@@ -73,8 +108,7 @@ impl ParametersBuilder {
     pub fn clear(&mut self) {
         self.inner.clear();
         self.current = None;
-        self.group_active = false;
-        self.last_separator = None;
+        self.in_group = false;
     }
 
     // The push helpers drop values that exceed capacity (`NestedError::Overflow`)
@@ -82,7 +116,7 @@ impl ParametersBuilder {
     // dispatches, just with the trailing params capped — mirroring the
     // reference's cap-and-continue behavior, safely.
     fn push_value(&mut self, val: u16) {
-        if self.group_active {
+        if self.in_group {
             self.push_sub_value(val);
         } else {
             let _ = self.inner.try_push_one(val);
@@ -90,13 +124,13 @@ impl ParametersBuilder {
     }
 
     fn push_sub_value(&mut self, val: u16) {
-        if self.group_active {
+        if self.in_group {
             let _ = self.inner.try_extend_one(val);
         } else {
-            // Only mark the group active if the value actually landed, so
-            // `group_active` bookkeeping stays consistent on overflow.
+            // Only enter the group if the value actually landed, so `in_group`
+            // bookkeeping stays consistent on overflow.
             if self.inner.try_push_one(val).is_ok() {
-                self.group_active = true;
+                self.in_group = true;
             }
         }
     }

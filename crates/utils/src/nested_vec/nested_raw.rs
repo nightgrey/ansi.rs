@@ -14,6 +14,20 @@ pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
     pub(super) starts_len: usize,
 }
 
+impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
+for NestedRaw<T, N, M>
+{
+    #[inline]
+    fn new() -> Self {
+        Self {
+            inner: [Default::default(); N],
+            starts: [0; M],
+            inner_len: 0,
+            starts_len: 0,
+        }
+    }
+}
+
 impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
     #[inline]
     fn first(&self) -> Option<&[T]> {
@@ -41,19 +55,6 @@ impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
 
     fn starts(&self) -> &[usize] {
         &self.starts[..self.starts_len]
-    }
-}
-impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
-    for NestedRaw<T, N, M>
-{
-    #[inline]
-    fn new() -> Self {
-        Self {
-            inner: [Default::default(); N],
-            starts: [0; M],
-            inner_len: 0,
-            starts_len: 0,
-        }
     }
 }
 
@@ -218,8 +219,8 @@ impl<T, const N: usize, const M: usize> AsMut<[T]> for NestedRaw<T, N, M> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::{NestedIter, NestedSlice};
+    use super::*;
 
     const N: usize = 8;
     const M: usize = 8;

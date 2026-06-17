@@ -136,7 +136,7 @@ impl TryFrom<char> for Control {
 
 impl std::str::FromStr for Control {
     type Err = FromStrError;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Match against uppercase names only (the canonical form)
         match s.to_ascii_uppercase().as_str() {

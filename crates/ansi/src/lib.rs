@@ -23,6 +23,7 @@
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(const_option_ops)]
+#![feature(str_internals)]
 extern crate core;
 
 mod color;
@@ -31,8 +32,8 @@ mod style;
 
 #[macro_use]
 mod escape;
-pub mod sequences;
 mod control;
+pub mod sequences;
 
 pub use color::*;
 pub use escape::*;

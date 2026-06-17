@@ -1,9 +1,9 @@
+use super::Cells;
 use crate::buffer::{Buffer, Cell};
 use crate::{CellsIter, Map, TrackingBuffer};
 use derive_more::{AsRef, Deref};
 use geometry::Point;
 use std::iter::FusedIterator;
-use super::{Cells};
 
 /// A zero-allocation buffer diffing iterator
 ///

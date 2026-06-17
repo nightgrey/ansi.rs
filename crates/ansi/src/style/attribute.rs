@@ -144,7 +144,6 @@ impl const Attribute {
         },
     }
 
-
     /// Creates an empty attribute.
     #[inline]
     pub fn empty() -> Self {
@@ -341,7 +340,7 @@ impl const Attribute {
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn iter_sgr(self) -> impl Iterator<Item=&'static str> {
+    pub fn iter_sgr(self) -> impl Iterator<Item = &'static str> {
         self.meta().map(|meta| meta.set())
     }
 
@@ -357,7 +356,7 @@ impl const Attribute {
     /// assert_eq!(attrs.names().collect::<Vec<_>>(), vec!["Bold", "Italic"]);
     /// ```
     #[inline]
-    pub fn names(self) -> impl Iterator<Item=&'static str> {
+    pub fn names(self) -> impl Iterator<Item = &'static str> {
         self.meta().map(|meta| meta.name())
     }
 
@@ -469,14 +468,20 @@ impl FromStr for Attribute {
 
         let mut out = Self::empty();
 
-        for part in s.split('|').map(|s| s.trim()).filter(|s| !s.is_empty() && s != &"None") {
-            let attr = if let Some(hex) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
-                let bits = <Repr>::from_str_radix(hex, 16).map_err(|error| ParseAttributeError::ParseInt(error))?;
+        for part in s
+            .split('|')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty() && s != &"None")
+        {
+            let attr =
+                if let Some(hex) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
+                    let bits = <Repr>::from_str_radix(hex, 16)
+                        .map_err(|error| ParseAttributeError::ParseInt(error))?;
 
-                Self::try_from_bits(bits)?
-            } else {
-                <Attribute as FromStr>::from_str(part)?
-            };
+                    Self::try_from_bits(bits)?
+                } else {
+                    <Attribute as FromStr>::from_str(part)?
+                };
 
             out.insert(attr);
         }
@@ -566,18 +571,19 @@ impl const IntoIterator for Attribute {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.iter().map(|i| Attribute::new((i as u16).saturating_sub(1)))
+        self.iter()
+            .map(|i| Attribute::new((i as u16).saturating_sub(1)))
     }
 }
 impl Extend<Attribute> for Attribute {
-    fn extend<T: IntoIterator<Item=Attribute>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = Attribute>>(&mut self, iter: T) {
         for bit in iter {
             self.insert(bit);
         }
     }
 }
 impl FromIterator<Attribute> for Attribute {
-    fn from_iter<T: IntoIterator<Item=Attribute>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = Attribute>>(iter: T) -> Self {
         let mut out = Self::None;
         out.extend(iter);
         out
@@ -602,7 +608,9 @@ pub struct MetaIter {
 impl const MetaIter {
     #[inline]
     pub fn new(value: u16) -> Self {
-        Self { inner: Iter::new(value) }
+        Self {
+            inner: Iter::new(value),
+        }
     }
 }
 
@@ -614,7 +622,6 @@ impl const Iterator for MetaIter {
 
         Some(Meta::from_position(next))
     }
-
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -647,7 +654,7 @@ impl const Iterator for MetaIter {
     #[inline]
     fn fold<B, F>(mut self, init: B, mut f: F) -> B
     where
-        F: [ const ] FnMut(B, Self::Item) -> B + [ const ] Destruct,
+        F: [const] FnMut(B, Self::Item) -> B + [const] Destruct,
     {
         let mut accum = init;
         while let Some(item) = self.next() {
@@ -724,7 +731,6 @@ impl const Iterator for Iter {
         }
     }
 
-
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let sz = self.count_ones();
@@ -758,7 +764,7 @@ impl const Iterator for Iter {
     #[inline]
     fn fold<B, F>(mut self, init: B, mut f: F) -> B
     where
-        F: [ const ] FnMut(B, Self::Item) -> B + [ const ] Destruct,
+        F: [const] FnMut(B, Self::Item) -> B + [const] Destruct,
     {
         let mut accum = init;
         while self.0 != 0 {
@@ -791,8 +797,6 @@ impl ExactSizeIterator for Iter {
         self.count_ones()
     }
 }
-
-const _: () = assert!(Attribute::COUNT == Attribute::COUNT);
 
 #[derive(Copy, Clone, Debug, Deref, AsRef)]
 pub struct Meta {
@@ -840,7 +844,6 @@ pub enum ParseAttributeError {
     #[error(transparent)]
     ParseInt(#[from] std::num::ParseIntError),
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -234,12 +234,7 @@ impl Cell {
         self
     }
 
-    pub fn set_char_measured(
-        &mut self,
-        char: char,
-        width: usize,
-        arena: &mut Arena,
-    ) -> &mut Self {
+    pub fn set_char_measured(&mut self, char: char, width: usize, arena: &mut Arena) -> &mut Self {
         if self.grapheme.is_extended() {
             arena.remove(self.grapheme);
         }
@@ -250,12 +245,7 @@ impl Cell {
         self
     }
 
-    pub fn set_str_measured(
-        &mut self,
-        str: &str,
-        width: usize,
-        arena: &mut Arena,
-    ) -> &mut Self {
+    pub fn set_str_measured(&mut self, str: &str, width: usize, arena: &mut Arena) -> &mut Self {
         *self = self.with_str_measured(str, width, arena);
         self
     }
@@ -345,7 +335,6 @@ impl const Default for Cell {
         Self::EMPTY
     }
 }
-
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -25,7 +25,7 @@ impl<T, const N: usize, const M: usize> NestedVec<T, N, M> {
             starts: SmallVec::with_capacity(capacity + 1),
         }
     }
-    
+
     #[inline]
     pub fn from_values(values: impl IntoIterator<Item = T>) -> Self {
         let inner = SmallVec::from_iter(values);
@@ -35,7 +35,6 @@ impl<T, const N: usize, const M: usize> NestedVec<T, N, M> {
         }
     }
 }
-
 
 impl<T, const N: usize, const M: usize> NestedConstructor<T> for NestedVec<T, N, M> {
     #[inline]
@@ -177,7 +176,7 @@ impl<T, Group: IntoIterator<Item = T>, const N: usize, const M: usize> FromItera
         };
 
         for group in iter {
-            nested.push(group)
+            nested.push(group);
         }
 
         nested

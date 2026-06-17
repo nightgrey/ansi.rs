@@ -1,12 +1,12 @@
-use utils::Counting;
 use crate::raster::Pen;
-use crate::{Arena, Buffer, BufferDiff, Cells, Cell, Run, TrackingBuffer};
+use crate::{Arena, Buffer, BufferDiff, Cell, Cells, Run, TrackingBuffer};
 use ansi::WriteEscape;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
 use geometry::{Point, Row};
 use std::io::{self, BufWriter, Write};
 use terminal::Capabilities;
+use utils::Counting;
 
 /// Internal buffer size for the buffered writer.
 const BUFFER_CAPACITY: usize = 64 * 1024;
@@ -202,7 +202,7 @@ impl<W: Write> Presenter<W> {
         stats.bytes = self.writer.count();
         Ok(stats)
     }
-    
+
     /// Flush any buffered output to the underlying writer.
     pub fn flush(&mut self) -> io::Result<()> {
         self.writer.flush()
@@ -216,7 +216,7 @@ impl<W: Write> Presenter<W> {
             .into_inner()
             .map_err(|e| e.into_error())
     }
-    
+
     /// Clear the presenter's internal state, resetting the pen and invalidating
     /// the next frame.
     pub fn clear(&mut self) {
@@ -669,7 +669,6 @@ pub struct PresenterStats {
     pub bytes: u64,
 }
 
-
 // ────────────────────────────────────────────────────────────────────────
 // Free helpers
 // ────────────────────────────────────────────────────────────────────────
@@ -828,11 +827,27 @@ mod tests {
     #[test]
     fn fullscreen_diff_emits_only_changed_cell() {
         let arena = Arena::new();
-        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None), (0, 2, 'C', Style::None)]);
+        let buf1 = Buffer::from_chars(
+            3,
+            1,
+            &[
+                (0, 0, 'A', Style::None),
+                (0, 1, 'B', Style::None),
+                (0, 2, 'C', Style::None),
+            ],
+        );
         let mut h = Harness::new(3, 1);
         h.present(&buf1, &arena);
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'X', Style::None), (0, 2, 'C', Style::None)]);
+        let buf2 = Buffer::from_chars(
+            3,
+            1,
+            &[
+                (0, 0, 'A', Style::None),
+                (0, 1, 'X', Style::None),
+                (0, 2, 'C', Style::None),
+            ],
+        );
         let out = h.frame_str(&buf2, &arena);
         assert!(out.contains('X'), "should emit 'X': {out:?}");
         assert!(!out.contains('A'), "should not re-emit 'A': {out:?}");
@@ -866,9 +881,13 @@ mod tests {
         h.present(&buf, &arena);
 
         // Keep the first two cells, clear the rest to the row end.
-        let shrunk = Buffer::from_chars(20, 1, &[(0, 0, 'x', Style::None), (0, 1, 'x', Style::None)]);
+        let shrunk =
+            Buffer::from_chars(20, 1, &[(0, 0, 'x', Style::None), (0, 1, 'x', Style::None)]);
         let out = h.frame_str(&shrunk, &arena);
-        assert!(out.contains("\x1B[K"), "should EL the cleared tail: {out:?}");
+        assert!(
+            out.contains("\x1B[K"),
+            "should EL the cleared tail: {out:?}"
+        );
         assert!(
             out.matches(' ').count() < 4,
             "should not emit a space per cleared cell: {out:?}"
@@ -881,7 +900,11 @@ mod tests {
         let buf = Buffer::from_chars(
             5,
             1,
-            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (0, 4, 'Z', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (0, 1, 'b', Style::None),
+                (0, 4, 'Z', Style::None),
+            ],
         );
         let mut h = Harness::new(5, 1);
         h.present(&buf, &arena);
@@ -890,7 +913,10 @@ mod tests {
         // turned into an EL (that would wipe 'Z').
         let next = Buffer::from_chars(5, 1, &[(0, 0, 'a', Style::None), (0, 4, 'Z', Style::None)]);
         let out = h.frame_str(&next, &arena);
-        assert!(!out.contains("\x1B[K"), "must not EL across surviving content: {out:?}");
+        assert!(
+            !out.contains("\x1B[K"),
+            "must not EL across surviving content: {out:?}"
+        );
     }
 
     #[test]
@@ -922,7 +948,10 @@ mod tests {
         let out = h.frame_str(&buf, &Arena::new());
         let hide = out.find("\x1B[?25l");
         let show = out.rfind("\x1B[?25h");
-        assert!(hide.is_some() && show.is_some(), "hide/show present: {out:?}");
+        assert!(
+            hide.is_some() && show.is_some(),
+            "hide/show present: {out:?}"
+        );
         assert!(hide < show, "hide before show: {out:?}");
     }
 
@@ -935,7 +964,10 @@ mod tests {
         let out = h.frame_str(&buf, &Arena::new());
         assert!(!out.contains("\x1B[2J"), "no ED2 inline: {out:?}");
         assert!(!out.contains("\x1B[H"), "no Home inline: {out:?}");
-        assert!(out.contains('x') && out.contains('y'), "paints content: {out:?}");
+        assert!(
+            out.contains('x') && out.contains('y'),
+            "paints content: {out:?}"
+        );
     }
 
     #[test]
@@ -943,7 +975,12 @@ mod tests {
         let buf = Buffer::from_chars(
             5,
             2,
-            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None), (1, 1, 'd', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (0, 1, 'b', Style::None),
+                (1, 0, 'c', Style::None),
+                (1, 1, 'd', Style::None),
+            ],
         );
         let mut h = Harness::inline(5, 2);
         h.present(&buf, &Arena::new());
@@ -957,7 +994,12 @@ mod tests {
         let buf1 = Buffer::from_chars(
             5,
             2,
-            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None), (1, 1, 'd', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (0, 1, 'b', Style::None),
+                (1, 0, 'c', Style::None),
+                (1, 1, 'd', Style::None),
+            ],
         );
         let mut h = Harness::inline(5, 2);
         h.present(&buf1, &Arena::new());
@@ -965,7 +1007,12 @@ mod tests {
         let buf2 = Buffer::from_chars(
             5,
             2,
-            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'X', Style::None), (1, 1, 'd', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (0, 1, 'b', Style::None),
+                (1, 0, 'X', Style::None),
+                (1, 1, 'd', Style::None),
+            ],
         );
         let out = h.frame_str(&buf2, &Arena::new());
         assert!(out.contains('X'), "should emit changed cell: {out:?}");
@@ -978,7 +1025,11 @@ mod tests {
         let buf = Buffer::from_chars(
             5,
             3,
-            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (1, 0, 'b', Style::None),
+                (2, 0, 'c', Style::None),
+            ],
         );
         let mut h = Harness::inline(5, 3);
         h.present(&buf, &Arena::new());
@@ -986,10 +1037,17 @@ mod tests {
         let buf2 = Buffer::from_chars(
             5,
             3,
-            &[(0, 0, 'a', Style::None), (1, 0, 'X', Style::None), (2, 0, 'c', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (1, 0, 'X', Style::None),
+                (2, 0, 'c', Style::None),
+            ],
         );
         let out = h.frame_str(&buf2, &Arena::new());
-        assert!(out.contains("\x1B[2A") || out.contains("\x1B[A"), "should CUU to rewind: {out:?}");
+        assert!(
+            out.contains("\x1B[2A") || out.contains("\x1B[A"),
+            "should CUU to rewind: {out:?}"
+        );
     }
 
     #[test]
@@ -1001,10 +1059,17 @@ mod tests {
         let buf2 = Buffer::from_chars(
             3,
             3,
-            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (1, 0, 'b', Style::None),
+                (2, 0, 'c', Style::None),
+            ],
         );
         let out = h.frame_str(&buf2, &Arena::new());
-        assert!(out.contains('\n'), "should emit newline to claim a row: {out:?}");
+        assert!(
+            out.contains('\n'),
+            "should emit newline to claim a row: {out:?}"
+        );
         assert!(out.contains('c'), "should paint the new row: {out:?}");
     }
 
@@ -1013,7 +1078,11 @@ mod tests {
         let buf1 = Buffer::from_chars(
             3,
             3,
-            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None), (2, 0, 'c', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (1, 0, 'b', Style::None),
+                (2, 0, 'c', Style::None),
+            ],
         );
         let mut h = Harness::inline(3, 3);
         h.present(&buf1, &Arena::new());
@@ -1028,19 +1097,24 @@ mod tests {
         // After invalidate (no resize) the inline region already exists on
         // screen, so the repaint must rewind (CUU) rather than re-claim with
         // newlines, and it must re-emit the content.
-        let buf = Buffer::from_chars(
-            5,
-            2,
-            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)],
-        );
+        let buf = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
         h.present(&buf, &Arena::new());
 
         h.invalidate();
         let out = h.frame_str(&buf, &Arena::new());
-        assert!(out.contains("\x1B[A"), "should CUU to rewind, not re-claim: {out:?}");
-        assert!(!out.contains('\n'), "must not claim new rows on repaint: {out:?}");
-        assert!(out.contains('a') && out.contains('b'), "should repaint content: {out:?}");
+        assert!(
+            out.contains("\x1B[A"),
+            "should CUU to rewind, not re-claim: {out:?}"
+        );
+        assert!(
+            !out.contains('\n'),
+            "must not claim new rows on repaint: {out:?}"
+        );
+        assert!(
+            out.contains('a') && out.contains('b'),
+            "should repaint content: {out:?}"
+        );
     }
 
     #[test]
@@ -1048,20 +1122,23 @@ mod tests {
         // Row 1 had content; after invalidate the new frame leaves it empty.
         // The fullscreen full-paint skips empty rows (EraseDisplay handles
         // them), but inline has no EraseDisplay, so the row must be EL-cleared.
-        let buf1 = Buffer::from_chars(
-            5,
-            2,
-            &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)],
-        );
+        let buf1 = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
         h.present(&buf1, &Arena::new());
 
         let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None)]);
         h.invalidate();
         let out = h.frame_str(&buf2, &Arena::new());
-        assert!(!out.contains('b'), "stale 'b' should not be re-emitted: {out:?}");
+        assert!(
+            !out.contains('b'),
+            "stale 'b' should not be re-emitted: {out:?}"
+        );
         // Two EL: one per row, including the now-empty row 1.
-        assert_eq!(out.matches("\x1B[K").count(), 2, "every row must be EL-cleared: {out:?}");
+        assert_eq!(
+            out.matches("\x1B[K").count(),
+            2,
+            "every row must be EL-cleared: {out:?}"
+        );
     }
 
     // ── Style tracking across frames ────────────────────────────────────
@@ -1089,7 +1166,11 @@ mod tests {
         let prev = Buffer::from_chars(
             3,
             2,
-            &[(0, 0, 'a', Style::None), (0, 1, 'b', Style::None), (1, 0, 'c', Style::None)],
+            &[
+                (0, 0, 'a', Style::None),
+                (0, 1, 'b', Style::None),
+                (1, 0, 'c', Style::None),
+            ],
         );
 
         // First frame: full paint to sync state.
@@ -1110,7 +1191,6 @@ mod tests {
         assert!(frame.contains('X'), "should emit changed cell: {frame:?}");
         assert!(!frame.contains('a'), "should not touch row 0: {frame:?}");
     }
-
 
     #[cfg(test)]
     mod emulator {
@@ -1146,7 +1226,7 @@ mod tests {
 
         use super::Presenter;
         use crate::{Arena, Buffer, Cell, TrackingBuffer};
-        use ansi::parser::{Handler, ByteStr, Params, Parser};
+        use ansi::parser::{ByteStr, Handler, Params, Parser};
         use ansi::{Attribute, Color, Style};
         use std::io::Cursor;
         use unicode_width::UnicodeWidthChar;
@@ -1204,7 +1284,8 @@ mod tests {
 
             fn ensure_row(&mut self, y: usize) {
                 while self.rows <= y {
-                    self.cells.extend(std::iter::repeat_n(EmulatorCell::BLANK, self.width));
+                    self.cells
+                        .extend(std::iter::repeat_n(EmulatorCell::BLANK, self.width));
                     self.rows += 1;
                 }
             }
@@ -1253,7 +1334,9 @@ mod tests {
                             .remove(Attribute::Bold | Attribute::Faint),
                         23 => self.style.attributes.remove(Attribute::Italic),
                         24 => self.style.attributes.remove(
-                            Attribute::Underline | Attribute::UnderlineDouble | Attribute::UnderlineCurly,
+                            Attribute::Underline
+                                | Attribute::UnderlineDouble
+                                | Attribute::UnderlineCurly,
                         ),
                         30..=37 => self.style.foreground = basic_color(p[i] - 30),
                         39 => self.style.foreground = Color::None,
@@ -1711,9 +1794,19 @@ mod tests {
             let s_red = Style::None.foreground(Color::Red);
             let s_bg = Style::None.background(Color::Rgb(0, 0, 128));
             let buf = grid(&[
-                vec![('H', s_red), ('i', s_red), ('\0', Style::None), ('!', Style::None)],
+                vec![
+                    ('H', s_red),
+                    ('i', s_red),
+                    ('\0', Style::None),
+                    ('!', Style::None),
+                ],
                 vec![('\0', Style::None); 4],
-                vec![(' ', s_bg), (' ', s_bg), ('x', Style::None), ('\0', Style::None)],
+                vec![
+                    (' ', s_bg),
+                    (' ', s_bg),
+                    ('x', Style::None),
+                    ('\0', Style::None),
+                ],
             ]);
             let mut rt = Roundtrip::fullscreen(4, 3);
             rt.frame(&buf, &arena);
@@ -1763,7 +1856,9 @@ mod tests {
                     let fill = 30 + (s % 60);
                     let buf = pseudo_random(16, 8, s, fill);
                     rt.frame(&buf, &arena);
-                    s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                    s = s
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
                 }
             }
         }
@@ -1808,10 +1903,7 @@ mod tests {
         #[test]
         fn inline_grow_and_shrink() {
             let arena = Arena::new();
-            let two = grid(&[
-                vec![('a', Style::None)],
-                vec![('b', Style::None)],
-            ]);
+            let two = grid(&[vec![('a', Style::None)], vec![('b', Style::None)]]);
             let four = grid(&[
                 vec![('a', Style::None)],
                 vec![('b', Style::None)],
@@ -1890,7 +1982,11 @@ mod tests {
             ]);
             // Clear row 0 to blank; recolour row 1.
             let b = grid(&[
-                vec![('\0', Style::None), ('\0', Style::None), ('\0', Style::None)],
+                vec![
+                    ('\0', Style::None),
+                    ('\0', Style::None),
+                    ('\0', Style::None),
+                ],
                 vec![('p', Style::None), ('\0', Style::None), ('q', Style::None)],
             ]);
             let mut rt = TrackingEmulator::new(3, 2);
@@ -1919,7 +2015,9 @@ mod tests {
                     let fill = 30 + (s % 60);
                     let buf = pseudo_random(16, 6, s, fill);
                     rt.frame(&buf, &arena);
-                    s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                    s = s
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
                 }
             }
         }

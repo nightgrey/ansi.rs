@@ -276,26 +276,29 @@ mod shape {
                 let w = c.width as u32;
 
                 if let Some(limit) = self.wrap_width
-                    && limit > 0 && width > 0 && width + w > limit {
-                        if let Some(break_idx) = last_break_cluster {
-                            let byte_end = last_break_byte_end;
-                            self.idx = break_idx;
-                            return Some(Line {
-                                byte_start: line_start,
-                                byte_end,
-                                width: last_break_width,
-                                hard_break: false,
-                            });
-                        } else {
-                            // No break opportunity yet — fall back to char-wrap at current position.
-                            return Some(Line {
-                                byte_start: line_start,
-                                byte_end: c.byte_start,
-                                width,
-                                hard_break: false,
-                            });
-                        }
+                    && limit > 0
+                    && width > 0
+                    && width + w > limit
+                {
+                    if let Some(break_idx) = last_break_cluster {
+                        let byte_end = last_break_byte_end;
+                        self.idx = break_idx;
+                        return Some(Line {
+                            byte_start: line_start,
+                            byte_end,
+                            width: last_break_width,
+                            hard_break: false,
+                        });
+                    } else {
+                        // No break opportunity yet — fall back to char-wrap at current position.
+                        return Some(Line {
+                            byte_start: line_start,
+                            byte_end: c.byte_start,
+                            width,
+                            hard_break: false,
+                        });
                     }
+                }
 
                 width += w;
                 let cluster_end = c.byte_start + c.byte_len as u32;

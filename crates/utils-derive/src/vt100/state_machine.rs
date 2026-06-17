@@ -1,9 +1,10 @@
+use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    braced, bracketed, Attribute, Error, Expr, Ident, LitInt, Path, Token,
-};
 use syn::__private::TokenStream2;
 use syn::parse::{Parse, ParseStream};
+use syn::{
+    Attribute, Error, Expr, Ident, LitInt, Path, Token, braced, bracketed, parse_macro_input,
+};
 
 pub struct Machine {
     action_attrs: Option<Vec<Attribute>>,
@@ -26,28 +27,19 @@ pub enum StateKey {
 pub enum Entry {
     OnEntry(Expr),
     OnExit(Expr),
-    Transition {
-        byte: BytePattern,
-        effect: Effect,
-    },
+    Transition { byte: BytePattern, effect: Effect },
 }
 
 #[derive(Clone)]
 pub enum BytePattern {
     Single(LitInt),
-    RangeInclusiveSyntax {
-        start: LitInt,
-        end: LitInt,
-    },
+    RangeInclusiveSyntax { start: LitInt, end: LitInt },
 }
 
 pub enum Effect {
     ActionOnly(Expr),
     StateOnly(Expr),
-    ActionAndState {
-        action: Expr,
-        state: Expr,
-    },
+    ActionAndState { action: Expr, state: Expr },
 }
 
 impl Parse for Machine {
@@ -122,7 +114,11 @@ impl StateBlock {
             }
         }
 
-        Ok(Self { attrs, key, entries })
+        Ok(Self {
+            attrs,
+            key,
+            entries,
+        })
     }
 }
 
@@ -225,6 +221,15 @@ impl OrderedNames {
         }
 
         self.names.push(ident);
+    }
+}
+
+pub fn state_machine_fn(input: TokenStream) -> TokenStream {
+    let machine = parse_macro_input!(input as Machine);
+
+    match expand(machine) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }
 pub fn expand(machine: Machine) -> syn::Result<TokenStream2> {
@@ -416,9 +421,7 @@ fn transition_state_arms(
     arms
 }
 
-fn transition_byte_arms(
-    transitions: &[(&BytePattern, &Effect)],
-) -> Vec<TokenStream2> {
+fn transition_byte_arms(transitions: &[(&BytePattern, &Effect)]) -> Vec<TokenStream2> {
     transitions
         .iter()
         .map(|(byte, effect)| {
@@ -449,8 +452,7 @@ fn generate_state_enum(machine: &Machine) -> syn::Result<TokenStream2> {
         }
     }
 
-    let default = default_state_ident(machine)?
-        .unwrap_or_else(|| syn::parse_quote! { None });
+    let default = default_state_ident(machine)?.unwrap_or_else(|| syn::parse_quote! { None });
 
     let variants = states.names.into_iter().map(|name| {
         if name == default {
@@ -667,7 +669,10 @@ mod tests {
 
         let expanded = expand(machine).unwrap().to_string();
 
-        assert_eq!(expanded.matches("derive (Copy , Debug , Default)").count(), 2);
+        assert_eq!(
+            expanded.matches("derive (Copy , Debug , Default)").count(),
+            2
+        );
         assert!(expanded.contains("pub enum Action"));
         assert!(expanded.contains("pub enum State"));
     }
@@ -684,7 +689,10 @@ mod tests {
 
         let expanded = expand(machine).unwrap().to_string();
 
-        assert_eq!(expanded.matches("derive (Copy , Debug , Default)").count(), 2);
+        assert_eq!(
+            expanded.matches("derive (Copy , Debug , Default)").count(),
+            2
+        );
     }
 
     #[test]

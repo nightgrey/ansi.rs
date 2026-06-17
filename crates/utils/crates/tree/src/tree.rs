@@ -365,9 +365,7 @@ impl<K: Id, V> Tree<K, V> {
 
     /// Returns `true` if the node has no children.
     pub fn is_leaf(&self, id: K) -> bool {
-        self.inner
-            .get(id)
-            .is_none_or(|n| n.first_child().is_none())
+        self.inner.get(id).is_none_or(|n| n.first_child().is_none())
     }
 
     /// Returns `true` if the node has no parent.

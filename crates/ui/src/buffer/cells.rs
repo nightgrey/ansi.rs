@@ -1,6 +1,6 @@
 use crate::{Arena, Cell};
-use derive_more::{AsRef, Deref, DerefMut, From, Index, IndexMut, IntoIterator};
 use ansi::Style;
+use derive_more::{AsRef, Deref, DerefMut, From, Index, IndexMut, IntoIterator};
 
 /// A slice of cells
 ///
@@ -33,7 +33,7 @@ impl<'a> Cells<'a> {
     ///
     /// See [`Cell::advance`].
     #[inline]
-    pub fn map_advance(&self) -> impl Iterator<Item=usize> + '_ {
+    pub fn map_advance(&self) -> impl Iterator<Item = usize> + '_ {
         self.iter().map(Cell::advance)
     }
 
@@ -50,7 +50,6 @@ impl<'a> Cells<'a> {
         self.iter().rposition(Cell::is_empty)
     }
 }
-
 
 /// A mutable of cells
 ///
@@ -81,12 +80,18 @@ impl<'a> CellsMut<'a> {
         span
     }
 
-
     /// Writes a measured grapheme.
-    pub fn write_styled(&mut self, grapheme: &str, width: usize, style: Style, arena: &mut Arena) -> usize {
+    pub fn write_styled(
+        &mut self,
+        grapheme: &str,
+        width: usize,
+        style: Style,
+        arena: &mut Arena,
+    ) -> usize {
         let span = width.max(1);
         if let Some((base, rest)) = self.0.split_first_mut() {
-             base.set_str_measured(grapheme, width, arena).set_style(style);
+            base.set_str_measured(grapheme, width, arena)
+                .set_style(style);
             for cell in rest.iter_mut().take(span - 1) {
                 *cell = Cell::CONTINUATION;
             }

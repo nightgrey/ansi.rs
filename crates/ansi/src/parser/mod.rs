@@ -1,14 +1,10 @@
-mod handler;
 mod models;
+mod collectors;
 mod parser;
-mod state;
-pub mod parser_cleaned;
-mod parameters_builder;
-pub mod utf8;
+pub mod state;
+pub mod conditions;
+pub mod base_parser;
 
-pub(self) use parameters_builder::*;
-
-pub use handler::*;
 pub use models::*;
 pub use parser::*;
 pub use state::*;

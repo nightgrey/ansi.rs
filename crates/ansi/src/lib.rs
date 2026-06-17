@@ -34,11 +34,13 @@ mod style;
 mod escape;
 mod control;
 pub mod sequences;
+pub mod models;
 
 pub use color::*;
 pub use escape::*;
 pub use sequences::*;
 pub use style::*;
+pub use models::*;
 
 #[cfg(test)]
 mod tests {

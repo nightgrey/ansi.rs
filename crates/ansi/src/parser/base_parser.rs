@@ -1,9 +1,9 @@
-use derive_more::{Deref, DerefMut};
 use maybe::Maybe;
 use utils::Nested;
-use crate::parser::collectors::Parameters;
-use crate::parser::conditions::{is_end_of_csi, is_end_of_ground};
-use super::{Action, ByteStr, ByteString, Handler, Params, State};
+use super::internals::{InternalParameters, is_end_of_csi, is_end_of_ground};
+use super::{Action, Handler, State};
+use crate::{ByteStr, ByteString, Params};
+
 pub trait BaseHandler {
     /// Draw a character to the screen and update states.
     fn text(&mut self, bytes: &[u8]) {}
@@ -44,7 +44,7 @@ pub trait BaseHandler {
 pub struct BaseParser {
     pub state: State,
 
-    pub params: Parameters,
+    pub params: InternalParameters,
     pub intermediates: ByteString,
 }
 

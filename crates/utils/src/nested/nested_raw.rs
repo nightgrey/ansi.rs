@@ -1,4 +1,4 @@
-use crate::nested_vec::error::NestedError;
+use crate::nested::error::NestedError;
 use crate::{Nested, NestedConstructor, NestedMut, TryNestedMut};
 use core::ops::Index;
 use std::ops::IndexMut;

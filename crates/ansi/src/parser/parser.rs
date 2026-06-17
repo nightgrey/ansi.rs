@@ -1,8 +1,8 @@
 use maybe::Maybe;
 use utils::Nested;
-use crate::parser::conditions::is_end_of_csi;
+use crate::{ByteStr, ByteString, Params};
 use super::*;
-use super::collectors::{Parameters};
+use super::internals::{InternalParameters};
 
 pub trait Handler {
     /// Draw a character to the screen and update states.
@@ -44,7 +44,7 @@ pub trait Handler {
 pub struct Parser {
     pub state: State,
 
-    pub params: Parameters,
+    pub params: InternalParameters,
     pub intermediates: ByteString,
 
     pub utf8: [u8; 4],
@@ -341,11 +341,9 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params;
-    use crate::parser::{ByteStr, Parameters, Params};
     use derive_more::{Deref, DerefMut};
-    use std::fmt::{Debug, Display};
     use utils::NestedConstructor;
+    use crate::{params, Parameters};
 
     #[derive(Clone, PartialEq, Eq)]
     enum Record {
@@ -360,7 +358,7 @@ mod tests {
         OscByte(u8),
         OscTermination(u8),
     }
-    impl Debug for Record {
+    impl std::fmt::Debug for Record {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Record::Print(c) => write!(f, "Print({} / 0x{:2x})", *c as char, *c as u8),

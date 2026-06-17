@@ -31,8 +31,8 @@ mod slot;
 #[macro_use]
 mod separate_by;
 
-mod nested_vec;
-pub use nested_vec::*;
+pub mod nested;
+pub use nested::*;
 
 mod as_refd;
 pub use as_refd::*;

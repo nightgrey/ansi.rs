@@ -1,5 +1,6 @@
-use utils::{NestedSlice, NestedVec, SmallByteStr, SmallByteString};
+use utils::{SmallByteStr, SmallByteString};
 
+use utils::{NestedSlice, NestedVec};
 /// Represents ANSI intermediates parameters, a sequence of bytes.
 pub type ByteString = SmallByteString;
 /// Represents borrowed ANSI intermediate parameters, a sequence of bytes.

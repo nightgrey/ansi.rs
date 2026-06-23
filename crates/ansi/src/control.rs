@@ -178,25 +178,25 @@ impl std::str::FromStr for Control {
     }
 }
 
-impl const PartialEq<u8> for Control {
+const impl PartialEq<u8> for Control {
     fn eq(&self, other: &u8) -> bool {
         *self as u8 == *other
     }
 }
 
-impl const PartialEq<Control> for u8 {
+const impl PartialEq<Control> for u8 {
     fn eq(&self, other: &Control) -> bool {
         PartialEq::eq(other, self)
     }
 }
 
-impl const PartialEq<char> for Control {
+const impl PartialEq<char> for Control {
     fn eq(&self, other: &char) -> bool {
         PartialEq::eq(self, &(*other as u8))
     }
 }
 
-impl const PartialEq<Control> for char {
+const impl PartialEq<Control> for char {
     fn eq(&self, other: &Control) -> bool {
         PartialEq::eq(other, &(*self as u8))
     }

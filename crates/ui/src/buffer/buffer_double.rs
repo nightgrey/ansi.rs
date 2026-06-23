@@ -1,7 +1,6 @@
 use crate::Buffer;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
 use geometry::{Bound, Size};
-use std::ops::{Deref, DerefMut};
 
 /// A double-buffered [`Buffer`]. The front holds the last rendered frame
 /// (what the terminal is assumed to be showing); the back is where the next

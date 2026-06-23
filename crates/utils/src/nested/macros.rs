@@ -2,10 +2,7 @@
 macro_rules! nested {
     // Empty
     () => {
-        NestedVec {
-            inner: smallvec::SmallVec::new(),
-            starts: smallvec::SmallVec::new(),
-        }
+        NestedVec::new()
     };
     // [_]
     ($($elem:literal),+ $(,)?) => (

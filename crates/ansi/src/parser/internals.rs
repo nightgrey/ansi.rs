@@ -1,45 +1,115 @@
-use derive_more::{AsMut, AsRef, Deref, DerefMut, Index, IndexMut};
-use utils::{NestedMut, NestedRaw, TryNestedMut};
+use crate::params::{Param, Parameters, Params};
+use derive_more::{Deref, DerefMut};
+use std::borrow::Borrow;
+use utils::{NestedArray, NestedMut, TryNestedMut};
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Index, IndexMut, AsRef, AsMut)]
+const UTF8_CONTINUATION_MASK: u8 = 0b0011_1111;
+
+#[derive(Debug)]
 pub struct Utf8 {
-    #[index]
-    #[index_mut]
-    #[as_ref(forward)]
-    #[as_mut(forward)]
-    inner: [u8; 4],
-    len: usize,
+    inner: [u8; char::MAX_LEN_UTF8],
+    codepoint: u32,
+    len: u8,
 }
 
-impl Utf8 {
-    #[inline]
+const impl Utf8 {
+    pub const REPLACEMENT_CHARACTER: Self = Self {
+        inner: [239, 191, 189, 0],
+        codepoint: char::REPLACEMENT_CHARACTER as u32,
+        len: 3,
+    };
+    pub const EMPTY: Self = Self {
+        inner: [0; char::MAX_LEN_UTF8],
+        codepoint: 0,
+        len: 0,
+    };
+
+    pub fn new() -> Self {
+        Self {
+            inner: [0; char::MAX_LEN_UTF8],
+            codepoint: 0,
+            len: 0,
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.len
+    pub fn is_partial(&self) -> bool {
+        // If the byte at [len - 1] is 0 for a multi-byte sequence (len >= 2), the last continuation byte hasn't been written yet.
+        self.len >= 2 && self.inner[(self.len - 1) as usize] == 0
     }
 
     #[inline]
-    pub fn set_len(&mut self, len: usize) {
-        self.len = len;
+    pub fn set_byte_1(&mut self, byte: u8) {
+        self.codepoint |= (byte & UTF8_CONTINUATION_MASK) as u32;
+        self.set(byte, 1);
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.inner[..self.len]
+    pub fn set_byte_2_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0001_1111) as u32) << 6;
+        self.set_top(byte, 2);
     }
 
     #[inline]
-    pub fn as_mut_bytes(&mut self) -> &mut [u8] {
-        &mut self.inner[..self.len]
+    pub fn set_byte_2(&mut self, byte: u8) {
+        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 6;
+        self.set(byte, 2);
+    }
+
+    #[inline]
+    pub fn set_byte_3_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0000_1111) as u32) << 12;
+        self.set_top(byte, 3);
+    }
+
+    #[inline]
+    pub fn set_byte_3(&mut self, byte: u8) {
+        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 12;
+        self.set(byte, 3);
+    }
+
+    #[inline]
+    pub fn set_byte_4_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0000_0111) as u32) << 18;
+        self.set_top(byte, 4);
+    }
+
+    #[inline]
+    fn set(&mut self, byte: u8, from: usize) {
+        debug_assert!(from <= self.len as usize);
+        self.inner[self.len as usize - from] = byte;
+    }
+
+    #[inline]
+    fn set_top(&mut self, byte: u8, len: usize) {
+        debug_assert!(len <= char::MAX_LEN_UTF8);
+        self.len = len as u8;
+        self.inner[0] = byte;
     }
 
     #[inline]
     pub fn clear(&mut self) {
-        self.len = 0;
+        *self = Self::EMPTY;
+    }
+
+    #[inline]
+    pub fn as_char(&self) -> char {
+        unsafe { char::from_u32_unchecked(self.codepoint) }
+    }
+}
+
+const impl AsRef<[u8]> for Utf8 {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner[..self.len as usize]
+    }
+}
+
+const impl Default for Utf8 {
+    fn default() -> Self {
+        Self::EMPTY
     }
 }
 
@@ -47,7 +117,7 @@ impl Utf8 {
 pub struct InternalParameters {
     #[deref]
     #[deref_mut]
-    inner: NestedRaw<u16, 32, 32>,
+    inner: Parameters,
     current: Option<u16>,
     /// Whether the main parameter currently being built has sub-parameters,
     /// i.e. a `:` separator has been seen since the last `;`. This is the one
@@ -66,8 +136,7 @@ impl InternalParameters {
             self.current
                 .unwrap_or(0)
                 .saturating_mul(10)
-                .saturating_add((digit - b'0') as u16)
-                .min(Self::MAX),
+                .saturating_add((digit - b'0') as u16),
         );
     }
 
@@ -89,7 +158,7 @@ impl InternalParameters {
             // Drop on overflow: the CSI/DCS still dispatches with the capped
             // params rather than panicking.
             None => {
-                let _ = self.inner.try_push_one(0);
+                self.inner.push(Param::None);
             }
         }
 
@@ -117,25 +186,35 @@ impl InternalParameters {
     // reference's cap-and-continue behavior, safely.
     fn push_value(&mut self, val: u16) {
         if self.in_group {
-            self.push_sub_value(val);
+            self.inner.push(Param::Sub(val));
         } else {
-            let _ = self.inner.try_push_one(val);
+            self.inner.push(Param::Main(val));
         }
     }
 
     fn push_sub_value(&mut self, val: u16) {
         if self.in_group {
-            let _ = self.inner.try_extend_one(val);
+            self.inner.push(Param::Sub(val));
         } else {
             // Only enter the group if the value actually landed, so `in_group`
             // bookkeeping stays consistent on overflow.
-            if self.inner.try_push_one(val).is_ok() {
-                self.in_group = true;
-            }
+            self.inner.push(Param::Main(val));
+            self.in_group = true;
         }
     }
 }
 
+const impl AsRef<Params> for InternalParameters {
+    fn as_ref(&self) -> &Params {
+        self.inner.as_ref()
+    }
+}
+
+const impl Borrow<Params> for InternalParameters {
+    fn borrow(&self) -> &Params {
+        self.inner.borrow()
+    }
+}
 
 const NUL: u8 = 0;
 const SOH: u8 = 1;
@@ -171,6 +250,20 @@ const RS: u8 = 30;
 const US: u8 = 31;
 const DEL: u8 = 127;
 
+memspan::skip_class! {
+    pub fn skip_printable(
+        ranges = [0x20..=0x7f],
+    );
+}
+memspan::skip_class! {
+    pub fn skip_csi_ignore(
+        bytes  = [0x7f],
+        ranges = [
+            0x20..=0x3f,
+        ],
+    );
+}
+
 macro_rules! table {
     (|$p:ident| $body:block) => {{
         let mut out: [bool; 256] = [false; 256];
@@ -184,7 +277,6 @@ macro_rules! table {
     }};
 }
 
-
 pub const fn is_end_of_csi(byte: u8) -> bool {
     static TABLE: [bool; 256] = table!(|b| { matches!(b, 0x40..=0x7e | ESC | CAN | SUB) });
 
@@ -192,7 +284,8 @@ pub const fn is_end_of_csi(byte: u8) -> bool {
 }
 
 pub const fn is_end_of_ground(byte: u8) -> bool {
-    static TABLE: [bool; 256] = table!(|b| { matches!(b, 0x1B | 0x00..=0x08 | 0x0b..=0x0c | 0x0e..=0x1f | DEL) });
+    static TABLE: [bool; 256] =
+        table!(|b| { matches!(b, 0x1B | 0x00..=0x08 | 0x0b..=0x0c | 0x0e..=0x1f | DEL) });
 
     TABLE[byte as usize]
 }

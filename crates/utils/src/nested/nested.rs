@@ -8,6 +8,7 @@
 
 use crate::{NestedError, NestedIndex, NestedIndexMut, NestedIter, NestedSlice, NestedVec};
 use smallvec::SmallVec;
+use std::fmt::{Debug, Display};
 use std::ops::{Index, IndexMut};
 /// A trait representing a **nested** (jagged) sequence of values.
 ///
@@ -108,7 +109,7 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]> {
 
     /// Converts this nested structure into a borrowed [`NestedSlice`].
     fn as_nested_slice(&self) -> NestedSlice<'_, T> {
-        NestedSlice::from_parts(self.values(), self.starts())
+        NestedSlice::from_raw(self.values(), self.starts())
     }
 
     /// Creates a new [`NestedVec<T, N, M>`] by cloning all values and start indices.
@@ -124,6 +125,36 @@ pub trait Nested<T>: AsRef<[T]> + Index<usize, Output = [T]> {
             inner: SmallVec::from(self.values()),
             starts: SmallVec::from(self.starts()),
         }
+    }
+
+    fn to_string(&self) -> String
+    where
+        T: Debug,
+    {
+        let mut out = String::from("[");
+
+        let mut nested = self.iter().peekable();
+        while let Some(group) = nested.next() {
+            out.push('[');
+
+            let mut group = group.iter().peekable();
+            while let Some(item) = group.next() {
+                out.push_str(&format!("{item:?}"));
+
+                if group.peek().is_some() {
+                    out.push_str(", ");
+                }
+            }
+
+            out.push(']');
+
+            if nested.peek().is_some() {
+                out.push_str(", ");
+            }
+        }
+
+        out.push(']');
+        out
     }
 }
 
@@ -267,7 +298,7 @@ pub trait TryNestedMut<T>: NestedMut<T> {
 /// # Implementors
 ///
 /// - [`NestedVec`](crate::NestedVec)
-pub trait NestedConstructor<T>: Default {
+pub trait NestedConstructor<T> {
     /// Creates a new, empty nested structure.
     ///
     /// # Examples

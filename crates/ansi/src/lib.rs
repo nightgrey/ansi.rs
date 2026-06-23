@@ -24,6 +24,11 @@
 #![feature(const_try)]
 #![feature(const_option_ops)]
 #![feature(str_internals)]
+#![feature(const_closures)]
+#![feature(const_array)]
+#![feature(array_try_from_fn)]
+#![feature(const_result_unwrap_unchecked)]
+#![feature(const_heap)]
 extern crate core;
 
 mod color;
@@ -33,14 +38,15 @@ mod style;
 #[macro_use]
 mod escape;
 mod control;
-pub mod sequences;
+pub mod events;
 pub mod models;
+pub mod sequences;
 
 pub use color::*;
 pub use escape::*;
+pub use models::*;
 pub use sequences::*;
 pub use style::*;
-pub use models::*;
 
 #[cfg(test)]
 mod tests {

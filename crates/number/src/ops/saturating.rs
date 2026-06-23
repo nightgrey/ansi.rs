@@ -31,33 +31,33 @@ pub const trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
 
 macro_rules! saturating_impl {
     ( $ T: ty) => {
-        impl const SaturatingOps for $T {}
+        const impl SaturatingOps for $T {}
 
-        impl const SaturatingAdd for $T {
+        const impl SaturatingAdd for $T {
             fn saturating_add(self, rhs: Self) -> Self {
                 (Saturating(self) + Saturating(rhs)).0
             }
         }
 
-        impl const SaturatingSub for $T {
+        const impl SaturatingSub for $T {
             fn saturating_sub(self, rhs: Self) -> Self {
                 (Saturating(self) - Saturating(rhs)).0
             }
         }
 
-        impl const SaturatingMul for $T {
+        const impl SaturatingMul for $T {
             fn saturating_mul(self, rhs: Self) -> Self {
                 (Saturating(self) * Saturating(rhs)).0
             }
         }
 
-        impl const SaturatingRem for $T {
+        const impl SaturatingRem for $T {
             fn saturating_rem(self, rhs: Self) -> Self {
                 (Saturating(self) % Saturating(rhs)).0
             }
         }
 
-        impl const SaturatingDiv for $T {
+        const impl SaturatingDiv for $T {
             fn saturating_div(self, rhs: Self) -> Self {
                 (Saturating(self) / Saturating(rhs)).0
             }

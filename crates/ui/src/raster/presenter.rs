@@ -1225,12 +1225,13 @@ mod tests {
         //   presenter would clear with `EL` rather than overwrite.
 
         use super::Presenter;
+        use crate::buffer_generation::Generation;
         use crate::{Arena, Buffer, Cell, TrackingBuffer};
-        use ansi::parser::{ByteStr, Handler, Params, Parser};
-        use ansi::{Attribute, Color, Style};
+        use ansi::parser::{Handler, Parser};
+        use ansi::{Attribute, Color, Param, Style, Values};
+        use ansi::{ByteStr, Params};
         use std::io::Cursor;
         use unicode_width::UnicodeWidthChar;
-
         // ─────────────────────────────────────────────────────────────────────────
         // Virtual terminal
         // ─────────────────────────────────────────────────────────────────────────
@@ -1315,68 +1316,58 @@ mod tests {
 
             /// Flat list of SGR parameters (the presenter emits one value per `;`
             /// group, so concatenating groups recovers the parameter sequence).
-            fn apply_sgr(&mut self, p: &[u16]) {
-                if p.is_empty() {
+            fn apply_sgr(&mut self, params: &Params) {
+                if params.is_empty() {
                     self.style = Style::None; // `CSI m` == `CSI 0 m`
                     return;
                 }
-                let mut i = 0;
-                while i < p.len() {
-                    match p[i] {
+                let mut iter = params.iter();
+
+                while let Some(param) = iter.next() {
+                    let value = param.value();
+
+                    match value {
                         0 => self.style = Style::None,
+
                         1 => self.style.attributes.insert(Attribute::Bold),
                         2 => self.style.attributes.insert(Attribute::Faint),
                         3 => self.style.attributes.insert(Attribute::Italic),
                         4 => self.style.attributes.insert(Attribute::Underline),
-                        22 => self
-                            .style
-                            .attributes
-                            .remove(Attribute::Bold | Attribute::Faint),
-                        23 => self.style.attributes.remove(Attribute::Italic),
-                        24 => self.style.attributes.remove(
-                            Attribute::Underline
-                                | Attribute::UnderlineDouble
-                                | Attribute::UnderlineCurly,
-                        ),
-                        30..=37 => self.style.foreground = basic_color(p[i] - 30),
+
+                        30..=37 => self.style.foreground = basic_color(value - 30),
                         39 => self.style.foreground = Color::None,
-                        40..=47 => self.style.background = basic_color(p[i] - 40),
+
+                        40..=47 => self.style.background = basic_color(value - 40),
                         49 => self.style.background = Color::None,
-                        90..=97 => self.style.foreground = bright_color(p[i] - 90),
-                        100..=107 => self.style.background = bright_color(p[i] - 100),
-                        38 => {
-                            self.style.foreground = read_extended_color(p, &mut i);
-                        }
-                        48 => {
-                            self.style.background = read_extended_color(p, &mut i);
-                        }
+
+                        90..=97 => self.style.foreground = bright_color(value - 90),
+                        100..=107 => self.style.background = bright_color(value - 100),
+
+                        38 => self.style.foreground = read_extended_color(&mut iter),
+                        48 => self.style.background = read_extended_color(&mut iter),
+
                         _ => {}
                     }
-                    i += 1;
                 }
             }
         }
 
-        /// Decode `38;5;n` / `38;2;r;g;b` (or `48;…`), advancing `i` past the consumed
-        /// values. `i` points at the `38`/`48` introducer on entry.
-        fn read_extended_color(p: &[u16], i: &mut usize) -> Color {
-            match p.get(*i + 1).copied() {
+        /// Decode `38;5;n` / `38;2;r;g;b` (or `48;…`).
+        fn read_extended_color(iter: &mut std::slice::Iter<'_, Param>) -> Color {
+            match iter.next().map(|p| p.value()) {
                 Some(5) => {
-                    let idx = p.get(*i + 2).copied().unwrap_or(0) as u8;
-                    *i += 2;
+                    let idx = iter.next().map(|p| p.value()).unwrap_or(0) as u8;
                     Color::Index(idx)
                 }
                 Some(2) => {
-                    let r = p.get(*i + 2).copied().unwrap_or(0) as u8;
-                    let g = p.get(*i + 3).copied().unwrap_or(0) as u8;
-                    let b = p.get(*i + 4).copied().unwrap_or(0) as u8;
-                    *i += 4;
+                    let r = iter.next().map(|p| p.value()).unwrap_or(0) as u8;
+                    let g = iter.next().map(|p| p.value()).unwrap_or(0) as u8;
+                    let b = iter.next().map(|p| p.value()).unwrap_or(0) as u8;
                     Color::Rgb(r, g, b)
                 }
                 _ => Color::None,
             }
         }
-
         fn basic_color(n: u16) -> Color {
             match n {
                 0 => Color::Black,
@@ -1437,7 +1428,7 @@ mod tests {
                 self.cx += w;
             }
 
-            fn execute(&mut self, byte: u8) {
+            fn control(&mut self, byte: u8) {
                 match byte {
                     0x0A => {
                         // LF → newline (see module docs).
@@ -1451,24 +1442,31 @@ mod tests {
                 }
             }
 
-            fn csi(&mut self, params: Params<'_>, _intermediates: &ByteStr, final_char: char) {
-                let p: &[u16] = params.as_ref();
+            fn csi(&mut self, params: &Params, _intermediates: &[u8], final_char: char) {
                 match final_char {
-                    'A' => self.cy = self.cy.saturating_sub(arg(p, 0, 1) as usize),
+                    'A' => {
+                        self.cy = self
+                            .cy
+                            .saturating_sub(params.get(0).copied().unwrap_or(1) as usize)
+                    }
                     'B' | 'e' => {
-                        self.cy += arg(p, 0, 1) as usize;
+                        self.cy += params.get(0).copied().unwrap_or(1) as usize;
                         self.ensure_row(self.cy);
                     }
-                    'C' | 'a' => self.cx += arg(p, 0, 1) as usize,
-                    'D' => self.cx = self.cx.saturating_sub(arg(p, 0, 1) as usize),
-                    'G' | '`' => self.cx = (arg(p, 0, 1) - 1) as usize,
-                    'd' => self.cy = (arg(p, 0, 1) - 1) as usize,
+                    'C' | 'a' => self.cx += params.get(0).copied().unwrap_or(1) as usize,
+                    'D' => {
+                        self.cx = self
+                            .cx
+                            .saturating_sub(params.get(0).copied().unwrap_or(1) as usize)
+                    }
+                    'G' | '`' => self.cx = (params.get(0).copied().unwrap_or(1) - 1) as usize,
+                    'd' => self.cy = (params.get(0).copied().unwrap_or(1) - 1) as usize,
                     'H' | 'f' => {
-                        self.cy = (arg(p, 0, 1) - 1) as usize;
-                        self.cx = (arg(p, 1, 1) - 1) as usize;
+                        self.cy = (params.get(0).copied().unwrap_or(1) - 1) as usize;
+                        self.cx = (params.get(1).copied().unwrap_or(1) - 1) as usize;
                         self.ensure_row(self.cy);
                     }
-                    'J' => match p.first().copied().unwrap_or(0) {
+                    'J' => match params.first().copied().unwrap_or(0) {
                         2 | 3 => {
                             self.clear_all();
                             // ED does not move the cursor.
@@ -1483,7 +1481,7 @@ mod tests {
                             }
                         }
                     },
-                    'K' => match p.first().copied().unwrap_or(0) {
+                    'K' => match params.first().copied().unwrap_or(0) {
                         1 => {
                             if self.cy < self.rows {
                                 for x in 0..=self.cx.min(self.width.saturating_sub(1)) {
@@ -1500,7 +1498,7 @@ mod tests {
                         }
                         _ => self.erase_line_to_end(),
                     },
-                    'm' => self.apply_sgr(p),
+                    'm' => self.apply_sgr(params),
                     // Modes (`?…h/l`), cursor visibility, sync output, etc. — irrelevant
                     // to the reconstructed grid.
                     _ => {}
@@ -2031,7 +2029,7 @@ mod tests {
         fn empty_background_cells_paint_on_all_paths() {
             let arena = Arena::new();
             let grey = Color::Rgb(40, 40, 40);
-            let solid = Buffer::from_fn(4, 2, |_, _| Cell::default().with_background(grey));
+            let solid = Buffer::from_generation(Generation::Solid(Some(grey)), 4, 2);
 
             // Full paint (first frame).
             let mut rt = Roundtrip::fullscreen(4, 2);

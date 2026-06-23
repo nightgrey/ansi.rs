@@ -1,5 +1,6 @@
 use crate::Nested;
 use core::ops::Index;
+use std::fmt::Debug;
 
 /// A borrowed view into a nested collection.
 ///
@@ -7,7 +8,7 @@ use core::ops::Index;
 /// elements in a single contiguous buffer, with a separate index array tracking
 /// where each group begins and ends. This avoids per-group allocations while
 /// still providing slice-based access to individual groups.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct NestedSlice<'a, T> {
     pub(super) values: &'a [T],
     pub(super) starts: &'a [usize],
@@ -16,11 +17,11 @@ pub struct NestedSlice<'a, T> {
 impl<'a, T> NestedSlice<'a, T> {
     #[inline]
     pub fn from_nested(nested: &'a impl Nested<T>) -> Self {
-        unsafe { Self::from_parts(nested.values(), nested.starts()) }
+        unsafe { Self::from_raw(nested.values(), nested.starts()) }
     }
 
     #[inline]
-    pub fn from_parts(values: &'a [T], starts: &'a [usize]) -> Self {
+    pub fn from_raw(values: &'a [T], starts: &'a [usize]) -> Self {
         debug_assert!(
             if starts.is_empty() {
                 values.is_empty()
@@ -72,6 +73,18 @@ impl<'a, T> Default for NestedSlice<'a, T> {
             values: &[],
             starts: &[],
         }
+    }
+}
+
+impl<'a, T: Debug> Debug for NestedSlice<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_list();
+        for group in self.iter() {
+            debug.entry(&std::fmt::from_fn(|f| {
+                f.debug_list().entries(group).finish()
+            }));
+        }
+        debug.finish()
     }
 }
 

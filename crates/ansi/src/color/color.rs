@@ -1,4 +1,4 @@
-use crate::{ColorSpace, Escape};
+use crate::ColorSpace;
 use maybe::{Maybe, MaybeConst};
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
@@ -28,7 +28,7 @@ pub enum Color {
     Index(u8),
     Rgb(u8, u8, u8),
 }
-impl const Color {
+const impl Color {
     #[inline]
     #[must_use]
     pub fn intersection(self, other: Self) -> Self {
@@ -93,7 +93,7 @@ impl const Color {
         }
     }
 }
-impl const From<u32> for Color {
+const impl From<u32> for Color {
     fn from(value: u32) -> Self {
         Color::Rgb(
             ((value >> 16) & 0xFF) as u8,
@@ -103,13 +103,13 @@ impl const From<u32> for Color {
     }
 }
 
-impl const From<(u8, u8, u8)> for Color {
+const impl From<(u8, u8, u8)> for Color {
     fn from(value: (u8, u8, u8)) -> Self {
         Color::Rgb(value.0, value.1, value.2)
     }
 }
 
-impl const From<u8> for Color {
+const impl From<u8> for Color {
     fn from(value: u8) -> Self {
         match value {
             0 => Color::Black,
@@ -164,7 +164,7 @@ impl Debug for Color {
     }
 }
 
-impl const BitAnd for Color {
+const impl BitAnd for Color {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -172,13 +172,13 @@ impl const BitAnd for Color {
     }
 }
 
-impl const BitAndAssign for Color {
+const impl BitAndAssign for Color {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
-impl const BitOr for Color {
+const impl BitOr for Color {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -186,13 +186,13 @@ impl const BitOr for Color {
     }
 }
 
-impl const BitOrAssign for Color {
+const impl BitOrAssign for Color {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
-impl const Sub for Color {
+const impl Sub for Color {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -200,7 +200,7 @@ impl const Sub for Color {
     }
 }
 
-impl const SubAssign for Color {
+const impl SubAssign for Color {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
     }

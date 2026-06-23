@@ -1,13 +1,14 @@
 use crate::nested::error::NestedError;
 use crate::{Nested, NestedConstructor, NestedMut, TryNestedMut};
 use core::ops::Index;
+use std::fmt::Debug;
 use std::ops::IndexMut;
 
 /// Stack-allocated nested parameter buffer optimized for ANSI escape sequences.
 /// `N` = max total values across all groups
 /// `M` = max number of groups
-#[derive(Clone, Copy, Debug)]
-pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
+#[derive(Clone, Copy)]
+pub struct NestedArray<T, const N: usize, const M: usize = N> {
     inner: [T; N],
     starts: [usize; M],
     pub(super) inner_len: usize,
@@ -15,7 +16,7 @@ pub struct NestedRaw<T, const N: usize = 8, const M: usize = 8> {
 }
 
 impl<T: Default + Copy, const N: usize, const M: usize> NestedConstructor<T>
-for NestedRaw<T, N, M>
+    for NestedArray<T, N, M>
 {
     #[inline]
     fn new() -> Self {
@@ -28,7 +29,7 @@ for NestedRaw<T, N, M>
     }
 }
 
-impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> Nested<T> for NestedArray<T, N, M> {
     #[inline]
     fn first(&self) -> Option<&[T]> {
         self.get(0)
@@ -58,7 +59,7 @@ impl<T, const N: usize, const M: usize> Nested<T> for NestedRaw<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize> NestedMut<T> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> NestedMut<T> for NestedArray<T, N, M> {
     fn push(&mut self, items: impl IntoIterator<Item = T>) {
         self.try_push(items).expect("could not push items");
     }
@@ -90,7 +91,7 @@ impl<T, const N: usize, const M: usize> NestedMut<T> for NestedRaw<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize> TryNestedMut<T> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> TryNestedMut<T> for NestedArray<T, N, M> {
     #[inline]
     fn try_push(&mut self, items: impl IntoIterator<Item = T>) -> Result<(), NestedError> {
         if self.inner_len >= N || self.starts_len >= M {
@@ -175,7 +176,7 @@ impl<T, const N: usize, const M: usize> TryNestedMut<T> for NestedRaw<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize> Default for NestedRaw<T, N, M>
+impl<T, const N: usize, const M: usize> Default for NestedArray<T, N, M>
 where
     T: Default + Copy,
 {
@@ -190,7 +191,7 @@ where
     }
 }
 
-impl<T, const N: usize, const M: usize> Index<usize> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> Index<usize> for NestedArray<T, N, M> {
     type Output = [T];
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -198,22 +199,28 @@ impl<T, const N: usize, const M: usize> Index<usize> for NestedRaw<T, N, M> {
     }
 }
 
-impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> IndexMut<usize> for NestedArray<T, N, M> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("index out of bounds")
     }
 }
 
-impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> AsRef<[T]> for NestedArray<T, N, M> {
     fn as_ref(&self) -> &[T] {
         &self.inner[..self.inner_len]
     }
 }
 
-impl<T, const N: usize, const M: usize> AsMut<[T]> for NestedRaw<T, N, M> {
+impl<T, const N: usize, const M: usize> AsMut<[T]> for NestedArray<T, N, M> {
     fn as_mut(&mut self) -> &mut [T] {
         &mut self.inner[..self.inner_len]
+    }
+}
+
+impl<T: Debug, const N: usize, const M: usize> Debug for NestedArray<T, N, M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_nested_slice().fmt(f)
     }
 }
 
@@ -227,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_push_one_creates_single_value_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         p.push_one(42);
         assert_eq!(p.starts_len.saturating_sub(1), 1);
         dbg!(&p.get(0));
@@ -237,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_extend_one_appends_to_last_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         p.push_one(1);
         p.extend_one(2);
         assert_eq!(p.starts_len.saturating_sub(1), 1);
@@ -257,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_extend_one_on_empty_starts_new_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         p.extend_one(99);
         assert_eq!(p.starts_len.saturating_sub(1), 1);
         assert_eq!(&p[0], &[99]);
@@ -266,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_push_adds_new_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [1, 2];
         p.push(items);
         let items = [3, 4, 5];
@@ -279,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_extend_appends_to_last_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [1, 2];
         p.push(items);
         let items = [3, 4];
@@ -291,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_extend_on_empty_starts_new_group() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [5, 6];
         p.try_extend(items).expect("could not extend values");
         assert_eq!(p.starts_len.saturating_sub(1), 1);
@@ -301,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_multiple_groups_iter() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [1];
         p.push(items);
         let items = [2, 3];
@@ -323,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_get_out_of_bounds() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         p.push_one(1);
         assert!(p.get(0).is_some());
         assert!(p.get(1).is_none());
@@ -331,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [1, 2, 3];
         p.push(items);
         p.inner_len = 0;
@@ -343,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_first_last() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         assert!(p.get(0).is_none());
         assert!(
             p.get(p.starts_len.saturating_sub(1).saturating_sub(1))
@@ -362,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_as_params_roundtrip() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         p.push([10, 20]);
         p.push([30]);
         let ps = NestedSlice::from(&p);
@@ -374,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_index_mut() {
-        let mut p: NestedRaw<u8, N, M> = NestedRaw::new();
+        let mut p: NestedArray<u8, N, M> = NestedArray::new();
         let items = [1, 2, 3];
         p.push(items);
         p[0][1] = 99;

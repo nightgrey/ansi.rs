@@ -27,7 +27,7 @@ pub const trait ConditionalOps<Rhs = Self>:
 {
 }
 
-    impl <T, Rhs, Output> const Ops<Rhs, Output> for T where
+const impl<T, Rhs, Output> Ops<Rhs, Output> for T where
     T: Add<Rhs, Output = Output>
         + Sub<Rhs, Output = Output>
         + Mul<Rhs, Output = Output>
@@ -36,12 +36,12 @@ pub const trait ConditionalOps<Rhs = Self>:
 {
 }
 
-impl <T, Rhs> const AssignOps<Rhs> for T where
+const impl<T, Rhs> AssignOps<Rhs> for T where
     T: AddAssign<Rhs> + SubAssign<Rhs> + MulAssign<Rhs> + DivAssign<Rhs> + RemAssign<Rhs>
 {
 }
 
-impl <T, Rhs> const ConditionalOps<Rhs> for T where
+const impl<T, Rhs> ConditionalOps<Rhs> for T where
     T: CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs>
 {
 }
@@ -57,7 +57,7 @@ pub const trait BitOps<Rhs = Self>:
 {
 }
 
-impl <T, Rhs> const BitOps<Rhs> for T where
+const impl<T, Rhs> BitOps<Rhs> for T where
     T: BitAnd<Rhs, Output = Self>
         + BitAndAssign<Rhs>
         + BitOr<Rhs, Output = Self>

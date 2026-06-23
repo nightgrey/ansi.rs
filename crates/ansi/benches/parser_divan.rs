@@ -20,8 +20,10 @@ enum Parser {
 #[cfg(test)]
 mod benches {
     use super::*;
+    use ansi::{ByteString, Params};
+    use utils::Nested;
 
-    const CHUNK_SIZES: &[Option<usize>] = &[None, Some(4 * 1024)];
+    const CHUNK_SIZES: &[Option<usize>] = &[Some(16 * 1024)];
 
     fn bench_parser(bencher: Bencher, target: Parser, data: &[u8], chunk_size: Option<usize>) {
         #[derive(Default)]
@@ -39,45 +41,48 @@ mod benches {
         }
 
         impl parser::Handler for Collector {
-            fn print(&mut self, ch: char) {
-                self.push(ch.len_utf8());
-            }
-            fn execute(&mut self, _byte: u8) {
-                self.push(1);
-            }
-            fn esc(&mut self, intermediates: &parser::ByteStr, _final_byte: u8) {
-                self.push(intermediates.len() + 1);
-            }
-            fn csi(
-                &mut self,
-                _params: parser::Params<'_>,
-                intermediates: &parser::ByteStr,
-                final_byte: char,
-            ) {
-                self.push(intermediates.len() + final_byte.len_utf8());
-            }
-            fn dcs_start(
-                &mut self,
-                _params: parser::Params<'_>,
-                intermediates: &parser::ByteStr,
-                final_char: char,
-            ) {
-                self.push(intermediates.len() + final_char.len_utf8());
-            }
-            fn dcs_byte(&mut self, _byte: u8) {
+            fn print(&mut self, char: char) {
                 self.push(1);
             }
 
-            fn dcs_end(&mut self, _byte: u8) {
+            fn control(&mut self, byte: u8) {
                 self.push(1);
             }
-            fn osc_start(&mut self) {
+
+            fn esc(&mut self, intermediates: &[u8], final_byte: u8) {
+                self.push(intermediates.len() + 1);
+            }
+            fn csi(&mut self, params: &Params, intermediates: &[u8], final_byte: char) {
+                self.push(params.len() + intermediates.len() + final_byte.len_utf8());
+            }
+            fn dcs(&mut self, params: &Params, intermediates: &[u8], final_char: char) {
+                self.push(params.len() + intermediates.len() + final_char.len_utf8());
+            }
+            fn dcs_byte(&mut self, byte: u8) {
+                self.push(1);
+            }
+            fn dcs_end(&mut self, byte: u8) {
+                self.push(1);
+            }
+            fn osc(&mut self) {
                 self.push(0);
             }
-            fn osc_byte(&mut self, _byte: u8) {
+            fn osc_byte(&mut self, byte: u8) {
                 self.push(1);
             }
-            fn osc_end(&mut self, _byte: u8) {
+            fn osc_end(&mut self, byte: u8) {
+                self.push(1);
+            }
+
+            fn apc(&mut self) {
+                self.push(0);
+            }
+
+            fn apc_byte(&mut self, byte: u8) {
+                self.push(1);
+            }
+
+            fn apc_end(&mut self, byte: u8) {
                 self.push(1);
             }
         }
@@ -137,9 +142,7 @@ mod benches {
                         data.chunks(chunk_size),
                     )
                 })
-                .bench_values(|(parser, collector, data)| {
-                    let mut parser = vte::Parser::new();
-                    let mut collector = Collector::default();
+                .bench_values(|(mut parser, mut collector, data)| {
                     for chunk in data {
                         parser.advance(&mut collector, black_box(chunk));
                     }
@@ -154,9 +157,7 @@ mod benches {
                             data.chunks(chunk_size),
                         )
                     })
-                    .bench_values(|(parser, collector, data)| {
-                        let mut parser = vte::Parser::new();
-                        let mut collector = Collector::default();
+                    .bench_values(|(mut parser, mut collector, data)| {
                         for chunk in data {
                             parser.advance(&mut collector, black_box(chunk));
                         }
@@ -171,11 +172,9 @@ mod benches {
                         data.chunks(chunk_size),
                     )
                 })
-                .bench_values(|(parser, collector, data)| {
+                .bench_values(|(mut parser, mut collector, data)| {
                     use vt_push_parser::event::{EscInvalid, VTEvent};
 
-                    let mut parser = vt_push_parser::VTPushParser::new();
-                    let mut collector = Collector::default();
                     for chunk in data {
                         parser.feed_with(
                             black_box(chunk),
@@ -243,7 +242,6 @@ mod benches {
                 fn our(bencher: divan::Bencher, chunk_size: Option<usize>) {
                     super::bench_parser(bencher, Parser::Own, DATA, chunk_size);
                 }
-
                 #[divan::bench(args = CHUNK_SIZES)]
                 fn vte(bencher: divan::Bencher, chunk_size: Option<usize>) {
                     const TARGET: Parser = Parser::Vte;

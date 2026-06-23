@@ -15,7 +15,7 @@ pub struct Style {
     pub background: Color,
 }
 #[allow(non_upper_case_globals)]
-impl const Style {
+const impl Style {
     pub const None: Style = Self {
         attributes: Attribute::None,
         foreground: Color::None,
@@ -398,7 +398,7 @@ impl BitAndAssign for Style {
     }
 }
 
-impl const BitXor for Style {
+const impl BitXor for Style {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
@@ -406,13 +406,13 @@ impl const BitXor for Style {
     }
 }
 
-impl const BitXorAssign for Style {
+const impl BitXorAssign for Style {
     fn bitxor_assign(&mut self, rhs: Self) {
         *self = *self ^ rhs;
     }
 }
 
-impl const Not for Style {
+const impl Not for Style {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -497,7 +497,7 @@ impl Escape for Style {
 }
 
 #[allow(non_upper_case_globals)]
-impl const Maybe for Style {
+const impl Maybe for Style {
     const None: Self = Self {
         attributes: Attribute::None,
         foreground: Color::None,

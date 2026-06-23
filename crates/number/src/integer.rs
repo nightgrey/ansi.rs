@@ -356,7 +356,7 @@ pub const trait Signed: [const] Integer {}
 
 macro_rules! impl_integer {
     ($integer:ty, $signed:ty, $unsigned:ty) => {
-        impl const Integer for $integer {
+        const impl Integer for $integer {
             #[inline]
             fn from_str_radix(s: &str, radix: u32) -> Result<Self, ParseIntError> {
                 <$integer>::from_str_radix(s, radix)
@@ -473,16 +473,16 @@ impl_integer!(i64, i64, u64);
 impl_integer!(i128, i128, u128);
 impl_integer!(isize, isize, usize);
 
-impl const Unsigned for u8 {}
-impl const Unsigned for u16 {}
-impl const Unsigned for u32 {}
-impl const Unsigned for u64 {}
-impl const Unsigned for u128 {}
-impl const Unsigned for usize {}
+const impl Unsigned for u8 {}
+const impl Unsigned for u16 {}
+const impl Unsigned for u32 {}
+const impl Unsigned for u64 {}
+const impl Unsigned for u128 {}
+const impl Unsigned for usize {}
 
-impl const Signed for i8 {}
-impl const Signed for i16 {}
-impl const Signed for i32 {}
-impl const Signed for i64 {}
-impl const Signed for i128 {}
-impl const Signed for isize {}
+const impl Signed for i8 {}
+const impl Signed for i16 {}
+const impl Signed for i32 {}
+const impl Signed for i64 {}
+const impl Signed for i128 {}
+const impl Signed for isize {}

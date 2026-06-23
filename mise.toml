@@ -1,11 +1,10 @@
 [tools]
 rust = "nightly"
 
- 
 [tasks]
 demo = "cargo run --bin demo"
 dev = "mise watch @dev --shell=\"fish --no-config\" --quiet --clear --silent --wrap-process none --raw"
 "@dev" = "cargo run --bin dev"
 
-[tasks.fix]
-run = "cargo clippy --all --all-targets -- -D warnings && cargo fmt --all"
+[tasks.fmt]
+run = "cargo fmt --all --quiet; cargo clippy --fix --allow-dirty --all &>/dev/null"

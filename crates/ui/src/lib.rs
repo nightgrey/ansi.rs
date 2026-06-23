@@ -13,6 +13,7 @@
 #![feature(const_try)]
 #![feature(bound_copied)]
 #![feature(const_clone)]
+#![feature(slice_get_slice)]
 extern crate core;
 
 pub mod drawing;
@@ -38,4 +39,3 @@ pub mod mock;
 pub mod utils;
 
 pub use document::*;
-pub use utils::*;

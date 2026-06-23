@@ -51,7 +51,7 @@ pub struct Cell {
     pub style: Style,
 }
 
-impl const Cell {
+const impl Cell {
     pub const EMPTY: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 0,
@@ -330,7 +330,7 @@ impl Cell {
     }
 }
 
-impl const Default for Cell {
+const impl Default for Cell {
     fn default() -> Self {
         Self::EMPTY
     }

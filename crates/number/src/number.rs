@@ -18,17 +18,17 @@ pub const trait Number:
 {
 }
 
-impl const Number for u8 {}
-impl const Number for u16 {}
-impl const Number for u32 {}
-impl const Number for u64 {}
-impl const Number for u128 {}
-impl const Number for usize {}
-impl const Number for i8 {}
-impl const Number for i16 {}
-impl const Number for i32 {}
-impl const Number for i64 {}
-impl const Number for i128 {}
-impl const Number for isize {}
-impl const Number for f32 {}
-impl const Number for f64 {}
+const impl Number for u8 {}
+const impl Number for u16 {}
+const impl Number for u32 {}
+const impl Number for u64 {}
+const impl Number for u128 {}
+const impl Number for usize {}
+const impl Number for i8 {}
+const impl Number for i16 {}
+const impl Number for i32 {}
+const impl Number for i64 {}
+const impl Number for i128 {}
+const impl Number for isize {}
+const impl Number for f32 {}
+const impl Number for f64 {}

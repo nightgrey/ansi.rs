@@ -54,7 +54,7 @@ impl Underline {
     }
 }
 
-impl const Color {
+const impl Color {
     pub fn as_background(self) -> Background {
         Background(self)
     }

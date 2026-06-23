@@ -240,7 +240,7 @@ pub enum Available {
     Max,
 }
 
-impl const From<u32> for Available {
+const impl From<u32> for Available {
     fn from(value: u32) -> Self {
         Self::Pixel(value)
     }
@@ -251,7 +251,7 @@ impl From<usize> for Available {
         Self::Pixel(value as u32)
     }
 }
-impl const From<Option<Available>> for Available {
+const impl From<Option<Available>> for Available {
     fn from(value: Option<Available>) -> Self {
         value.unwrap_or(Self::Max)
     }
@@ -283,19 +283,19 @@ impl Length {
     pub const MAX: Self = Self::Percent(1.0);
 }
 
-impl const From<u32> for Length {
+const impl From<u32> for Length {
     fn from(value: u32) -> Self {
         Self::Value(value)
     }
 }
 
-impl const From<f32> for Length {
+const impl From<f32> for Length {
     fn from(value: f32) -> Self {
         Self::Percent(value)
     }
 }
 
-impl const From<Option<Length>> for Length {
+const impl From<Option<Length>> for Length {
     fn from(value: Option<Length>) -> Self {
         value.unwrap_or(Self::Auto)
     }

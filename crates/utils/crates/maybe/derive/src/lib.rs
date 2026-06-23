@@ -187,11 +187,11 @@ fn generate_impls(
     generic: syn::TypeGenerics,
     where_clause: Option<&syn::WhereClause>,
     none_ident: &syn::Ident,
-    default_ident: &syn::Ident,
+    _default_ident: &syn::Ident,
     maybe_const: TokenStream2,
 ) -> TokenStream2 {
     quote! {
-        impl #maybe_const #impl_generic Maybe for #name #generic #where_clause {
+        #maybe_const impl #impl_generic Maybe for #name #generic #where_clause {
             #[allow(non_upper_case_globals)]
             const None: Self = #name::#none_ident;
 
@@ -202,7 +202,7 @@ fn generate_impls(
         }
 
 
-        impl #maybe_const #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
+        #maybe_const impl #impl_generic From<Option<#name #generic >> for #name #generic #where_clause {
             #[inline]
             fn from(value: Option<#name #generic>) -> Self {
                 match value {
@@ -212,7 +212,7 @@ fn generate_impls(
             }
         }
 
-        impl #maybe_const #impl_generic PartialEq<Option<#name #generic>> for #name #generic #where_clause {
+        #maybe_const impl #impl_generic PartialEq<Option<#name #generic>> for #name #generic #where_clause {
             #[inline]
             fn eq(&self, other: &Option<#name #generic>) -> bool {
                 match other {
@@ -222,7 +222,7 @@ fn generate_impls(
             }
         }
 
-        impl #maybe_const #impl_generic PartialEq<#name #generic> for Option<#name #generic> #where_clause {
+        #maybe_const impl #impl_generic PartialEq<#name #generic> for Option<#name #generic> #where_clause {
             #[inline]
             fn eq(&self, other: &#name #generic) -> bool {
                 match self {

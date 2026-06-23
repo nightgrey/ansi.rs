@@ -7,8 +7,8 @@ pub use nested_slice::*;
 mod nested_vec;
 pub use nested_vec::*;
 
-mod nested_raw;
-pub use nested_raw::*;
+mod nested_array;
+pub use nested_array::*;
 
 pub mod iter;
 pub use iter::*;
@@ -33,7 +33,7 @@ mod consistency_tests {
     #[test]
     fn empty_is_consistent() {
         let nv: NestedVec<u8> = nested![];
-        let nr = NestedRaw::<u8, 16, 8>::new();
+        let nr = NestedArray::<u8, 16, 8>::new();
         assert_eq!(nv.len(), nr.len());
         assert_eq!(nv.is_empty(), nr.is_empty());
         assert!(nv.is_empty());
@@ -46,7 +46,7 @@ mod consistency_tests {
     #[test]
     fn empty_iter_returns_nothing() {
         let nv: NestedVec<u8> = nested![];
-        let nr = NestedRaw::<u8, 16, 8>::new();
+        let nr = NestedArray::<u8, 16, 8>::new();
         assert_eq!(nv.iter().count(), 0);
         assert_eq!(nr.iter().count(), 0);
     }
@@ -59,7 +59,7 @@ mod consistency_tests {
         nv.push_one(1);
         nv.extend_one(2);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push_one(1);
         nr.extend_one(2);
 
@@ -75,7 +75,7 @@ mod consistency_tests {
         let mut nv: NestedVec<u8> = nested![];
         nv.extend_one(99);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.extend_one(99);
 
         assert_eq!(nv.len(), nr.len());
@@ -92,7 +92,7 @@ mod consistency_tests {
         nv.push([1, 2]);
         nv.push([3]);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([1, 2]);
         nr.push([3]);
 
@@ -109,7 +109,7 @@ mod consistency_tests {
         nv.push([1]);
         nv.extend([2, 3]);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([1]);
         nr.extend([2, 3]);
 
@@ -124,7 +124,7 @@ mod consistency_tests {
         let mut nv: NestedVec<u8> = nested![];
         nv.extend([5, 6]);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.extend([5, 6]);
 
         assert_eq!(nv.len(), nr.len());
@@ -141,7 +141,7 @@ mod consistency_tests {
         nv.push([20, 30]);
         nv.push([40]);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([10]);
         nr.push([20, 30]);
         nr.push([40]);
@@ -162,7 +162,7 @@ mod consistency_tests {
         nv.push([4]);
         nv.extend_one(5);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([1, 2, 3]);
         nr.clear();
         nr.push([4]);
@@ -193,7 +193,7 @@ mod consistency_tests {
 
     #[test]
     fn nested_raw_as_params_roundtrip() {
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([10, 20]);
         nr.push([30]);
         let ps = nr.as_nested_slice();
@@ -214,7 +214,7 @@ mod consistency_tests {
         let mut nv: NestedVec<u8> = nested![];
         nv.push_one(1);
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push_one(1);
 
         assert_eq!(nv.len(), nr.len());
@@ -244,7 +244,7 @@ mod consistency_tests {
         nv.push([1, 2, 3]);
         nv[0][1] = 99;
 
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
         nr.push([1, 2, 3]);
         nr[0][1] = 99;
 
@@ -257,7 +257,7 @@ mod consistency_tests {
     #[test]
     fn first_and_last_consistent() {
         let mut nv: NestedVec<u8> = nested![];
-        let mut nr = NestedRaw::<u8, 16, 8>::new();
+        let mut nr = NestedArray::<u8, 16, 8>::new();
 
         assert!(nv.first().is_none());
         assert!(nr.first().is_none());

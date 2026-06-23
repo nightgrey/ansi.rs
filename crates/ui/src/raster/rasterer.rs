@@ -979,6 +979,7 @@ mod tests {
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
+        dbg!(output_str);
         assert!(
             output_str.contains('X'),
             "should emit changed cell: {output_str}"

@@ -1,7 +1,6 @@
 use crate::number::Number;
 use std::num::FpCategory;
 use std::ops::Neg;
-use std::str::FromStr;
 
 pub const trait Float: Number + Neg<Output = Self> {
     /// Archimedes' constant (π)

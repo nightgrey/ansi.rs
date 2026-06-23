@@ -1,10 +1,10 @@
 use crate::symbols::Symbol;
-use crate::{Arena, Buffer, CellsMut, DrawingOptions};
+use crate::{Arena, Buffer, DrawingOptions};
 use crate::{Border, DrawingContext};
-use ansi::{Color, Style};
+use ansi::Style;
 use bon::Builder;
 use derive_more::{Deref, DerefMut};
-use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate, pos};
+use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate};
 use number::{SaturatingAdd, SaturatingSub};
 use smallvec::SmallVec;
 use std::io;
@@ -295,8 +295,8 @@ impl<'a> DrawingContext for BufferPainter<'a> {
             return 0;
         }
 
-        let mut col = position.x;
-        let mut n = 0;
+        let _col = position.x;
+        let _n = 0;
 
         /*
         ;

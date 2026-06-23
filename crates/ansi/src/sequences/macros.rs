@@ -39,7 +39,7 @@ macro_rules! sequence {
         #[repr(transparent)]
         $vis struct $name($(#[$field_meta])* $field_vis $field);
 
-        impl const $name {
+        const impl $name {
             #[inline]
             pub fn value(&self) -> $field {
                 self.0
@@ -191,7 +191,7 @@ macro_rules! sequence_only {
         #[repr(transparent)]
         $vis struct $type($(#[$field_meta])* $field_vis $field);
 
-        impl const $type {
+        const impl $type {
             #[inline]
             pub fn value(&self) -> $field {
                 self.0

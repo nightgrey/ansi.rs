@@ -7,7 +7,7 @@ use synonym::Synonym;
 #[repr(transparent)]
 pub struct Column(pub usize);
 
-impl const Column {
+const impl Column {
     pub fn into_inner(self) -> usize {
         self.0
     }

@@ -1,6 +1,4 @@
-use crate::{
-    Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter, Rasterer,
-};
+use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter};
 use derive_more::{Deref, DerefMut};
 use geometry::Size;
 use std::io;
@@ -73,7 +71,7 @@ impl<'a> Engine<'a> {
         self.paint();
     }
 
-    pub fn present(&mut self, w: &mut impl io::Write) -> io::Result<()> {
+    pub fn present(&mut self, _w: &mut impl io::Write) -> io::Result<()> {
         let back = &mut self.buffer.back;
         let front = &mut self.buffer.front;
         let arena = &mut self.arena;

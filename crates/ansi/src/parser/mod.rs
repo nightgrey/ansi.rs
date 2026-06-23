@@ -1,8 +1,8 @@
 mod internals;
-mod parser;
+pub mod parser;
 pub mod state;
-pub mod base_parser;
+pub(crate) mod tests;
 
+pub use internals::*;
 pub use parser::*;
 pub use state::*;
-pub use internals::*;

@@ -35,8 +35,8 @@ impl SmallByteString {
     }
 
     #[inline]
-    pub fn new(bytes: &[u8]) -> Self {
-        Self(CompactBytes::new(bytes))
+    pub fn new(bytes: impl AsRef<[u8]>) -> Self {
+        Self(CompactBytes::new(bytes.as_ref()))
     }
 
     #[inline]
@@ -665,54 +665,6 @@ impl<'a> TryFrom<&'a SmallByteString> for &'a str {
     }
 }
 
-// Additional impls for `ByteStr` that require types from `alloc`:
-impl Clone for Box<SmallByteStr> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self::from(Box::<[u8]>::from(&self.0 as &[u8]))
-    }
-}
-
-impl<'a> From<&'a SmallByteStr> for Cow<'a, SmallByteStr> {
-    #[inline]
-    fn from(s: &'a SmallByteStr) -> Self {
-        Cow::Borrowed(s)
-    }
-}
-
-impl From<Box<[u8]>> for Box<SmallByteStr> {
-    #[inline]
-    fn from(s: Box<[u8]>) -> Box<SmallByteStr> {
-        // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
-        unsafe { Box::from_raw(Box::into_raw(s) as _) }
-    }
-}
-
-impl From<Box<SmallByteStr>> for Box<[u8]> {
-    #[inline]
-    fn from(s: Box<SmallByteStr>) -> Box<[u8]> {
-        // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
-        unsafe { Box::from_raw(Box::into_raw(s) as _) }
-    }
-}
-
-// PartialOrd with `Vec<u8>` omitted to avoid inference failures
-impl_partial_eq!(SmallByteStr, Vec<u8>);
-// PartialOrd with `String` omitted to avoid inference failures
-impl_partial_eq!(SmallByteStr, String);
-impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, SmallByteStr>);
-impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, str>);
-impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, [u8]>);
-
-impl<'a> TryFrom<&'a SmallByteStr> for String {
-    type Error = core::str::Utf8Error;
-
-    #[inline]
-    fn try_from(s: &'a SmallByteStr) -> Result<Self, Self::Error> {
-        Ok(core::str::from_utf8(&s.0)?.into())
-    }
-}
-
 /// A wrapper for `&[u8]` representing a human-readable string that's conventionally, but not always, UTF-8.
 ///
 /// For an owned, growable string buffer, use
@@ -819,7 +771,7 @@ impl SmallByteStr {
     }
 }
 
-impl const Deref for SmallByteStr {
+const impl Deref for SmallByteStr {
     type Target = [u8];
 
     #[inline]
@@ -828,7 +780,7 @@ impl const Deref for SmallByteStr {
     }
 }
 
-impl const DerefMut for SmallByteStr {
+const impl DerefMut for SmallByteStr {
     #[inline]
     fn deref_mut(&mut self) -> &mut [u8] {
         &mut self.0
@@ -911,7 +863,7 @@ impl Default for &mut SmallByteStr {
     }
 }
 
-impl <'a> const TryFrom<&'a SmallByteStr> for &'a str {
+const impl<'a> TryFrom<&'a SmallByteStr> for &'a str {
     type Error = std::str::Utf8Error;
 
     #[inline]
@@ -920,7 +872,7 @@ impl <'a> const TryFrom<&'a SmallByteStr> for &'a str {
     }
 }
 
-impl <'a> const TryFrom<&'a mut SmallByteStr> for &'a mut str {
+const impl<'a> TryFrom<&'a mut SmallByteStr> for &'a mut str {
     type Error = std::str::Utf8Error;
 
     #[inline]
@@ -929,13 +881,55 @@ impl <'a> const TryFrom<&'a mut SmallByteStr> for &'a mut str {
     }
 }
 
+// Additional impls for `ByteStr` that require types from `alloc`:
+impl Clone for Box<SmallByteStr> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self::from(Box::<[u8]>::from(&self.0 as &[u8]))
+    }
+}
+
+impl<'a> From<&'a SmallByteStr> for Cow<'a, SmallByteStr> {
+    #[inline]
+    fn from(s: &'a SmallByteStr) -> Self {
+        Cow::Borrowed(s)
+    }
+}
+
+impl From<Box<[u8]>> for Box<SmallByteStr> {
+    #[inline]
+    fn from(s: Box<[u8]>) -> Box<SmallByteStr> {
+        // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
+        unsafe { Box::from_raw(Box::into_raw(s) as _) }
+    }
+}
+
+impl From<Box<SmallByteStr>> for Box<[u8]> {
+    #[inline]
+    fn from(s: Box<SmallByteStr>) -> Box<[u8]> {
+        // SAFETY: `ByteStr` is a transparent wrapper around `[u8]`.
+        unsafe { Box::from_raw(Box::into_raw(s) as _) }
+    }
+}
+
+// PartialOrd with `Vec<u8>` omitted to avoid inference failures
+impl_partial_eq!(SmallByteStr, Vec<u8>);
+// PartialOrd with `String` omitted to avoid inference failures
+impl_partial_eq!(SmallByteStr, String);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, SmallByteStr>);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, str>);
+impl_partial_eq_ord_cow!(&SmallByteStr, Cow<'_, [u8]>);
+
+impl<'a> TryFrom<&'a SmallByteStr> for String {
+    type Error = core::str::Utf8Error;
+
+    #[inline]
+    fn try_from(s: &'a SmallByteStr) -> Result<Self, Self::Error> {
+        Ok(core::str::from_utf8(&s.0)?.into())
+    }
+}
+
 #[test]
-fn wqe() {
-    let i = std::bstr::ByteString(Vec::from([0, 0]));
-    dbg!(i);
-
-    let i = SmallByteString::empty();
-    // SAFETY: all the elements in `..len` are initialized
-
-    dbg!(i);
+fn qwe() {
+    let a = SmallByteStr::new(&[1, 2]);
 }

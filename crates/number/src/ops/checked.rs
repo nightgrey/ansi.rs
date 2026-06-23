@@ -67,50 +67,50 @@ pub const trait CheckedShr<Rhs = u32>: Sized + Shr<Rhs, Output = Self> {
 
 macro_rules! checked_impl {
     ( $ T: ty) => {
-        impl const CheckedOps for $T {}
-        impl const CheckedAdd for $T {
+        const impl CheckedOps for $T {}
+        const impl CheckedAdd for $T {
             fn checked_add(self, rhs: Self) -> Option<Self> {
                 Self::checked_add(self, rhs)
             }
         }
 
-        impl const CheckedSub for $T {
+        const impl CheckedSub for $T {
             fn checked_sub(self, rhs: Self) -> Option<Self> {
                 Self::checked_sub(self, rhs)
             }
         }
 
-        impl const CheckedMul for $T {
+        const impl CheckedMul for $T {
             fn checked_mul(self, rhs: Self) -> Option<Self> {
                 Self::checked_mul(self, rhs)
             }
         }
 
-        impl const CheckedDiv for $T {
+        const impl CheckedDiv for $T {
             fn checked_div(self, rhs: Self) -> Option<Self> {
                 Self::checked_div(self, rhs)
             }
         }
 
-        impl const CheckedRem for $T {
+        const impl CheckedRem for $T {
             fn checked_rem(self, rhs: Self) -> Option<Self> {
                 Self::checked_rem(self, rhs)
             }
         }
 
-        impl const CheckedNeg for $T {
+        const impl CheckedNeg for $T {
             fn checked_neg(self) -> Option<Self> {
                 Self::checked_neg(self)
             }
         }
 
-        impl const CheckedShl for $T {
+        const impl CheckedShl for $T {
             fn checked_shl(self, rhs: u32) -> Option<Self> {
                 Self::checked_shl(self, rhs)
             }
         }
 
-        impl const CheckedShr for $T {
+        const impl CheckedShr for $T {
             fn checked_shr(self, rhs: u32) -> Option<Self> {
                 Self::checked_shr(self, rhs)
             }

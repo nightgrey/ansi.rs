@@ -27,7 +27,7 @@ impl<T, const N: usize, const M: usize> NestedSoaVec<T, N, M> {
     }
 
     pub fn get(&self, index: usize) -> Option<&[T]> {
-        let offset = self.groups[..index].iter().map(|&n| n).sum();
+        let offset = self.groups[..index].iter().copied().sum();
         let len = self.groups[index];
         Some(&self.inner[offset..offset + len])
     }

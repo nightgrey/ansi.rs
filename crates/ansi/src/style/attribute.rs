@@ -22,9 +22,9 @@ macro_rules! variants {
         ),+
         $(,)?
     ) => {
-            pub const META: &'static [Meta] = &[
+            pub const META: &'static [Variant] = &[
                 $(
-                    Meta {
+                    Variant {
                         attribute: Attribute::$variant,
                         name: $name,
                         set: $set,
@@ -48,6 +48,41 @@ macro_rules! variants {
     };
 }
 
+#[derive(Copy, Clone, Debug, Deref, AsRef)]
+pub struct Variant {
+    #[deref]
+    #[as_ref(forward)]
+    pub attribute: Attribute,
+    pub name: &'static str,
+    pub set: &'static str,
+    pub reset: &'static str,
+}
+const impl Variant {
+    fn from_position(position: usize) -> Self {
+        Attribute::META[position]
+    }
+
+    fn from_attribute(attr: Attribute) -> Self {
+        Self::from_position(attr.0.trailing_zeros() as usize)
+    }
+
+    fn attribute(&self) -> Attribute {
+        self.attribute
+    }
+
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn set(&self) -> &'static str {
+        self.set
+    }
+
+    fn reset(&self) -> &'static str {
+        self.reset
+    }
+}
+
 type Repr = u16;
 
 #[repr(transparent)]
@@ -56,7 +91,7 @@ type Repr = u16;
 pub struct Attribute(Repr);
 
 #[allow(non_upper_case_globals)]
-impl const Attribute {
+const impl Attribute {
     variants! {
         Bold {
             position: 0,
@@ -475,8 +510,8 @@ impl FromStr for Attribute {
         {
             let attr =
                 if let Some(hex) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
-                    let bits = <Repr>::from_str_radix(hex, 16)
-                        .map_err(|error| ParseAttributeError::ParseInt(error))?;
+                    let bits =
+                        <Repr>::from_str_radix(hex, 16).map_err(ParseAttributeError::ParseInt)?;
 
                     Self::try_from_bits(bits)?
                 } else {
@@ -489,7 +524,7 @@ impl FromStr for Attribute {
         Ok(out)
     }
 }
-impl const From<Repr> for Attribute {
+const impl From<Repr> for Attribute {
     #[inline]
     fn from(value: Repr) -> Self {
         Attribute::new(value)
@@ -501,7 +536,7 @@ impl Default for Attribute {
         Self::None
     }
 }
-impl const ops::BitOr for Attribute {
+const impl ops::BitOr for Attribute {
     type Output = Self;
 
     #[inline]
@@ -515,7 +550,7 @@ impl ops::BitOrAssign for Attribute {
         self.insert(rhs);
     }
 }
-impl const ops::BitAnd for Attribute {
+const impl ops::BitAnd for Attribute {
     type Output = Self;
 
     #[inline]
@@ -523,13 +558,13 @@ impl const ops::BitAnd for Attribute {
         self.intersection(rhs)
     }
 }
-impl const ops::BitAndAssign for Attribute {
+const impl ops::BitAndAssign for Attribute {
     #[inline]
     fn bitand_assign(&mut self, rhs: Self) {
         *self = self.intersection(rhs);
     }
 }
-impl const ops::BitXor for Attribute {
+const impl ops::BitXor for Attribute {
     type Output = Self;
 
     #[inline]
@@ -537,13 +572,13 @@ impl const ops::BitXor for Attribute {
         self.symmetric_difference(rhs)
     }
 }
-impl const ops::BitXorAssign for Attribute {
+const impl ops::BitXorAssign for Attribute {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
         *self = self.symmetric_difference(rhs);
     }
 }
-impl const ops::Sub for Attribute {
+const impl ops::Sub for Attribute {
     type Output = Self;
 
     #[inline]
@@ -551,13 +586,13 @@ impl const ops::Sub for Attribute {
         self.difference(rhs)
     }
 }
-impl const ops::SubAssign for Attribute {
+const impl ops::SubAssign for Attribute {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         self.remove(rhs);
     }
 }
-impl const ops::Not for Attribute {
+const impl ops::Not for Attribute {
     type Output = Attribute;
 
     #[inline]
@@ -565,7 +600,7 @@ impl const ops::Not for Attribute {
         self.complement()
     }
 }
-impl const IntoIterator for Attribute {
+const impl IntoIterator for Attribute {
     type Item = Attribute;
     type IntoIter = Map<Iter, fn(usize) -> Attribute>;
 
@@ -595,7 +630,7 @@ impl Escape for Attribute {
     }
 }
 
-impl const Maybe for Attribute {
+const impl Maybe for Attribute {
     #[allow(non_upper_case_globals)]
     const None: Self = Attribute::from_bits_retained(0);
 }
@@ -605,7 +640,7 @@ pub struct MetaIter {
     inner: Iter,
 }
 
-impl const MetaIter {
+const impl MetaIter {
     #[inline]
     pub fn new(value: u16) -> Self {
         Self {
@@ -614,13 +649,13 @@ impl const MetaIter {
     }
 }
 
-impl const Iterator for MetaIter {
-    type Item = Meta;
+const impl Iterator for MetaIter {
+    type Item = Variant;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next()?;
 
-        Some(Meta::from_position(next))
+        Some(Variant::from_position(next))
     }
 
     #[inline]
@@ -636,7 +671,7 @@ impl const Iterator for MetaIter {
     #[inline]
     fn last(self) -> Option<Self::Item> {
         if let Some(last) = self.inner.last() {
-            return Some(Meta::from_position(last));
+            return Some(Variant::from_position(last));
         }
         None
     }
@@ -652,12 +687,12 @@ impl const Iterator for MetaIter {
     }
 
     #[inline]
-    fn fold<B, F>(mut self, init: B, mut f: F) -> B
+    fn fold<B, F>(self, init: B, mut f: F) -> B
     where
         F: [const] FnMut(B, Self::Item) -> B + [const] Destruct,
     {
         let mut accum = init;
-        while let Some(item) = self.next() {
+        for item in self {
             accum = f(accum, item);
         }
         accum
@@ -671,7 +706,7 @@ impl const Iterator for MetaIter {
     #[inline]
     fn min(self) -> Option<Self::Item> {
         if self.inner.0 != 0 {
-            Some(Meta::from_position(self.inner.min_bit()))
+            Some(Variant::from_position(self.inner.min_bit()))
         } else {
             None
         }
@@ -691,7 +726,7 @@ impl ExactSizeIterator for MetaIter {
 #[repr(transparent)]
 pub struct Iter(u16);
 
-impl const Iter {
+const impl Iter {
     #[inline]
     pub fn new(value: Repr) -> Self {
         Self(value)
@@ -718,7 +753,7 @@ impl const Iter {
     }
 }
 
-impl const Iterator for Iter {
+const impl Iterator for Iter {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -795,41 +830,6 @@ impl const Iterator for Iter {
 impl ExactSizeIterator for Iter {
     fn len(&self) -> usize {
         self.count_ones()
-    }
-}
-
-#[derive(Copy, Clone, Debug, Deref, AsRef)]
-pub struct Meta {
-    #[deref]
-    #[as_ref(forward)]
-    pub attribute: Attribute,
-    pub name: &'static str,
-    pub set: &'static str,
-    pub reset: &'static str,
-}
-impl const Meta {
-    fn from_position(position: usize) -> Self {
-        Attribute::META[position]
-    }
-
-    fn from_attribute(attr: Attribute) -> Self {
-        Self::from_position(attr.0.trailing_zeros() as usize)
-    }
-
-    fn attribute(&self) -> Attribute {
-        self.attribute
-    }
-
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn set(&self) -> &'static str {
-        self.set
-    }
-
-    fn reset(&self) -> &'static str {
-        self.reset
     }
 }
 

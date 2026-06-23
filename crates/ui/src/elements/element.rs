@@ -1,4 +1,4 @@
-use crate::layouted::Layouted;
+use crate::Layouted;
 use crate::{Display, ElementKind, Layout};
 use derive_more::{Deref, DerefMut};
 use std::borrow::Cow;

@@ -1,7 +1,5 @@
 use ansi::Color;
-
-use super::layout::*;
-use crate::Layout;
+use crate::layout::*;
 
 pub trait Layouted: Sized {
     /// Returns a reference to the style memory of this element.

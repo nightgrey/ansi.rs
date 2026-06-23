@@ -47,7 +47,7 @@ pub struct Grapheme {
     repr: [u8; 4],
 }
 
-impl const Grapheme {
+const impl Grapheme {
     /// Sentinel tag for an extended (arena-stored) grapheme.
     const EXTENDED_TAG: u8 = 0x01;
     /// Sentinel tag for a wide-character continuation cell.
@@ -150,7 +150,7 @@ impl Grapheme {
     pub fn inline(value: impl Encodeable) -> Self {
         match value.encode(None) {
             Ok(grapheme) => grapheme,
-            Err(err) => panic!("value exceeds 4 bytes and cannot be stored inline"),
+            Err(_err) => panic!("value exceeds 4 bytes and cannot be stored inline"),
         }
     }
 
@@ -169,7 +169,7 @@ impl Grapheme {
     pub fn extended(value: impl Encodeable, arena: &mut Arena) -> Self {
         match value.encode(Some(arena)) {
             Ok(grapheme) => grapheme,
-            Err(err) => panic!("failed to encode extended grapheme"),
+            Err(_err) => panic!("failed to encode extended grapheme"),
         }
     }
 

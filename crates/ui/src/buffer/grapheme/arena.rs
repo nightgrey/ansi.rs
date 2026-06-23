@@ -255,12 +255,12 @@ impl Arena {
         let mut size = total;
 
         // Coalesce with the immediately-preceding free region, if adjacent.
-        if let Some((&prev_offset, &prev_size)) = self.by_offset.range(..start).next_back() {
-            if prev_offset + prev_size == start {
-                self.free_remove(prev_offset, prev_size);
-                start = prev_offset;
-                size += prev_size;
-            }
+        if let Some((&prev_offset, &prev_size)) = self.by_offset.range(..start).next_back()
+            && prev_offset + prev_size == start
+        {
+            self.free_remove(prev_offset, prev_size);
+            start = prev_offset;
+            size += prev_size;
         }
 
         // Coalesce with the immediately-following free region, if present.
@@ -385,7 +385,7 @@ pub const trait Offsetted {
     fn offset(self) -> usize;
 }
 
-impl const Offsetted for usize {
+const impl Offsetted for usize {
     #[inline]
     fn offset(self) -> usize {
         self

@@ -1,6 +1,7 @@
 use crate::{Nested, NestedConstructor, NestedMut};
 use core::ops::Index;
 use smallvec::SmallVec;
+use std::fmt::Debug;
 use std::ops::IndexMut;
 
 /// An owned, growable container for groups of elements.
@@ -9,10 +10,10 @@ use std::ops::IndexMut;
 /// elements in a single contiguous buffer, with a separate index array tracking
 /// where each group begins and ends. This avoids per-group allocations while
 /// still providing slice-based access to individual groups.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct NestedVec<T, const N: usize, const M: usize = N> {
-    pub starts: SmallVec<usize, N>,
-    pub(super) inner: SmallVec<T, N>,
+    pub(crate) starts: SmallVec<usize, N>,
+    pub(crate) inner: SmallVec<T, N>,
 }
 
 impl<T, const N: usize, const M: usize> NestedVec<T, N, M> {
@@ -187,5 +188,11 @@ impl<T, const N: usize, const M: usize> Default for NestedVec<T, N, M> {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T: Debug, const N: usize, const M: usize> Debug for NestedVec<T, N, M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_nested_slice().fmt(f)
     }
 }

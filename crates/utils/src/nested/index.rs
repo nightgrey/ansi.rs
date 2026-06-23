@@ -119,7 +119,7 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
                 let inner = inner.get_unchecked(
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
-                Some(NestedSlice::from_parts(inner, starts))
+                Some(NestedSlice::from_raw(inner, starts))
             }
         } else {
             None
@@ -132,7 +132,7 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
         let starts = starts.get_unchecked(self.start..=self.end);
         let inner =
             inner.get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
-        NestedSlice::from_parts(inner, starts)
+        NestedSlice::from_raw(inner, starts)
     }
 
     fn index(self, nested: &(impl Nested<T> + ?Sized)) -> Self::Output<'_> {
@@ -143,7 +143,7 @@ impl<T> NestedIndex<T> for ops::Range<usize> {
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
 
-                NestedSlice::from_parts(inner, starts)
+                NestedSlice::from_raw(inner, starts)
             }
         } else {
             nested_index_fail(self.start, self.end, nested.len())
@@ -181,7 +181,7 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
                 let inner = values.get_unchecked(
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
-                Some(NestedSlice::from_parts(inner, starts))
+                Some(NestedSlice::from_raw(inner, starts))
             }
         } else {
             None
@@ -196,7 +196,7 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
             let starts = starts.get_unchecked(*self.start()..=*self.end());
             let inner = values
                 .get_unchecked(starts.first().copied().unwrap()..starts.last().copied().unwrap());
-            NestedSlice::from_parts(inner, starts)
+            NestedSlice::from_raw(inner, starts)
         }
     }
 
@@ -210,7 +210,7 @@ impl<T> NestedIndex<T> for ops::RangeInclusive<usize> {
                     starts.first().copied().unwrap()..starts.last().copied().unwrap(),
                 );
 
-                NestedSlice::from_parts(inner, starts)
+                NestedSlice::from_raw(inner, starts)
             }
         } else {
             nested_index_fail(*self.start(), *self.end(), nested.len())

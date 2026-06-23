@@ -32,33 +32,33 @@ pub const trait WrappingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
 
 macro_rules! wrapping_impl {
     ( $ T: ty) => {
-        impl const WrappingOps for $T {}
+        const impl WrappingOps for $T {}
 
-        impl const WrappingAdd for $T {
+        const impl WrappingAdd for $T {
             fn wrapping_add(self, rhs: Self) -> Self {
                 (Wrapping(self) + Wrapping(rhs)).0
             }
         }
 
-        impl const WrappingSub for $T {
+        const impl WrappingSub for $T {
             fn wrapping_sub(self, rhs: Self) -> Self {
                 (Wrapping(self) - Wrapping(rhs)).0
             }
         }
 
-        impl const WrappingMul for $T {
+        const impl WrappingMul for $T {
             fn wrapping_mul(self, rhs: Self) -> Self {
                 (Wrapping(self) * Wrapping(rhs)).0
             }
         }
 
-        impl const WrappingRem for $T {
+        const impl WrappingRem for $T {
             fn wrapping_rem(self, rhs: Self) -> Self {
                 (Wrapping(self) % Wrapping(rhs)).0
             }
         }
 
-        impl const WrappingDiv for $T {
+        const impl WrappingDiv for $T {
             fn wrapping_div(self, rhs: Self) -> Self {
                 (Wrapping(self) / Wrapping(rhs)).0
             }

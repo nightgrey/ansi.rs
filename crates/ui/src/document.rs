@@ -1,7 +1,7 @@
-use crate::measure;
+use crate::{measure, Border, DrawingContext, DrawingContextExtension, ElementKind};
 use crate::{ComputedLayout, Dirty, Element, ElementId, LayoutContext};
 use crate::{Layout, Space};
-use geometry::Rect;
+use geometry::{Bound, Rect};
 use tree::{At, Secondary, Tree};
 
 #[derive(Debug, Clone)]
@@ -180,6 +180,59 @@ impl<'a> Document<'a> {
                 layout.unmark(Dirty::Computation | Dirty::Measure);
             }
         }
+    }
+    
+    pub fn paint<C: DrawingContext>(&mut self, ctx: &mut C) -> Result<(), C::Error> {
+        let root_id = self.root_id();
+
+        ctx.resize(self.border_bounds(root_id).size())?;
+        self.paint_node(ctx, root_id, Layout::DEFAULT)?;
+        ctx.finish()?;
+        Ok(())
+    }
+    
+    fn paint_node<C: DrawingContext>(
+        &self,
+        ctx: &mut C,
+        id: ElementId,
+        parent_layout: Layout,
+    ) -> Result<(), C::Error> {
+        let node = self.element(id);
+        let border_bounds = self.border_bounds(id);
+        let content_bounds = self.content_bounds(id);
+        let style = node.layout.inherit(parent_layout);
+
+        ctx.try_with(|ctx| {
+            ctx.translate(border_bounds.min)
+                .clip(Rect::from(border_bounds.size()))
+                .style(style)
+                .border_style(node.border);
+
+            let local_bounds = Rect::from(border_bounds.size());
+            let content_clip = content_bounds - border_bounds.min;
+
+            if matches!(style.background, Some(background) if background != ansi::Color::None) {
+                ctx.rect(local_bounds)?;
+            }
+
+            if node.border != Border::None {
+                ctx.border(local_bounds)?;
+            }
+
+            if let ElementKind::Span(text) = &node.kind {
+                ctx.text(content_clip.min, text)?;
+            }
+
+            ctx.try_with(|ctx| {
+                ctx.clip(content_clip);
+
+                for child in self.children(id) {
+                    self.paint_node(ctx, child, style)?;
+                }
+
+                Ok(())
+            })
+        })
     }
 
     pub fn clear(&mut self) {

@@ -8,9 +8,9 @@ pub struct Engine<'a> {
     space: Size,
     #[deref]
     #[deref_mut]
-    pub document: Document<'a>,
-    pub buffer: DoubleBuffer,
-    pub arena: Arena,
+    document: Document<'a>,
+    buffer: DoubleBuffer,
+    arena: Arena,
     presenter: Presenter<io::Stdout>,
 }
 
@@ -41,18 +41,15 @@ impl<'a> Engine<'a> {
         self.document.compute_layout(self.space);
     }
 
-    pub fn paint(&mut self) {
+    pub fn paint(&mut self) -> io::Result<()> {
         let buffer = &mut self.buffer.back;
         let arena = &mut self.arena;
-        let document = &self.document;
 
         buffer.clear();
-
-        let mut ctx = BufferPainter::new(buffer, arena);
-        ctx.paint(document);
+        self.document.paint(&mut BufferPainter::new(buffer, arena))
     }
 
-    pub fn paint_with<F>(&mut self, f: F)
+    pub fn paint_with<F>(&mut self, f: F) -> io::Result<()>
     where
         F: FnOnce(&mut BufferPainter<'_>),
     {
@@ -63,12 +60,13 @@ impl<'a> Engine<'a> {
         buffer.clear();
         let mut ctx = BufferPainter::new(buffer, arena);
         f(&mut ctx);
-        ctx.finish();
+        ctx.finish()?;
+        Ok(())
     }
 
-    pub fn layout_and_paint(&mut self) {
+    pub fn layout_and_paint(&mut self) -> io::Result<()> {
         self.layout();
-        self.paint();
+        self.paint()
     }
 
     pub fn present(&mut self, _w: &mut impl io::Write) -> io::Result<()> {
@@ -83,7 +81,7 @@ impl<'a> Engine<'a> {
 
     pub fn render(&mut self, w: &mut impl io::Write) -> io::Result<()> {
         self.layout();
-        self.paint();
+        self.paint()?;
         self.present(w)?;
 
         self.buffer.swap();

@@ -68,17 +68,17 @@ impl<'a> BufferDiff<'a, ByDirty> {
     /// See [`BufferDiff`] and the [`ByDirty`] for details.
     pub fn dirty(prev: &'a Buffer, next: &'a TrackingBuffer) -> Self {
         assert_eq!(
-            prev.width, next.width,
+            prev.width(), next.width(),
             "buffers must have the same width: prev={}, next={}",
-            prev.width, next.width,
+            prev.width(), next.width(),
         );
 
         BufferDiff {
             state: DirtyDiffState {
                 next,
                 prev,
-                width: prev.width,
-                height: prev.height.min(next.height),
+                width: prev.width(),
+                height: prev.height().min(next.height()),
                 y: 0,
                 x: 0,
                 bits: next.as_bits(),
@@ -219,13 +219,13 @@ impl<'a> BaseDiffState<'a> {
     /// **Panics** if the buffers differ in width.
     fn new(prev: &'a Buffer, next: &'a Buffer) -> Self {
         assert_eq!(
-            prev.width, next.width,
+            prev.width(), next.width(),
             "buffers must have the same width: prev={}, next={}",
-            prev.width, next.width,
+            prev.width(), next.width(),
         );
 
-        let width = prev.width;
-        let height = prev.height.min(next.height);
+        let width = prev.width();
+        let height = prev.height().min(next.height());
 
         BaseDiffState {
             next,

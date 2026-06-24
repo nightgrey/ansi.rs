@@ -1,27 +1,26 @@
 use crate::{Arena, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, CellsMut, TrackingBuffer};
 use ansi::Style;
 use core::slice::IterMut;
+use std::borrow::{Borrow, BorrowMut};
 use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
 use geometry::Resolve;
 use geometry::{Bound, Intersect, Point, Rect};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::iter::StepBy;
-use std::ops::Range;
+use std::ops::{Div, Range};
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Deref, DerefMut, AsRef, AsMut, IntoIterator, Clone)]
+#[derive(Deref, DerefMut, IntoIterator, Clone, PartialEq)]
 pub struct Buffer {
-    #[deref]
+    #[deref(forward)]
     #[deref_mut]
-    #[as_ref(forward)]
-    #[as_mut(forward)]
     #[into_iterator(owned, ref, ref_mut)]
     inner: Vec<Cell>,
-    pub width: usize,
-    pub height: usize,
+    width: usize,
+    height: usize,
 }
 
 impl Buffer {
@@ -34,15 +33,15 @@ impl Buffer {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             inner: vec![Cell::EMPTY; width * height],
-            width,
-            height,
+            width: width,
+            height: height,
         }
     }
 
     /// Create a buffer from a slice of fixed elements.
     ///
     /// A convenience constructor mostly used for tests.
-    pub fn from_chars(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
+    pub fn from_cells(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
             buffer[(row, col)] = Cell::inline(ch).with_style(style);
@@ -152,29 +151,9 @@ impl Buffer {
         string: impl AsRef<str>,
         arena: &mut Arena,
     ) -> Option<usize> {
-        if let Some(slice) = self.get_mut(index) {
-            let mut remaining = slice.len();
-            let mut i = 0;
-
-            for (grapheme, width) in UnicodeSegmentation::graphemes(string.as_ref(), true)
-                .filter(|symbol| !symbol.contains(char::is_control))
-                .map(|symbol| (symbol, symbol.width()))
-                .map_while(|(symbol, width)| {
-                    remaining = remaining.checked_sub(width)?;
-                    Some((symbol, width))
-                })
-            {
-                // Writes the base cell and fills its continuations; advances the
-                // cursor by the grapheme's column span.
-                i += CellsMut(&mut slice[i..]).write(grapheme, width, arena);
-            }
-            Some(i)
-        } else {
-            None
-        }
+       self.set_string_impl(index, string, None, arena)
     }
 
-    /// Print the given string until the end of the given index.
     pub fn set_string_styled(
         &mut self,
         index: impl BufferIndex<Output = [Cell]>,
@@ -182,28 +161,69 @@ impl Buffer {
         style: Style,
         arena: &mut Arena,
     ) -> Option<usize> {
-        if let Some(slice) = self.get_mut(index) {
-            let mut remaining = slice.len();
-
-            Some(
-                string
-                    .as_ref()
-                    .graphemes(true)
-                    .filter(|symbol| !symbol.contains(char::is_control))
-                    .map_while(|symbol| {
-                        let width = symbol.width();
-                        remaining = remaining.checked_sub(width)?;
-                        Some((symbol, width))
-                    })
-                    .fold(0, |i, (grapheme, width)| {
-                        i + CellsMut(&mut slice[i..]).write_styled(grapheme, width, style, arena)
-                    }),
-            )
-        } else {
-            None
-        }
+        self.set_string_impl(index, string, Some(style), arena)
     }
 
+    /// Write one measured grapheme and all of its continuation cells.
+    ///
+    /// Returns `None` when the grapheme is zero-width or its complete display
+    /// width does not fit in the buffer row.
+    pub fn set_grapheme_styled(
+        &mut self,
+        position: Point,
+        grapheme: &str,
+        width: usize,
+        style: Style,
+        arena: &mut Arena,
+    ) -> Option<usize> {
+        if width == 0 || position.y as usize >= self.height {
+            return None;
+        }
+
+        let start_x = position.x as usize;
+        let end_x = start_x.checked_add(width)?;
+
+        if end_x > self.width {
+            return None;
+        }
+
+        let start = position.y as usize * self.width + start_x;
+        Some(
+            CellsMut(&mut self.inner[start..start + width])
+                .write_styled(grapheme, width, style, arena),
+        )
+    }
+
+    /// Print the given string until the end of the given index.
+    fn set_string_impl(
+        &mut self,
+        index: impl BufferIndex<Output = [Cell]>,
+        string: impl AsRef<str>,
+        style: Option<Style>,
+        arena: &mut Arena,
+    ) -> Option<usize> {
+        let slice = self.get_mut(index)?;
+        let mut remaining = slice.len();
+        let mut i = 0;
+
+        for grapheme in string.as_ref().graphemes(true) {
+            if grapheme.contains(char::is_control) {
+                continue;
+            }
+
+            let width = grapheme.width();
+            remaining = remaining.checked_sub(width)?;
+
+            let written = match style {
+                Some(style) => CellsMut(&mut slice[i..]).write_styled(grapheme, width, style, arena),
+                None => CellsMut(&mut slice[i..]).write(grapheme, width, arena),
+            };
+
+            i += written;
+        }
+
+        Some(i)
+    }
     /// Print the given string until the end of the line.
     pub fn set_line(
         &mut self,
@@ -235,6 +255,10 @@ impl Buffer {
         self.resolve(value)
     }
 
+    /// Returns the slice index of the given buffer index.
+    pub fn slice_index_of<I: BufferIndex>(&self, index: I) -> I::Index {
+        index.into_slice_index(self)
+    }
     /// Insert `n` lines at row `y`, shifting remaining lines down (ANSI IL).
     /// Operates on the full buffer width.
     ///
@@ -296,6 +320,24 @@ impl Buffer {
             return 0..0;
         }
 
+        // If the bounds cover the entire width of the buffer, we can use a
+        // single copy operation.
+        if min_x == 0 && width == self.width {
+            let stride = self.width;
+
+            let src_start = y * stride;
+            let src_end = (max_y - n) * stride;
+            let dst_start = (y + n) * stride;
+
+            self.inner.copy_within(src_start..src_end, dst_start);
+
+            let fill_start = y * stride;
+            let fill_end = (y + n) * stride;
+            self.inner[fill_start..fill_end].fill(cell);
+
+            return y..max_y;
+        }
+
         // Move lines down (backwards to prevent overwriting)
         // Source: [y, max-n) -> Dest: [y+n, max)
         for row in (y..(max_y - n)).rev() {
@@ -339,6 +381,22 @@ impl Buffer {
 
         if width == 0 || y >= max_y {
             return 0..0;
+        }
+
+        if min_x == 0 && width == self.width {
+            let stride = self.width;
+
+            let src_start = (y + n) * stride;
+            let src_end = max_y * stride;
+            let dst_start = y * stride;
+
+            self.inner.copy_within(src_start..src_end, dst_start);
+
+            let clear_start = (max_y - n) * stride;
+            let clear_end = max_y * stride;
+            self.inner[clear_start..clear_end].fill(cell);
+
+            return y..max_y;
         }
 
         let row_stride = self.width();
@@ -467,20 +525,29 @@ impl Buffer {
     }
 
     // Row operations
-    pub fn push_row(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row<I>(&mut self, row: I)
+    where
+        I: IntoIterator<Item = Cell>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let row = row.into_iter();
-        let (input_len, _) = row.size_hint();
-        assert_ne!(input_len, 0);
-        assert!(
-            !(self.height > 0 && input_len != self.width),
-            "pushed row does not match. Length must be {:?}, but was {:?}.",
-            self.width,
-            input_len
-        );
+        let len = row.len();
+
+        assert_ne!(len, 0);
+
+        if self.height > 0 {
+            assert_eq!(
+                len, self.width,
+                "pushed row does not match. Length must be {}, but was {}.",
+                self.width, len
+            );
+        }
+
         self.inner.extend(row);
         self.height += 1;
+
         if self.width == 0 {
-            self.width = self.inner.len();
+            self.width = len;
         }
     }
 
@@ -579,7 +646,7 @@ impl Buffer {
     }
 
     pub fn clear(&mut self) {
-        self.inner.fill(Cell::default());
+        self.inner.fill(Cell::EMPTY);
     }
 
     pub fn iter_col(&self, col: usize) -> StepBy<Iter<'_, Cell>> {
@@ -660,10 +727,32 @@ impl Buffer {
     }
 
     pub fn to_string(&self, arena: &Arena) -> String {
-        self.iter_rows()
-            .map(|row| row.map(|cell| cell.as_str(arena)).collect::<String>())
-            .intersperse(String::from("\n"))
-            .collect()
+        if self.is_empty() {
+            return String::new();
+        }
+
+        let last_cell = self.iter().rposition(|c| !c.is_empty()).unwrap_or(0);
+
+        if last_cell == 0 {
+            return String::new();
+        }
+
+        let mut out = String::with_capacity(last_cell + (last_cell / 2));
+
+        for y in 0..self.height {
+            if y > 0 {
+                out.push('\n');
+            }
+
+            let start = y * self.width;
+            let end = start + self.width;
+
+            for cell in &self.inner[start..end] {
+                out.push_str(cell.as_str_or(arena, " "));
+            }
+        }
+
+        out
     }
 
     /// Returns a [`BufferCells`] between the cells of `prev` and `next`.
@@ -688,25 +777,6 @@ impl Buffer {
     /// All rows are marked.
     pub fn into_tracking(self) -> TrackingBuffer {
         TrackingBuffer::from_buffer_marked(self)
-    }
-
-    /// Create a clean [`TrackingBuffer`] from this buffer.
-    ///
-    /// All rows are unmarked.
-    pub fn into_tracking_unmarked(self) -> TrackingBuffer {
-        TrackingBuffer::from_buffer_unmarked(self)
-    }
-
-    /// Create a [`TrackingBuffer`] from this buffer.
-    ///
-    /// All rows are iterated over. They are marked if they are non-empty.
-    pub fn into_tracking_checked(self) -> TrackingBuffer {
-        TrackingBuffer::from_buffer_checked(self)
-    }
-
-    /// Returns the slice index of the given buffer index.
-    pub fn slice_index_of<I: BufferIndex>(&self, index: I) -> I::Index {
-        index.into_slice_index(self)
     }
 }
 
@@ -737,18 +807,24 @@ impl Bound for Buffer {
         Point::new(self.max_x(), self.max_y())
     }
 }
-
-impl PartialEq for Buffer {
-    fn eq(&self, other: &Self) -> bool {
-        if self.height != other.height || self.width != other.width {
-            return false;
-        }
-        for (self_row, other_row) in core::iter::zip(self.iter_rows(), other.iter_rows()) {
-            if self_row.ne(other_row) {
-                return false;
-            }
-        }
-        true
+const impl AsRef<[Cell]> for Buffer {
+    fn as_ref(&self) -> &[Cell] {
+        &self.inner
+    }
+}
+const impl AsMut<[Cell]> for Buffer {
+    fn as_mut(&mut self) -> &mut [Cell] {
+        &mut self.inner
+    }
+}
+const impl Borrow<[Cell]> for Buffer {
+    fn borrow(&self) -> &[Cell] {
+        self.as_ref()
+    }
+}
+const impl BorrowMut<[Cell]> for Buffer {
+    fn borrow_mut(&mut self) -> &mut [Cell] {
+        self.as_mut()
     }
 }
 
@@ -791,4 +867,31 @@ impl Debug for Buffer {
         }
         write!(f, "]")
     }
+}
+
+impl Display for Buffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.height == 0 || self.width == 0 {
+            return Ok(())
+        }
+
+        for y in 0..self.height {
+            if y > 0 {
+                f.write_char('\n')?;
+            }
+
+            let start = y * self.width;
+            let end = start + self.width;
+
+            for cell in &self.inner[start..end] {
+                write!(f, "{:?}", cell)?;
+            }
+        }
+        Ok(())
+    }
+}
+#[test]
+fn qwe() {
+    let buf = Buffer::new(10, 5);
+
 }

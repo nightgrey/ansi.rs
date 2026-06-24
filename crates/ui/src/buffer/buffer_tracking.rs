@@ -119,7 +119,7 @@ impl TrackingBuffer {
     /// Wraps an existing [`Buffer`] and marks every row.
     pub fn from_buffer_marked(buffer: Buffer) -> Self {
         let mut map = Map::new();
-        map.insert_range(0, buffer.height as u64);
+        map.insert_range(0, buffer.height() as u64);
         Self { inner: buffer, map }
     }
 
@@ -225,7 +225,7 @@ impl TrackingBuffer {
 
     /// Returns the number of unmarked rows.
     pub fn count_unmarked(&self) -> usize {
-        self.inner.height - self.count_marked()
+        self.inner.height() - self.count_marked()
     }
 
     /// Returns the raw marker set.
@@ -292,8 +292,8 @@ impl TrackingBuffer {
     /// the conservative and predictable behavior is to mark the full resized
     /// buffer whenever the dimensions change.
     pub fn resize(&mut self, next_width: usize, next_height: usize) {
-        let previous_height = self.inner.height;
-        let previous_width = self.inner.width;
+        let previous_height = self.inner.height();
+        let previous_width = self.inner.width();
 
         if previous_width == next_width && previous_height == next_height {
             return;
@@ -402,14 +402,20 @@ impl TrackingBuffer {
     }
 
     /// Appends a row and leaves the new row unmarked.
-    pub fn push_row_unmarked(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row_unmarked<I>(&mut self, row: I) where
+        I: IntoIterator<Item = Cell>,
+        I::IntoIter: ExactSizeIterator,
+    {
         self.inner.push_row(row);
     }
 
     /// Appends a row and marks it.
-    pub fn push_row_marked(&mut self, row: impl IntoIterator<Item = Cell>) {
+    pub fn push_row_marked<I>(&mut self, row: I) where
+        I: IntoIterator<Item = Cell>,
+        I::IntoIter: ExactSizeIterator,
+    {
         self.push_row_unmarked(row);
-        self.mark(self.height - 1);
+        self.mark(self.height() as usize - 1);
     }
 
     /// Removes and returns the last row.
@@ -421,7 +427,7 @@ impl TrackingBuffer {
         // The popped row was the last one, so every surviving marker keeps its
         // index. Only the marker for the now-removed row can be out of range, so
         // drop just that single trailing bit.
-        self.map.remove(self.inner.height as u64);
+        self.map.remove(self.inner.height() as u64);
 
         Some(row)
     }
@@ -459,7 +465,7 @@ impl TrackingBuffer {
     /// Inserts a row and marks rows shifted down.
     /// The inserted row is unmarked.
     pub fn insert_row(&mut self, idx: usize, row: impl IntoIterator<Item = Cell>) {
-        if idx > self.height {
+        if idx > self.height() as usize {
             return;
         }
 
@@ -599,7 +605,7 @@ pub trait TrackingBufferIndex: BufferIndex {
 impl TrackingBufferIndex for usize {
     fn try_mark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let index = *self;
-        if index >= tracking_buffer.height {
+        if index >= tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.map.insert(index as u64);
@@ -607,7 +613,7 @@ impl TrackingBufferIndex for usize {
     }
     fn try_unmark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let index = *self;
-        if index >= tracking_buffer.height {
+        if index >= tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.map.remove(index as u64);
@@ -653,7 +659,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
         let end = self.end.clone().into_slice_index(tracking_buffer);
 
         // `end` is exclusive, so `end == height` is the in-bounds "whole buffer".
-        if end > tracking_buffer.height {
+        if end > tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.map.insert_range(start as u64, end as u64);
@@ -663,7 +669,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for Range<I> {
         let start = self.start.clone().into_slice_index(tracking_buffer);
         let end = self.end.clone().into_slice_index(tracking_buffer);
 
-        if end > tracking_buffer.height {
+        if end > tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer.map.remove_range(start as u64, end as u64);
@@ -675,7 +681,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeInclusive<I> {
         let start = self.start().clone().into_slice_index(tracking_buffer);
         let end = self.end().clone().into_slice_index(tracking_buffer);
 
-        if end >= tracking_buffer.height {
+        if end >= tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer
@@ -687,7 +693,7 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeInclusive<I> {
         let start = self.start().clone().into_slice_index(tracking_buffer);
         let end = self.end().clone().into_slice_index(tracking_buffer);
 
-        if end >= tracking_buffer.height {
+        if end >= tracking_buffer.height() as usize {
             return Err(TrackingBufferError::OutOfBounds);
         }
         tracking_buffer
@@ -699,14 +705,14 @@ impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeInclusive<I> {
 impl<I: BufferIndex<Index = usize>> TrackingBufferIndex for RangeFrom<I> {
     fn try_mark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let start = self.start.clone().into_slice_index(tracking_buffer);
-        let end = tracking_buffer.height;
+        let end = tracking_buffer.height();
 
         tracking_buffer.map.insert_range(start as u64, end as u64);
         Ok(())
     }
     fn try_unmark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         let start = self.start.clone().into_slice_index(tracking_buffer);
-        let end = tracking_buffer.height;
+        let end = tracking_buffer.height();
 
         tracking_buffer.map.remove_range(start as u64, end as u64);
         Ok(())
@@ -745,13 +751,13 @@ impl TrackingBufferIndex for RangeFull {
     fn try_mark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         tracking_buffer
             .map
-            .insert_range(0, tracking_buffer.height as u64);
+            .insert_range(0, tracking_buffer.height() as u64);
         Ok(())
     }
     fn try_unmark(&self, tracking_buffer: &mut TrackingBuffer) -> Result<(), TrackingBufferError> {
         tracking_buffer
             .map
-            .remove_range(0, tracking_buffer.height as u64);
+            .remove_range(0, tracking_buffer.height() as u64);
         Ok(())
     }
 }

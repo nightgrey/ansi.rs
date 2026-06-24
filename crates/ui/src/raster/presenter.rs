@@ -140,11 +140,11 @@ impl<W: Write> Presenter<W> {
         let mut stats = PresenterStats::default();
         self.writer.reset();
 
-        let dims_changed = prev.width != next.width || prev.height != next.height;
+        let dims_changed = prev.width() != next.width() || prev.height() != next.height();
         let force_full = self.invalidated || dims_changed;
 
         let emission = self
-            .begin_frame(next.width, next.height, force_full)
+            .begin_frame(next.width(), next.height(), force_full)
             .and_then(|()| {
                 if self.is_inline() {
                     if force_full {
@@ -182,11 +182,11 @@ impl<W: Write> Presenter<W> {
         let mut stats = PresenterStats::default();
         self.writer.reset();
 
-        let dims_changed = prev.width != next.width || prev.height != next.height;
+        let dims_changed = prev.width() != next.width() || prev.height() != next.height();
         let force_full = self.invalidated || dims_changed;
 
         let emission = self
-            .begin_frame(next.width, next.height, force_full)
+            .begin_frame(next.width(), next.height(), force_full)
             .and_then(|()| {
                 if force_full {
                     self.emit_full(next.as_inner(), arena, &mut stats)
@@ -298,8 +298,8 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
-        let width = next.width;
-        let height = next.height;
+        let width = next.width();
+        let height = next.height();
         if width == 0 || height == 0 {
             return Ok(());
         }
@@ -343,8 +343,8 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
-        let width = next.width;
-        let height = next.height;
+        let width = next.width();
+        let height = next.height();
         if width == 0 || height == 0 {
             return Ok(());
         }
@@ -381,7 +381,7 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
-        let height = next.height;
+        let height = next.height();
 
         if let Some(inline) = self.inline.as_mut() {
             inline.is_first = false;
@@ -434,12 +434,12 @@ impl<W: Write> Presenter<W> {
         arena: &Arena,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
-        let prev_height = self.inline_grow(next.height)?;
+        let prev_height = self.inline_grow(next.height())?;
         self.inline_rewind()?;
         // The run loop's cursor moves are mode-aware via `move_pen`, so the same
         // path serves fullscreen and inline.
         self.emit_run_loop(prev, next, arena, stats)?;
-        self.inline_shrink(prev_height, next.height)
+        self.inline_shrink(prev_height, next.height())
     }
 
     /// Walk the changed runs of `next` vs `prev`, emitting each one. Shared by
@@ -521,7 +521,7 @@ impl<W: Write> Presenter<W> {
         /// Byte length of `\x1B[K`.
         const EL_COST: u16 = 3;
 
-        let width = next.width as u16;
+        let width = next.width() as u16;
         let y = run.y;
         let run_end = run.x + run.as_ref().len() as u16;
 
@@ -780,8 +780,8 @@ mod tests {
 
         /// Present `next`, returning just the bytes emitted for this frame.
         fn present(&mut self, next: &Buffer, arena: &Arena) -> (PresenterStats, Vec<u8>) {
-            if self.prev.width != next.width || self.prev.height != next.height {
-                self.prev.resize(next.width, next.height);
+            if self.prev.width() != next.width() || self.prev.height() != next.height() {
+                self.prev.resize(next.width(), next.height());
                 self.prev.clear();
             }
             let stats = self.inner.present(&self.prev, next, arena).unwrap();
@@ -807,7 +807,7 @@ mod tests {
 
     #[test]
     fn fullscreen_first_frame_clears_then_paints() {
-        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1);
         let out = h.frame_str(&buf, &Arena::new());
         assert!(out.contains("\x1B[2J"), "first frame should ED2: {out:?}");
@@ -816,7 +816,7 @@ mod tests {
 
     #[test]
     fn fullscreen_identical_second_frame_emits_no_content() {
-        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None)]);
+        let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None)]);
         let mut h = Harness::new(3, 1);
         h.present(&buf, &Arena::new());
         let out = h.frame_str(&buf, &Arena::new());
@@ -827,7 +827,7 @@ mod tests {
     #[test]
     fn fullscreen_diff_emits_only_changed_cell() {
         let arena = Arena::new();
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             3,
             1,
             &[
@@ -839,7 +839,7 @@ mod tests {
         let mut h = Harness::new(3, 1);
         h.present(&buf1, &arena);
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             3,
             1,
             &[
@@ -858,7 +858,7 @@ mod tests {
     fn fullscreen_diff_clears_row_with_erase_line() {
         let arena = Arena::new();
         let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
-        let buf = Buffer::from_chars(20, 1, &full);
+        let buf = Buffer::from_cells(20, 1, &full);
         let mut h = Harness::new(20, 1);
         h.present(&buf, &arena);
 
@@ -876,13 +876,13 @@ mod tests {
     fn fullscreen_diff_shrink_uses_erase_line_for_tail() {
         let arena = Arena::new();
         let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
-        let buf = Buffer::from_chars(20, 1, &full);
+        let buf = Buffer::from_cells(20, 1, &full);
         let mut h = Harness::new(20, 1);
         h.present(&buf, &arena);
 
         // Keep the first two cells, clear the rest to the row end.
         let shrunk =
-            Buffer::from_chars(20, 1, &[(0, 0, 'x', Style::None), (0, 1, 'x', Style::None)]);
+            Buffer::from_cells(20, 1, &[(0, 0, 'x', Style::None), (0, 1, 'x', Style::None)]);
         let out = h.frame_str(&shrunk, &arena);
         assert!(
             out.contains("\x1B[K"),
@@ -897,7 +897,7 @@ mod tests {
     #[test]
     fn fullscreen_diff_no_erase_line_when_tail_has_content() {
         let arena = Arena::new();
-        let buf = Buffer::from_chars(
+        let buf = Buffer::from_cells(
             5,
             1,
             &[
@@ -911,7 +911,7 @@ mod tests {
 
         // Clear b (col 1) but col 4 'Z' stays: a blank gap mid-row must not be
         // turned into an EL (that would wipe 'Z').
-        let next = Buffer::from_chars(5, 1, &[(0, 0, 'a', Style::None), (0, 4, 'Z', Style::None)]);
+        let next = Buffer::from_cells(5, 1, &[(0, 0, 'a', Style::None), (0, 4, 'Z', Style::None)]);
         let out = h.frame_str(&next, &arena);
         assert!(
             !out.contains("\x1B[K"),
@@ -921,7 +921,7 @@ mod tests {
 
     #[test]
     fn fullscreen_invalidate_forces_full_redraw() {
-        let buf = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
+        let buf = Buffer::from_cells(2, 1, &[(0, 0, 'Z', Style::None)]);
         let mut h = Harness::new(2, 1);
         h.present(&buf, &Arena::new());
 
@@ -934,7 +934,7 @@ mod tests {
     #[test]
     fn fullscreen_sync_output_wraps_frame() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1).with_capabilities(caps);
         let out = h.frame_str(&buf, &Arena::new());
         assert!(out.starts_with("\x1B[?2026h"), "begin sync: {out:?}");
@@ -943,7 +943,7 @@ mod tests {
 
     #[test]
     fn fullscreen_hides_then_shows_cursor() {
-        let buf = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1);
         let out = h.frame_str(&buf, &Arena::new());
         let hide = out.find("\x1B[?25l");
@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn inline_first_frame_has_no_ed_or_home() {
-        let buf = Buffer::from_chars(3, 2, &[(0, 0, 'x', Style::None), (1, 0, 'y', Style::None)]);
+        let buf = Buffer::from_cells(3, 2, &[(0, 0, 'x', Style::None), (1, 0, 'y', Style::None)]);
         let mut h = Harness::inline(3, 2);
         let out = h.frame_str(&buf, &Arena::new());
         assert!(!out.contains("\x1B[2J"), "no ED2 inline: {out:?}");
@@ -972,7 +972,7 @@ mod tests {
 
     #[test]
     fn inline_identical_second_frame_emits_no_content() {
-        let buf = Buffer::from_chars(
+        let buf = Buffer::from_cells(
             5,
             2,
             &[
@@ -991,7 +991,7 @@ mod tests {
 
     #[test]
     fn inline_diff_emits_only_changed_cell() {
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             5,
             2,
             &[
@@ -1004,7 +1004,7 @@ mod tests {
         let mut h = Harness::inline(5, 2);
         h.present(&buf1, &Arena::new());
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             5,
             2,
             &[
@@ -1022,7 +1022,7 @@ mod tests {
 
     #[test]
     fn inline_second_frame_rewinds_with_cuu() {
-        let buf = Buffer::from_chars(
+        let buf = Buffer::from_cells(
             5,
             3,
             &[
@@ -1034,7 +1034,7 @@ mod tests {
         let mut h = Harness::inline(5, 3);
         h.present(&buf, &Arena::new());
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             5,
             3,
             &[
@@ -1052,11 +1052,11 @@ mod tests {
 
     #[test]
     fn inline_grow_claims_new_rows_with_newline() {
-        let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
+        let buf1 = Buffer::from_cells(3, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(3, 2);
         h.present(&buf1, &Arena::new());
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             3,
             3,
             &[
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[test]
     fn inline_shrink_clears_orphan_rows() {
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             3,
             3,
             &[
@@ -1087,7 +1087,7 @@ mod tests {
         let mut h = Harness::inline(3, 3);
         h.present(&buf1, &Arena::new());
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', Style::None)]);
+        let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'a', Style::None)]);
         let out = h.frame_str(&buf2, &Arena::new());
         assert!(out.contains("\x1B[K"), "should EL orphan rows: {out:?}");
     }
@@ -1097,7 +1097,7 @@ mod tests {
         // After invalidate (no resize) the inline region already exists on
         // screen, so the repaint must rewind (CUU) rather than re-claim with
         // newlines, and it must re-emit the content.
-        let buf = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
+        let buf = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
         h.present(&buf, &Arena::new());
 
@@ -1122,11 +1122,11 @@ mod tests {
         // Row 1 had content; after invalidate the new frame leaves it empty.
         // The fullscreen full-paint skips empty rows (EraseDisplay handles
         // them), but inline has no EraseDisplay, so the row must be EL-cleared.
-        let buf1 = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
+        let buf1 = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
         h.present(&buf1, &Arena::new());
 
-        let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'a', Style::None)]);
+        let buf2 = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None)]);
         h.invalidate();
         let out = h.frame_str(&buf2, &Arena::new());
         assert!(
@@ -1147,11 +1147,11 @@ mod tests {
     fn fullscreen_style_change_across_frames_emits_new_sgr() {
         let s1 = Style::default().foreground(Color::Rgb(255, 0, 0));
         let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
-        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
+        let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1)]);
         let mut h = Harness::new(3, 1);
         h.present(&buf1, &Arena::new());
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
+        let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s2)]);
         let out = h.frame_str(&buf2, &Arena::new());
         assert!(out.contains("38;2;0;0;255"), "should emit new fg: {out:?}");
     }
@@ -1163,7 +1163,7 @@ mod tests {
         use crate::TrackingBuffer;
         let mut arena = Arena::new();
 
-        let prev = Buffer::from_chars(
+        let prev = Buffer::from_cells(
             3,
             2,
             &[
@@ -1595,9 +1595,9 @@ mod tests {
             /// Present `next`, feed the frame's bytes through the parser, then assert
             /// the reconstructed grid matches `next`.
             fn frame(&mut self, next: &Buffer, arena: &Arena) {
-                assert_eq!(self.term.width, next.width, "width must be stable");
-                if self.prev.width != next.width || self.prev.height != next.height {
-                    self.prev.resize(next.width, next.height);
+                assert_eq!(self.term.width, next.width(), "width must be stable");
+                if self.prev.width() != next.width() || self.prev.height() != next.height() {
+                    self.prev.resize(next.width(), next.height());
                     self.prev.clear();
                 }
                 self.presenter.present(&self.prev, next, arena).unwrap();
@@ -1615,8 +1615,8 @@ mod tests {
 
         /// Assert the reconstructed terminal grid matches `next` cell-for-cell.
         fn assert_grid(term: &Emulator, next: &Buffer, arena: &Arena, bytes: &[u8]) {
-            for y in 0..next.height {
-                for x in 0..next.width {
+            for y in 0..next.height() {
+                for x in 0..next.width() {
                     let cell = &next[geometry::Point {
                         x: x as u16,
                         y: y as u16,
@@ -1624,8 +1624,8 @@ mod tests {
                     let expected = canon_cell(cell, arena);
                     let actual = canon_term(term.get(x, y));
                     if expected != actual {
-                        let w = next.width;
-                        let h = next.height;
+                        let w = next.width();
+                        let h = next.height();
                         panic!(
                             "mismatch at ({x},{y}): expected {} got {}\n\
                      expected grid:\n{}\nreconstructed grid:\n{}\nbytes: {:?}",
@@ -1690,12 +1690,12 @@ mod tests {
             }
 
             fn frame(&mut self, next: &Buffer, arena: &Arena) {
-                assert_eq!(self.term.width, next.width, "width must be stable");
+                assert_eq!(self.term.width, next.width(), "width must be stable");
 
                 // Apply `next` into the tracking buffer, marking only the rows that
                 // actually change (writing via `Point` marks that row).
-                for y in 0..next.height {
-                    for x in 0..next.width {
+                for y in 0..next.height() {
+                    for x in 0..next.width() {
                         let p = geometry::Point {
                             x: x as u16,
                             y: y as u16,

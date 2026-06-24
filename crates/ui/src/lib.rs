@@ -14,6 +14,7 @@
 #![feature(bound_copied)]
 #![feature(const_clone)]
 #![feature(slice_get_slice)]
+#![feature(int_roundings)]
 extern crate core;
 
 pub mod drawing;

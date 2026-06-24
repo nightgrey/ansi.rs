@@ -182,15 +182,21 @@ impl Grapheme {
     /// extended graphemes borrow from `arena`. Empty and continuation cells
     /// resolve to `""`.
     pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &'a str {
+        self.as_str_or(arena, "")
+    }
+
+    /// Resolve to a `&str`. Inline graphemes read zero-copy from `self`;
+    /// extended graphemes borrow from `arena`. Empty and continuation cells
+    /// resolve to `default`.
+    pub fn as_str_or<'a>(&'a self, arena: &'a Arena, default: &'a str) -> &'a str {
         if self.is_none() {
-            ""
+            default
         } else if self.is_inline() {
             self.as_inline_str()
         } else {
             arena.get(*self)
         }
     }
-
     /// Resolve to a byte slice (see [`as_str`](Self::as_str)).
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.as_str(arena).as_bytes()

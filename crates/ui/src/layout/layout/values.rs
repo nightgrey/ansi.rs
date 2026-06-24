@@ -240,7 +240,13 @@ pub enum Available {
     Max,
 }
 
-const impl From<u32> for Available {
+impl From<i32> for Available {
+    fn from(value: i32) -> Self {
+        Self::Pixel(value as u32)
+    }
+}
+
+impl From<u32> for Available {
     fn from(value: u32) -> Self {
         Self::Pixel(value)
     }

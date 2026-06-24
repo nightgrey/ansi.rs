@@ -1,11 +1,6 @@
-use crate::symbols::Symbol;
-use crate::{Arena, Buffer, DrawingOptions};
-use crate::{Border, DrawingContext};
+use crate::{Arena, Border, Buffer, DrawingContext, DrawingOptions};
 use ansi::Style;
-use bon::Builder;
-use derive_more::{Deref, DerefMut};
-use geometry::{Bound, Contains, Intersect, Outer, Point, Rect, Resolve, Size, Translate};
-use number::{SaturatingAdd, SaturatingSub};
+use geometry::{Bound, Intersect, Outer, Point, Rect, Size, Translate};
 use smallvec::SmallVec;
 use std::io;
 use unicode_segmentation::UnicodeSegmentation;
@@ -16,35 +11,17 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 pub struct State {
     clip: Rect,
     origin: Point,
-    pub style: Style,
-    pub border: Border,
-    pub glyph: char,
+    style: Style,
+    border: Border,
+    glyph: char,
 }
 
-// Lightweight per-call override containers. `None` fields inherit from
-// the current context state. All methods are `const` to enable static
-// construction without runtime overhead.
-#[derive(Debug, Clone, Default, Builder, Copy)]
-pub struct BufferPainterOptions {
-    pub style: Option<Style>,
-    pub glyph: Option<char>,
-    pub border: Option<Border>,
-}
-
-impl BufferPainterOptions {
-    fn new() -> BufferPainterOptions {
-        Self::default()
-    }
-}
-
-impl From<DrawingOptions> for BufferPainterOptions {
-    fn from(value: DrawingOptions) -> Self {
-        Self {
-            style: value.layout.map(Into::into),
-            glyph: value.glyph,
-            border: value.border,
-        }
-    }
+#[derive(Debug, Clone, Copy)]
+struct Options {
+    style: Style,
+    glyph: char,
+    glyph_width: usize,
+    border: Border,
 }
 
 /// 2D drawing context for terminal buffers.
@@ -52,12 +29,10 @@ impl From<DrawingOptions> for BufferPainterOptions {
 /// Modeled after HTML Canvas — mutable "current state" with a save/restore
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
-#[derive(Debug, Deref, DerefMut)]
+#[derive(Debug)]
 pub struct BufferPainter<'a> {
     buffer: &'a mut Buffer,
     arena: &'a mut Arena,
-    #[deref]
-    #[deref_mut]
     state: State,
     stacks: SmallVec<State, 16>,
 }
@@ -80,48 +55,59 @@ impl<'buf> BufferPainter<'buf> {
         }
     }
 
-    fn to_local<T: Translate<Point>>(&self, value: T) -> T::Output {
-        value.translate(&self.origin)
+    #[inline]
+    fn resolve(&self, options: DrawingOptions) -> Options {
+        let glyph = options.glyph.unwrap_or(self.state.glyph);
+
+        Options {
+            style: options.layout.map_or(self.state.style, Into::into),
+            glyph,
+            glyph_width: glyph.width().unwrap_or(0),
+            border: options.border.map_or(self.state.border, Into::into),
+        }
     }
 
-    fn intersect(&self, rect: Rect) -> Option<Rect> {
-        let result = self.clip.intersect(&rect);
+    fn to_local<T: Translate<Point>>(&self, value: T) -> T::Output {
+        value.translate(&self.state.origin)
+    }
+
+    fn intersect<T: Bound, O: Bound>(&self, rect: T) -> Option<O> where Rect: Intersect<T, Output = O> {
+        let result = self.state.clip.intersect(&rect);
         (!result.is_empty()).then_some(result)
     }
 }
 
 impl<'a> DrawingContext for BufferPainter<'a> {
     type Error = io::Error;
-    type Options = BufferPainterOptions;
 
     fn current_clip(&self) -> Rect {
-        self.clip
+        self.state.clip
     }
 
     fn current_style(&self) -> crate::Layout {
-        self.style.into()
+        self.state.style.into()
     }
 
     fn current_glyph(&self) -> char {
-        self.glyph
+        self.state.glyph
     }
 
     fn current_border_style(&self) -> Border {
-        self.border
+        self.state.border
     }
 
     fn style(&mut self, style: crate::Layout) -> &mut Self {
-        self.style = style.into();
+        self.state.style = style.into();
         self
     }
 
     fn glyph(&mut self, glyph: char) -> &mut Self {
-        self.glyph = glyph;
+        self.state.glyph = glyph;
         self
     }
 
     fn border_style(&mut self, border: Border) -> &mut Self {
-        self.border = border;
+        self.state.border = border;
         self
     }
 
@@ -129,310 +115,138 @@ impl<'a> DrawingContext for BufferPainter<'a> {
     ///
     /// The input is in local coordinates and will be transformed before
     /// intersection.
-    fn clip(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.clip = self.clip.intersect(&self.to_local(rect.into()));
+    fn clip(&mut self, rect: Rect) -> &mut Self {
+        self.state.clip = self.state.clip.intersect(&self.to_local(rect));
         self
     }
 
     /// Shift the origin by `offset`. Cumulative within a save/restore frame.
-    fn translate(&mut self, offset: impl Into<Point>) -> &mut Self {
-        self.origin += offset.into();
+    fn translate(&mut self, offset: Point) -> &mut Self {
+        self.state.origin += offset;
         self
     }
 
-    fn rect(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.rect_with(rect, BufferPainterOptions::default())
-    }
+    fn rect_with(&mut self, rect: Rect, options: DrawingOptions) -> Result<&mut Self, Self::Error> {
+        let rect = self.to_local(rect);
+        let options = self.resolve(options);
 
-    fn rect_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
-        let local_rect = self.to_local(rect.into());
-        let style = options.style.unwrap_or(self.style);
-        let glyph = options.glyph.unwrap_or(self.glyph);
+        if options.glyph_width == 0 {
+            return Ok(self);
+        }
 
-        if let Some(clipped) = self.intersect(local_rect) {
-            // Fill row by row over contiguous cell slices. Hoisting the buffer
-            // width, glyph width and arena out of the loop turns each cell into
-            // a plain field write — no per-cell 2D→1D resolve and no per-cell
-            // grapheme-width recomputation.
-            let buf_width = self.buffer.width;
-            let glyph_width = glyph.width().unwrap_or(0);
-            let arena = &mut *self.arena;
-            let (left, right) = (clipped.left() as usize, clipped.right() as usize);
-            let row_len = right - left;
+        if let Some(clipped) = self.intersect(rect) {
+            let mut encoded = [0; 4];
+            let grapheme = options.glyph.encode_utf8(&mut encoded);
+            let width = options.glyph_width as u16;
 
-            for y in clipped.top() as usize..clipped.bottom() as usize {
-                let start = y * buf_width + left;
-                for cell in &mut self.buffer[start..start + row_len] {
-                    cell.set_char_measured(glyph, glyph_width, arena)
-                        .set_style(style);
+            for y in clipped.top()..clipped.bottom() {
+                let mut x = clipped.left();
+
+                while x.saturating_add(width) <= clipped.right() {
+                    self.buffer.set_grapheme_styled(
+                        Point::new(x, y),
+                        grapheme,
+                        options.glyph_width,
+                        options.style,
+                        self.arena,
+                    );
+                    x = x.saturating_add(width);
                 }
             }
         }
 
-        self
-    }
-
-    fn outline(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.outline_with(rect, BufferPainterOptions::default())
-    }
-
-    fn outline_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
-        let local_rect = self.to_local(rect.into());
-
-        // Top edge
-        self.horizontal_line_with(local_rect.min, local_rect.width(), options);
-
-        // Bottom edge
-        if local_rect.height() > 1 {
-            self.horizontal_line_with(
-                local_rect.bottom_left().saturating_sub(Point::new(0, 1)),
-                local_rect.width(),
-                options,
-            );
-        }
-
-        // Left edge (excluding corners)
-        if local_rect.height() > 2 {
-            self.vertical_line_with(
-                local_rect.top_left().saturating_add(Point::new(0, 1)),
-                local_rect.height() - 2,
-                options,
-            );
-        }
-
-        // Right edge (excluding corners)
-        if local_rect.width() > 1 && local_rect.height() > 2 {
-            self.vertical_line_with(
-                Point::new(
-                    local_rect.right().saturating_sub(1),
-                    local_rect.top().saturating_add(1),
-                ),
-                local_rect.height() - 2,
-                options,
-            );
-        }
-
-        self
-    }
-
-    fn border(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.border_with(rect, BufferPainterOptions::default())
-    }
-
-    fn border_with(&mut self, rect: impl Into<Rect>, options: Self::Options) -> &mut Self {
-        let mut local_rect = self.to_local(rect.into());
-        let border_style = options.border.unwrap_or(self.border);
-        let border = border_style.into_symbols();
-
-        // Shrink rect to account for border thickness
-        local_rect.max.x = local_rect.max.x.saturating_sub(border.right.width() as u16);
-        local_rect.max.y = local_rect
-            .max
-            .y
-            .saturating_sub(border.bottom.width() as u16);
-
-        if local_rect.is_empty() {
-            return self;
-        }
-
-        let mut set_cell = |x: u16, y: u16, symbol: Symbol| {
-            if self.clip.contains(&(y as usize, x as usize)) {
-                self.buffer[(y as usize, x as usize)].set_char_measured(
-                    symbol.symbol(),
-                    symbol.width(),
-                    self.arena,
-                );
-            }
-        };
-
-        // Corners
-        set_cell(local_rect.left(), local_rect.top(), border.top_left);
-        set_cell(local_rect.right(), local_rect.top(), border.top_right);
-        set_cell(local_rect.left(), local_rect.bottom(), border.bottom_left);
-        set_cell(local_rect.right(), local_rect.bottom(), border.bottom_right);
-
-        // Horizontal edges
-        let left_offset = border.left.width() as u16;
-        let right_bound = local_rect.right();
-        for x in (local_rect.left() + left_offset)..right_bound {
-            set_cell(x, local_rect.top(), border.top);
-            set_cell(x, local_rect.bottom(), border.bottom);
-        }
-
-        // Vertical edges
-        let top_offset = border.top.width() as u16;
-        let bottom_bound = local_rect.bottom();
-        for y in (local_rect.top() + top_offset)..bottom_bound {
-            set_cell(local_rect.left(), y, border.left);
-            set_cell(local_rect.right(), y, border.right);
-        }
-
-        self
-    }
-
-    fn text(&mut self, position: impl Into<Point>, str: impl AsRef<str>) -> usize {
-        self.text_with(position, str, BufferPainterOptions::default())
+        Ok(self)
     }
 
     fn text_with(
         &mut self,
-        position: impl Into<Point>,
-        str: impl AsRef<str>,
-        options: Self::Options,
-    ) -> usize {
-        let position = self.to_local(position.into());
-        let style = options.style.unwrap_or(self.style);
-        let clip = self.clip;
+        position: Point,
+        text: &str,
+        options: DrawingOptions,
+    ) -> Result<usize, Self::Error> {
+        let position = self.to_local(position);
+        let options = self.resolve(options);
+        let clip = self.state.clip;
 
-        // Drop early when the row is outside the clip.
         if position.y < clip.min.y || position.y >= clip.max.y {
-            return 0;
+            return Ok(0);
         }
 
-        let (left, right) = (clip.left().max(position.x), clip.right());
+        let mut col = position.x;
+        let mut written = 0;
 
-        if left >= right {
-            return 0;
-        }
-
-        let _col = position.x;
-        let _n = 0;
-
-        /*
-        ;
-
-        for grapheme in UnicodeSegmentation::graphemes(str.as_ref(), true) {
+        for grapheme in UnicodeSegmentation::graphemes(text, true) {
             if grapheme.contains(char::is_control) {
                 continue;
             }
+
             let width = grapheme.width() as u16;
+
             if width == 0 {
                 continue;
             }
 
-            if col + width > right {
+            let next = col.saturating_add(width);
+
+            if next > clip.right() {
                 break;
             }
 
-            if col >= left {
-                // Write the base cell and its continuations in one place, then
-                // style the base. The clip guarantees `col + width <= right`, so
-                // the whole grapheme stays within this row.
-                let start = position.y as usize * self.buffer.width + col as usize;
-                let row_end = start + (right - col) as usize;
-
-                self.buffer[start].set_style(style);
-                n += width as usize;
+            if col >= clip.left() {
+                self.buffer.set_grapheme_styled(
+                    Point::new(col, position.y),
+                    grapheme,
+                    width as usize,
+                    options.style,
+                    self.arena,
+                );
+                written += width as usize;
             }
-            col += width;
+
+            col = next;
         }
 
-        n
-        */
-        self.buffer
-            .set_string_styled(position..clip.max, str, style, self.arena)
-            .unwrap_or(0)
-    }
-
-    fn char(&mut self, position: impl Into<Point>, char: char) -> usize {
-        self.char_with(position, char, BufferPainterOptions::default())
+        Ok(written)
     }
 
     fn char_with(
         &mut self,
-        position: impl Into<Point>,
-        char: char,
-        options: Self::Options,
-    ) -> usize {
-        let position = self.to_local(position.into());
-        let style = options.style.unwrap_or(self.style);
-        let clip = self.clip;
-
-        // Drop early when the row is outside the clip.
-        if !clip.contains(&position) {
-            return 0;
+        position: Point,
+        ch: char,
+        options: DrawingOptions,
+    ) -> Result<usize, Self::Error> {
+        if ch.is_control() {
+            return Ok(0);
         }
 
-        self.buffer[position]
-            .set_char(char, self.arena)
-            .set_style(style);
+        let position = self.to_local(position);
+        let options = self.resolve(options);
+        let width = ch.width().unwrap_or(0);
 
-        1
-    }
-
-    fn horizontal_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
-        self.horizontal_line_with(position, length, BufferPainterOptions::default())
-    }
-
-    fn horizontal_line_with(
-        &mut self,
-        position: impl Into<Point>,
-        length: u16,
-        options: Self::Options,
-    ) -> &mut Self {
-        let local_origin = self.to_local(position.into());
-        let style = options.style.unwrap_or(self.style);
-        let glyph = options.glyph.unwrap_or(self.glyph);
-
-        let end = (local_origin.x.saturating_add(length), local_origin.y);
-
-        if self.clip.contains(&local_origin) && self.clip.contains(&end) {
-            // The whole run lives on one row and is contiguous in memory.
-            let buf_width = self.buffer.width;
-            let glyph_width = glyph.width().unwrap_or(0);
-            let arena = &mut *self.arena;
-            let start = local_origin.y as usize * buf_width + local_origin.x as usize;
-
-            for cell in &mut self.buffer[start..start + length as usize] {
-                cell.set_char_measured(glyph, glyph_width, arena)
-                    .set_style(style);
-            }
+        if width == 0 {
+            return Ok(0);
         }
 
-        self
-    }
+        let bounds = Rect::new(position.x, position.y, width as u16, 1);
 
-    fn vertical_line(&mut self, position: impl Into<Point>, length: u16) -> &mut Self {
-        self.vertical_line_with(position, length, BufferPainterOptions::default())
-    }
-
-    fn vertical_line_with(
-        &mut self,
-        position: impl Into<Point>,
-        length: u16,
-        options: Self::Options,
-    ) -> &mut Self {
-        let local_origin = self.to_local(position.into());
-        let style = options.style.unwrap_or(self.style);
-        let glyph = options.glyph.unwrap_or(self.glyph);
-
-        let end = (local_origin.x, local_origin.y.saturating_add(length));
-
-        if self.clip.contains(&local_origin) && self.clip.contains(&end) {
-            // Vertical runs stride by the buffer width; walk a running index
-            // instead of resolving a fresh 2D coordinate for each cell.
-            let buf_width = self.buffer.width;
-            let glyph_width = glyph.width().unwrap_or(0);
-            let arena = &mut *self.arena;
-            let mut index = local_origin.y as usize * buf_width + local_origin.x as usize;
-
-            for _ in 0..length {
-                self.buffer[index]
-                    .set_char_measured(glyph, glyph_width, arena)
-                    .set_style(style);
-                index += buf_width;
-            }
+        if self.state.clip.intersect(&bounds) != bounds {
+            return Ok(0);
         }
 
-        self
-    }
+        let mut encoded = [0; 4];
+        self.buffer.set_grapheme_styled(
+            position,
+            ch.encode_utf8(&mut encoded),
+            width,
+            options.style,
+            self.arena,
+        );
 
-    fn clear(&mut self, rect: impl Into<Rect>) -> &mut Self {
-        self.rect(rect)
+        Ok(width)
     }
 
     fn save(&mut self) -> &mut Self {
-        self.stacks.push(self.clone());
+        self.stacks.push(self.state.clone());
         self
     }
 
@@ -443,38 +257,24 @@ impl<'a> DrawingContext for BufferPainter<'a> {
         self
     }
 
-    fn with(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
-        self.save();
-        f(self);
-        self.restore()
-    }
-
-    fn within(&mut self, rect: impl Into<Rect>, f: impl FnOnce(&mut Self)) -> &mut Self {
-        let rect = rect.into();
-        self.save();
-        self.translate(rect.min);
-        self.clip(Rect::from(rect.size()));
-        f(self);
-        self.restore()
-    }
-
-    fn resize(&mut self, size: impl Into<Size>) -> &mut Self {
-        let size = size.into();
+    fn resize(&mut self, size: Size) -> Result<&mut Self, Self::Error> {
         self.buffer
             .resize(size.width as usize, size.height as usize);
-        self.clip = self.buffer.bounds();
-        self
+        self.state.clip = self.buffer.bounds();
+        Ok(self)
     }
 
-    fn finish(&mut self) -> &mut Self {
-        self
+    fn finish(&mut self) -> Result<&mut Self, Self::Error> {
+        Ok(self)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Document, Element, FlexDirection, FontWeight, TextDecoration};
+    use crate::{
+        Document, DrawingContextExtension, Element, FlexDirection, FontWeight, Layout,
+    };
     use crate::{Grapheme, Layouted};
     use ansi::Color;
     use geometry::{Edges, pos};
@@ -535,9 +335,9 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.style = Style::default().foreground(Color::White);
-        renderer.glyph = 'x';
-        renderer.rect(Rect::new(0, 0, 10, 10));
+        renderer.state.style = Style::default().foreground(Color::White);
+        renderer.state.glyph = 'x';
+        renderer.rect(Rect::new(0, 0, 10, 10)).unwrap();
 
         assert_eq!(
             context.buffer.iter().all(
@@ -552,8 +352,8 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.border = Border::Solid;
-        renderer.border(Rect::new(0, 0, 10, 10));
+        renderer.state.border = Border::Solid;
+        renderer.border(Rect::new(0, 0, 10, 10)).unwrap();
 
         assert_eq!(
             context
@@ -596,11 +396,11 @@ mod tests {
 
         renderer.save();
         renderer.translate(Point::new(3, 3));
-        renderer.text(Point::ZERO, "A");
+        renderer.text(Point::ZERO, "A").unwrap();
         renderer.restore();
 
         // After restore, origin is back to (0,0)
-        renderer.text(Point::ZERO, "B");
+        renderer.text(Point::ZERO, "B").unwrap();
 
         assert_eq!(context.buffer[pos!(3, 3)].grapheme(), Grapheme::inline('A'));
         assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::inline('B'));
@@ -612,10 +412,10 @@ mod tests {
 
         {
             let mut renderer = renderer(&mut context);
-            renderer.glyph = 'X';
+            renderer.state.glyph = 'X';
             renderer.save();
             renderer.clip(Rect::from(Size::new(5, 5)));
-            renderer.rect(Rect::from(Size::new(15, 5)));
+            renderer.rect(Rect::from(Size::new(15, 5))).unwrap();
             renderer.restore();
         }
 
@@ -627,7 +427,7 @@ mod tests {
         {
             // After restore, full clip is back — can write outside
             let mut renderer = renderer(&mut context);
-            renderer.text(Point::new(7, 7), "Y");
+            renderer.text(Point::new(7, 7), "Y").unwrap();
         }
         assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::inline('Y'));
     }
@@ -637,9 +437,9 @@ mod tests {
         let mut context = context(10, 10);
         let mut renderer = renderer(&mut context);
 
-        renderer.glyph = 'W';
+        renderer.state.glyph = 'W';
         renderer.within(Rect::bounds(Point::new(2, 2), Point::new(6, 6)), |r| {
-            r.rect(Rect::new(0, 0, 5, 5));
+            r.rect(Rect::new(0, 0, 5, 5)).unwrap();
         });
 
         // Inside the within rect — filled
@@ -659,7 +459,7 @@ mod tests {
         renderer.translate(Point::new(3, 3));
         renderer.save();
         renderer.translate(Point::new(2, 2));
-        renderer.text(Point::ZERO, "N");
+        renderer.text(Point::ZERO, "N").unwrap();
         renderer.restore();
         renderer.restore();
 
@@ -672,7 +472,7 @@ mod tests {
         let mut context = context(20, 5);
         let mut renderer = renderer(&mut context);
 
-        renderer.text(Point::new(4, 1), "Hi");
+        renderer.text(Point::new(4, 1), "Hi").unwrap();
 
         assert_eq!(context.buffer[(1, 4)].grapheme(), Grapheme::inline('H'));
         assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('i'));
@@ -686,13 +486,86 @@ mod tests {
         let mut renderer = renderer(&mut context);
 
         renderer.clip(Rect::from(Size::new(4, 5)));
-        renderer.text(Point::new(0, 0), "Hello");
+        renderer.text(Point::new(0, 0), "Hello").unwrap();
 
         // Only first 4 chars fit in clip
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('H'));
         assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('l'));
         // 5th char ('o') is outside clip — cell stays empty
         assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn text_returns_display_cells_and_stores_wide_continuations() {
+        let mut context = context(6, 1);
+
+        let written = renderer(&mut context).text(Point::ZERO, "A中B").unwrap();
+
+        assert_eq!(written, 4);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline('中'));
+        assert!(context.buffer[(0, 2)].is_continuation());
+        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('B'));
+    }
+
+    #[test]
+    fn text_only_writes_wide_graphemes_that_fully_fit() {
+        let mut context = context(4, 1);
+        let mut renderer = renderer(&mut context);
+        renderer.clip(Rect::new(0, 0, 2, 1));
+
+        let written = renderer.text(Point::ZERO, "A中").unwrap();
+
+        assert_eq!(written, 1);
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn char_respects_display_width_and_clip() {
+        let mut context = context(4, 1);
+        let mut renderer = renderer(&mut context);
+
+        assert_eq!(renderer.char(Point::ZERO, '中').unwrap(), 2);
+        renderer.clip(Rect::new(0, 0, 3, 1));
+        assert_eq!(renderer.char(Point::new(2, 0), '中').unwrap(), 0);
+
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('中'));
+        assert!(context.buffer[(0, 1)].is_continuation());
+        assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn text_ignores_controls_and_char_ignores_zero_width_scalars() {
+        let mut context = context(4, 1);
+        let mut renderer = renderer(&mut context);
+
+        assert_eq!(renderer.text(Point::ZERO, "A\nB").unwrap(), 2);
+        assert_eq!(renderer.char(Point::new(2, 0), '\u{0301}').unwrap(), 0);
+
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::EMPTY);
+    }
+
+    #[test]
+    fn clear_does_not_depend_on_current_glyph_or_style() {
+        let mut context = context(3, 1);
+        let mut renderer = renderer(&mut context);
+
+        renderer
+            .style(Layout {
+                color: Some(Color::Red),
+                ..Layout::DEFAULT
+            })
+            .glyph('x');
+        renderer.rect(Rect::new(0, 0, 3, 1)).unwrap();
+        renderer.clear(Rect::new(1, 0, 1, 1)).unwrap();
+
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('x'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline(' '));
+        assert!(context.buffer[(0, 1)].style.is_empty());
+        assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::inline('x'));
     }
 
     #[test]
@@ -711,9 +584,9 @@ mod tests {
             node.color = Some(Color::Blue);
         });
 
-        document.compute_layout(Space::new(20u32, 10u32));
+        document.compute_layout(Space::new(20,10));
 
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.paint(&mut BufferPainter::new(&mut context.buffer, &mut context.arena)).unwrap();
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
@@ -754,11 +627,11 @@ mod tests {
             node.color = Some(Color::Blue);
         });
 
-        document.compute_layout(Space::new(30u32, 15u32));
+        document.compute_layout(Space::new(30, 15));
 
         let text_content = document.content_bounds(text_id);
 
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.paint(&mut BufferPainter::new(&mut context.buffer, &mut context.arena)).unwrap();
 
         let div_bounds = document.border_bounds(child_div);
         let text_bounds = document.border_bounds(text_id);
@@ -793,12 +666,15 @@ mod tests {
             node.color = Some(Color::Green);
         });
 
-        document.compute_layout(Space::new(30u32, 15u32));
+        document.compute_layout(Space::new(30,15));
 
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         // First child
         assert_eq!(
@@ -833,8 +709,11 @@ mod tests {
         root.background = Some(Color::Red);
         root.padding = (1, 1).into();
 
-        document.compute_layout(Space::new(10u32, 5u32));
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.compute_layout(Space::new(10,5));
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         let h = context.buffer.bounds().height() as usize;
         let w = context.buffer.bounds().width() as usize;
@@ -862,11 +741,14 @@ mod tests {
 
         document.insert_with(Element::Div(), |node| {
             node.border = Border::Bold;
-            node.size = crate::Size::new(10u32, 4u32);
+            node.size = crate::Size::new(10,4);
         });
 
-        document.compute_layout(Space::new(10u32, 4u32));
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.compute_layout(Space::new(10,4));
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         // Bold border: top-left ┏, top ━, top-right ┓, etc.
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('┏'));
@@ -897,8 +779,11 @@ mod tests {
             node.background = Some(Color::None);
         });
 
-        document.compute_layout(Space::new(10u32, 3u32));
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.compute_layout(Space::new(10,3));
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         // Every cell that isn't the glyph itself should still carry the
         // root's red backdrop — the span must not overwrite it.
@@ -950,8 +835,11 @@ mod tests {
         document.insert_at(Element::Span("B"), At::Child(b));
         document.insert_at(Element::Span("C"), At::Child(c));
 
-        document.compute_layout(Space::new(20u32, 20u32));
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.compute_layout(Space::new(20,20));
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         let w = context.buffer.bounds().width() as usize;
         let h = context.buffer.bounds().height() as usize;
@@ -1030,12 +918,15 @@ mod tests {
             node.color = Some(Color::Green);
         });
 
-        document.compute_layout(Space::new(30u32, 5u32));
+        document.compute_layout(Space::new(30,5));
 
         let a_bounds = document.content_bounds(child_a);
         let b_bounds = document.content_bounds(child_b);
 
-        BufferPainter::new(&mut context.buffer, &mut context.arena).paint(&document);
+        document.paint(
+            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+        )
+        .unwrap();
 
         // Side by side in row layout
         assert_eq!(

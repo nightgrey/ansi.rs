@@ -62,17 +62,19 @@ fn setup<'a>(width: usize, height: usize) -> Engine<'a> {
 /// `terminal-rerender`: stable frame, one value changes per frame.
 fn terminal_rerender(c: &mut Criterion) {
     let mut engine = Engine::new(W, H);
-    engine.layout_and_paint();
-    engine.paint_with(|ctx| {
-        ctx.char(p!(W / 2, H / 2), 'A');
-    });
+    engine.layout_and_paint().unwrap();
+    engine
+        .paint_with(|ctx| {
+            ctx.char(p!(W / 2, H / 2), 'A').unwrap();
+        })
+        .unwrap();
     let mut output = io::Cursor::new(Vec::<u8>::new());
 
     c.bench_function("terminal-rerender", |b| {
         b.iter(|| {
-            engine.render(&mut output);
+            engine.render(&mut output).unwrap();
             engine.invalidate();
-            engine.render(&mut output);
+            engine.render(&mut output).unwrap();
         });
     });
 }
@@ -83,7 +85,7 @@ fn terminal_rerender(c: &mut Criterion) {
 
 fn setup_diff(width: usize, height: usize) -> (Buffer, Buffer) {
     let mut engine = setup(width, height);
-    engine.layout_and_paint();
+    engine.layout_and_paint().unwrap();
 
     (engine.back_buffer().clone(), engine.front_buffer().clone())
 }

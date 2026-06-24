@@ -80,8 +80,8 @@ impl Rasterer {
             return self.present_inline(prev, next, arena);
         }
 
-        let width = next.width;
-        let height = next.height;
+        let width = next.width();
+        let height = next.height();
 
         if self.capabilities.use_sync_output() {
             self.output.write_escape(SynchronizedOutput::Set)?;
@@ -89,7 +89,7 @@ impl Rasterer {
 
         // Force a full repaint when prev can't be trusted to reflect the
         // terminal's current state.
-        let invalidated = self.invalidated || prev.width != width || prev.height != height;
+        let invalidated = self.invalidated || prev.width() != width || prev.height() != height;
         if invalidated {
             self.output.write_escape(Home)?;
             self.output.write_escape(EraseDisplay)?;
@@ -195,10 +195,10 @@ impl Rasterer {
     /// render. Treats `prev` the same way [`present`] does — ignored when
     /// `invalidated` or dims don't match.
     fn present_inline(&mut self, prev: &Buffer, next: &Buffer, arena: &Arena) -> io::Result<()> {
-        let width = next.width;
-        let height = next.height;
+        let width = next.width();
+        let height = next.height();
 
-        let invalidated = self.invalidated || prev.width != width || prev.height != height;
+        let invalidated = self.invalidated || prev.width() != width || prev.height() != height;
 
         if self.capabilities.use_sync_output() {
             self.output.write_escape(SynchronizedOutput::Set)?;
@@ -431,8 +431,8 @@ mod tests {
         }
 
         fn raster(&mut self, next: &Buffer, arena: &Arena) -> io::Result<()> {
-            if self.prev.width != next.width || self.prev.height != next.height {
-                self.prev.resize(next.width, next.height);
+            if self.prev.width() != next.width() || self.prev.height() != next.height() {
+                self.prev.resize(next.width(), next.height());
                 self.prev.clear();
             }
             self.inner.present(&self.prev, next, arena)?;
@@ -460,7 +460,7 @@ mod tests {
     fn render_styled_cells_emits_sgr() {
         let style = Style::default().bold().foreground(Color::Rgb(255, 0, 0));
 
-        let buffer = Buffer::from_chars(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
+        let buffer = Buffer::from_cells(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Shadowed::new(5, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -474,7 +474,7 @@ mod tests {
     #[test]
     fn render_identical_buffer_produces_no_diff() {
         let style = Style::default().foreground(Color::Index(2));
-        let buffer = Buffer::from_chars(
+        let buffer = Buffer::from_cells(
             3,
             1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn render_single_cell_change_emits_only_that_cell() {
         let style = Style::default().foreground(Color::Index(3));
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             3,
             1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -514,7 +514,7 @@ mod tests {
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             3,
             1,
             &[(0, 0, 'A', style), (0, 1, 'X', style), (0, 2, 'C', style)],
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn invalidate_forces_full_redraw() {
-        let buffer = Buffer::from_chars(2, 1, &[(0, 0, 'Z', Style::None)]);
+        let buffer = Buffer::from_cells(2, 1, &[(0, 0, 'Z', Style::None)]);
 
         let mut r = Shadowed::new(2, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -556,14 +556,14 @@ mod tests {
     #[test]
     fn resize_forces_full_redraw() {
         let style = Style::None;
-        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', style)]);
+        let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', style)]);
 
         let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
         r.resize(5, 2);
-        let buf2 = Buffer::from_chars(5, 2, &[(0, 0, 'B', style)]);
+        let buf2 = Buffer::from_cells(5, 2, &[(0, 0, 'B', style)]);
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
@@ -580,7 +580,7 @@ mod tests {
     fn trailing_el_optimization() {
         let style = Style::default().foreground(Color::Index(1));
 
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             5,
             1,
             &[
@@ -596,7 +596,7 @@ mod tests {
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
+        let buf2 = Buffer::from_cells(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
@@ -609,7 +609,7 @@ mod tests {
     #[test]
     fn trailing_el_entire_row_cleared() {
         let style = Style::default().foreground(Color::Index(1));
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             3,
             1,
             &[(0, 0, 'A', style), (0, 1, 'B', style), (0, 2, 'C', style)],
@@ -637,13 +637,13 @@ mod tests {
     fn no_trailing_el_when_content_extends_to_end() {
         let s1 = Style::default().foreground(Color::Index(1));
         let s2 = Style::default().foreground(Color::Index(2));
-        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
+        let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
         let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
+        let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
@@ -658,7 +658,7 @@ mod tests {
     #[test]
     fn sync_output_wraps_render() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new()).unwrap();
 
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn no_sync_without_cap() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
 
@@ -696,7 +696,7 @@ mod tests {
     fn pen_elision_no_redundant_sgr() {
         let style = Style::default().foreground(Color::Rgb(0, 255, 0));
 
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -711,12 +711,12 @@ mod tests {
         let s1 = Style::default().foreground(Color::Rgb(255, 0, 0));
         let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
 
-        let buf1 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s1)]);
+        let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1)]);
         let mut r = Shadowed::new(3, 1);
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'A', s2)]);
+        let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s2)]);
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
@@ -730,7 +730,7 @@ mod tests {
 
     #[test]
     fn render_hides_then_shows_cursor() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
 
@@ -782,7 +782,7 @@ mod tests {
 
     #[test]
     fn flush_writes_and_clears() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
 
@@ -832,7 +832,7 @@ mod tests {
     #[test]
     fn inline_first_render_no_cup() {
         let style = Style::None;
-        let buffer = Buffer::from_chars(
+        let buffer = Buffer::from_cells(
             5,
             2,
             &[
@@ -868,7 +868,7 @@ mod tests {
     fn inline_first_render_skips_trailing_empty_cells() {
         let style = Style::None;
         // Only first 2 of 10 columns have content.
-        let buffer = Buffer::from_chars(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
+        let buffer = Buffer::from_cells(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
         let mut r = Shadowed::inline(10, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn inline_second_render_starts_with_cuu() {
         let style = Style::None;
-        let buffer = Buffer::from_chars(
+        let buffer = Buffer::from_cells(
             5,
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
@@ -895,7 +895,7 @@ mod tests {
         r.raster(&buffer, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             5,
             3,
             &[(0, 0, 'a', style), (1, 0, 'X', style), (2, 0, 'c', style)],
@@ -913,7 +913,7 @@ mod tests {
     #[test]
     fn inline_no_alt_screen_sequences() {
         let style = Style::None;
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'z', style)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Shadowed::inline(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -932,7 +932,7 @@ mod tests {
     #[test]
     fn inline_no_ed_on_first_render() {
         let style = Style::None;
-        let buffer = Buffer::from_chars(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
+        let buffer = Buffer::from_cells(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
         let mut r = Shadowed::inline(3, 2);
         r.raster(&buffer, &Arena::new()).unwrap();
@@ -951,7 +951,7 @@ mod tests {
     #[test]
     fn inline_diff_only_changed_cells() {
         let style = Style::None;
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             5,
             2,
             &[
@@ -966,7 +966,7 @@ mod tests {
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             5,
             2,
             &[
@@ -1001,7 +1001,7 @@ mod tests {
     #[test]
     fn inline_identical_second_render_no_content() {
         let style = Style::None;
-        let buffer = Buffer::from_chars(
+        let buffer = Buffer::from_cells(
             5,
             2,
             &[
@@ -1032,13 +1032,13 @@ mod tests {
     #[test]
     fn inline_grow_claims_new_rows() {
         let style = Style::None;
-        let buf1 = Buffer::from_chars(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
+        let buf1 = Buffer::from_cells(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
         let mut r = Shadowed::inline(3, 2);
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(
+        let buf2 = Buffer::from_cells(
             3,
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
@@ -1057,7 +1057,7 @@ mod tests {
     #[test]
     fn inline_shrink_clears_orphan_rows() {
         let style = Style::None;
-        let buf1 = Buffer::from_chars(
+        let buf1 = Buffer::from_cells(
             3,
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
@@ -1067,7 +1067,7 @@ mod tests {
         r.raster(&buf1, &Arena::new()).unwrap();
         r.clear_output();
 
-        let buf2 = Buffer::from_chars(3, 1, &[(0, 0, 'a', style)]);
+        let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'a', style)]);
         r.raster(&buf2, &Arena::new()).unwrap();
 
         let output_str = r.as_str();
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[test]
     fn inline_hides_then_shows_cursor() {
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1);
         r.raster(&buffer, &Arena::new()).unwrap();
 
@@ -1105,7 +1105,7 @@ mod tests {
     #[test]
     fn inline_sync_output() {
         let caps = Capabilities::builder().sync_output(true).build();
-        let buffer = Buffer::from_chars(3, 1, &[(0, 0, 'A', Style::None)]);
+        let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1).with_capabilities(caps);
         r.raster(&buffer, &Arena::new()).unwrap();
 

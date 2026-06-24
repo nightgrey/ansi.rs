@@ -324,6 +324,10 @@ impl Cell {
     pub fn as_str<'a>(&'a self, arena: &'a Arena) -> &'a str {
         self.grapheme.as_str(arena)
     }
+    
+    pub fn as_str_or<'a>(&'a self, arena: &'a Arena, default: &'a str) -> &'a str {
+        self.grapheme.as_str_or(arena, default)
+    }
 
     pub fn as_bytes<'a>(&'a self, arena: &'a Arena) -> &'a [u8] {
         self.grapheme.as_bytes(arena)

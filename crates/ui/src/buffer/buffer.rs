@@ -1,13 +1,13 @@
-use crate::{Arena, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, CellsMut, TrackingBuffer};
+use crate::{Graphemes, BufferDiff, BufferIndex, ByCells, ByRuns, Cell, Cells, TrackingBuffer, DiffStrategy};
 use ansi::Style;
 use core::slice::IterMut;
 use std::borrow::{Borrow, BorrowMut};
-use derive_more::{AsMut, AsRef, Deref, DerefMut, IntoIterator};
+use derive_more::{ Deref, DerefMut, IntoIterator};
 use geometry::Resolve;
 use geometry::{Bound, Intersect, Point, Rect};
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::iter::StepBy;
-use std::ops::{Div, Range};
+use std::ops::{Range};
 use std::slice::Iter;
 use std::slice::SliceIndex;
 use unicode_segmentation::UnicodeSegmentation;
@@ -44,14 +44,14 @@ impl Buffer {
     pub fn from_cells(width: usize, height: usize, chars: &[(usize, usize, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for &(row, col, ch, style) in chars {
-            buffer[(row, col)] = Cell::inline(ch).with_style(style);
+            buffer[(row, col)] = Cell::new(ch).with_style(style);
         }
         buffer
     }
 
     /// Create a buffer from a slice of fixed elements.
     #[must_use]
-    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Arena) -> Self {
+    pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Graphemes) -> Self {
         let lines = lines.into_iter().collect::<Vec<_>>();
         let height = lines.len();
         let width = lines
@@ -149,7 +149,7 @@ impl Buffer {
         &mut self,
         index: impl BufferIndex<Output = [Cell]>,
         string: impl AsRef<str>,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
        self.set_string_impl(index, string, None, arena)
     }
@@ -159,7 +159,7 @@ impl Buffer {
         index: impl BufferIndex<Output = [Cell]>,
         string: impl AsRef<str>,
         style: Style,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
         self.set_string_impl(index, string, Some(style), arena)
     }
@@ -174,7 +174,7 @@ impl Buffer {
         grapheme: &str,
         width: usize,
         style: Style,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
         if width == 0 || position.y as usize >= self.height {
             return None;
@@ -189,8 +189,7 @@ impl Buffer {
 
         let start = position.y as usize * self.width + start_x;
         Some(
-            CellsMut(&mut self.inner[start..start + width])
-                .write_styled(grapheme, width, style, arena),
+            Cells::write_into(&mut self.inner[start..start + width], grapheme, width, Some(style), arena),
         )
     }
 
@@ -200,7 +199,7 @@ impl Buffer {
         index: impl BufferIndex<Output = [Cell]>,
         string: impl AsRef<str>,
         style: Option<Style>,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
         let slice = self.get_mut(index)?;
         let mut remaining = slice.len();
@@ -214,12 +213,7 @@ impl Buffer {
             let width = grapheme.width();
             remaining = remaining.checked_sub(width)?;
 
-            let written = match style {
-                Some(style) => CellsMut(&mut slice[i..]).write_styled(grapheme, width, style, arena),
-                None => CellsMut(&mut slice[i..]).write(grapheme, width, arena),
-            };
-
-            i += written;
+            i += Cells::write_into((&mut slice[i..]), grapheme, width, style, arena);
         }
 
         Some(i)
@@ -229,7 +223,7 @@ impl Buffer {
         &mut self,
         start: Point,
         string: impl AsRef<str>,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
         self.set_string(
             start..Point {
@@ -726,7 +720,7 @@ impl Buffer {
         self.inner.iter_mut()
     }
 
-    pub fn to_string(&self, arena: &Arena) -> String {
+    pub fn to_string(&self, arena: &Graphemes) -> String {
         if self.is_empty() {
             return String::new();
         }
@@ -756,20 +750,20 @@ impl Buffer {
     }
 
     /// Returns a [`BufferCells`] between the cells of `prev` and `next`.
-    pub fn diff<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
-        Self::diff_cells(prev, next)
+    pub fn diff<'a, Strategy: DiffStrategy<'a>>(prev: &'a Strategy::Prev, next: &'a Strategy::Next) -> BufferDiff<'a, Strategy> {
+        BufferDiff::new(prev, next)
     }
 
     /// Returns a [`BufferCells`] iterator.
     /// Yields a [`Changed`] for each cell that differs between `prev` and `next`.
     pub fn diff_cells<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByCells> {
-        BufferDiff::cells(prev, next)
+        Self::diff(prev, next)
     }
 
     /// Returns a [`BufferRuns`] iterator.
     /// Yields a [`Run`] for each run of changed cells on the same row.
     pub fn diff_runs<'a>(prev: &'a Buffer, next: &'a Buffer) -> BufferDiff<'a, ByRuns> {
-        BufferDiff::runs(prev, next)
+        Self::diff(prev, next)
     }
 
     /// Create a [`TrackingBuffer`] from this buffer.

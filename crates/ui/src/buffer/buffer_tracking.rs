@@ -26,7 +26,7 @@
 //!
 //! - `self.bits.len() == self.inner.height`.
 //! - Row `y` is marked iff `self.bits.contains(y)`.
-use crate::{Arena, Buffer, BufferDiff, BufferIndex, ByDirty, Cell};
+use crate::{Graphemes, Buffer, BufferDiff, BufferIndex, ByDirty, Cell};
 use derive_more::{AsRef, Deref, From};
 use geometry::{Bound, Point, Position, PositionLike, Rect, Row};
 use std::fmt::Debug;
@@ -321,7 +321,7 @@ impl TrackingBuffer {
         &mut self,
         start: Point,
         string: impl AsRef<str>,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize> {
         let written = self.inner.set_line(start, string, arena)?;
         self.mark(start.y as usize);
@@ -337,7 +337,7 @@ impl TrackingBuffer {
         &mut self,
         index: I,
         string: impl AsRef<str>,
-        arena: &mut Arena,
+        arena: &mut Graphemes,
     ) -> Option<usize>
     where
         I: BufferIndex<Output = [Cell]>,
@@ -764,7 +764,7 @@ impl TrackingBufferIndex for RangeFull {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Arena;
+    use crate::Graphemes;
 
     #[test]
     fn new_starts_with_all_rows_dirty() {
@@ -810,7 +810,7 @@ mod tests {
     fn set_line_marks_only_its_row() {
         let mut t = TrackingBuffer::new(5, 3);
         t.unmark_all();
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         t.set_line(Point { x: 0, y: 1 }, "abc", &mut arena);
         assert!(!t.is_marked(0));
         assert!(t.is_marked(1));
@@ -821,7 +821,7 @@ mod tests {
     fn set_string_marks_all_dirty() {
         let mut t = TrackingBuffer::new(5, 3);
         t.unmark_all();
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         t.set_string(
             Point { x: 0, y: 0 }..Point { x: 5, y: 0 },
             "abc",
@@ -834,7 +834,7 @@ mod tests {
     fn get_mut_marks_just_its_row() {
         let mut t = TrackingBuffer::new(5, 3);
         t.unmark_all();
-        t.get_mut(Row(1)).unwrap()[0] = Cell::inline('x');
+        t.get_mut(Row(1)).unwrap()[0] = Cell::new('x');
         assert!(!t.is_marked(0));
         assert!(t.is_marked(1));
         assert!(!t.is_marked(2));
@@ -843,7 +843,7 @@ mod tests {
     fn index_mut_marks_just_its_row() {
         let mut t = TrackingBuffer::new(5, 3);
         t.unmark_all();
-        t[Row(1)][0] = Cell::inline('x');
+        t[Row(1)][0] = Cell::new('x');
         assert!(!t.is_marked(0));
         assert!(t.is_marked(1));
         assert!(!t.is_marked(2));
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn push_pop_row_updates_bitmap() {
         let mut t = TrackingBuffer::new_unmarked(2, 1);
-        t.push_row_marked([Cell::inline('a'), Cell::inline('b')]);
+        t.push_row_marked([Cell::new('a'), Cell::new('b')]);
         dbg!(t.count_marked());
         assert!(t.is_marked(1));
         let _ = t.pop_row();
@@ -940,7 +940,7 @@ mod tests {
 
     #[test]
     fn into_buffer_round_trips() {
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         let buf = Buffer::from_lines(["abc"], &mut arena);
         let tracking: TrackingBuffer = buf.clone().into();
         assert_eq!(tracking.into_inner(), buf);
@@ -949,7 +949,7 @@ mod tests {
     #[test]
     fn deref_exposes_buffer_api() {
         // Read-only API on Buffer should be reachable via auto-deref.
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         let t = TrackingBuffer::from(Buffer::from_lines(["abc"], &mut arena));
         assert_eq!(t.width(), 3);
         assert_eq!(t.height(), 1);
@@ -959,7 +959,7 @@ mod tests {
     fn from_buffer_unmarked_preserves_contents() {
         // Regression: this used to discard the buffer and allocate a fresh,
         // empty one of the same size.
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         let buf = Buffer::from_lines(["abc"], &mut arena);
         let t = TrackingBuffer::from_buffer_unmarked(buf.clone());
         assert!(t.is_clean());

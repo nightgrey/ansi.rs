@@ -1,5 +1,5 @@
-mod buffer_painter;
-pub mod context;
+mod buffer_drawing_context;
+pub mod drawing_context;
 
-pub use buffer_painter::*;
-pub use context::*;
+pub use buffer_drawing_context::*;
+pub use drawing_context::*;

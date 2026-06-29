@@ -9,7 +9,7 @@
 use ansi::{Attribute, Color, Style};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
-use ui::{Arena, Cell, Grapheme};
+use ui::{Graphemes, Cell, Grapheme};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 // =============================================================================
@@ -21,26 +21,26 @@ fn bench_cell_creation(c: &mut Criterion) {
 
     group.bench_function("default", |b| b.iter(|| black_box(Cell::default())));
 
-    group.bench_function("inline", |b| b.iter(|| black_box(Cell::inline('A'))));
+    group.bench_function("inline", |b| b.iter(|| black_box(Cell::new('A'))));
 
     group.bench_function("inline_cjk", |b| {
-        b.iter(|| black_box(Cell::inline('\u{4E2D}')))
+        b.iter(|| black_box(Cell::new('\u{4E2D}')))
     });
 
-    let mut arena = Arena::new();
+    let mut arena = Graphemes::new();
 
     group.bench_function("extended", |b| {
-        b.iter(|| black_box(Cell::extended("A", &mut arena)))
+        b.iter(|| black_box(Cell::new(("A", &mut arena))))
     });
 
     group.bench_function("extended_cjk", |b| {
-        b.iter(|| black_box(Cell::extended("中", &mut arena)))
+        b.iter(|| black_box(Cell::new(("中", &mut arena))))
     });
 
     group.bench_function("with_foreground_background", |b| {
         b.iter(|| {
             black_box(
-                Cell::inline('X')
+                Cell::new('X')
                     .with_foreground(Color::Rgb(255, 128, 0))
                     .with_background(Color::Rgb(0, 0, 128)),
             )
@@ -57,9 +57,9 @@ fn bench_cell_creation(c: &mut Criterion) {
 fn bench_cell_compare(c: &mut Criterion) {
     let mut group = c.benchmark_group("cell/compare");
 
-    let cell_a = Cell::inline('A').with_foreground(Color::Rgb(255, 0, 0));
-    let cell_b = Cell::inline('A').with_foreground(Color::Rgb(255, 0, 0));
-    let cell_c = Cell::inline('B').with_foreground(Color::Rgb(0, 255, 0));
+    let cell_a = Cell::new('A').with_foreground(Color::Rgb(255, 0, 0));
+    let cell_b = Cell::new('A').with_foreground(Color::Rgb(255, 0, 0));
+    let cell_c = Cell::new('B').with_foreground(Color::Rgb(0, 255, 0));
 
     // bits_eq: branchless SIMD-friendly comparison
     group.bench_function("eq_bitwise/same", |b| {
@@ -96,18 +96,18 @@ fn bench_cell_compare(c: &mut Criterion) {
 fn bench_grapheme(c: &mut Criterion) {
     let mut group = c.benchmark_group("cell/content");
 
-    let mut arena = Arena::new();
-    let ascii = Grapheme::inline('A');
-    let cjk = Grapheme::inline('\u{4E2D}');
-    let str = Grapheme::extended("中", &mut arena);
-    let mut arena = Arena::new();
+    let mut arena = Graphemes::new();
+    let ascii = Grapheme::new('A');
+    let cjk = Grapheme::new('\u{4E2D}');
+    let str = Grapheme::new(("中", &mut arena));
+    let mut arena = Graphemes::new();
 
     group.bench_function("extended", |b| {
-        b.iter(|| black_box(Cell::extended("A", &mut arena)))
+        b.iter(|| black_box(Cell::new(("A", &mut arena))))
     });
 
     group.bench_function("extended_cjk", |b| {
-        b.iter(|| black_box(Cell::extended("中", &mut arena)))
+        b.iter(|| black_box(Cell::new(("中", &mut arena))))
     });
 
     group.bench_function("width/str", |b| {
@@ -119,7 +119,7 @@ fn bench_grapheme(c: &mut Criterion) {
     });
 
     group.bench_function("is_continuation", |b| {
-        b.iter(|| black_box(black_box(Grapheme::CONTINUATION).is_continuation()))
+        b.iter(|| black_box(black_box(Cell::CONTINUATION).is_continuation()))
     });
 
     group.bench_function("as_str", |b| {
@@ -156,11 +156,11 @@ fn bench_row_comparison(c: &mut Criterion) {
 
     // Simulate comparing two rows of 80 cells
     let row_a: Vec<Cell> = (0..80)
-        .map(|i| Cell::inline(char::from(b'A' + (i % 26) as u8)))
+        .map(|i| Cell::new(char::from(b'A' + (i % 26) as u8)))
         .collect();
     let row_b = row_a.clone();
     let mut row_c = row_a.clone();
-    row_c[40] = Cell::inline('!').with_foreground(Color::Rgb(255, 0, 0));
+    row_c[40] = Cell::new('!').with_foreground(Color::Rgb(255, 0, 0));
 
     group.bench_function("80_cells_identical", |b| {
         b.iter(|| {
@@ -184,7 +184,7 @@ fn bench_row_comparison(c: &mut Criterion) {
 
     // 200-column row
     let wide_row: Vec<Cell> = (0..200)
-        .map(|i| Cell::inline(char::from(b'A' + (i % 26) as u8)))
+        .map(|i| Cell::new(char::from(b'A' + (i % 26) as u8)))
         .collect();
     let wide_row_b = wide_row.clone();
 

@@ -1,4 +1,4 @@
-use crate::{Arena, Buffer, BufferPainter, Document, DoubleBuffer, DrawingContext, Presenter};
+use crate::{Graphemes, Buffer, BufferDrawingCOntext, Document, DoubleBuffer, DrawingContext, Presenter};
 use derive_more::{Deref, DerefMut};
 use geometry::Size;
 use std::io;
@@ -10,7 +10,7 @@ pub struct Engine<'a> {
     #[deref_mut]
     document: Document<'a>,
     buffer: DoubleBuffer,
-    arena: Arena,
+    arena: Graphemes,
     presenter: Presenter<io::Stdout>,
 }
 
@@ -20,7 +20,7 @@ impl<'a> Engine<'a> {
             space: Size::new(width as u16, height as u16),
             document: Document::new(),
             buffer: DoubleBuffer::new(width, height),
-            arena: Arena::new(),
+            arena: Graphemes::new(),
             presenter: Presenter::inline(io::stdout()),
         }
     }
@@ -46,19 +46,19 @@ impl<'a> Engine<'a> {
         let arena = &mut self.arena;
 
         buffer.clear();
-        self.document.paint(&mut BufferPainter::new(buffer, arena))
+        self.document.paint(&mut BufferDrawingCOntext::new(buffer, arena))
     }
 
     pub fn paint_with<F>(&mut self, f: F) -> io::Result<()>
     where
-        F: FnOnce(&mut BufferPainter<'_>),
+        F: FnOnce(&mut BufferDrawingCOntext<'_>),
     {
         let buffer = &mut self.buffer.back;
         let arena = &mut self.arena;
         let _document = &self.document;
 
         buffer.clear();
-        let mut ctx = BufferPainter::new(buffer, arena);
+        let mut ctx = BufferDrawingCOntext::new(buffer, arena);
         f(&mut ctx);
         ctx.finish()?;
         Ok(())

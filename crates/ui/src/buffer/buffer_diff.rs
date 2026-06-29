@@ -27,67 +27,14 @@ pub struct BufferDiff<'a, Strategy: DiffStrategy<'a> = ByCells> {
     strategy: Strategy,
 }
 
-impl<'a> BufferDiff<'a, ByCells> {
-    /// A zero-allocation diffing iterator over changed cells.
-    pub fn cells(prev: &'a Buffer, next: &'a Buffer) -> Self {
+impl<'a, Strategy: DiffStrategy<'a>> BufferDiff<'a, Strategy> {
+    pub fn new(prev: &'a Strategy::Prev, next: &'a Strategy::Next) -> Self {
         BufferDiff {
-            state: BaseDiffState::new(prev, next),
-            strategy: ByCells,
-        }
-    }
-
-    pub fn into_runs(self) -> BufferDiff<'a, ByRuns> {
-        BufferDiff {
-            state: self.state,
-            strategy: ByRuns,
+            state: Strategy::new(prev, next),
+            strategy: Strategy::default(),
         }
     }
 }
-
-impl<'a> BufferDiff<'a, ByRuns> {
-    /// A zero-allocation diffing iterator over changed runs of consecutive cells on the same row.
-    ///
-    /// See [`BufferDiff`] and the [`ByRuns`] [`DiffStrategy`] for details.
-    pub fn runs(prev: &'a Buffer, next: &'a Buffer) -> Self {
-        BufferDiff {
-            state: BaseDiffState::new(prev, next),
-            strategy: ByRuns,
-        }
-    }
-
-    pub fn into_cells(self) -> BufferDiff<'a, ByCells> {
-        BufferDiff {
-            state: self.state,
-            strategy: ByCells,
-        }
-    }
-}
-
-impl<'a> BufferDiff<'a, ByDirty> {
-    /// A zero-allocation diffing iterator over changed rows.
-    /// See [`BufferDiff`] and the [`ByDirty`] for details.
-    pub fn dirty(prev: &'a Buffer, next: &'a TrackingBuffer) -> Self {
-        assert_eq!(
-            prev.width(), next.width(),
-            "buffers must have the same width: prev={}, next={}",
-            prev.width(), next.width(),
-        );
-
-        BufferDiff {
-            state: DirtyDiffState {
-                next,
-                prev,
-                width: prev.width(),
-                height: prev.height().min(next.height()),
-                y: 0,
-                x: 0,
-                bits: next.as_bits(),
-            },
-            strategy: ByDirty,
-        }
-    }
-}
-
 impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
     type Item = Strategy::Item;
 
@@ -100,6 +47,36 @@ impl<'a, Strategy: DiffStrategy<'a>> Iterator for BufferDiff<'a, Strategy> {
     }
 }
 impl<'a, Strategy: DiffStrategy<'a>> FusedIterator for BufferDiff<'a, Strategy> {}
+
+impl<'a> BufferDiff<'a, ByCells> {
+    pub fn cells(prev: &'a <ByCells as DiffStrategy<'a>>::Prev, next: &'a <ByCells as DiffStrategy<'a>>::Next) -> BufferDiff<'a, ByCells> {
+        Self::new(prev, next)
+    }
+
+    pub fn into_runs(self) -> BufferDiff<'a, ByRuns> {
+        BufferDiff {
+            state: self.state,
+            strategy: ByRuns,
+        }
+    }
+}
+impl<'a> BufferDiff<'a, ByRuns> {
+    pub fn runs(prev: &'a <ByRuns as DiffStrategy<'a>>::Prev, next: &'a <ByRuns as DiffStrategy<'a>>::Next) -> BufferDiff<'a, ByRuns> {
+        Self::new(prev, next)
+    }
+    pub fn into_cells(self) -> BufferDiff<'a, ByCells> {
+        BufferDiff {
+            state: self.state,
+            strategy: ByCells,
+        }
+    }
+}
+impl<'a> BufferDiff<'a, ByDirty> {
+    pub fn dirty(prev: &'a <ByDirty as DiffStrategy<'a>>::Prev, next: &'a <ByDirty as DiffStrategy<'a>>::Next) -> BufferDiff<'a, ByDirty> {
+        Self::new(prev, next)
+    }
+}
+
 
 /// A changed cell.
 #[derive(Copy, Clone, Debug, Deref, PartialEq)]
@@ -135,7 +112,7 @@ impl<'a> Run<'a> {
     #[inline]
     pub fn iter(&self) -> RunIter<'a> {
         RunIter {
-            inner: Cells(self.cells).run(),
+            inner: Cells::run(self.cells),
             x: self.x,
             y: self.y,
         }
@@ -212,32 +189,6 @@ pub struct BaseDiffState<'a> {
     pos: usize,
 }
 
-impl<'a> BaseDiffState<'a> {
-    /// Builds the shared state for a [`BufferDiff`] over the overlapping
-    /// (shorter) region of two equal-width buffers.
-    ///
-    /// **Panics** if the buffers differ in width.
-    fn new(prev: &'a Buffer, next: &'a Buffer) -> Self {
-        assert_eq!(
-            prev.width(), next.width(),
-            "buffers must have the same width: prev={}, next={}",
-            prev.width(), next.width(),
-        );
-
-        let width = prev.width();
-        let height = prev.height().min(next.height());
-
-        BaseDiffState {
-            next,
-            prev,
-            width,
-            height,
-            len: width * height,
-            pos: 0,
-        }
-    }
-}
-
 /// State of a [`BufferDiff`] iteration.
 /// See [`DiffStrategy`].
 #[derive(Debug)]
@@ -257,19 +208,20 @@ impl<'a> DirtyDiffState<'a> {
     }
 }
 
-mod sealed {
-    pub trait Sealed {}
-}
 
 /// Strategy for iterating over the differences between two buffers.
 ///
 /// This trait is sealed: only [`ByCells`], [`ByRuns`], and [`ByDirty`]
 /// implement it.
-pub trait DiffStrategy<'a>: Default + sealed::Sealed {
+pub trait DiffStrategy<'a>: Default {
     /// The type of items yielded by the diff.
     type Item;
     /// The state of the diffing operation.
     type State;
+    type Prev;
+    type Next;
+
+    fn new(prev: &'a Self::Prev, next: &'a Self::Next) -> Self::State;
 
     /// Advances the diff and returns the next item.
     fn next(state: &mut Self::State) -> Option<Self::Item>;
@@ -282,10 +234,24 @@ pub trait DiffStrategy<'a>: Default + sealed::Sealed {
 #[derive(Debug, Default)]
 pub struct ByCells;
 
-impl sealed::Sealed for ByCells {}
 impl<'a> DiffStrategy<'a> for ByCells {
     type Item = Change<'a>;
     type State = BaseDiffState<'a>;
+    type Prev = Buffer;
+    type Next = Buffer;
+
+    fn new(prev: &'a Self::Prev, next: &'a Self::Next) -> Self::State {
+        let height = prev.height().min(next.height());
+        let width = prev.width();
+        BaseDiffState {
+            prev,
+            next,
+            height,
+            width,
+            len: width * height,
+            pos: 0,
+        }
+    }
 
     #[inline]
     fn next(state: &mut Self::State) -> Option<Self::Item> {
@@ -339,10 +305,30 @@ impl<'a> DiffStrategy<'a> for ByCells {
 #[derive(Debug, Default)]
 pub struct ByDirty;
 
-impl sealed::Sealed for ByDirty {}
 impl<'a> DiffStrategy<'a> for ByDirty {
     type Item = Change<'a>;
     type State = DirtyDiffState<'a>;
+
+    type Prev = Buffer;
+    type Next = TrackingBuffer;
+
+    fn new(prev: &'a Self::Prev, next: &'a Self::Next) -> Self::State {
+        assert_eq!(
+            prev.width(), next.width(),
+            "buffers must have the same width: prev={}, next={}",
+            prev.width(), next.width(),
+        );
+
+        DirtyDiffState {
+            next,
+            prev,
+            width: prev.width(),
+            height: prev.height().min(next.height()),
+            y: 0,
+            x: 0,
+            bits: next.as_bits(),
+        }
+    }
 
     fn next(state: &mut Self::State) -> Option<Self::Item> {
         while state.y < state.height {
@@ -399,10 +385,15 @@ impl<'a> DiffStrategy<'a> for ByDirty {
 #[derive(Debug, Default)]
 pub struct ByRuns;
 
-impl sealed::Sealed for ByRuns {}
 impl<'a> DiffStrategy<'a> for ByRuns {
     type Item = Run<'a>;
     type State = BaseDiffState<'a>;
+    type Prev = Buffer;
+    type Next = Buffer;
+
+    fn new(prev: &'a Self::Prev, next: &'a Self::Next) -> Self::State {
+        <ByCells as DiffStrategy>::new(prev, next)
+    }
 
     #[inline]
     fn next(state: &mut BaseDiffState<'a>) -> Option<Self::Item> {
@@ -479,7 +470,7 @@ impl<'a> DiffStrategy<'a> for ByRuns {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Arena;
+    use crate::Graphemes;
 
     mod by_runs {
         use super::*;
@@ -494,7 +485,7 @@ mod tests {
 
         #[test]
         fn identical_buffers_yield_no_diffs() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let buf = Buffer::from_lines(["hello"], &mut arena);
             let diff: Vec<_> = BufferDiff::runs(&buf, &buf).collect();
             assert!(diff.is_empty());
@@ -502,7 +493,7 @@ mod tests {
 
         #[test]
         fn single_cell_change() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["hello"], &mut arena);
             let next = Buffer::from_lines(["hallo"], &mut arena);
             let mut runs = BufferDiff::runs(&prev, &next);
@@ -515,7 +506,7 @@ mod tests {
 
         #[test]
         fn all_cells_changed() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = Buffer::from_lines(["bbb"], &mut arena);
             let runs: Vec<_> = BufferDiff::runs(&prev, &next).collect();
@@ -531,7 +522,7 @@ mod tests {
 
         #[test]
         fn continuation_cells_are_skipped() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(4, 1);
             let mut next = Buffer::new(4, 1);
             // Layout: [中, CONT, X, SPACE] — the wide 中 has a continuation at x=1.
@@ -552,7 +543,7 @@ mod tests {
 
         #[test]
         fn equal_cell_splits_run() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abcde"], &mut arena);
             let next = Buffer::from_lines(["AbCde"], &mut arena);
 
@@ -574,7 +565,7 @@ mod tests {
 
         #[test]
         fn adjacent_changes_merge_into_one_run() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abcde"], &mut arena);
             let next = Buffer::from_lines(["aBCDe"], &mut arena);
 
@@ -590,7 +581,7 @@ mod tests {
 
         #[test]
         fn runs_do_not_cross_rows() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(3, 2);
             let next = Buffer::from_lines(["abc", "def"], &mut arena);
 
@@ -613,7 +604,7 @@ mod tests {
 
         #[test]
         fn run_at_right_edge() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abcde"], &mut arena);
             let next = Buffer::from_lines(["abcDE"], &mut arena);
 
@@ -629,7 +620,7 @@ mod tests {
 
         #[test]
         fn wide_cell_inside_run_is_iterated_correctly() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(5, 1);
             let mut next = Buffer::new(5, 1);
             // Layout: [a, 中, CONT, b, SPACE]
@@ -650,7 +641,7 @@ mod tests {
 
         #[test]
         fn different_heights_use_minimum() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(3, 1);
             let mut next = Buffer::new(3, 3);
             next.set_string(0..3, "abc", &mut arena);
@@ -680,7 +671,7 @@ mod tests {
 
         #[test]
         fn size_hint_is_an_upper_bound() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaaaa"], &mut arena);
             let next = Buffer::from_lines(["bbbbb"], &mut arena);
 
@@ -695,7 +686,7 @@ mod tests {
 
         #[test]
         fn buffer_diff_runs_method_matches_free_function() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["hello"], &mut arena);
             let next = Buffer::from_lines(["hallo"], &mut arena);
 
@@ -711,13 +702,13 @@ mod tests {
 
         #[test]
         fn by_runs_conversion_round_trips() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abc"], &mut arena);
             let next = Buffer::from_lines(["AbC"], &mut arena);
 
             // ByCells reports the same number of base-cell changes that the
             // flattened ByRuns iteration does.
-            let cell_count = BufferDiff::cells(&prev, &next).count();
+            let cell_count = BufferDiff::runs(&prev, &next).count();
             let runs_count: usize = BufferDiff::runs(&prev, &next)
                 .map(|run| run.iter().count())
                 .sum();
@@ -727,7 +718,7 @@ mod tests {
 
         #[test]
         fn run_as_ref_exposes_cells() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abc"], &mut arena);
             let next = Buffer::from_lines(["xyz"], &mut arena);
 
@@ -743,7 +734,7 @@ mod tests {
             // Force a slice that begins with a continuation to exercise the
             // zero-width skip branch in `Runner::next`. This shouldn't happen
             // with a well-formed buffer, but the iterator should remain robust.
-            let cells = [Cell::CONTINUATION, Cell::inline('a')];
+            let cells = [Cell::CONTINUATION, Cell::new('a')];
             let run = Run {
                 x: 5,
                 y: 2,
@@ -768,7 +759,7 @@ mod tests {
 
         #[test]
         fn run_into_iter_matches_iter() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["abc"], &mut arena);
             let next = Buffer::from_lines(["xyz"], &mut arena);
 
@@ -783,7 +774,7 @@ mod tests {
             // Regression: `count` used to filter on `width() > 0`, which dropped
             // cleared cells. A cleared cell (`Cell::EMPTY`) is zero-width but is
             // NOT a continuation, so `iter` yields it and `count` must too.
-            let cells = [Cell::inline('a'), Cell::EMPTY, Cell::CONTINUATION];
+            let cells = [Cell::new('a'), Cell::EMPTY, Cell::CONTINUATION];
             let run = Run {
                 x: 0,
                 y: 0,
@@ -796,7 +787,7 @@ mod tests {
 
         #[test]
         fn run_width_and_cell_count() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(5, 1);
             let mut next = Buffer::new(5, 1);
             // Layout: [a, 中, CONT, b, SPACE] — 3 base cells spanning 4 columns.
@@ -811,7 +802,7 @@ mod tests {
         fn fast_skip_does_not_change_results_on_partial_rows() {
             // Mix of identical rows (which the fast-skip should handle) and
             // rows with changes to verify the optimization stays correct.
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let mut prev = Buffer::new(4, 4);
             let mut next = Buffer::new(4, 4);
             for y in 0..4 {
@@ -836,7 +827,7 @@ mod tests {
         fn styled_continuation_does_not_split_run() {
             use ansi::{Color, Style};
 
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(3, 1);
             let mut next = Buffer::new(3, 1);
             next.set_string(0..3, "中X", &mut arena);
@@ -864,7 +855,7 @@ mod tests {
 
         #[test]
         fn identical_buffers_yield_no_diffs() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let buf = Buffer::from_lines(["hello"], &mut arena);
             let diff: Vec<_> = BufferDiff::cells(&buf, &buf).collect();
             assert!(diff.is_empty());
@@ -872,7 +863,7 @@ mod tests {
 
         #[test]
         fn single_cell_change() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["hello"], &mut arena);
             let next = Buffer::from_lines(["hallo"], &mut arena);
             let diff: Vec<_> = BufferDiff::cells(&prev, &next).collect();
@@ -883,7 +874,7 @@ mod tests {
 
         #[test]
         fn all_cells_changed() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = Buffer::from_lines(["bbb"], &mut arena);
             let diff: Vec<_> = BufferDiff::cells(&prev, &next).collect();
@@ -892,7 +883,7 @@ mod tests {
 
         #[test]
         fn continuation_cells_are_skipped() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(4, 1);
             let mut next = Buffer::new(4, 1);
             // Layout: [中, CONT, X, SPACE] — the wide 中 has a continuation at x=1.
@@ -909,7 +900,7 @@ mod tests {
 
         #[test]
         fn wide_to_narrow_updates_both_positions() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let mut prev = Buffer::new(2, 1);
             prev.set_string(0..2, "中", &mut arena);
             let next = Buffer::from_lines(["ab"], &mut arena);
@@ -925,7 +916,7 @@ mod tests {
 
         #[test]
         fn coordinates_are_row_major() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(3, 2);
             let mut next = Buffer::new(3, 2);
             next.set_string(1..2, "x", &mut arena); // (1, 0)
@@ -940,7 +931,7 @@ mod tests {
 
         #[test]
         fn different_heights_use_minimum() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(3, 1);
             let mut next = Buffer::new(3, 3);
             next.set_string(0..3, "abc", &mut arena); // row 0
@@ -962,7 +953,7 @@ mod tests {
 
         #[test]
         fn size_hint_is_an_upper_bound() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = Buffer::from_lines(["bbb"], &mut arena);
 
@@ -983,7 +974,7 @@ mod tests {
 
         #[test]
         fn buffer_diff_method_matches_free_function() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["hello"], &mut arena);
             let next = Buffer::from_lines(["hallo"], &mut arena);
 
@@ -997,7 +988,7 @@ mod tests {
         fn styled_zero_width_cells_are_still_skipped() {
             use ansi::{Color, Style};
 
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::new(2, 1);
             let mut next = Buffer::new(2, 1);
             next.set_string(0..2, "中", &mut arena);
@@ -1015,7 +1006,7 @@ mod tests {
         fn fast_skip_identical_rows_preserves_results() {
             // A multi-row buffer where most rows are identical; only one
             // mid-row change. Exercises the per-row fast-skip path.
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let mut prev = Buffer::new(4, 5);
             let mut next = Buffer::new(4, 5);
             for y in 0..5 {
@@ -1036,7 +1027,7 @@ mod tests {
 
         #[test]
         fn diff_dirty_skips_clean_rows_and_unchanged_dirty_rows() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaa", "bbb", "ccc"], &mut arena);
             let mut next =
                 TrackingBuffer::from(Buffer::from_lines(["aaa", "bbb", "ccc"], &mut arena));
@@ -1058,7 +1049,7 @@ mod tests {
 
         #[test]
         fn diff_dirty_matches_buffer_diff_when_all_dirty() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["hello", "world"], &mut arena);
             let next_buf = Buffer::from_lines(["hallo", "wXrld"], &mut arena);
             let next = TrackingBuffer::from(next_buf.clone());
@@ -1073,7 +1064,7 @@ mod tests {
 
         #[test]
         fn diff_dirty_size_hint_is_upper_bound() {
-            let mut arena = Arena::new();
+            let mut arena = Graphemes::new();
             let prev = Buffer::from_lines(["aaa"], &mut arena);
             let next = TrackingBuffer::from(Buffer::from_lines(["bbb"], &mut arena));
 

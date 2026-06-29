@@ -28,6 +28,7 @@ slotmap = { workspace = true }
 compact_str = { workspace = true }
 bon = { workspace = true }
 memchr = { workspace = true }
+arbitrary-int = { version = "2.1.1" }
 
 packed_struct = "0.10.1"
 fast-strip-ansi = "0.13.1"

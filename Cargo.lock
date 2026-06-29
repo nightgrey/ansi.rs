@@ -2416,6 +2416,7 @@ name = "ui"
 version = "0.1.0"
 dependencies = [
  "ansi",
+ "arbitrary-int",
  "bilge",
  "bitflags 2.11.1",
  "bon",

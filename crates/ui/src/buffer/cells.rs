@@ -1,16 +1,10 @@
-use crate::{Arena, Cell};
+use crate::{Graphemes, Cell, Grapheme};
 use ansi::Style;
-use derive_more::{AsRef, Deref, DerefMut, From, Index, IndexMut, IntoIterator};
 
-/// A slice of cells
-///
-/// Provides common methods for running over, walking over and accessing cells - for rendering,
-/// writing, diffing and similar purposes.
-#[derive(Debug, Deref, DerefMut, AsRef, Clone, From, IntoIterator, Index)]
-#[repr(transparent)]
-pub struct Cells<'a>(pub &'a [Cell]);
+#[derive(Debug)]
+pub struct Cells;
 
-impl<'a> Cells<'a> {
+impl Cells {
     /// Iterates the base cells of a row slice in column order.
     ///
     /// This is the single source of truth for walking a row's cells: continuation
@@ -21,9 +15,9 @@ impl<'a> Cells<'a> {
     /// Each item is `(column, cell)` where `column` is the cell's starting column
     /// relative to the start of the slice.
     #[inline]
-    pub fn run(&self) -> CellsIter<'a> {
+    pub fn run(cells: &[Cell]) -> CellsIter<'_> {
         CellsIter {
-            cells: self,
+            cells,
             idx: 0,
             col: 0,
         }
@@ -33,8 +27,8 @@ impl<'a> Cells<'a> {
     ///
     /// See [`Cell::advance`].
     #[inline]
-    pub fn map_advance(&self) -> impl Iterator<Item = usize> + '_ {
-        self.iter().map(Cell::advance)
+    pub fn advance(cells: &[Cell]) -> impl Iterator<Item = usize> + '_ {
+        cells.iter().map(Cell::advance)
     }
 
     /// Index of the last cell in `row` that must be drawn, or `None` if the row
@@ -46,19 +40,10 @@ impl<'a> Cells<'a> {
     /// blank and must still be painted, so this tests [`is_empty`](Self::is_empty)
     /// (glyph *and* style absent), not [`is_space`](Self::is_space).
     #[inline]
-    pub fn last(&self) -> Option<usize> {
-        self.iter().rposition(Cell::is_empty)
+    pub fn last(cells: &[Cell]) -> Option<usize> {
+        cells.iter().rposition(Cell::is_empty)
     }
-}
 
-/// A mutable of cells
-///
-/// Provides common methods for writing - for rendering, diffing and similar purposes.
-#[derive(Debug, Deref, DerefMut, AsRef, From, IntoIterator, Index, IndexMut)]
-#[repr(transparent)]
-pub struct CellsMut<'a>(pub &'a mut [Cell]);
-
-impl<'a> CellsMut<'a> {
     /// Writes a measured grapheme as a cell at `cells[0]` and fills the
     /// following `width - 1` cells with continuations, establishing the
     /// wide-cell invariant in one place. Returns the column span written
@@ -69,29 +54,19 @@ impl<'a> CellsMut<'a> {
     /// grapheme's width (a clip at the row edge) truncates instead of panicking.
     /// The base cell keeps its existing style; callers that style text should
     /// apply it to `cells[0]` afterwards.
-    pub fn write(&mut self, grapheme: &str, width: usize, arena: &mut Arena) -> usize {
-        let span = width.max(1);
-        if let Some((base, rest)) = self.0.split_first_mut() {
-            base.set_str_measured(grapheme, width, arena);
-            for cell in rest.iter_mut().take(span - 1) {
-                *cell = Cell::CONTINUATION;
-            }
-        }
-        span
-    }
-
-    /// Writes a measured grapheme.
-    pub fn write_styled(
-        &mut self,
+    pub fn write_into(
+        cells: &mut [Cell],
         grapheme: &str,
         width: usize,
-        style: Style,
-        arena: &mut Arena,
+        style: Option<Style>,
+        arena: &mut Graphemes,
     ) -> usize {
         let span = width.max(1);
-        if let Some((base, rest)) = self.0.split_first_mut() {
-            base.set_str_measured(grapheme, width, arena)
-                .set_style(style);
+        if let Some((base, rest)) = cells.split_first_mut() {
+            base.set(Grapheme::new((grapheme, arena)), width);
+            if let Some(style) = style {
+                base.set_style(style);
+            }
             for cell in rest.iter_mut().take(span - 1) {
                 *cell = Cell::CONTINUATION;
             }

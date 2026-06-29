@@ -2,7 +2,7 @@ use crate::{Buffer, Cell};
 use ansi::{Attribute, Color, Style};
 
 pub enum Generation {
-    Solid(Option<Color>),
+    Solid(Color),
     Chessboard,
     Grid(Vec<Vec<(char, Style)>>),
     Diagonals {
@@ -15,9 +15,9 @@ pub enum Generation {
 impl Buffer {
     pub fn from_generation(kind: Generation, width: usize, height: usize) -> Self {
         match kind {
-            Generation::Solid(color) => Self::from_fn(width, height, |_, _| {
-                Cell::default().with_maybe_background(color)
-            }),
+            Generation::Solid(color) => {
+                Self::from_fn(width, height, |_, _| Cell::empty().with_background(color))
+            }
             Generation::Chessboard => {
                 // Predefined board for 8×8 – top row (index 0) is black pieces, bottom row (7) white
                 const PIECES: [[Option<char>; 8]; 8] = [
@@ -87,7 +87,7 @@ impl Buffer {
                                 Color::Rgb(240, 240, 240)
                             };
                             let mut cell =
-                                Cell::inline(ch).with_style(Style::None.foreground(piece_color));
+                                Cell::new(ch).with_style(Style::None.foreground(piece_color));
                             // Apply square background
                             if is_light {
                                 cell = cell.with_background(Color::Rgb(245, 245, 220));
@@ -122,7 +122,7 @@ impl Buffer {
                 for (y, row) in rows.iter().enumerate() {
                     for (x, &(ch, style)) in row.iter().enumerate() {
                         if ch != '\0' {
-                            buf[(y, x)] = Cell::inline(ch).with_style(style);
+                            buf[(y, x)] = Cell::new(ch).with_style(style);
                         }
                     }
                 }
@@ -163,7 +163,7 @@ impl Buffer {
                     if next() % 100 < 100 {
                         let ch = glyphs[(next() as usize) % glyphs.len()] as char;
                         let style = palette[(next() as usize) % palette.len()];
-                        Cell::inline(ch).with_style(style)
+                        Cell::new(ch).with_style(style)
                     } else if next() % 4 == 0 {
                         let bg = backgrounds[(next() as usize) % backgrounds.len()];
                         Cell::default().with_background(bg)

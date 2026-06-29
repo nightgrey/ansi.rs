@@ -7,6 +7,7 @@
 #![feature(iter_intersperse)]
 #![feature(exact_size_is_empty)]
 #![feature(slice_range)]
+#![feature(const_ops)]
 #![feature(const_default)]
 #![feature(const_heap)]
 #![feature(const_index)]
@@ -15,6 +16,8 @@
 #![feature(const_clone)]
 #![feature(slice_get_slice)]
 #![feature(int_roundings)]
+#![feature(str_internals)]
+#![feature(const_range)]
 extern crate core;
 
 pub mod drawing;

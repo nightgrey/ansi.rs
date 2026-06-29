@@ -310,9 +310,7 @@ pub trait MeasureFunction<'n>:
     taffy::Size<taffy::AvailableSpace>,
     ElementId,
     &Element<'n>,
-) -> taffy::Size<f32>
-{
-}
+) -> taffy::Size<f32> { }
 
 impl<'n, F> MeasureFunction<'n> for F where
     F: FnMut(

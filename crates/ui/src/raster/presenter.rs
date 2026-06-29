@@ -1,5 +1,5 @@
 use crate::raster::Pen;
-use crate::{Arena, Buffer, BufferDiff, Cell, Cells, Run, TrackingBuffer};
+use crate::{Graphemes, Buffer, BufferDiff, Cell, Cells, Run, TrackingBuffer};
 use ansi::WriteEscape;
 use ansi::sequences::*;
 use ansi::{SGR, Style};
@@ -135,7 +135,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
     ) -> io::Result<PresenterStats> {
         let mut stats = PresenterStats::default();
         self.writer.reset();
@@ -177,7 +177,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &TrackingBuffer,
-        arena: &Arena,
+        arena: &Graphemes,
     ) -> io::Result<PresenterStats> {
         let mut stats = PresenterStats::default();
         self.writer.reset();
@@ -295,7 +295,7 @@ impl<W: Write> Presenter<W> {
     fn emit_full(
         &mut self,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let width = next.width();
@@ -310,7 +310,7 @@ impl<W: Write> Presenter<W> {
         // cell) and EL its tail to drop any leftover content past the last.
         for y in 0..height {
             let row = &next[Row(y)];
-            let Some(end) = Cells(row).last() else {
+            let Some(end) = Cells::last((row)) else {
                 continue;
             };
             self.move_pen(y as u16, 0)?;
@@ -340,7 +340,7 @@ impl<W: Write> Presenter<W> {
     fn emit_inline_full(
         &mut self,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let width = next.width();
@@ -359,7 +359,7 @@ impl<W: Write> Presenter<W> {
         for y in 0..height {
             self.move_pen(y as u16, 0)?;
             let row = &next[Row(y)];
-            if let Some(end) = Cells(row).last() {
+            if let Some(end) = Cells::last((row)) {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -378,7 +378,7 @@ impl<W: Write> Presenter<W> {
     fn inline_claim(
         &mut self,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let height = next.height();
@@ -393,7 +393,7 @@ impl<W: Write> Presenter<W> {
                 self.writer.write_all(b"\n")?;
             }
             let row = &next[Row(y)];
-            if let Some(end) = Cells(row).last() {
+            if let Some(end) = Cells::last((row)) {
                 for col in 0..=end {
                     emit_cell(&row[col], &mut self.writer, &mut self.pen, arena)?;
                     stats.cells += 1;
@@ -408,7 +408,7 @@ impl<W: Write> Presenter<W> {
         // back to the top of the claimed region.
         self.pen.row = (height - 1) as u16;
         let last_row = &next[Row(height - 1)];
-        self.pen.col = Cells(last_row).last().map_or(0, |end| end as u16 + 1);
+        self.pen.col = Cells::last((last_row)).map_or(0, |end| end as u16 + 1);
 
         Ok(())
     }
@@ -421,7 +421,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         self.emit_run_loop(prev, next, arena, stats)
@@ -431,7 +431,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let prev_height = self.inline_grow(next.height())?;
@@ -448,7 +448,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         let mut runs = BufferDiff::runs(prev, next).peekable();
@@ -487,7 +487,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         next: &Buffer,
         run: &Run,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<bool> {
         let el_col = self.trailing_el_col(next, run);
@@ -595,7 +595,7 @@ impl<W: Write> Presenter<W> {
         &mut self,
         prev: &Buffer,
         next: &TrackingBuffer,
-        arena: &Arena,
+        arena: &Graphemes,
         stats: &mut PresenterStats,
     ) -> io::Result<()> {
         // ByDirty yields one Change per base cell. Coalesce same-row adjacent
@@ -629,7 +629,7 @@ impl<W: Write> Presenter<W> {
     fn maybe_bridge(
         &mut self,
         next: &Buffer,
-        arena: &Arena,
+        arena: &Graphemes,
         y: u16,
         from: u16,
         to: u16,
@@ -679,18 +679,18 @@ pub struct PresenterStats {
 /// advance the terminal cursor). Continuation cells are skipped — emitting a
 /// wide base already advanced the terminal cursor by the full width.
 #[inline]
-fn emit_cell<W: Write>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Arena) -> io::Result<()> {
+fn emit_cell<W: Write>(cell: &Cell, w: &mut W, pen: &mut Pen, arena: &Graphemes) -> io::Result<()> {
     if cell.is_continuation() {
         return Ok(());
     }
     pen.style(cell.style, w)?;
-    let bytes = cell.as_bytes(arena);
+    let bytes = cell.as_str(arena);
     if bytes.is_empty() {
         // EMPTY: emit a space to keep the grid aligned.
         w.write_all(b" ")?;
         pen.col += 1;
     } else {
-        w.write_all(bytes)?;
+        w.write_all(bytes.as_bytes())?;
         pen.col += cell.advance() as u16;
     }
     Ok(())
@@ -717,7 +717,7 @@ fn cheapest_move_cost(from_col: u16, to_col: u16) -> usize {
 /// tuned so the bridge predicate stays conservative on styled gaps.
 fn bridge_cost(
     next: &Buffer,
-    arena: &Arena,
+    arena: &Graphemes,
     y: u16,
     from: u16,
     to: u16,
@@ -734,7 +734,7 @@ fn bridge_cost(
             total += 8;
             style = cell.style;
         }
-        let bytes = cell.as_bytes(arena);
+        let bytes = cell.as_str(arena);
         total += if bytes.is_empty() { 1 } else { bytes.len() };
     }
     total
@@ -779,7 +779,7 @@ mod tests {
         }
 
         /// Present `next`, returning just the bytes emitted for this frame.
-        fn present(&mut self, next: &Buffer, arena: &Arena) -> (PresenterStats, Vec<u8>) {
+        fn present(&mut self, next: &Buffer, arena: &Graphemes) -> (PresenterStats, Vec<u8>) {
             if self.prev.width() != next.width() || self.prev.height() != next.height() {
                 self.prev.resize(next.width(), next.height());
                 self.prev.clear();
@@ -793,7 +793,7 @@ mod tests {
             (stats, frame)
         }
 
-        fn frame_str(&mut self, next: &Buffer, arena: &Arena) -> String {
+        fn frame_str(&mut self, next: &Buffer, arena: &Graphemes) -> String {
             let (_, bytes) = self.present(next, arena);
             String::from_utf8_lossy(&bytes).into_owned()
         }
@@ -809,7 +809,7 @@ mod tests {
     fn fullscreen_first_frame_clears_then_paints() {
         let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1);
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(out.contains("\x1B[2J"), "first frame should ED2: {out:?}");
         assert!(out.contains('A'), "should paint 'A': {out:?}");
     }
@@ -818,15 +818,15 @@ mod tests {
     fn fullscreen_identical_second_frame_emits_no_content() {
         let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None), (0, 1, 'B', Style::None)]);
         let mut h = Harness::new(3, 1);
-        h.present(&buf, &Arena::new());
-        let out = h.frame_str(&buf, &Arena::new());
+        h.present(&buf, &Graphemes::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(!out.contains('A'), "should not re-emit 'A': {out:?}");
         assert!(!out.contains('B'), "should not re-emit 'B': {out:?}");
     }
 
     #[test]
     fn fullscreen_diff_emits_only_changed_cell() {
-        let arena = Arena::new();
+        let arena = Graphemes::new();
         let buf1 = Buffer::from_cells(
             3,
             1,
@@ -856,7 +856,7 @@ mod tests {
 
     #[test]
     fn fullscreen_diff_clears_row_with_erase_line() {
-        let arena = Arena::new();
+        let arena = Graphemes::new();
         let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
         let buf = Buffer::from_cells(20, 1, &full);
         let mut h = Harness::new(20, 1);
@@ -874,7 +874,7 @@ mod tests {
 
     #[test]
     fn fullscreen_diff_shrink_uses_erase_line_for_tail() {
-        let arena = Arena::new();
+        let arena = Graphemes::new();
         let full: Vec<_> = (0..20).map(|c| (0usize, c, 'x', Style::None)).collect();
         let buf = Buffer::from_cells(20, 1, &full);
         let mut h = Harness::new(20, 1);
@@ -896,7 +896,7 @@ mod tests {
 
     #[test]
     fn fullscreen_diff_no_erase_line_when_tail_has_content() {
-        let arena = Arena::new();
+        let arena = Graphemes::new();
         let buf = Buffer::from_cells(
             5,
             1,
@@ -923,10 +923,10 @@ mod tests {
     fn fullscreen_invalidate_forces_full_redraw() {
         let buf = Buffer::from_cells(2, 1, &[(0, 0, 'Z', Style::None)]);
         let mut h = Harness::new(2, 1);
-        h.present(&buf, &Arena::new());
+        h.present(&buf, &Graphemes::new());
 
         h.invalidate();
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(out.contains("\x1B[2J"), "invalidate should ED2: {out:?}");
         assert!(out.contains('Z'), "should re-emit 'Z': {out:?}");
     }
@@ -936,7 +936,7 @@ mod tests {
         let caps = Capabilities::builder().sync_output(true).build();
         let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1).with_capabilities(caps);
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(out.starts_with("\x1B[?2026h"), "begin sync: {out:?}");
         assert!(out.ends_with("\x1B[?2026l"), "end sync: {out:?}");
     }
@@ -945,7 +945,7 @@ mod tests {
     fn fullscreen_hides_then_shows_cursor() {
         let buf = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut h = Harness::new(3, 1);
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         let hide = out.find("\x1B[?25l");
         let show = out.rfind("\x1B[?25h");
         assert!(
@@ -961,7 +961,7 @@ mod tests {
     fn inline_first_frame_has_no_ed_or_home() {
         let buf = Buffer::from_cells(3, 2, &[(0, 0, 'x', Style::None), (1, 0, 'y', Style::None)]);
         let mut h = Harness::inline(3, 2);
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(!out.contains("\x1B[2J"), "no ED2 inline: {out:?}");
         assert!(!out.contains("\x1B[H"), "no Home inline: {out:?}");
         assert!(
@@ -983,8 +983,8 @@ mod tests {
             ],
         );
         let mut h = Harness::inline(5, 2);
-        h.present(&buf, &Arena::new());
-        let out = h.frame_str(&buf, &Arena::new());
+        h.present(&buf, &Graphemes::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(!out.contains('a'), "should not re-emit 'a': {out:?}");
         assert!(!out.contains('c'), "should not re-emit 'c': {out:?}");
     }
@@ -1002,7 +1002,7 @@ mod tests {
             ],
         );
         let mut h = Harness::inline(5, 2);
-        h.present(&buf1, &Arena::new());
+        h.present(&buf1, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(
             5,
@@ -1014,7 +1014,7 @@ mod tests {
                 (1, 1, 'd', Style::None),
             ],
         );
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(out.contains('X'), "should emit changed cell: {out:?}");
         assert!(!out.contains('a'), "should not re-emit 'a': {out:?}");
         assert!(!out.contains('d'), "should not re-emit 'd': {out:?}");
@@ -1032,7 +1032,7 @@ mod tests {
             ],
         );
         let mut h = Harness::inline(5, 3);
-        h.present(&buf, &Arena::new());
+        h.present(&buf, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(
             5,
@@ -1043,7 +1043,7 @@ mod tests {
                 (2, 0, 'c', Style::None),
             ],
         );
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(
             out.contains("\x1B[2A") || out.contains("\x1B[A"),
             "should CUU to rewind: {out:?}"
@@ -1054,7 +1054,7 @@ mod tests {
     fn inline_grow_claims_new_rows_with_newline() {
         let buf1 = Buffer::from_cells(3, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(3, 2);
-        h.present(&buf1, &Arena::new());
+        h.present(&buf1, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(
             3,
@@ -1065,7 +1065,7 @@ mod tests {
                 (2, 0, 'c', Style::None),
             ],
         );
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(
             out.contains('\n'),
             "should emit newline to claim a row: {out:?}"
@@ -1085,10 +1085,10 @@ mod tests {
             ],
         );
         let mut h = Harness::inline(3, 3);
-        h.present(&buf1, &Arena::new());
+        h.present(&buf1, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'a', Style::None)]);
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(out.contains("\x1B[K"), "should EL orphan rows: {out:?}");
     }
 
@@ -1099,10 +1099,10 @@ mod tests {
         // newlines, and it must re-emit the content.
         let buf = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
-        h.present(&buf, &Arena::new());
+        h.present(&buf, &Graphemes::new());
 
         h.invalidate();
-        let out = h.frame_str(&buf, &Arena::new());
+        let out = h.frame_str(&buf, &Graphemes::new());
         assert!(
             out.contains("\x1B[A"),
             "should CUU to rewind, not re-claim: {out:?}"
@@ -1124,11 +1124,11 @@ mod tests {
         // them), but inline has no EraseDisplay, so the row must be EL-cleared.
         let buf1 = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None), (1, 0, 'b', Style::None)]);
         let mut h = Harness::inline(5, 2);
-        h.present(&buf1, &Arena::new());
+        h.present(&buf1, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(5, 2, &[(0, 0, 'a', Style::None)]);
         h.invalidate();
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(
             !out.contains('b'),
             "stale 'b' should not be re-emitted: {out:?}"
@@ -1149,10 +1149,10 @@ mod tests {
         let s2 = Style::default().foreground(Color::Rgb(0, 0, 255));
         let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1)]);
         let mut h = Harness::new(3, 1);
-        h.present(&buf1, &Arena::new());
+        h.present(&buf1, &Graphemes::new());
 
         let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s2)]);
-        let out = h.frame_str(&buf2, &Arena::new());
+        let out = h.frame_str(&buf2, &Graphemes::new());
         assert!(out.contains("38;2;0;0;255"), "should emit new fg: {out:?}");
     }
 
@@ -1161,7 +1161,7 @@ mod tests {
     #[test]
     fn tracking_diff_emits_only_marked_changes() {
         use crate::TrackingBuffer;
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
 
         let prev = Buffer::from_cells(
             3,
@@ -1226,7 +1226,7 @@ mod tests {
 
         use super::Presenter;
         use crate::buffer_generation::Generation;
-        use crate::{Arena, Buffer, Cell, TrackingBuffer};
+        use crate::{Graphemes, Buffer, Cell, TrackingBuffer};
         use ansi::parser::{Handler, Parser};
         use ansi::{Attribute, Color, Param, Style, Values};
         use ansi::{ByteStr, Params};
@@ -1529,7 +1529,7 @@ mod tests {
             }
         }
 
-        fn canon_cell(cell: &Cell, arena: &Arena) -> Canon {
+        fn canon_cell(cell: &Cell, arena: &Graphemes) -> Canon {
             if cell.is_continuation() {
                 return Canon::Continuation;
             }
@@ -1539,14 +1539,14 @@ mod tests {
             }
             if cell.is_space() {
                 // Empty but styled (e.g. a background) — painted as a styled space.
-                return Canon::Glyph(' ', *cell.style());
+                return Canon::Glyph(' ', cell.style);
             }
             let s = cell.as_str(arena);
             let ch = s.chars().next().unwrap_or(' ');
             if ch == ' ' && cell.style().is_none() {
                 return Canon::Blank;
             }
-            Canon::Glyph(ch, *cell.style())
+            Canon::Glyph(ch, cell.style)
         }
 
         fn describe(c: Canon) -> String {
@@ -1594,7 +1594,7 @@ mod tests {
 
             /// Present `next`, feed the frame's bytes through the parser, then assert
             /// the reconstructed grid matches `next`.
-            fn frame(&mut self, next: &Buffer, arena: &Arena) {
+            fn frame(&mut self, next: &Buffer, arena: &Graphemes) {
                 assert_eq!(self.term.width, next.width(), "width must be stable");
                 if self.prev.width() != next.width() || self.prev.height() != next.height() {
                     self.prev.resize(next.width(), next.height());
@@ -1614,7 +1614,7 @@ mod tests {
         }
 
         /// Assert the reconstructed terminal grid matches `next` cell-for-cell.
-        fn assert_grid(term: &Emulator, next: &Buffer, arena: &Arena, bytes: &[u8]) {
+        fn assert_grid(term: &Emulator, next: &Buffer, arena: &Graphemes, bytes: &[u8]) {
             for y in 0..next.height() {
                 for x in 0..next.width() {
                     let cell = &next[geometry::Point {
@@ -1689,7 +1689,7 @@ mod tests {
                 self.presenter.invalidate();
             }
 
-            fn frame(&mut self, next: &Buffer, arena: &Arena) {
+            fn frame(&mut self, next: &Buffer, arena: &Graphemes) {
                 assert_eq!(self.term.width, next.width(), "width must be stable");
 
                 // Apply `next` into the tracking buffer, marking only the rows that
@@ -1735,7 +1735,7 @@ mod tests {
             for (y, row) in rows.iter().enumerate() {
                 for (x, &(ch, style)) in row.iter().enumerate() {
                     if ch != '\0' {
-                        buf[(y, x)] = Cell::inline(ch).with_style(style);
+                        buf[(y, x)] = Cell::new(ch).with_style(style);
                     }
                 }
             }
@@ -1770,7 +1770,7 @@ mod tests {
                     if next() % 100 < fill {
                         let ch = glyphs[(next() as usize) % glyphs.len()] as char;
                         let style = palette[(next() as usize) % palette.len()];
-                        buf[(y, x)] = Cell::inline(ch).with_style(style);
+                        buf[(y, x)] = Cell::new(ch).with_style(style);
                     } else if next() % 4 == 0 {
                         // An empty cell carrying only a background — must paint as a
                         // styled space on every path.
@@ -1788,7 +1788,7 @@ mod tests {
 
         #[test]
         fn fullscreen_single_frame_styles_and_gaps() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let s_red = Style::None.foreground(Color::Red);
             let s_bg = Style::None.background(Color::Rgb(0, 0, 128));
             let buf = grid(&[
@@ -1812,7 +1812,7 @@ mod tests {
 
         #[test]
         fn fullscreen_diff_sequence() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = grid(&[
                 vec![('a', Style::None), ('b', Style::None), ('c', Style::None)],
                 vec![('d', Style::None), ('e', Style::None), ('f', Style::None)],
@@ -1834,7 +1834,7 @@ mod tests {
 
         #[test]
         fn fullscreen_invalidate_then_diff() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = pseudo_random(12, 5, 1, 60);
             let b = pseudo_random(12, 5, 2, 60);
             let mut rt = Roundtrip::fullscreen(12, 5);
@@ -1846,7 +1846,7 @@ mod tests {
 
         #[test]
         fn fullscreen_property_random_sequences() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             for seed in 0..40u64 {
                 let mut rt = Roundtrip::fullscreen(16, 8);
                 let mut s = seed;
@@ -1863,13 +1863,13 @@ mod tests {
 
         #[test]
         fn fullscreen_wide_glyphs() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             // '中' is width 2; place it so a continuation cell follows.
             let mut a = Buffer::new(6, 2);
-            a[(0, 0)] = Cell::inline('中');
+            a[(0, 0)] = Cell::new('中');
             a[(0, 1)] = Cell::CONTINUATION;
-            a[(0, 3)] = Cell::inline('x');
-            a[(1, 0)] = Cell::inline('世');
+            a[(0, 3)] = Cell::new('x');
+            a[(1, 0)] = Cell::new('世');
             a[(1, 1)] = Cell::CONTINUATION;
 
             let mut rt = Roundtrip::fullscreen(6, 2);
@@ -1877,13 +1877,13 @@ mod tests {
 
             // Change the narrow tail; the wide glyph must stay intact.
             let mut b = a.clone();
-            b[(0, 3)] = Cell::inline('Z');
+            b[(0, 3)] = Cell::new('Z');
             rt.frame(&b, &arena);
         }
 
         #[test]
         fn inline_single_and_diff() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = grid(&[
                 vec![('a', Style::None), ('b', Style::None), ('\0', Style::None)],
                 vec![('c', Style::None), ('d', Style::None), ('\0', Style::None)],
@@ -1900,7 +1900,7 @@ mod tests {
 
         #[test]
         fn inline_grow_and_shrink() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let two = grid(&[vec![('a', Style::None)], vec![('b', Style::None)]]);
             let four = grid(&[
                 vec![('a', Style::None)],
@@ -1919,7 +1919,7 @@ mod tests {
 
         #[test]
         fn inline_invalidate_repaints_in_place() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = grid(&[
                 vec![('a', Style::None), ('b', Style::None)],
                 vec![('c', Style::None), ('d', Style::None)],
@@ -1937,7 +1937,7 @@ mod tests {
 
         #[test]
         fn inline_property_random_sequences() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             for seed in 0..30u64 {
                 let mut rt = Roundtrip::inline(10, 4);
                 let mut s = seed.wrapping_add(7);
@@ -1954,7 +1954,7 @@ mod tests {
 
         #[test]
         fn tracking_single_and_diff() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = grid(&[
                 vec![('a', Style::None), ('b', Style::None), ('c', Style::None)],
                 vec![('d', Style::None), ('e', Style::None), ('f', Style::None)],
@@ -1972,7 +1972,7 @@ mod tests {
 
         #[test]
         fn tracking_clears_and_backgrounds() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let s_bg = Style::None.background(Color::Rgb(30, 30, 30));
             let a = grid(&[
                 vec![('x', Style::None), ('y', Style::None), ('z', Style::None)],
@@ -1994,7 +1994,7 @@ mod tests {
 
         #[test]
         fn tracking_invalidate_forces_full_repaint() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let a = pseudo_random(12, 5, 3, 60);
             let mut rt = TrackingEmulator::new(12, 5);
             rt.frame(&a, &arena);
@@ -2005,7 +2005,7 @@ mod tests {
 
         #[test]
         fn tracking_property_random_sequences() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             for seed in 0..40u64 {
                 let mut rt = TrackingEmulator::new(16, 6);
                 let mut s = seed.wrapping_add(11);
@@ -2027,9 +2027,9 @@ mod tests {
         /// (glyph *and* style), so a background survives a full repaint.
         #[test]
         fn empty_background_cells_paint_on_all_paths() {
-            let arena = Arena::new();
+            let arena = Graphemes::new();
             let grey = Color::Rgb(40, 40, 40);
-            let solid = Buffer::from_generation(Generation::Solid(Some(grey)), 4, 2);
+            let solid = Buffer::from_generation(Generation::Solid(grey), 4, 2);
 
             // Full paint (first frame).
             let mut rt = Roundtrip::fullscreen(4, 2);

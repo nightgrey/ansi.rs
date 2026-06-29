@@ -1,4 +1,4 @@
-use crate::{Arena, Border, Buffer, DrawingContext, DrawingOptions};
+use crate::{Graphemes, Border, Buffer, DrawingContext, DrawingOptions};
 use ansi::Style;
 use geometry::{Bound, Intersect, Outer, Point, Rect, Size, Translate};
 use smallvec::SmallVec;
@@ -17,7 +17,7 @@ pub struct State {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Options {
+struct BufferDrawingOptions {
     style: Style,
     glyph: char,
     glyph_width: usize,
@@ -30,16 +30,16 @@ struct Options {
 /// stack. All coordinates are relative to `origin`; all draws are clipped
 /// to the current clip rect.
 #[derive(Debug)]
-pub struct BufferPainter<'a> {
+pub struct BufferDrawingCOntext<'a> {
     buffer: &'a mut Buffer,
-    arena: &'a mut Arena,
+    arena: &'a mut Graphemes,
     state: State,
     stacks: SmallVec<State, 16>,
 }
 
-impl<'buf> BufferPainter<'buf> {
+impl<'buf> BufferDrawingCOntext<'buf> {
     /// Create a new context spanning the full buffer.
-    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut Arena) -> Self {
+    pub fn new(buffer: &'buf mut Buffer, arena: &'buf mut Graphemes) -> Self {
         let clip = buffer.bounds(); // full buffer rect
         Self {
             buffer,
@@ -56,10 +56,10 @@ impl<'buf> BufferPainter<'buf> {
     }
 
     #[inline]
-    fn resolve(&self, options: DrawingOptions) -> Options {
+    fn resolve(&self, options: DrawingOptions) -> BufferDrawingOptions {
         let glyph = options.glyph.unwrap_or(self.state.glyph);
 
-        Options {
+        BufferDrawingOptions {
             style: options.layout.map_or(self.state.style, Into::into),
             glyph,
             glyph_width: glyph.width().unwrap_or(0),
@@ -77,7 +77,7 @@ impl<'buf> BufferPainter<'buf> {
     }
 }
 
-impl<'a> DrawingContext for BufferPainter<'a> {
+impl<'a> DrawingContext for BufferDrawingCOntext<'a> {
     type Error = io::Error;
 
     fn current_clip(&self) -> Rect {
@@ -284,7 +284,7 @@ mod tests {
 
     struct Context<'a> {
         buffer: Buffer,
-        arena: Arena,
+        arena: Graphemes,
         document: Document<'a>,
     }
 
@@ -315,7 +315,7 @@ mod tests {
     }
 
     fn context<'a>(width: usize, height: usize) -> Context<'a> {
-        let mut arena = Arena::new();
+        let mut arena = Graphemes::new();
         let mut buffer = Buffer::new(width, height);
         let mut document = Document::new();
 
@@ -326,8 +326,8 @@ mod tests {
         }
     }
 
-    fn renderer<'a>(context: &'a mut Context) -> BufferPainter<'a> {
-        BufferPainter::new(&mut context.buffer, &mut context.arena)
+    fn renderer<'a>(context: &'a mut Context) -> BufferDrawingCOntext<'a> {
+        BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena)
     }
 
     #[test]
@@ -341,7 +341,7 @@ mod tests {
 
         assert_eq!(
             context.buffer.iter().all(
-                |c| c.style.foreground == Color::White && c.grapheme() == Grapheme::inline('x')
+                |c| c.style.foreground == Color::White && c.grapheme() == Grapheme::new('x')
             ),
             true
         );
@@ -402,8 +402,8 @@ mod tests {
         // After restore, origin is back to (0,0)
         renderer.text(Point::ZERO, "B").unwrap();
 
-        assert_eq!(context.buffer[pos!(3, 3)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[pos!(3, 3)].grapheme(), Grapheme::new('A'));
+        assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::new('B'));
     }
 
     #[test]
@@ -420,7 +420,7 @@ mod tests {
         }
 
         // Inside the old clip — should be filled
-        assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::inline('X'));
+        assert_eq!(context.buffer[(2, 2)].grapheme(), Grapheme::new('X'));
         // Outside the old clip — should be empty
         assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
 
@@ -429,7 +429,7 @@ mod tests {
             let mut renderer = renderer(&mut context);
             renderer.text(Point::new(7, 7), "Y").unwrap();
         }
-        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::inline('Y'));
+        assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::new('Y'));
     }
 
     #[test]
@@ -443,7 +443,7 @@ mod tests {
         });
 
         // Inside the within rect — filled
-        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::inline('W'));
+        assert_eq!(context.buffer[(3, 3)].grapheme(), Grapheme::new('W'));
         // Outside — empty
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
         assert_eq!(context.buffer[(7, 7)].grapheme(), Grapheme::EMPTY);
@@ -464,7 +464,7 @@ mod tests {
         renderer.restore();
 
         // (3+2, 3+2) = (5, 5)
-        assert_eq!(context.buffer[(5, 5)].grapheme(), Grapheme::inline('N'));
+        assert_eq!(context.buffer[(5, 5)].grapheme(), Grapheme::new('N'));
     }
 
     #[test]
@@ -474,8 +474,8 @@ mod tests {
 
         renderer.text(Point::new(4, 1), "Hi").unwrap();
 
-        assert_eq!(context.buffer[(1, 4)].grapheme(), Grapheme::inline('H'));
-        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('i'));
+        assert_eq!(context.buffer[(1, 4)].grapheme(), Grapheme::new('H'));
+        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::new('i'));
         // Adjacent cell untouched
         assert_eq!(context.buffer[(1, 6)].grapheme(), Grapheme::EMPTY);
     }
@@ -489,8 +489,8 @@ mod tests {
         renderer.text(Point::new(0, 0), "Hello").unwrap();
 
         // Only first 4 chars fit in clip
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('H'));
-        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('l'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('H'));
+        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::new('l'));
         // 5th char ('o') is outside clip — cell stays empty
         assert_eq!(context.buffer[(4, 0)].grapheme(), Grapheme::EMPTY);
     }
@@ -502,10 +502,10 @@ mod tests {
         let written = renderer(&mut context).text(Point::ZERO, "A中B").unwrap();
 
         assert_eq!(written, 4);
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline('中'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('A'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::new('中'));
         assert!(context.buffer[(0, 2)].is_continuation());
-        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[(0, 3)].grapheme(), Grapheme::new('B'));
     }
 
     #[test]
@@ -517,7 +517,7 @@ mod tests {
         let written = renderer.text(Point::ZERO, "A中").unwrap();
 
         assert_eq!(written, 1);
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('A'));
         assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::EMPTY);
     }
 
@@ -530,7 +530,7 @@ mod tests {
         renderer.clip(Rect::new(0, 0, 3, 1));
         assert_eq!(renderer.char(Point::new(2, 0), '中').unwrap(), 0);
 
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('中'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('中'));
         assert!(context.buffer[(0, 1)].is_continuation());
         assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::EMPTY);
     }
@@ -543,8 +543,8 @@ mod tests {
         assert_eq!(renderer.text(Point::ZERO, "A\nB").unwrap(), 2);
         assert_eq!(renderer.char(Point::new(2, 0), '\u{0301}').unwrap(), 0);
 
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('A'));
-        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline('B'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('A'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::new('B'));
         assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::EMPTY);
     }
 
@@ -562,10 +562,10 @@ mod tests {
         renderer.rect(Rect::new(0, 0, 3, 1)).unwrap();
         renderer.clear(Rect::new(1, 0, 1, 1)).unwrap();
 
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('x'));
-        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::inline(' '));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('x'));
+        assert_eq!(context.buffer[(0, 1)].grapheme(), Grapheme::new(' '));
         assert!(context.buffer[(0, 1)].style.is_empty());
-        assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::inline('x'));
+        assert_eq!(context.buffer[(0, 2)].grapheme(), Grapheme::new('x'));
     }
 
     #[test]
@@ -586,7 +586,7 @@ mod tests {
 
         document.compute_layout(Space::new(20,10));
 
-        document.paint(&mut BufferPainter::new(&mut context.buffer, &mut context.arena)).unwrap();
+        document.paint(&mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena)).unwrap();
 
         // Text should appear at content area offset (padding=2 on each side)
         let child_content = document.content_bounds(child);
@@ -594,11 +594,11 @@ mod tests {
         let text_y = child_content.min.y as usize;
         assert_eq!(
             context.buffer[(text_y, text_x)].grapheme(),
-            Grapheme::inline('A')
+            Grapheme::new('A')
         );
         assert_eq!(
             context.buffer[(text_y, text_x + 1)].grapheme(),
-            Grapheme::inline('B')
+            Grapheme::new('B')
         );
         // Origin cell should be empty (it's in the padding)
         assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::EMPTY);
@@ -631,7 +631,7 @@ mod tests {
 
         let text_content = document.content_bounds(text_id);
 
-        document.paint(&mut BufferPainter::new(&mut context.buffer, &mut context.arena)).unwrap();
+        document.paint(&mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena)).unwrap();
 
         let div_bounds = document.border_bounds(child_div);
         let text_bounds = document.border_bounds(text_id);
@@ -639,10 +639,10 @@ mod tests {
         // Absolute position = parent bounds + child bounds (taffy locations are parent-relative)
         let tx = (div_bounds.min.x + text_bounds.min.x) as usize;
         let ty = (div_bounds.min.y + text_bounds.min.y) as usize;
-        assert_eq!(context.buffer[(ty, tx)].grapheme(), Grapheme::inline('O'));
+        assert_eq!(context.buffer[(ty, tx)].grapheme(), Grapheme::new('O'));
         assert_eq!(
             context.buffer[(ty, tx + 1)].grapheme(),
-            Grapheme::inline('K')
+            Grapheme::new('K')
         );
         // Padding area should be empty
         assert_eq!(context.buffer[pos!(0, 0)].grapheme(), Grapheme::EMPTY);
@@ -672,14 +672,14 @@ mod tests {
         let b_bounds = document.content_bounds(child_b);
 
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
         // First child
         assert_eq!(
             context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(),
-            Grapheme::inline('A')
+            Grapheme::new('A')
         );
         // Second child should be below the first
         assert!(
@@ -690,7 +690,7 @@ mod tests {
         );
         assert_eq!(
             context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(),
-            Grapheme::inline('B')
+            Grapheme::new('B')
         );
     }
 
@@ -711,7 +711,7 @@ mod tests {
 
         document.compute_layout(Space::new(10,5));
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
@@ -746,19 +746,19 @@ mod tests {
 
         document.compute_layout(Space::new(10,4));
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
         // Bold border: top-left ┏, top ━, top-right ┓, etc.
-        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::inline('┏'));
-        assert_eq!(context.buffer[(0, 9)].grapheme(), Grapheme::inline('┓'));
-        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::inline('┗'));
-        assert_eq!(context.buffer[(3, 9)].grapheme(), Grapheme::inline('┛'));
+        assert_eq!(context.buffer[(0, 0)].grapheme(), Grapheme::new('┏'));
+        assert_eq!(context.buffer[(0, 9)].grapheme(), Grapheme::new('┓'));
+        assert_eq!(context.buffer[(3, 0)].grapheme(), Grapheme::new('┗'));
+        assert_eq!(context.buffer[(3, 9)].grapheme(), Grapheme::new('┛'));
         // Top and bottom horizontal edges
         for x in 1..9 {
-            assert_eq!(context.buffer[(0, x)].grapheme(), Grapheme::inline('━'));
-            assert_eq!(context.buffer[(3, x)].grapheme(), Grapheme::inline('━'));
+            assert_eq!(context.buffer[(0, x)].grapheme(), Grapheme::new('━'));
+            assert_eq!(context.buffer[(3, x)].grapheme(), Grapheme::new('━'));
         }
     }
 
@@ -781,7 +781,7 @@ mod tests {
 
         document.compute_layout(Space::new(10,3));
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
@@ -792,7 +792,7 @@ mod tests {
         for y in 0..h {
             for x in 0..w {
                 let cell = &context.buffer[(y, x)];
-                if cell.grapheme() == Grapheme::inline('X') {
+                if cell.grapheme() == Grapheme::new('X') {
                     continue;
                 }
                 assert_eq!(
@@ -837,7 +837,7 @@ mod tests {
 
         document.compute_layout(Space::new(20,20));
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
@@ -873,8 +873,8 @@ mod tests {
         }
 
         // "Hello" text lands at col 1 (after padding) on row 1.
-        assert_eq!(context.buffer[(1, 1)].grapheme(), Grapheme::inline('H'));
-        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::inline('o'));
+        assert_eq!(context.buffer[(1, 1)].grapheme(), Grapheme::new('H'));
+        assert_eq!(context.buffer[(1, 5)].grapheme(), Grapheme::new('o'));
 
         // abc's border is drawn (bold box) — top/bottom corners.
         let abc_bounds = document.border_bounds(abc);
@@ -884,19 +884,19 @@ mod tests {
         let right = abc_bounds.max.x as usize - 1;
         assert_eq!(
             context.buffer[(top, left)].grapheme(),
-            Grapheme::inline('┏')
+            Grapheme::new('┏')
         );
         assert_eq!(
             context.buffer[(top, right)].grapheme(),
-            Grapheme::inline('┓')
+            Grapheme::new('┓')
         );
         assert_eq!(
             context.buffer[(bottom, left)].grapheme(),
-            Grapheme::inline('┗')
+            Grapheme::new('┗')
         );
         assert_eq!(
             context.buffer[(bottom, right)].grapheme(),
-            Grapheme::inline('┛')
+            Grapheme::new('┛')
         );
     }
 
@@ -924,19 +924,19 @@ mod tests {
         let b_bounds = document.content_bounds(child_b);
 
         document.paint(
-            &mut BufferPainter::new(&mut context.buffer, &mut context.arena),
+            &mut BufferDrawingCOntext::new(&mut context.buffer, &mut context.arena),
         )
         .unwrap();
 
         // Side by side in row layout
         assert_eq!(
             context.buffer[(a_bounds.min.y as usize, a_bounds.min.x as usize)].grapheme(),
-            Grapheme::inline('L')
+            Grapheme::new('L')
         );
         assert!(b_bounds.min.x > a_bounds.min.x, "R should be right of L");
         assert_eq!(
             context.buffer[(b_bounds.min.y as usize, b_bounds.min.x as usize)].grapheme(),
-            Grapheme::inline('R')
+            Grapheme::new('R')
         );
     }
 }

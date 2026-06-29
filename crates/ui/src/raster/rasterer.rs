@@ -1,5 +1,5 @@
 use super::pen::Pen;
-use crate::{Arena, Buffer};
+use crate::{Graphemes, Buffer};
 use crate::{Cell, Cells};
 use ansi::WriteEscape;
 use ansi::escape;
@@ -75,7 +75,7 @@ impl Rasterer {
     /// in `next` is emitted.
     ///
     /// [`DoubleBuffer`]: crate::DoubleBuffer
-    pub fn present(&mut self, prev: &Buffer, next: &Buffer, arena: &Arena) -> io::Result<()> {
+    pub fn present(&mut self, prev: &Buffer, next: &Buffer, arena: &Graphemes) -> io::Result<()> {
         if self.inline.is_some() {
             return self.present_inline(prev, next, arena);
         }
@@ -194,7 +194,7 @@ impl Rasterer {
     /// Uses relative cursor movement and claims scrollback rows on first
     /// render. Treats `prev` the same way [`present`] does — ignored when
     /// `invalidated` or dims don't match.
-    fn present_inline(&mut self, prev: &Buffer, next: &Buffer, arena: &Arena) -> io::Result<()> {
+    fn present_inline(&mut self, prev: &Buffer, next: &Buffer, arena: &Graphemes) -> io::Result<()> {
         let width = next.width();
         let height = next.height();
 
@@ -219,7 +219,7 @@ impl Rasterer {
                 }
 
                 let row = &next[Row(y)];
-                let last_content = Cells(row).last();
+                let last_content = Cells::last(row);
 
                 if let Some(end) = last_content {
                     for col in 0..=end {
@@ -233,7 +233,7 @@ impl Rasterer {
 
             self.pen.row = (height - 1) as u16;
             let last_row = &next[Row(height - 1)];
-            self.pen.col = match Cells(last_row).last() {
+            self.pen.col = match Cells::last(last_row) {
                 Some(end) => end as u16 + 1,
                 None => 0,
             };
@@ -308,7 +308,7 @@ impl Rasterer {
     fn row(
         prev: Option<&[Cell]>,
         next: &[Cell],
-        arena: &Arena,
+        arena: &Graphemes,
         y: usize,
         output: &mut Vec<u8>,
         cursor: &mut Pen,
@@ -327,8 +327,7 @@ impl Rasterer {
 
         let last = (0..width).rev().find(|&x| diff(x)).unwrap_or(width - 1);
 
-        let last_non_default_cell = Cells(&next[first..=last])
-            .last()
+        let last_non_default_cell = Cells::last(&next[first..=last])
             .map(|offset| first + offset);
 
         match cursor_mode {
@@ -367,10 +366,10 @@ impl Rasterer {
         cell: &Cell,
         output: &mut Vec<u8>,
         cursor: &mut Pen,
-        arena: &Arena,
+        arena: &Graphemes,
     ) -> io::Result<()> {
         cursor.style(cell.style, output)?;
-        output.extend_from_slice(cell.as_bytes(arena));
+        output.extend_from_slice(cell.as_str(arena).as_bytes());
 
         Ok(())
     }
@@ -396,7 +395,7 @@ struct InlineState {
 
 #[cfg(test)]
 mod tests {
-    use crate::Arena;
+    use crate::Graphemes;
     use ansi::{Color, Style};
 
     use super::*;
@@ -430,7 +429,7 @@ mod tests {
             self
         }
 
-        fn raster(&mut self, next: &Buffer, arena: &Arena) -> io::Result<()> {
+        fn raster(&mut self, next: &Buffer, arena: &Graphemes) -> io::Result<()> {
             if self.prev.width() != next.width() || self.prev.height() != next.height() {
                 self.prev.resize(next.width(), next.height());
                 self.prev.clear();
@@ -463,7 +462,7 @@ mod tests {
         let buffer = Buffer::from_cells(5, 1, &[(0, 0, 'H', style), (0, 1, 'i', style)]);
 
         let mut r = Shadowed::new(5, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(output.contains("\x1B["), "expected SGR sequence: {output}");
@@ -481,10 +480,10 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
         r.clear_output();
 
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -511,7 +510,7 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(
@@ -520,7 +519,7 @@ mod tests {
             &[(0, 0, 'A', style), (0, 1, 'X', style), (0, 2, 'C', style)],
         );
 
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(output_str.contains('X'), "should emit 'X': {output_str}");
@@ -539,11 +538,11 @@ mod tests {
         let buffer = Buffer::from_cells(2, 1, &[(0, 0, 'Z', Style::None)]);
 
         let mut r = Shadowed::new(2, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
         r.clear_output();
 
         r.invalidate();
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -559,12 +558,12 @@ mod tests {
         let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', style)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         r.resize(5, 2);
         let buf2 = Buffer::from_cells(5, 2, &[(0, 0, 'B', style)]);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -593,11 +592,11 @@ mod tests {
         );
 
         let mut r = Shadowed::new(5, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(5, 1, &[(0, 0, 'A', style), (0, 1, 'X', style)]);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -616,11 +615,11 @@ mod tests {
         );
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::new(3, 1);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -640,11 +639,11 @@ mod tests {
         let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1), (0, 1, 'B', s1), (0, 2, 'C', s1)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'X', s2), (0, 1, 'Y', s2), (0, 2, 'Z', s2)]);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -660,7 +659,7 @@ mod tests {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -677,7 +676,7 @@ mod tests {
     fn no_sync_without_cap() {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -699,7 +698,7 @@ mod tests {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', style), (0, 1, 'B', style)]);
 
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         let sgr_count = output_str.matches("\x1B[38;2;").count();
@@ -713,11 +712,11 @@ mod tests {
 
         let buf1 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s1)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'A', s2)]);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -732,7 +731,7 @@ mod tests {
     fn render_hides_then_shows_cursor() {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
 
@@ -784,7 +783,7 @@ mod tests {
     fn flush_writes_and_clears() {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::new(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         assert!(
             !r.as_bytes().is_empty(),
@@ -844,7 +843,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_bytes();
         let has_cup = output.windows(2).enumerate().any(|(i, w)| {
@@ -871,7 +870,7 @@ mod tests {
         let buffer = Buffer::from_cells(10, 1, &[(0, 0, 'a', style), (0, 1, 'b', style)]);
 
         let mut r = Shadowed::inline(10, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_bytes();
         // Count space characters — should NOT have 8 trailing spaces.
@@ -892,7 +891,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 3);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(
@@ -901,7 +900,7 @@ mod tests {
             &[(0, 0, 'a', style), (1, 0, 'X', style), (2, 0, 'c', style)],
         );
 
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -916,7 +915,7 @@ mod tests {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'z', style)]);
 
         let mut r = Shadowed::inline(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -935,7 +934,7 @@ mod tests {
         let buffer = Buffer::from_cells(3, 2, &[(0, 0, 'x', style), (1, 0, 'y', style)]);
 
         let mut r = Shadowed::inline(3, 2);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(
@@ -963,7 +962,7 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(
@@ -976,7 +975,7 @@ mod tests {
                 (1, 1, 'd', style),
             ],
         );
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         dbg!(output_str);
@@ -1013,10 +1012,10 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(5, 2);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
         r.clear_output();
 
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -1035,7 +1034,7 @@ mod tests {
         let buf1 = Buffer::from_cells(3, 2, &[(0, 0, 'a', style), (1, 0, 'b', style)]);
 
         let mut r = Shadowed::inline(3, 2);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(
@@ -1043,7 +1042,7 @@ mod tests {
             3,
             &[(0, 0, 'a', style), (1, 0, 'b', style), (2, 0, 'c', style)],
         );
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output = r.as_bytes();
         assert!(output.contains(&b'\n'), "should emit newline for growth");
@@ -1064,11 +1063,11 @@ mod tests {
         );
 
         let mut r = Shadowed::inline(3, 3);
-        r.raster(&buf1, &Arena::new()).unwrap();
+        r.raster(&buf1, &Graphemes::new()).unwrap();
         r.clear_output();
 
         let buf2 = Buffer::from_cells(3, 1, &[(0, 0, 'a', style)]);
-        r.raster(&buf2, &Arena::new()).unwrap();
+        r.raster(&buf2, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         assert!(
@@ -1081,7 +1080,7 @@ mod tests {
     fn inline_hides_then_shows_cursor() {
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output_str = r.as_str();
         let hide = "\x1B[?25l";
@@ -1107,7 +1106,7 @@ mod tests {
         let caps = Capabilities::builder().sync_output(true).build();
         let buffer = Buffer::from_cells(3, 1, &[(0, 0, 'A', Style::None)]);
         let mut r = Shadowed::inline(3, 1).with_capabilities(caps);
-        r.raster(&buffer, &Arena::new()).unwrap();
+        r.raster(&buffer, &Graphemes::new()).unwrap();
 
         let output = r.as_str();
         assert!(

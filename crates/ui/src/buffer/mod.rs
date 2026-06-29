@@ -6,7 +6,7 @@ mod buffer_index;
 mod buffer_tracking;
 mod cell;
 mod cells;
-mod grapheme;
+mod graphemes;
 
 pub use buffer::*;
 pub use buffer_diff::*;
@@ -15,4 +15,4 @@ pub use buffer_index::*;
 pub use buffer_tracking::*;
 pub use cell::*;
 pub use cells::*;
-pub use grapheme::*;
+pub use graphemes::*;

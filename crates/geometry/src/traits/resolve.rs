@@ -84,11 +84,11 @@ where
     B: Resolve<Point, U>,
 {
     fn resolve(&self, value: PointLike) -> U {
-        self.resolve(Point::from(value))
+        Resolve::resolve(self, Point::from(value))
     }
 
     fn try_resolve(&self, value: PointLike) -> Option<U> {
-        self.try_resolve(Point::from(value))
+        Resolve::try_resolve(self, Point::from(value))
     }
 }
 

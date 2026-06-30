@@ -91,6 +91,20 @@ where
         Resolve::try_resolve(self, Point::from(value))
     }
 }
+// `PointLike` (an `(x, y)` tuple) resolves identically to `Point`; forward to
+// the `Point` impls so the index logic lives in exactly one place.
+impl<B, U> Resolve<PointLike<usize>, U> for B
+where
+    B: Resolve<Point, U>,
+{
+    fn resolve(&self, value: PointLike<usize>) -> U {
+            Resolve::resolve(self, Point::from((value.0 as u16, value.1 as u16)))
+    }
+
+    fn try_resolve(&self, value: PointLike<usize>) -> Option<U> {
+            Resolve::try_resolve(self, Point::from((value.0 as u16, value.1 as u16)))
+    }
+}
 
 // Row
 impl<B: Bounded> Resolve<Row, usize> for B {

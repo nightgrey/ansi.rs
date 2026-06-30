@@ -1,11 +1,10 @@
-use crate::{Graphemes, Cell, Cells, BufferIndex};
+use crate::{Graphemes, Cell, Cells, BufferIndex, BufferIndexMany};
 use ansi::Style;
 use std::borrow::{Borrow, BorrowMut};
 use derive_more::{ Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Point, Row};
+use geometry::{Bounded, Point};
 use std::fmt::{Debug, Display, Formatter, Write};
-use std::ops;
-use unicode_segmentation::UnicodeSegmentation;
+use std::{ops};
 use unicode_width::UnicodeWidthStr;
 use super::BufferIndexExt;
 
@@ -39,11 +38,11 @@ impl Buffer {
     /// A convenience constructor mostly used for tests.
     pub fn from_elements<I: BufferIndexExt>(width: u16, height: u16, elements: &[(I, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
-        elements.iter().for_each(|(index, ch, style)| {
+        for (index, ch, style) in elements {
             for cell in buffer.iter_index_mut(index.clone()) {
                 *cell = Cell::new(*ch).with_style(*style);
             }
-        });
+        }
         buffer
     }
 
@@ -59,7 +58,7 @@ impl Buffer {
             .unwrap_or_default();
         let mut buffer = Self::new(width as u16, height as u16);
         for (y, line) in lines.iter().enumerate() {
-            buffer.set_line((0, y as u16), line, arena);
+            buffer.set_line((0, y as u16), line, None, arena);
         }
         buffer
     }
@@ -102,6 +101,16 @@ impl Buffer {
         index.get(self)
     }
 
+    /// Returns a slice of shared references to the output at this location, if in
+    /// bounds.
+    #[inline]
+    pub fn get_many<I: BufferIndexMany>(
+        &self,
+        index: I,
+    ) -> Option<&[Cell]> {
+        index.get_many(self)
+    }
+
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
     #[inline]
@@ -110,6 +119,16 @@ impl Buffer {
         index: I,
     ) -> Option<&mut I::Output> {
         index.get_mut(self)
+    }
+
+    /// Returns a slice of mutable references to the output at this location, if in
+    /// bounds.
+    #[inline]
+    pub fn get_many_mut<I: BufferIndexMany>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut [Cell]> {
+        index.get_many_mut(self)
     }
 
     /// Returns a pointer to the output at this location, without
@@ -127,6 +146,21 @@ impl Buffer {
         unsafe { index.get_unchecked(self) }
     }
 
+    /// Returns a slice of pointers to the output at this location, without
+    /// performing any bounds checking.
+    ///
+    /// Calling this method with an out-of-bounds index or a dangling `slice` pointer
+    /// is *[undefined behavior]* even if the resulting pointer is not used.
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    #[inline]
+    pub unsafe fn get_many_unchecked<I: BufferIndexMany>(
+        &self,
+        index: I,
+    ) -> *const [Cell] {
+        index.get_many_unchecked(self)
+    }
+
     /// Returns a mutable pointer to the output at this location, without
     /// performing any bounds checking.
     ///
@@ -142,7 +176,20 @@ impl Buffer {
         unsafe { index.get_unchecked_mut(self) }
     }
 
-
+    /// Returns a slice of mutable pointers to the output at this location, without
+    /// performing any bounds checking.
+    ///
+    /// Calling this method with an out-of-bounds index or a dangling `slice` pointer
+    /// is *[undefined behavior]* even if the resulting pointer is not used.
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    #[inline]
+    pub unsafe fn get_many_unchecked_mut<I: BufferIndexMany>(
+        &mut self,
+        index: I,
+    ) -> *mut [Cell] {
+        index.get_many_unchecked_mut(self)
+    }
 
     #[inline]
     pub fn contains(&self, index: impl BufferIndexExt) -> bool {
@@ -151,32 +198,42 @@ impl Buffer {
 
     #[inline]
     pub fn index_of(&self, index: impl BufferIndexExt) -> usize {
-        index.into_index(self)
+        index.as_index(self)
     }
 
     #[inline]
     pub fn point_of(&self, index: impl BufferIndexExt) -> Point {
-        index.into_point(self)
+        index.as_point(self)
     }
 
     #[inline]
-    pub fn range_of(&self, range: impl BufferIndexExt) -> ops::Range<usize> {
-        range.into_range(self)
+    pub fn x_of(&self, index: impl BufferIndexExt) -> u16 {
+        index.x(self)
     }
 
     #[inline]
-    pub fn len_of(&self, range: impl BufferIndexExt) -> usize {
-        range.len(self)
+    pub fn y_of(&self, index: impl BufferIndexExt) -> u16 {
+        index.y(self)
     }
 
     #[inline]
-    pub fn start_of(&self, range: impl BufferIndexExt) -> usize {
-        range.start(self)
+    pub fn range_of(&self, index: impl BufferIndexExt) -> ops::Range<usize> {
+        index.as_range(self)
     }
 
     #[inline]
-    pub fn end_of(&self, range: impl BufferIndexExt) -> usize {
-        range.end(self)
+    pub fn len_of(&self, index: impl BufferIndexExt) -> usize {
+        index.len(self)
+    }
+
+    #[inline]
+    pub fn start_of(&self, index: impl BufferIndexExt) -> usize {
+        index.start(self)
+    }
+
+    #[inline]
+    pub fn end_of(&self, index: impl BufferIndexExt) -> usize {
+        index.end(self)
     }
 
     /// Print the given string until the end of the given index.
@@ -184,92 +241,25 @@ impl Buffer {
         &mut self,
         index: impl BufferIndexExt,
         string: impl AsRef<str>,
-        arena: &mut Graphemes,
-    ) -> Option<usize> {
-       self.set_string_impl(index, string, None, arena)
-    }
-
-    pub fn set_string_styled(
-        &mut self,
-        index: impl BufferIndexExt,
-        string: impl AsRef<str>,
-        style: Style,
-        arena: &mut Graphemes,
-    ) -> Option<usize> {
-        self.set_string_impl(index, string, Some(style), arena)
-    }
-
-    /// Write one measured grapheme and all of its continuation cells.
-    ///
-    /// Returns `None` when the grapheme is zero-width or its complete display
-    /// width does not fit in the buffer row.
-    pub fn set_grapheme_styled(
-        &mut self,
-        index: impl BufferIndexExt<Output = Cell>,
-        grapheme: &str,
-        width: usize,
-        style: Style,
-        arena: &mut Graphemes,
-    ) -> Option<usize> {
-        if !index.within(self) {
-            return None;
-        }
-
-        let position = index.into_point(self);
-
-        let start_x = position.x;
-        let end_x = start_x.checked_add(width as u16)?;
-
-        if end_x > self.width {
-            return None;
-        }
-
-        let start = position.y * self.width + start_x;
-        Some(
-            Cells::write_into(&mut self.inner[(start as usize)..((start as usize + width))], grapheme, width, Some(style), arena),
-        )
-    }
-
-    /// Print the given string until the end of the given index.
-    fn set_string_impl(
-        &mut self,
-        index: impl BufferIndexExt,
-        string: impl AsRef<str>,
         style: Option<Style>,
         arena: &mut Graphemes,
     ) -> Option<usize> {
-        let slice = self.get_mut(index.into_range(self))?;
-        let mut remaining = slice.len();
-        let mut i = 0;
-
-        for grapheme in string.as_ref().graphemes(true) {
-            if grapheme.contains(char::is_control) {
-                continue;
-            }
-
-            let width = grapheme.width();
-            remaining = remaining.checked_sub(width)?;
-
-            i += Cells::write_into((&mut slice[i..]), grapheme, width, style, arena);
-        }
-
-        Some(i)
+        Some(Cells::write(self.get_many_mut(index)?, string.as_ref(), style, arena))
     }
-    /// Print the given string until the end of the line.
+
     pub fn set_line(
         &mut self,
         index: impl BufferIndexExt<Output = Cell>,
         string: impl AsRef<str>,
+        style: Option<Style>,
         arena: &mut Graphemes,
     ) -> Option<usize> {
-        let point = index.into_point(self);
+        let point = self.point_of(index);
 
         self.set_string(
-            point..Point {
-                x: self.width(),
-                y: point.y,
-            },
+            point..Point::new(self.width(), point.y),
             string,
+            style,
             arena,
         )
     }

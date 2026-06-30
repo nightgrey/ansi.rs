@@ -118,6 +118,21 @@ impl BufferIndex for PointLike {
     }
 }
 
+impl BufferIndex for PointLike<usize> {
+    type Output = Cell;
+    type SliceIndex = usize;
+
+    #[inline]
+    fn into_slice_index(self, context: &Buffer) -> usize {
+        context.resolve(self)
+    }
+
+    #[inline]
+    fn as_slice_index(&self, context: &Buffer) -> usize {
+        BufferIndex::into_slice_index(*self, context)
+    }
+}
+
 impl BufferIndex for Row {
     type Output = [Cell];
     type SliceIndex = ops::Range<usize>;

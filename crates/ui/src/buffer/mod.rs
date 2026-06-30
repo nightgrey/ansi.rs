@@ -16,4 +16,6 @@ pub use index_ext::*;
 pub mod index_many;
 pub use index_many::*;
 pub mod index_iter;
+pub mod generation;
+
 pub use index_iter::*;

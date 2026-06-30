@@ -117,6 +117,21 @@ impl BufferIndexMany for PointLike {
     }
 }
 
+impl BufferIndexMany for PointLike<usize> {
+    type SliceIndexMany = ops::Range<usize>;
+
+    #[inline]
+    fn into_slice_index_many(self, context: &Buffer) -> ops::Range<usize> {
+        let index = self.into_slice_index(context);
+        index..index + 1
+    }
+
+    #[inline]
+    fn as_slice_index_many(&self, context: &Buffer) -> Self::SliceIndexMany {
+        BufferIndexMany::into_slice_index_many(*self, context)
+    }
+}
+
 impl BufferIndexMany for Row {
     type SliceIndexMany = ops::Range<usize>;
 

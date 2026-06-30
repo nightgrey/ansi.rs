@@ -1,9 +1,17 @@
-use crate::{Buffer, BufferIndex, BufferIndexMany, Cell};
+use crate::{Buffer, BufferIndex, BufferIndexIter, BufferIndexMany};
 use geometry::{Point, PointLike, Resolve, Row};
 use std::{iter, ops};
 
 /// [`BufferIndex`] extension
-pub trait BufferIndexExt: BufferIndex + BufferIndexMany {
+pub trait BufferIndexExt: BufferIndex + BufferIndexMany + BufferIndexIter {
+    fn x(&self, context: &Buffer) -> u16 {
+        (self.as_index(context) % context.width() as usize) as u16
+    }
+
+    fn y(&self, context: &Buffer) -> u16 {
+        (self.as_index(context) / context.width() as usize) as u16
+    }
+
     /// Returns the number of elements covered by this index.
     fn len(&self, context: &Buffer) -> usize;
 
@@ -57,16 +65,6 @@ pub trait BufferIndexExt: BufferIndex + BufferIndexMany {
     fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
         self.clone().into_range(context)
     }
-
-    /// Iterates the cells at this location. Empty if out of bounds.
-    fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> {
-        self.get_many(context).unwrap_or(&[]).iter()
-    }
-
-    /// Mutably iterates the cells at this location. Empty if out of bounds.
-    fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> {
-        self.get_many_mut(context).unwrap_or(&mut []).iter_mut()
-    }
 }
 
 // --------------------------------------------------------------------------
@@ -75,13 +73,31 @@ pub trait BufferIndexExt: BufferIndex + BufferIndexMany {
 
 impl BufferIndexExt for usize {
     #[inline]
-    fn len(&self, _: &Buffer) -> usize { 1 }
+    fn x(&self, context: &Buffer) -> u16 {
+        let width = context.width() as usize;
+        (self % width) as u16
+    }
 
     #[inline]
-    fn start(&self, _: &Buffer) -> usize { *self }
+    fn y(&self, context: &Buffer) -> u16 {
+        let width = context.width() as usize;
+        (self / width) as u16
+    }
 
     #[inline]
-    fn end(&self, _: &Buffer) -> usize { *self + 1 }
+    fn len(&self, _: &Buffer) -> usize {
+        1
+    }
+
+    #[inline]
+    fn start(&self, _: &Buffer) -> usize {
+        *self
+    }
+
+    #[inline]
+    fn end(&self, _: &Buffer) -> usize {
+        *self + 1
+    }
 
     #[inline]
     fn within(&self, context: &Buffer) -> bool {
@@ -91,41 +107,124 @@ impl BufferIndexExt for usize {
 
 impl BufferIndexExt for Point {
     #[inline]
-    fn len(&self, _context: &Buffer) -> usize { 1 }
+    fn x(&self, context: &Buffer) -> u16 {
+        self.x
+    }
+
     #[inline]
-    fn start(&self, context: &Buffer) -> usize { context.resolve(*self) }
+    fn y(&self, context: &Buffer) -> u16 {
+        self.y
+    }
+
     #[inline]
-    fn end(&self, context: &Buffer) -> usize { self.start(context) + 1 }
+    fn len(&self, _context: &Buffer) -> usize {
+        1
+    }
+    #[inline]
+    fn start(&self, context: &Buffer) -> usize {
+        context.resolve(*self)
+    }
+    #[inline]
+    fn end(&self, context: &Buffer) -> usize {
+        self.start(context) + 1
+    }
     #[inline]
     fn within(&self, context: &Buffer) -> bool {
         self.x < context.width() && self.y < context.height()
     }
     #[inline]
-    fn into_point(self, _context: &Buffer) -> Point { self }
+    fn into_point(self, _context: &Buffer) -> Point {
+        self
+    }
 }
 
 impl BufferIndexExt for PointLike {
     #[inline]
-    fn len(&self, _context: &Buffer) -> usize { 1 }
+    fn x(&self, context: &Buffer) -> u16 {
+        self.0
+    }
+
     #[inline]
-    fn start(&self, context: &Buffer) -> usize { context.resolve(*self) }
+    fn y(&self, context: &Buffer) -> u16 {
+        self.1
+    }
+
     #[inline]
-    fn end(&self, context: &Buffer) -> usize { self.start(context) + 1 }
+    fn len(&self, _context: &Buffer) -> usize {
+        1
+    }
+    #[inline]
+    fn start(&self, context: &Buffer) -> usize {
+        context.resolve(*self)
+    }
+    #[inline]
+    fn end(&self, context: &Buffer) -> usize {
+        self.start(context) + 1
+    }
     #[inline]
     fn within(&self, context: &Buffer) -> bool {
         self.0 < context.width() && self.1 < context.height()
     }
     #[inline]
-    fn into_point(self, _context: &Buffer) -> Point { self.into() }
+    fn into_point(self, _context: &Buffer) -> Point {
+        self.into()
+    }
+}
+impl BufferIndexExt for PointLike<usize> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        self.0 as u16
+    }
+
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        self.1 as u16
+    }
+    #[inline]
+    fn len(&self, _context: &Buffer) -> usize {
+        1
+    }
+    #[inline]
+    fn start(&self, context: &Buffer) -> usize {
+        context.resolve(*self)
+    }
+    #[inline]
+    fn end(&self, context: &Buffer) -> usize {
+        self.start(context) + 1
+    }
+    #[inline]
+    fn within(&self, context: &Buffer) -> bool {
+        self.0 < context.width() as usize && self.1 < context.height() as usize
+    }
+    #[inline]
+    fn into_point(self, _context: &Buffer) -> Point {
+        Point::new(self.0 as u16, self.1 as u16)
+    }
 }
 
 impl BufferIndexExt for Row {
     #[inline]
-    fn len(&self, context: &Buffer) -> usize { context.width() as usize }
+    fn x(&self, context: &Buffer) -> u16 {
+        0
+    }
+
     #[inline]
-    fn start(&self, context: &Buffer) -> usize { context.resolve(*self) }
+    fn y(&self, context: &Buffer) -> u16 {
+        self.into_inner()
+    }
+
     #[inline]
-    fn end(&self, context: &Buffer) -> usize { self.start(context) + context.width() as usize }
+    fn len(&self, context: &Buffer) -> usize {
+        context.width() as usize
+    }
+    #[inline]
+    fn start(&self, context: &Buffer) -> usize {
+        context.resolve(*self)
+    }
+    #[inline]
+    fn end(&self, context: &Buffer) -> usize {
+        self.start(context) + context.width() as usize
+    }
     #[inline]
     fn within(&self, context: &Buffer) -> bool {
         self.into_inner() < context.height()
@@ -136,7 +235,17 @@ impl BufferIndexExt for Row {
     }
 }
 
-impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::Range<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::Range<T> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        (self.start.as_slice_index(context) as usize % context.width() as usize) as u16
+    }
+
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        (self.start.as_slice_index(context) as usize / context.width() as usize) as u16
+    }
+
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context) - self.start(context)
@@ -158,11 +267,20 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::Range<T> {
     }
 }
 
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeInclusive<T> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        (self.start().as_slice_index(context) % context.width() as usize) as u16
+    }
 
-impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeInclusive<T> {
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        (self.start().as_slice_index(context) / context.width() as usize) as u16
+    }
+
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
-        BufferIndexExt::end(self, context) - BufferIndexExt::start(self, context)   // relies on valid range
+        BufferIndexExt::end(self, context) - BufferIndexExt::start(self, context) // relies on valid range
     }
     #[inline]
     fn start(&self, context: &Buffer) -> usize {
@@ -171,7 +289,10 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeInclu
     #[inline]
     fn end(&self, context: &Buffer) -> usize {
         let end_inclusive = ops::RangeInclusive::end(self).as_slice_index(context);
-        debug_assert!(end_inclusive < usize::MAX, "inclusive end must not be usize::MAX");
+        debug_assert!(
+            end_inclusive < usize::MAX,
+            "inclusive end must not be usize::MAX"
+        );
         end_inclusive + 1
     }
     #[inline]
@@ -183,14 +304,25 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeInclu
     }
 }
 
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeTo<T> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        0
+    }
 
-impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeTo<T> {
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        0
+    }
+
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context)
     }
     #[inline]
-    fn start(&self, _: &Buffer) -> usize { 0 }
+    fn start(&self, _: &Buffer) -> usize {
+        0
+    }
     #[inline]
     fn end(&self, context: &Buffer) -> usize {
         self.end.as_slice_index(context)
@@ -205,17 +337,31 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeTo<T>
     }
 }
 
-impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeToInclusive<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeToInclusive<T> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        0
+    }
+
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        0
+    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context)
     }
     #[inline]
-    fn start(&self, _: &Buffer) -> usize { 0 }
+    fn start(&self, _: &Buffer) -> usize {
+        0
+    }
     #[inline]
     fn end(&self, context: &Buffer) -> usize {
         let end_inclusive = self.end.as_slice_index(context);
-        debug_assert!(end_inclusive < usize::MAX, "inclusive end must not be usize::MAX");
+        debug_assert!(
+            end_inclusive < usize::MAX,
+            "inclusive end must not be usize::MAX"
+        );
         end_inclusive + 1
     }
     #[inline]
@@ -227,7 +373,15 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeToInc
         Point::ZERO
     }
 }
-impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeFrom<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeFrom<T> {
+    #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        (self.start.as_slice_index(context) % context.width() as usize) as u16
+    }
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        (self.start.as_slice_index(context) / context.width() as usize) as u16
+    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context) - self.start(context)
@@ -249,15 +403,30 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeFrom<
 
 impl BufferIndexExt for ops::RangeFull {
     #[inline]
+    fn x(&self, context: &Buffer) -> u16 {
+        0
+    }
+    #[inline]
+    fn y(&self, context: &Buffer) -> u16 {
+        0
+    }
+
+    #[inline]
     fn len(&self, context: &Buffer) -> usize {
         context.len()
     }
     #[inline]
-    fn start(&self, _: &Buffer) -> usize { 0 }
+    fn start(&self, _: &Buffer) -> usize {
+        0
+    }
     #[inline]
-    fn end(&self, context: &Buffer) -> usize { context.len() }
+    fn end(&self, context: &Buffer) -> usize {
+        context.len()
+    }
     #[inline]
-    fn within(&self, _: &Buffer) -> bool { true }
+    fn within(&self, _: &Buffer) -> bool {
+        true
+    }
     #[inline]
     fn into_point(self, _: &Buffer) -> Point {
         Point::ZERO

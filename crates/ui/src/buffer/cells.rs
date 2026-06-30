@@ -1,4 +1,6 @@
-use crate::{Graphemes, Cell, Grapheme};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+use crate::{Graphemes, Cell, Grapheme, IntoGraphemeWidth};
 use ansi::Style;
 
 #[derive(Debug)]
@@ -54,24 +56,63 @@ impl Cells {
     /// grapheme's width (a clip at the row edge) truncates instead of panicking.
     /// The base cell keeps its existing style; callers that style text should
     /// apply it to `cells[0]` afterwards.
-    pub fn write_into(
+    pub fn write_grapheme(
         cells: &mut [Cell],
         grapheme: &str,
         width: usize,
         style: Option<Style>,
-        arena: &mut Graphemes,
+        graphemes: &mut Graphemes,
     ) -> usize {
         let span = width.max(1);
-        if let Some((base, rest)) = cells.split_first_mut() {
-            base.set(Grapheme::new((grapheme, arena)), width);
+
+        if let Some((cell, rest)) = cells.split_first_mut() {
+            cell.set(Grapheme::new((grapheme, graphemes)), width);
             if let Some(style) = style {
-                base.set_style(style);
+                cell.set_style(style);
             }
             for cell in rest.iter_mut().take(span - 1) {
                 *cell = Cell::CONTINUATION;
             }
         }
         span
+    }
+
+    /// Writes a string left-to-right, delegating each
+    /// individual write (and the wide-cell invariant) to [`write_grapheme`].
+    /// The cursor advances by each grapheme's measured width; zero-width
+    /// graphemes still advance by 1 via `write_grapheme`'s own `span` floor.
+    ///
+    /// Stops as soon as `cells` is exhausted, so a string wider than the
+    /// available space is clipped — the last grapheme that straddles the edge
+    /// is written but its continuation cells are truncated by `write_grapheme`.
+    /// Returns the total column span actually written (`<= cells.len()`).
+    ///
+    /// All graphemes share `style`; pass `None` to leave existing styles
+    /// untouched, matching `write_grapheme`'s contract.
+    pub fn write(
+        cells: &mut [Cell],
+        str: &str,
+        style: Option<Style>,
+        graphemes: &mut Graphemes,
+    ) -> usize {
+        let mut written = 0;
+        let mut rest = cells;
+
+        for (grapheme, width) in str.graphemes(true)
+            .filter(|g| !g.contains(char::is_control))
+            .map(|g| (g, g.width()))
+            .filter(|&(_, width)| width > 0) {
+            let span = width.max(1);
+
+            if span > rest.len() {
+                break;
+            }
+            let advance = Cells::write_grapheme(rest, grapheme, width, style, graphemes);
+            written += advance;
+            rest = &mut rest[advance..];
+        }
+
+        written
     }
 }
 

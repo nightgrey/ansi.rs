@@ -1,8 +1,8 @@
+use crate::Bounded;
 use crate::{Point, Rect, Resolve};
-use crate::{Bounded};
 use std::iter::FusedIterator;
 
-pub const  trait Step<T> {
+pub const trait Step<T> {
     /// Number of row-major steps from `start` to `end`.
     ///
     /// Returns `(n, Some(n))` when `start <= end` within bounds,
@@ -116,7 +116,7 @@ pub struct Steps<B: Bounded> {
     back: Point,
 }
 
- impl<B: Bounded> Steps<B> {
+impl<B: Bounded> Steps<B> {
     pub fn new(context: B) -> Self {
         let front = if context.is_empty() {
             context.max()
@@ -286,28 +286,27 @@ impl<B: Bounded> DoubleEndedIterator for Steps<B> {
 impl<B: Bounded> ExactSizeIterator for Steps<B> where Self: Iterator {}
 impl<B: Bounded> FusedIterator for Steps<B> where Self: Iterator {}
 
-
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
 //     use crate::{Translate};
-// 
+//
 //     #[cfg(test)]
 //     mod off_by_one {
 //         use super::*;
-// 
+//
 //         // #[test]
 //         // @TODO: Fix this test
 //         fn from_0() {
 //             for x in 0..2 {
 //                 for y in 0..2 {
 //                     let bounds = Rect::bounds(Point::new(0, 0), Point::new(x, y));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.steps().collect::<Vec<_>>().len();
 //                     let count = bounds.steps().count();
 //                     let size_hint = bounds.steps().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(
 //                         area, len,
 //                         "Rect len mismatch: {area} != {len}. bounds={bounds:?}"
@@ -323,18 +322,18 @@ impl<B: Bounded> FusedIterator for Steps<B> where Self: Iterator {}
 //                 }
 //             }
 //         }
-// 
+//
 //         #[test]
 //         fn from_1() {
 //             for x in 1..2 {
 //                 for y in 1..3 {
 //                     let bounds = Rect::bounds(Point::new(1, 1), Point::new(x, y));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.steps().collect::<Vec<_>>().len().saturating_sub(1);
 //                     let count = bounds.steps().count();
 //                     let size_hint = bounds.steps().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
 //                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
 //                     assert_eq!(
@@ -344,18 +343,18 @@ impl<B: Bounded> FusedIterator for Steps<B> where Self: Iterator {}
 //                 }
 //             }
 //         }
-// 
+//
 //         #[test]
 //         fn to_plus_one() {
 //             for x in 0..3 {
 //                 for y in 0..3 {
 //                     let bounds = Rect::bounds(Point::new(x, y), Point::new(x + 1, y + 1));
-// 
+//
 //                     let area = bounds.len();
 //                     let len = bounds.steps().collect::<Vec<_>>().len();
 //                     let count = bounds.steps().count();
 //                     let size_hint = bounds.steps().size_hint().1.unwrap_or(0);
-// 
+//
 //                     assert_eq!(area, len, "area {area} != {len}. bounds={bounds:?}");
 //                     assert_eq!(area, count, "area {area} != {count}. bounds={bounds:?}");
 //                     assert_eq!(
@@ -366,14 +365,14 @@ impl<B: Bounded> FusedIterator for Steps<B> where Self: Iterator {}
 //             }
 //         }
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_basic() {
 //         let bounds = Rect::bounds(Point::new(0, 0), Point::new(2, 3));
 //         let positions: Vec<_> = bounds.steps().collect();
-// 
+//
 //         assert_eq!(positions.len(), 6); // 2 rows * 3 cols
-// 
+//
 //         // Check row-major order
 //         assert_eq!(positions[0], Point::new(0, 0));
 //         assert_eq!(positions[1], Point::new(0, 1));
@@ -382,53 +381,53 @@ impl<B: Bounded> FusedIterator for Steps<B> where Self: Iterator {}
 //         assert_eq!(positions[4], Point::new(1, 1));
 //         assert_eq!(positions[5], Point::new(1, 2));
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_empty_width() {
 //         let bounds = Rect::bounds(Point::new(0, 5), Point::new(0, 5));
 //         assert_eq!(bounds.steps().count(), 0);
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_empty_height() {
 //         let bounds = Rect::bounds(Point::new(5, 0), Point::new(5, 1));
 //         assert_eq!(bounds.steps().count(), 0);
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_single_cell() {
 //         let bounds = Rect::bounds(Point::new(5, 10), Point::new(6, 11));
 //         let positions: Vec<_> = bounds.steps().collect();
-// 
+//
 //         assert_eq!(positions.len(), 1);
 //         assert_eq!(positions[0], Point::new(5, 10));
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_size_hint() {
 //         let bounds = Rect::bounds(Point::new(0, 0), Point::new(3, 4));
 //         let iter = bounds.steps();
 //         let (min, max) = iter.size_hint();
-// 
+//
 //         assert_eq!(min, 12);
 //         assert_eq!(max, Some(12));
 //     }
-// 
+//
 //     #[test]
 //     fn test_steps_exact_size() {
 //         let bounds = Rect::bounds(Point::new(0, 0), Point::new(5, 10));
 //         let iter = bounds.steps();
-// 
+//
 //         assert_eq!(iter.count(), 50);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_into_iter() {
 //         let bounds = Rect::bounds(Point::new(0, 0), Point::new(2, 2));
 //         let count = bounds.steps().count();
 //         assert_eq!(count, 4);
 //     }
-// 
+//
 //     #[test]
 //     fn test_bounds_into_iter_ref() {
 //         let bounds = Rect::bounds(Point::new(0, 0), Point::new(3, 3));

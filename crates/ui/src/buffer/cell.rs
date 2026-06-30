@@ -1,4 +1,4 @@
-use super::{Graphemes, Grapheme};
+use super::{Grapheme, Graphemes};
 use crate::{IntoGrapheme, IntoGraphemeWidth};
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
@@ -51,24 +51,32 @@ pub struct Cell {
 }
 
 impl Cell {
+    /// An empty cell — drawn as a plain space with default style.
+    ///
+    /// The cell has width `1` (so it advances the cursor) and an empty grapheme,
+    /// which renders as a space character.
     pub const EMPTY: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 1,
         style: Style::None,
     };
 
+    /// A continuation cell — the trailing slot of a wide grapheme.
+    ///
+    /// Width `0`, empty grapheme. Continuation cells are skipped by
+    /// [`CellsIter`] and should never be independently styled or written.
     pub const CONTINUATION: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 0,
         style: Style::None,
     };
 
+    /// Alias for [`EMPTY`](Self::EMPTY).
     pub const fn empty() -> Self {
         Self::EMPTY
     }
 
-
-    /// Create a new cell.
+    /// Create a new cell from a grapheme source with measured width.
     pub fn new(grapheme: impl IntoGrapheme + IntoGraphemeWidth) -> Self {
         let width = grapheme.width() as u8;
         Self {
@@ -78,6 +86,12 @@ impl Cell {
         }
     }
 
+    /// Create a cell with a pre-measured width (in columns).
+    ///
+    /// Unlike [`new`](Self::new), this does not call [`IntoGraphemeWidth`];
+    /// the caller supplies the column width directly. Useful when the width
+    /// has already been computed or the grapheme source doesn't implement
+    /// `IntoGraphemeWidth`.
     pub const fn new_measured(grapheme: impl [const] IntoGrapheme, width: usize) -> Self {
         Self {
             grapheme: Grapheme::new(grapheme),
@@ -86,22 +100,35 @@ impl Cell {
         }
     }
 
+    /// The cell's grapheme cluster handle.
+    ///
+    /// See [`Grapheme`] for the inline/extended encoding details. Use
+    /// [`as_str`](Self::as_str) to resolve to a `&str`.
     #[inline]
     pub const fn grapheme(&self) -> Grapheme {
         self.grapheme
     }
 
+    /// The display width of this cell's grapheme in terminal columns.
+    ///
+    /// - `1` for ASCII and most single-width characters
+    /// - `2` for CJK ideographs, fullwidth forms, and most emoji
+    /// - `0` for continuation cells
     #[inline]
     pub const fn width(&self) -> u8 {
         self.width
     }
 
-    /// The cell's visual style.
+    /// The cell's visual style (attributes, foreground, background).
     #[inline]
     pub const fn style(&self) -> Style {
         self.style
     }
 
+    /// Returns `true` if this is a continuation cell (width 0, empty grapheme).
+    ///
+    /// Continuation cells are the trailing positions of a wide character.
+    /// They should be skipped by iterators and never independently styled.
     #[inline]
     pub const fn is_continuation(&self) -> bool {
         self.grapheme == Grapheme::EMPTY && self.width == 0
@@ -116,73 +143,84 @@ impl Cell {
     /// Returns `true` if this cell has nothing to draw: no glyph *and* no style.
     ///
     /// An empty cell that carries a style (e.g. a background colour) must still
-    /// be painted as a styled space.
+    /// be painted as a styled space, so it is **not** empty by this definition.
+    /// Use this to find the last drawable cell in a row (trim trailing blanks).
     #[inline]
     pub const fn is_empty(&self) -> bool {
         self.is_space() && self.style.is_empty()
     }
 
-    /// Check if this content is the default value.
+    /// Check if this cell has the default value (empty space).
     ///
-    /// This is equivalent to `is_empty()` and primarily exists for readability in tests.
+    /// Equivalent to [`is_space`](Self::is_space) — exists primarily for
+    /// readability in tests.
     #[inline]
     pub const fn is_default(&self) -> bool {
         self.is_space()
     }
 
-
+    /// Replace the grapheme and width in-place. Returns `self` for chaining.
     pub fn set(&mut self, grapheme: impl IntoGrapheme, width: usize) -> &mut Self {
         self.grapheme = grapheme.into_grapheme();
         self.width = width as u8;
         self
     }
 
+    /// Create a new cell with the given grapheme and width (builder pattern).
     pub fn with(mut self, grapheme: impl IntoGrapheme, width: usize) -> Self {
         self.grapheme = grapheme.into_grapheme();
         self.width = width as u8;
         self
     }
 
+    /// Replace the cell's full style in-place. Returns `self` for chaining.
     pub const fn set_style(&mut self, style: Style) -> &mut Self {
         self.style = style;
         self
     }
 
+    /// Builder: set the full style.
     pub const fn with_style(mut self, style: Style) -> Self {
         self.set_style(style);
         self
     }
 
+    /// Set the foreground colour in-place. Returns `self` for chaining.
     pub const fn set_foreground(&mut self, color: Color) -> &mut Self {
         self.style.foreground = color;
         self
     }
 
+    /// Builder: set the foreground colour.
     pub const fn with_foreground(mut self, color: Color) -> Self {
         self.set_foreground(color);
         self
     }
 
+    /// Set the background colour in-place. Returns `self` for chaining.
     pub const fn set_background(&mut self, color: Color) -> &mut Self {
         self.style.background = color;
         self
     }
 
+    /// Builder: set the background colour.
     pub const fn with_background(mut self, color: Color) -> Self {
         self.set_background(color);
         self
     }
 
+    /// Set text attributes in-place. Returns `self` for chaining.
     pub const fn set_attributes(&mut self, attribute: Attribute) -> &mut Self {
         self.style.attributes = attribute;
         self
     }
 
+    /// Builder: set text attributes.
     pub const fn with_attributes(mut self, attribute: Attribute) -> Self {
         self.set_attributes(attribute);
         self
     }
-    
+
     /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call
@@ -191,10 +229,16 @@ impl Cell {
         *self = Self::EMPTY;
     }
 
+    /// Resolve the cell's grapheme to a `&str`.
+    ///
+    /// Empty cells yield `" "` (a single space). Inline graphemes read
+    /// zero-copy from the cell; extended graphemes borrow from `arena`.
     pub fn as_str<'a>(&'a self, arena: &'a Graphemes) -> &'a str {
         self.grapheme.as_str_or(arena, " ")
     }
 
+    /// Resolve the cell's grapheme to a `&str`, returning `default` for
+    /// empty cells.
     pub fn as_str_or<'a>(&'a self, arena: &'a Graphemes, default: &'a str) -> &'a str {
         self.grapheme.as_str_or(arena, default)
     }
@@ -214,6 +258,10 @@ impl Cell {
         (self.width as usize).max(1)
     }
 
+    /// Bitwise equality — compares all fields without relying on `PartialEq`.
+    ///
+    /// Unlike the derived `PartialEq`, this uses bitwise `&` rather than `&&`
+    /// to combine field comparisons, giving branch-free equality checks.
     pub const fn eq_bitwise(&self, other: &Self) -> bool {
         (self.grapheme == other.grapheme)
             & (self.style.foreground == other.style.foreground)
@@ -222,9 +270,7 @@ impl Cell {
     }
 }
 
-impl Cell {
-
-}
+impl Cell {}
 
 const impl Default for Cell {
     fn default() -> Self {

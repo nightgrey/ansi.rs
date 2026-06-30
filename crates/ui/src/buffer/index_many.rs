@@ -1,9 +1,25 @@
+//! Multi-cell slice access for buffer indices.
+//!
+//! [`BufferIndexMany`] extends [`BufferIndex`] with methods that return
+//! `&[Cell]` / `&mut [Cell]` slices — even for single-cell indices like `usize`
+//! or `Point`, which produce a one-element slice. This normalisation
+//! lets text-writing code (`Cells::write`, `Buffer::set_string`) work
+//! uniformly with any index type via [`Buffer::get_many_mut`].
+//!
+//! The trait mirrors [`BufferIndex`]'s access pattern — checked, unchecked,
+//! and panicking — but returns `&[Cell]` instead of `&Self::Output`.
+
+use crate::{Buffer, BufferIndex, Cell};
+use geometry::{Point, PointLike, Resolve, Row};
 use std::ops;
 use std::slice::SliceIndex;
-use geometry::{Point, PointLike, Resolve, Row};
-use crate::{Buffer, BufferIndex, Cell};
 
-/// A trait normalizing indexes into returning a slice of cells.
+/// Normalises any [`BufferIndex`] into `&[Cell]` / `&mut [Cell]` slice access.
+///
+/// Single-cell indices produce a 1-element slice; range indices pass through
+/// their natural slice form. This uniformity is essential for text-drawing
+/// primitives that write character-by-character into a mutable cell slice
+/// regardless of how the caller chose to address the buffer.
 pub trait BufferIndexMany: BufferIndex {
     type SliceIndexMany: SliceIndex<[Cell], Output = [Cell]>;
 
@@ -55,7 +71,9 @@ pub trait BufferIndexMany: BufferIndex {
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
     unsafe fn get_many_unchecked_mut(self, context: &mut Buffer) -> *mut [Cell] {
-        unsafe { SliceIndex::get_unchecked_mut(self.into_slice_index_many(context), context.as_mut()) }
+        unsafe {
+            SliceIndex::get_unchecked_mut(self.into_slice_index_many(context), context.as_mut())
+        }
     }
 
     /// Returns a shared reference to the output at this location, panicking
@@ -141,7 +159,7 @@ impl BufferIndexMany for Row {
     }
 }
 
-impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::Range<T> {
+impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::Range<T> {
     type SliceIndexMany = ops::Range<usize>;
 
     #[inline]
@@ -150,8 +168,7 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::Range<T> {
     }
 }
 
-
-impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeInclusive<T> {
+impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeInclusive<T> {
     type SliceIndexMany = ops::RangeInclusive<usize>;
 
     #[inline]
@@ -160,8 +177,7 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeInclusive<
     }
 }
 
-
-impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeTo<T> {
+impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeTo<T> {
     type SliceIndexMany = ops::RangeTo<usize>;
 
     #[inline]
@@ -170,7 +186,7 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeTo<T> {
     }
 }
 
-impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeToInclusive<T> {
+impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeToInclusive<T> {
     type SliceIndexMany = ops::RangeToInclusive<usize>;
 
     #[inline]
@@ -178,7 +194,7 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeToInclusiv
         self.into_slice_index(context)
     }
 }
-impl<T: BufferIndex<SliceIndex= usize>> BufferIndexMany for ops::RangeFrom<T> {
+impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeFrom<T> {
     type SliceIndexMany = ops::RangeFrom<usize>;
 
     #[inline]

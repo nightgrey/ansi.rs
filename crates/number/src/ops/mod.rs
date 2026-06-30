@@ -18,7 +18,11 @@ pub const trait Ops<Rhs = Self, Output = Self>:
 }
 
 pub const trait AssignOps<Rhs = Self>:
-    [const] AddAssign<Rhs> + [const] SubAssign<Rhs> + [const] MulAssign<Rhs> + [const] DivAssign<Rhs> + [const] RemAssign<Rhs>
+    [const] AddAssign<Rhs>
+    + [const] SubAssign<Rhs>
+    + [const] MulAssign<Rhs>
+    + [const] DivAssign<Rhs>
+    + [const] RemAssign<Rhs>
 {
 }
 
@@ -37,7 +41,11 @@ const impl<T, Rhs, Output> Ops<Rhs, Output> for T where
 }
 
 const impl<T, Rhs> AssignOps<Rhs> for T where
-    T: [const] AddAssign<Rhs> + [const] SubAssign<Rhs> + [const] MulAssign<Rhs> + [const] DivAssign<Rhs> + [const] RemAssign<Rhs>
+    T: [const] AddAssign<Rhs>
+        + [const] SubAssign<Rhs>
+        + [const] MulAssign<Rhs>
+        + [const] DivAssign<Rhs>
+        + [const] RemAssign<Rhs>
 {
 }
 

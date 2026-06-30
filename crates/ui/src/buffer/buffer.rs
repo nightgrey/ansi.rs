@@ -1,14 +1,56 @@
-use crate::{Graphemes, Cell, Cells, BufferIndex, BufferIndexMany};
-use ansi::Style;
-use std::borrow::{Borrow, BorrowMut};
-use derive_more::{ Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Point};
-use std::fmt::{Debug, Display, Formatter, Write};
-use std::{ops};
-use unicode_width::UnicodeWidthStr;
+//! The terminal framebuffer — a styled 2D cell grid.
+//!
+//! [`Buffer`] is the central data structure of the rendering pipeline. It
+//! stores a flat, row-major `Vec<Cell>` together with its grid dimensions
+//! (`width` × `height`), and derefs to `&[Cell]` / `&mut [Cell]` for seamless
+//! slice-based access.
+//!
+//! # Indexing
+//!
+//! [`Buffer`] implements `Index<I>` and `IndexMut<I>` for every `I:
+//! BufferIndex`, so you can write `buf[(x, y)]` or `buf[0..5]` as if it were
+//! a native array. Geometry-aware queries (`x`, `y`, `contains`, …) are
+//! available through [`BufferIndexExt`] methods dispatched on the index
+//! value — e.g. `buf.index_of((3, 7))` yields the flat `usize` offset.
+//!
+//! # Text writing
+//!
+//! [`set_string`](Self::set_string) and [`set_line`](Self::set_line) accept any
+//! index type, delegate grapheme measurement and writing to [`Cells::write`],
+//! and handle clipped strings gracefully.
+//!
+//! # Resize
+//!
+//! [`resize`](Self::resize) reallocates in-place when the dimensions change,
+//! preserving existing content where the old and new grids overlap. Cells that
+//! fall outside the new bounds are dropped; new cells are initialised to
+//! [`Cell::EMPTY`].
+
 use super::BufferIndexExt;
+use crate::{BufferIndex, BufferIndexExt, BufferIndexMany, Cell, Cells, Graphemes};
+use ansi::Style;
+use derive_more::{Deref, DerefMut, IntoIterator};
+use geometry::{Bounded, Point};
+use std::borrow::{Borrow, BorrowMut};
+use std::fmt::{Debug, Display, Formatter, Write};
+use std::ops;
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Deref, DerefMut, IntoIterator, Clone, PartialEq)]
+/// A styled 2D grid of terminal cells — the framebuffer.
+///
+/// Stored as a flat, row-major `Vec<Cell>` with explicit `width` and `height`.
+/// Derefs to `&[Cell]` / `&mut [Cell]` so all slice operations work directly.
+///
+/// # Example
+///
+/// ```ignore
+/// use ui::buffer::{Buffer, Cell, Cells, Graphemes};
+/// let mut arena = Graphemes::new();
+/// let mut buf = Buffer::new(10, 3);
+/// buf[(0, 0)] = Cell::new('>').with_foreground(Color::Green);
+/// buf.set_string(1.., "Hello!", None, &mut arena);
+/// ```
 pub struct Buffer {
     #[deref(forward)]
     #[deref_mut(forward)]
@@ -36,7 +78,11 @@ impl Buffer {
     /// Create a buffer from a slice of fixed elements.
     ///
     /// A convenience constructor mostly used for tests.
-    pub fn from_elements<I: BufferIndexExt>(width: u16, height: u16, elements: &[(I, char, Style)]) -> Self {
+    pub fn from_elements<I: BufferIndexExt>(
+        width: u16,
+        height: u16,
+        elements: &[(I, char, Style)],
+    ) -> Self {
         let mut buffer = Self::new(width, height);
         for (index, ch, style) in elements {
             for cell in buffer.iter_index_mut(index.clone()) {
@@ -70,7 +116,7 @@ impl Buffer {
     /// let buf = Buffer::from_fn(10, 5, |row, col| Cell::inline(char::from(b'A' + (row * 10 + col) as u8 % 26)));
     /// ```
     pub fn from_fn(width: u16, height: u16, f: impl Fn(u16, u16) -> Cell) -> Self {
-            let mut inner = Vec::with_capacity((width * height) as usize);
+        let mut inner = Vec::with_capacity((width * height) as usize);
         for row in 0..height {
             for col in 0..width {
                 inner.push(f(row, col));
@@ -94,40 +140,28 @@ impl Buffer {
     /// Returns a shared reference to the output at this location, if in
     /// bounds.
     #[inline]
-    pub fn get<I: BufferIndex>(
-        &self,
-        index: I,
-    ) -> Option<&I::Output> {
+    pub fn get<I: BufferIndex>(&self, index: I) -> Option<&I::Output> {
         index.get(self)
     }
 
     /// Returns a slice of shared references to the output at this location, if in
     /// bounds.
     #[inline]
-    pub fn get_many<I: BufferIndexMany>(
-        &self,
-        index: I,
-    ) -> Option<&[Cell]> {
+    pub fn get_many<I: BufferIndexMany>(&self, index: I) -> Option<&[Cell]> {
         index.get_many(self)
     }
 
     /// Returns a mutable reference to the output at this location, if in
     /// bounds.
     #[inline]
-    pub fn get_mut<I: BufferIndex>(
-        &mut self,
-        index: I,
-    ) -> Option<&mut I::Output> {
+    pub fn get_mut<I: BufferIndex>(&mut self, index: I) -> Option<&mut I::Output> {
         index.get_mut(self)
     }
 
     /// Returns a slice of mutable references to the output at this location, if in
     /// bounds.
     #[inline]
-    pub fn get_many_mut<I: BufferIndexMany>(
-        &mut self,
-        index: I,
-    ) -> Option<&mut [Cell]> {
+    pub fn get_many_mut<I: BufferIndexMany>(&mut self, index: I) -> Option<&mut [Cell]> {
         index.get_many_mut(self)
     }
 
@@ -139,10 +173,7 @@ impl Buffer {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    pub unsafe fn get_unchecked<I: BufferIndex>(
-        &self,
-        index: I,
-    ) -> *const I::Output {
+    pub unsafe fn get_unchecked<I: BufferIndex>(&self, index: I) -> *const I::Output {
         unsafe { index.get_unchecked(self) }
     }
 
@@ -154,10 +185,7 @@ impl Buffer {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    pub unsafe fn get_many_unchecked<I: BufferIndexMany>(
-        &self,
-        index: I,
-    ) -> *const [Cell] {
+    pub unsafe fn get_many_unchecked<I: BufferIndexMany>(&self, index: I) -> *const [Cell] {
         index.get_many_unchecked(self)
     }
 
@@ -169,10 +197,7 @@ impl Buffer {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    pub unsafe fn get_unchecked_mut<I: BufferIndex>(
-        &mut self,
-        index: I,
-    ) -> *mut I::Output {
+    pub unsafe fn get_unchecked_mut<I: BufferIndex>(&mut self, index: I) -> *mut I::Output {
         unsafe { index.get_unchecked_mut(self) }
     }
 
@@ -184,10 +209,7 @@ impl Buffer {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[inline]
-    pub unsafe fn get_many_unchecked_mut<I: BufferIndexMany>(
-        &mut self,
-        index: I,
-    ) -> *mut [Cell] {
+    pub unsafe fn get_many_unchecked_mut<I: BufferIndexMany>(&mut self, index: I) -> *mut [Cell] {
         index.get_many_unchecked_mut(self)
     }
 
@@ -244,7 +266,12 @@ impl Buffer {
         style: Option<Style>,
         arena: &mut Graphemes,
     ) -> Option<usize> {
-        Some(Cells::write(self.get_many_mut(index)?, string.as_ref(), style, arena))
+        Some(Cells::write(
+            self.get_many_mut(index)?,
+            string.as_ref(),
+            style,
+            arena,
+        ))
     }
 
     pub fn set_line(
@@ -308,18 +335,22 @@ impl Buffer {
     }
 
     #[inline]
-    pub fn iter_index(&self, index: impl BufferIndexExt) -> impl Iterator<Item=&Cell> {
+    pub fn iter_index(&self, index: impl BufferIndexExt) -> impl Iterator<Item = &Cell> {
         index.iter(self)
     }
 
     #[inline]
-    pub fn iter_index_mut(&mut self, index: impl BufferIndexExt) -> impl Iterator<Item=&mut Cell> {
+    pub fn iter_index_mut(
+        &mut self,
+        index: impl BufferIndexExt,
+    ) -> impl Iterator<Item = &mut Cell> {
         index.iter_mut(self)
     }
 
-
     pub fn rows(&self) -> impl Iterator<Item = impl Iterator<Item = &Cell>> {
-        self.inner.chunks_exact(self.width as usize).map(|row| row.iter())
+        self.inner
+            .chunks_exact(self.width as usize)
+            .map(|row| row.iter())
     }
 
     pub fn cols(&self) -> impl Iterator<Item = impl Iterator<Item = &Cell>> {
@@ -367,8 +398,7 @@ impl Debug for Buffer {
                 */
                 let width = f.width().unwrap_or_else(|| {
                     // Conditionally calculate the longest item by default.
-                    self
-                        .iter()
+                    self.iter()
                         .map(|i| format!("{i:?}").len())
                         .max()
                         .unwrap_or(0)
@@ -397,7 +427,7 @@ impl Debug for Buffer {
 impl Display for Buffer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.height == 0 || self.width == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         for y in 0..self.height {
@@ -433,11 +463,11 @@ impl Bounded for Buffer {
         self.height
     }
 
-    fn min(&self) -> Point{
+    fn min(&self) -> Point {
         Point::ZERO
     }
 
-    fn max(&self) -> Point{
+    fn max(&self) -> Point {
         Point::new(self.max_x(), self.max_y())
     }
 }

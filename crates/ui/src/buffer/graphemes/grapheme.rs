@@ -1,7 +1,7 @@
+use super::Slot;
 use crate::{Graphemes, GraphemesError};
 use std::fmt;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use super::Slot;
 
 /// A compact grapheme-cluster handle stored in 4 bytes.
 ///
@@ -50,7 +50,9 @@ const impl Grapheme {
     pub(super) const EXTENDED_TAG: u8 = 0x01;
 
     /// Empty cell content (no character).
-    pub const EMPTY: Self = Self { inner: [0, 0, 0, 0] };
+    pub const EMPTY: Self = Self {
+        inner: [0, 0, 0, 0],
+    };
 
     #[inline]
     pub fn try_new(value: impl [const] IntoGrapheme) -> Result<Self, GraphemesError> {
@@ -61,7 +63,7 @@ const impl Grapheme {
     pub fn new(value: impl [const] IntoGrapheme) -> Self {
         match Self::try_new(value) {
             Ok(g) => g,
-            Err(err) => panic!("failed to encode grapheme"),
+            Err(_err) => panic!("failed to encode grapheme"),
         }
     }
 
@@ -74,7 +76,7 @@ const impl Grapheme {
     pub fn from_char(char: char) -> Self {
         match Self::try_from_char(char) {
             Ok(g) => g,
-            Err(err) => panic!("failed to encode char"),
+            Err(_err) => panic!("failed to encode char"),
         }
     }
 
@@ -82,16 +84,14 @@ const impl Grapheme {
         match s.len() {
             0 => Ok(Self::EMPTY),
             1..=Grapheme::MAX_LEN => Ok(Self::pack_inline(s.as_bytes())),
-            len => Err(GraphemesError::RequiresStorage {
-                len,
-            }),
+            len => Err(GraphemesError::RequiresStorage { len }),
         }
     }
 
     pub fn from_str(s: &str) -> Self {
         match Self::try_from_str(s) {
             Ok(g) => g,
-            Err(err) => panic!("failed to encode string"),
+            Err(_err) => panic!("failed to encode string"),
         }
     }
 
@@ -119,7 +119,7 @@ const impl Grapheme {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         match Self::try_from_bytes(bytes) {
             Ok(g) => g,
-            Err(err) => panic!("failed to encode bytes"),
+            Err(_err) => panic!("failed to encode bytes"),
         }
     }
 
@@ -132,7 +132,6 @@ const impl Grapheme {
     pub fn is_empty(self) -> bool {
         self == Self::EMPTY
     }
-
 
     /// `true` if stored inline (≤4 UTF-8 bytes). [`EMPTY`](Self::EMPTY) counts
     /// as inline; the extended tag does not.
@@ -169,7 +168,6 @@ const impl Grapheme {
         );
         Self { inner: repr }
     }
-
 }
 
 impl Grapheme {
@@ -216,7 +214,12 @@ impl Grapheme {
             return None;
         }
 
-        Some(Slot::new(u32::from_le_bytes([self.inner[0], self.inner[1], self.inner[2], 0])))
+        Some(Slot::new(u32::from_le_bytes([
+            self.inner[0],
+            self.inner[1],
+            self.inner[2],
+            0,
+        ])))
     }
 
     // ── Inline internals ────────────────────────────────────────────────
@@ -276,7 +279,6 @@ impl Grapheme {
     pub fn as_inline_str(&self) -> &str {
         self.try_as_inline_str().expect("inline grapheme")
     }
-
 }
 
 impl From<char> for Grapheme {
@@ -310,14 +312,16 @@ impl fmt::Debug for Grapheme {
 /// [`ArenaRequired`](GraphemesError::RequiresStorage).
 pub const trait IntoGrapheme {
     fn try_into_grapheme(self) -> Result<Grapheme, GraphemesError>;
-    fn into_grapheme(self) -> Grapheme where Self: Sized {
+    fn into_grapheme(self) -> Grapheme
+    where
+        Self: Sized,
+    {
         match self.try_into_grapheme() {
             Ok(g) => g,
-            Err(err) => panic!("failed to convert into grapheme"),
+            Err(_err) => panic!("failed to convert into grapheme"),
         }
     }
 }
-
 
 pub trait IntoGraphemeWidth {
     fn width(&self) -> usize;
@@ -357,7 +361,7 @@ impl IntoGrapheme for (&str, &mut Graphemes) {
         match str.len() {
             0 => Ok(Grapheme::EMPTY),
             1..=Grapheme::MAX_LEN => Ok(Grapheme::from_bytes(str.as_bytes())),
-            len => arena.try_insert(str),
+            _len => arena.try_insert(str),
         }
     }
 }
@@ -500,7 +504,11 @@ mod tests {
         let mut arena = Graphemes::new();
         let g = Grapheme::new((FAMILY, &mut arena));
         assert!(g.is_extended());
-        assert_eq!(Slot::try_from_grapheme(g).unwrap().as_usize(), 0, "first arena entry sits at slot 0");
+        assert_eq!(
+            Slot::try_from_grapheme(g).unwrap().as_usize(),
+            0,
+            "first arena entry sits at slot 0"
+        );
     }
 
     #[test]

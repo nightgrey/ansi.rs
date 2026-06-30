@@ -1,8 +1,29 @@
+//! Row-writing helpers and cell iteration.
+//!
+//! [`Cells`] is a stateless namespace that provides the shared logic for
+//! writing graphemes and strings into cell slices. It also houses the
+//! canonical cell iterator ([`CellsIter`]) — the single source of truth
+//! for walking a row's cells in column order, correctly skipping continuation
+//! cells and advancing over cleared slots.
+//!
+//! # Wide-cell invariant
+//!
+//! A wide character (e.g. `'中'`, display width 2) occupies a *base cell*
+//! followed by one or more *continuation cells*. [`CellsIter`] skips
+//! continuations so consumers see each distinct character exactly once.
+//! [`write_grapheme`](Cells::write_grapheme) enforces this invariant when
+//! building rows.
+
+use crate::{Cell, Grapheme, Graphemes, IntoGraphemeWidth};
+use ansi::Style;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use crate::{Graphemes, Cell, Grapheme, IntoGraphemeWidth};
-use ansi::Style;
 
+/// A stateless namespace of row-level operations on cell slices.
+///
+/// All methods accept `&[Cell]` / `&mut [Cell]` and operate on a single
+/// buffer row at a time. The caller is responsible for slicing out the
+/// desired row before calling these helpers.
 #[derive(Debug)]
 pub struct Cells;
 
@@ -98,10 +119,12 @@ impl Cells {
         let mut written = 0;
         let mut rest = cells;
 
-        for (grapheme, width) in str.graphemes(true)
+        for (grapheme, width) in str
+            .graphemes(true)
             .filter(|g| !g.contains(char::is_control))
             .map(|g| (g, g.width()))
-            .filter(|&(_, width)| width > 0) {
+            .filter(|&(_, width)| width > 0)
+        {
             let span = width.max(1);
 
             if span > rest.len() {

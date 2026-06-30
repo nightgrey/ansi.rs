@@ -1,6 +1,21 @@
-use std::ops;
-use geometry::{Point, PointLike, Row};
+//! Cell iterators for buffer indices — out-of-bounds tolerant.
+//!
+//! [`BufferIndexIter`] provides `iter()` / `iter_mut()` for every index type
+//! that implements [`BufferIndex`]. Unlike the `get`-based methods, these
+//! return empty iterators (not `None` / empty slices) when the index is out of
+//! bounds, making them ergonomic for loops that should silently do nothing on
+//! an invalid range.
+//!
+//! # Implementation strategy
+//!
+//! - **Single-cell indices** (`usize`, `Point`, `PointLike`) use the `Option`'s
+//!   own `IntoIterator` — returns the cell 0 or 1 times.
+//! - **Slice indices** (`Row`, `Range`, `RangeFull`) fall back to `&[]` on
+//!   out-of-bounds, then iterate the resulting (possibly empty) slice.
+
 use crate::{Buffer, BufferIndex, Cell};
+use geometry::{Point, PointLike, Row};
+use std::ops;
 
 /// A trait returning an iterator over cells.
 ///
@@ -10,8 +25,13 @@ use crate::{Buffer, BufferIndex, Cell};
 /// [`BufferIndexMany`][crate::BufferIndexMany] machinery. Out-of-bounds
 /// indices yield an empty iterator.
 pub trait BufferIndexIter: BufferIndex {
-    fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> + ExactSizeIterator ;
-    fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> + ExactSizeIterator;
+    /// Returns an iterator over shared references to the cells covered by this
+    /// index. Out-of-bounds indices produce an empty iterator.
+    fn iter(self, context: &Buffer) -> impl ExactSizeIterator<Item = &Cell>;
+
+    /// Returns an iterator over mutable references to the cells covered by this
+    /// index. Out-of-bounds indices produce an empty iterator.
+    fn iter_mut(self, context: &mut Buffer) -> impl ExactSizeIterator<Item = &mut Cell>;
 }
 
 /// Single-cell indices (`Output = Cell`): the option's own iterator yields the
@@ -20,12 +40,12 @@ macro_rules! impl_single {
     ($($ty:ty),* $(,)?) => {$(
         impl BufferIndexIter for $ty {
             #[inline]
-            fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> + ExactSizeIterator {
+            fn iter(self, context: &Buffer) -> impl ExactSizeIterator<Item = &Cell> {
                 self.get(context).into_iter()
             }
 
             #[inline]
-            fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> + ExactSizeIterator {
+            fn iter_mut(self, context: &mut Buffer) -> impl ExactSizeIterator<Item = &mut Cell> {
                 self.get_mut(context).into_iter()
             }
         }
@@ -38,12 +58,12 @@ macro_rules! impl_slice {
     ($($ty:ty),* $(,)?) => {$(
         impl BufferIndexIter for $ty {
             #[inline]
-            fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> + ExactSizeIterator {
+            fn iter(self, context: &Buffer) -> impl ExactSizeIterator<Item = &Cell> {
                 self.get(context).unwrap_or(&[]).iter()
             }
 
             #[inline]
-            fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> + ExactSizeIterator {
+            fn iter_mut(self, context: &mut Buffer) -> impl ExactSizeIterator<Item = &mut Cell> {
                 self.get_mut(context).unwrap_or(&mut []).iter_mut()
             }
         }
@@ -55,12 +75,12 @@ macro_rules! impl_slice_generic {
     ($($ty:ty),* $(,)?) => {$(
         impl<T: BufferIndex<SliceIndex = usize>> BufferIndexIter for $ty {
             #[inline]
-            fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> + ExactSizeIterator {
+            fn iter(self, context: &Buffer) -> impl ExactSizeIterator<Item = &Cell> {
                 self.get(context).unwrap_or(&[]).iter()
             }
 
             #[inline]
-            fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> + ExactSizeIterator {
+            fn iter_mut(self, context: &mut Buffer) -> impl ExactSizeIterator<Item = &mut Cell> {
                 self.get_mut(context).unwrap_or(&mut []).iter_mut()
             }
         }
@@ -83,7 +103,9 @@ mod tests {
 
     fn buffer() -> Buffer {
         // 3x2 grid of 'a'..'f'.
-        Buffer::from_fn(3, 2, |row, col| Cell::new(char::from(b'a' + (row * 3 + col) as u8)))
+        Buffer::from_fn(3, 2, |row, col| {
+            Cell::new(char::from(b'a' + (row * 3 + col) as u8))
+        })
     }
 
     #[test]

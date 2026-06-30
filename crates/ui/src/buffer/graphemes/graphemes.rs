@@ -1,7 +1,7 @@
+use super::{Entry, Grapheme, Slot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use thiserror::Error;
-use super::{Slot, Grapheme, Entry};
 
 /// An arena for extended grapheme clusters.
 ///
@@ -101,15 +101,20 @@ impl Graphemes {
 
     /// Get the stored grapheme cluster for the given slot or a default.
     #[inline]
-    pub fn try_get_or<'a>(&'a self, grapheme: &'a Grapheme, default: &'a str) -> Result<&'a str, GraphemesError> {
+    pub fn try_get_or<'a>(
+        &'a self,
+        grapheme: &'a Grapheme,
+        default: &'a str,
+    ) -> Result<&'a str, GraphemesError> {
         if grapheme.is_empty() {
             Ok(default)
         } else if grapheme.is_extended() {
-            Slot::try_from_grapheme(*grapheme).and_then(|slot| self.try_resolve(slot)).map(|meta| {
-                unsafe {
+            Slot::try_from_grapheme(*grapheme)
+                .and_then(|slot| self.try_resolve(slot))
+                .map(|meta| unsafe {
                     std::str::from_utf8_unchecked(self.inner.get_unchecked(meta.start..meta.end))
-                }
-            }).or_else(|_| Ok(default))
+                })
+                .or(Ok(default))
         } else {
             Ok(grapheme.as_inline_str())
         }
@@ -275,7 +280,6 @@ impl Graphemes {
         self.len = 0;
     }
 
-
     /// Resolve a slot to its entry metadata.
     ///
     /// Returns `Err` for out-of-bounds, already-freed, or truncated entries.
@@ -292,16 +296,28 @@ impl Graphemes {
             return Err(GraphemesError::OutOfBounds(slot));
         }
 
-        Ok(Entry { slot, start, len, end })
+        Ok(Entry {
+            slot,
+            start,
+            len,
+            end,
+        })
     }
-
 
     /// Resolve a slot to its entry's length.
     ///
     /// Returns `Err` for out-of-bounds or already-freed slots.
     fn try_get_len(&self, slot: Slot) -> Result<usize, GraphemesError> {
-        let one = self.inner.get(slot.as_usize()).ok_or(GraphemesError::OutOfBounds(slot)).copied()?;
-        let two = self.inner.get(slot.as_usize() + 1).ok_or(GraphemesError::OutOfBounds(slot)).copied()?;
+        let one = self
+            .inner
+            .get(slot.as_usize())
+            .ok_or(GraphemesError::OutOfBounds(slot))
+            .copied()?;
+        let two = self
+            .inner
+            .get(slot.as_usize() + 1)
+            .ok_or(GraphemesError::OutOfBounds(slot))
+            .copied()?;
 
         let len = u16::from_le_bytes([one, two]) as usize;
 
@@ -349,9 +365,10 @@ impl Graphemes {
         self.inner.reserve(new_len - self.count_total());
         // SAFETY: capacity >= new_len; try_insert writes all `needed` bytes
         //         before anyone reads them.
-        unsafe { self.inner.set_len(new_len); }
+        unsafe {
+            self.inner.set_len(new_len);
+        }
         Ok(Slot::new(offset as u32))
-
     }
 }
 
@@ -458,7 +475,11 @@ mod tests {
 
         let g3 = arena.try_insert("reuse!").unwrap(); // best-fit -> slot 0
         assert_eq!(g3.slot(), g1.slot());
-        assert_eq!(arena.count_total(), len_before, "reuse did not grow the arena");
+        assert_eq!(
+            arena.count_total(),
+            len_before,
+            "reuse did not grow the arena"
+        );
         assert_eq!(arena.get(&g3), "reuse!");
         check_invariants(&arena);
     }
@@ -495,7 +516,11 @@ mod tests {
         let big = "DDDDDDDDDDDDDD"; // 14 + 2 = 16 total
         let gd = arena.try_insert(big).unwrap();
         assert_eq!(gd.slot(), ga.slot());
-        assert_eq!(arena.count_total(), len_before, "coalesced gap absorbed the entry");
+        assert_eq!(
+            arena.count_total(),
+            len_before,
+            "coalesced gap absorbed the entry"
+        );
         assert_eq!(arena.get(&gd), big);
         check_invariants(&arena);
     }
@@ -554,7 +579,11 @@ mod tests {
         for i in 0..200 {
             arena.insert(&format!("entry-{i:04}-padding"));
         }
-        assert_eq!(arena.count_total(), peak, "no unbounded growth across churn");
+        assert_eq!(
+            arena.count_total(),
+            peak,
+            "no unbounded growth across churn"
+        );
         check_invariants(&arena);
     }
 

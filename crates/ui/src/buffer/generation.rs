@@ -1,14 +1,51 @@
+//! Procedural buffer generation for demos, tests, and benchmarking.
+//!
+//! The [`Gen`] enum describes a handful of deterministic patterns — solid
+//! colour fills, chessboard patterns (with Unicode piece glyphs when the
+//! board is exactly 8×8), diagonal lines, random-noise grids, and
+//! user-supplied character matrices — that are rendered into a [`Buffer`]
+//! by [`Buffer::from_gen`].
+//!
+//! Each variant produces a pure, deterministic result: even [`Gen::Random`]
+//! uses a seed so repeated calls produce identical output.
+
 use crate::{Buffer, Cell};
 use ansi::{Attribute, Color, Style};
 
+/// A procedural buffer pattern used for demos, testing, and benchmarking.
+///
+/// Each variant renders deterministically into a [`Buffer`] via
+/// [`Buffer::from_gen`].
 pub enum Gen {
+    /// Every cell filled with a solid background colour.
     Solid(Color),
+
+    /// Alternating light and dark squares.
+    ///
+    /// When the buffer is exactly 8×8, Unicode chess piece glyphs (♔ ♕ ♖ …)
+    /// are placed in the standard starting position. For any other size, only
+    /// the chessboard pattern is drawn.
     Chessboard,
+
+    /// A user-supplied grid of `(character, style)` pairs.
+    ///
+    /// Each inner `Vec` is one row; characters with value `'\0'` are left
+    /// as empty cells.
     Grid(Vec<Vec<(char, Style)>>),
+
+    /// Two crossing diagonal lines, optionally with distinct foreground and
+    /// background colours.
     Diagonals {
+        /// Colour of the diagonal cells (defaults to the terminal default if `None`).
         foreground: Option<Color>,
+        /// Colour of the off-diagonal cells.
         background: Option<Color>,
     },
+
+    /// A deterministic pseudo-random noise grid seeded by the given `u64`.
+    ///
+    /// The same seed always produces the same pattern. Glyphs, styles, and
+    /// background colours are sampled from a fixed palette.
     Random(u64),
 }
 

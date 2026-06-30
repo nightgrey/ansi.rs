@@ -1,11 +1,24 @@
-use std::fmt;
-use crate::{Grapheme, GraphemesError};
+//! Internal support types for grapheme storage.
+//!
+//! These types are used throughout the grapheme subsystem but are kept
+//! separate from the public API surfaces of [`Grapheme`] and [`Graphemes`].
 
+use crate::{Grapheme, GraphemesError};
+use std::fmt;
+
+/// Metadata for a resolved arena entry.
+///
+/// Produced by [`Graphemes::try_resolve`] — carries the slot, byte range
+/// (`start..end`) within the arena buffer, and the payload length.
 #[derive(Copy, Clone)]
 pub struct Entry {
+    /// The arena slot that this entry occupies.
     pub slot: Slot,
+    /// Byte offset of the payload (past the 2-byte length prefix).
     pub start: usize,
+    /// Payload length in bytes (without the prefix).
     pub len: usize,
+    /// Byte offset immediately past the payload.
     pub end: usize,
 }
 
@@ -16,7 +29,15 @@ impl Entry {
     }
 }
 
-
+/// A 24-bit index into a [`Graphemes`] arena.
+///
+/// Slots are stored in the low 3 bytes of an extended [`Grapheme`] handle,
+/// giving an addressable range of 0..=16,777,214 (16 MiB − 1). The 4th byte
+/// is the sentinel tag `0x01`. Direct construction is possible but rare —
+/// most slots are obtained via [`Graphemes::try_insert`] or
+/// [`Grapheme::slot`].
+///
+/// Slots are comparable with `u32` for convenience in allocation logic.
 #[derive(Copy)]
 #[derive_const(Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -52,7 +73,7 @@ const impl Slot {
         if !value.is_extended() {
             return Err(GraphemesError::Invalid);
         }
-        
+
         let slice = value.as_bytes();
         // The low 3 bytes hold a 24-bit slot, so the value is always <= MAX.
         Ok(Self(u32::from_le_bytes([slice[0], slice[1], slice[2], 0])))
@@ -71,7 +92,12 @@ const impl Slot {
 
     #[inline]
     pub fn into_grapheme(self) -> Grapheme {
-        Grapheme::from_bytes_unchecked([self.as_u8(), (self.as_u32() >> 8) as u8, (self.as_u32() >> 16) as u8, Grapheme::EXTENDED_TAG])
+        Grapheme::from_bytes_unchecked([
+            self.as_u8(),
+            (self.as_u32() >> 8) as u8,
+            (self.as_u32() >> 16) as u8,
+            Grapheme::EXTENDED_TAG,
+        ])
     }
 
     #[inline]

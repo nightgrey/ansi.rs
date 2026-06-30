@@ -1,13 +1,31 @@
+//! Geometry queries and conversions for buffer indices.
+//!
+//! [`BufferIndexExt`] extends the core [`BufferIndex`] trait with methods that
+//! depend on the buffer's grid dimensions — computing the `(x, y)` position,
+//! checking whether an index lies within bounds, and converting indices to
+//! alternative representations like [`Point`] or [`Range<usize>`].
+//!
+//! All `BufferIndex` types that also implement [`BufferIndexMany`] and
+//! [`BufferIndexIter`] receive a blanket implementation via this trait.
+//! Implementations for `usize`, `Point`, `PointLike`, `Row`, and all
+//! `Range` types are provided below.
+
 use crate::{Buffer, BufferIndex, BufferIndexIter, BufferIndexMany};
 use geometry::{Point, PointLike, Resolve, Row};
-use std::{iter, ops};
+use std::ops;
 
-/// [`BufferIndex`] extension
+/// Geometry-aware extension to [`BufferIndex`].
+///
+/// Provides methods that require knowledge of the buffer's width and height:
+/// grid-coordinate extraction, bounds queries, length computation, and
+/// conversions between index representations.
 pub trait BufferIndexExt: BufferIndex + BufferIndexMany + BufferIndexIter {
+    /// Returns the column (`x`) of the first cell covered by this index.
     fn x(&self, context: &Buffer) -> u16 {
         (self.as_index(context) % context.width() as usize) as u16
     }
 
+    /// Returns the row (`y`) of the first cell covered by this index.
     fn y(&self, context: &Buffer) -> u16 {
         (self.as_index(context) / context.width() as usize) as u16
     }
@@ -107,12 +125,12 @@ impl BufferIndexExt for usize {
 
 impl BufferIndexExt for Point {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         self.x
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         self.y
     }
 
@@ -140,12 +158,12 @@ impl BufferIndexExt for Point {
 
 impl BufferIndexExt for PointLike {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         self.0
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         self.1
     }
 
@@ -172,12 +190,12 @@ impl BufferIndexExt for PointLike {
 }
 impl BufferIndexExt for PointLike<usize> {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         self.0 as u16
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         self.1 as u16
     }
     #[inline]
@@ -204,12 +222,12 @@ impl BufferIndexExt for PointLike<usize> {
 
 impl BufferIndexExt for Row {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         0
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         self.into_inner()
     }
 
@@ -238,12 +256,12 @@ impl BufferIndexExt for Row {
 impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::Range<T> {
     #[inline]
     fn x(&self, context: &Buffer) -> u16 {
-        (self.start.as_slice_index(context) as usize % context.width() as usize) as u16
+        (self.start.as_slice_index(context) % context.width() as usize) as u16
     }
 
     #[inline]
     fn y(&self, context: &Buffer) -> u16 {
-        (self.start.as_slice_index(context) as usize / context.width() as usize) as u16
+        (self.start.as_slice_index(context) / context.width() as usize) as u16
     }
 
     #[inline]
@@ -306,12 +324,12 @@ impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeInc
 
 impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeTo<T> {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         0
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         0
     }
 
@@ -339,12 +357,12 @@ impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeTo<
 
 impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeToInclusive<T> {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         0
     }
 
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         0
     }
     #[inline]
@@ -403,11 +421,11 @@ impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexExt for ops::RangeFro
 
 impl BufferIndexExt for ops::RangeFull {
     #[inline]
-    fn x(&self, context: &Buffer) -> u16 {
+    fn x(&self, _context: &Buffer) -> u16 {
         0
     }
     #[inline]
-    fn y(&self, context: &Buffer) -> u16 {
+    fn y(&self, _context: &Buffer) -> u16 {
         0
     }
 

@@ -98,11 +98,11 @@ where
     B: Resolve<Point, U>,
 {
     fn resolve(&self, value: PointLike<usize>) -> U {
-            Resolve::resolve(self, Point::from((value.0 as u16, value.1 as u16)))
+        Resolve::resolve(self, Point::from((value.0 as u16, value.1 as u16)))
     }
 
     fn try_resolve(&self, value: PointLike<usize>) -> Option<U> {
-            Resolve::try_resolve(self, Point::from((value.0 as u16, value.1 as u16)))
+        Resolve::try_resolve(self, Point::from((value.0 as u16, value.1 as u16)))
     }
 }
 
@@ -351,7 +351,7 @@ impl<B: Bounded> Resolve<RangeFull, Range<usize>> for B {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Point};
+    use crate::Point;
 
     type Bound = crate::Rect;
 

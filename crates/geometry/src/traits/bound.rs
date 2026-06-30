@@ -7,7 +7,7 @@ pub trait Bounded {
     fn min_y(&self) -> u16;
     fn max_x(&self) -> u16;
     fn max_y(&self) -> u16;
-    
+
     #[inline]
     fn min(&self) -> Point {
         Point::new(self.min_x(), self.min_y())
@@ -80,7 +80,7 @@ impl Bounded for Rect {
 
 impl Bounded for Point {
     fn min_x(&self) -> u16 {
-         self.x
+        self.x
     }
     fn min_y(&self) -> u16 {
         self.y

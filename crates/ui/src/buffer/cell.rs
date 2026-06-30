@@ -136,7 +136,7 @@ impl Cell {
 
     /// Returns `true` if this cell's grapheme is empty (and would be rendered as a space).
     #[inline]
-    pub const fn is_space(&self) -> bool {
+    pub const fn is_blank(&self) -> bool {
         self.grapheme == Grapheme::EMPTY && self.width == 1
     }
 
@@ -147,16 +147,16 @@ impl Cell {
     /// Use this to find the last drawable cell in a row (trim trailing blanks).
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.is_space() && self.style.is_empty()
+        self.is_blank() && self.style.is_empty()
     }
 
     /// Check if this cell has the default value (empty space).
     ///
-    /// Equivalent to [`is_space`](Self::is_space) — exists primarily for
+    /// Equivalent to [`is_space`](Self::is_blank) — exists primarily for
     /// readability in tests.
     #[inline]
     pub const fn is_default(&self) -> bool {
-        self.is_space()
+        self.is_blank()
     }
 
     /// Replace the grapheme and width in-place. Returns `self` for chaining.
@@ -280,7 +280,7 @@ const impl Default for Cell {
 
 impl Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_space() && self.style.is_empty() {
+        if self.is_blank() && self.style.is_empty() {
             return f.write_str("Cell::Empty");
         }
 
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn empty_cell() {
         let cell = Cell::EMPTY;
-        assert!(cell.is_space());
+        assert!(cell.is_blank());
         assert_eq!(cell.width(), 1);
     }
 
@@ -370,7 +370,7 @@ mod tests {
         let cell = Cell::new('A')
             .with_attributes(Attribute::Bold)
             .with_foreground(Color::Rgb(255, 0, 0));
-        assert!(!cell.is_space());
+        assert!(!cell.is_blank());
         assert_eq!(cell.width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
@@ -390,7 +390,7 @@ mod tests {
         let cell_before = Cell::new('Z').with_foreground(Color::Index(1));
         let mut cell = cell_before;
         cell.clear();
-        assert!(cell.is_space());
+        assert!(cell.is_blank());
         assert_eq!(cell, Cell::EMPTY);
     }
 }

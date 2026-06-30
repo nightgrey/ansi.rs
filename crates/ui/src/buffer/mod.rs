@@ -74,5 +74,6 @@ pub mod index_many;
 pub use index_many::*;
 pub mod generation;
 pub mod index_iter;
+pub mod diff;
 
 pub use index_iter::*;

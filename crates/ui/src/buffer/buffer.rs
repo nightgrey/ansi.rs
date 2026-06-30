@@ -26,8 +26,7 @@
 //! fall outside the new bounds are dropped; new cells are initialised to
 //! [`Cell::EMPTY`].
 
-use super::BufferIndexExt;
-use crate::{BufferIndex, BufferIndexExt, BufferIndexMany, Cell, Cells, Graphemes};
+use super::{Cell, Cells, Graphemes, BufferIndex, BufferIndexExt, BufferIndexMany};
 use ansi::Style;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use geometry::{Bounded, Point};

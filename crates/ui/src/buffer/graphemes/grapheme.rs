@@ -195,15 +195,15 @@ impl Grapheme {
     /// Resolve to a `&str`. Inline graphemes read zero-copy from `self`;
     /// extended graphemes borrow from `arena`. Empty and continuation cells
     /// resolve to `""`.
-    pub fn as_str<'a>(&'a self, arena: &'a Graphemes) -> &'a str {
-        arena.get(self)
+    pub fn as_str<'a>(&'a self, graphemes: &'a Graphemes) -> &'a str {
+        graphemes.get(self)
     }
 
     /// Resolve to a `&str`. Inline graphemes read zero-copy from `self`;
     /// extended graphemes borrow from `arena`. Empty and continuation cells
     /// resolve to `default`.
-    pub fn as_str_or<'a>(&'a self, arena: &'a Graphemes, default: &'a str) -> &'a str {
-        arena.get_or(self, default)
+    pub fn as_str_or<'a>(&'a self, graphemes: &'a Graphemes, default: &'a str) -> &'a str {
+        graphemes.get_or(self, default)
     }
 
     /// Resolve to a `char` iff this grapheme is exactly one scalar value.

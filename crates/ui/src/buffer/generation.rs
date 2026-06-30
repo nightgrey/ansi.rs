@@ -178,6 +178,45 @@ impl Buffer {
                 buf
             }
             Gen::Random(seed) => {
+                /// xorshift64 step. Pure function of the state, so callers stay deterministic.
+                #[inline]
+                fn xorshift_next(state: &mut u64) -> u64 {
+                    *state ^= *state << 13;
+                    *state ^= *state >> 7;
+                    *state ^= *state << 17;
+                    *state
+                }
+
+                /// Weighted index pick, no external `rand` dependency — same approach as
+                /// the corpus generator's `WeightedIndex`, just hand-rolled against the
+                /// existing xorshift state so `Gen::Random` stays self-contained.
+                #[inline]
+                fn weighted_pick(state: &mut u64, weights: &[u32], total: u32) -> usize {
+                    let mut roll = (xorshift_next(state) % total as u64) as u32;
+                    for (i, &w) in weights.iter().enumerate() {
+                        if roll < w {
+                            return i;
+                        }
+                        roll -= w;
+                    }
+                    weights.len() - 1 // unreachable unless `total` undercounts `weights`
+                }
+
+                // Zipfian-ish glyph table: space dominates, lowercase beats
+                // uppercase beats digits beats symbols — mirrors how a real
+                // screenful of text is distributed, instead of sampling all 22
+                // glyphs uniformly.
+                const GLYPHS: &[u8] = b" abcdefgABCDEFG0123.#@";
+                const GLYPH_WEIGHTS: &[u32] = &[
+                    500, // ' '
+                    40, 30, 30, 28, 45, 25, 22, // a b c d e f g
+                    18, 14, 14, 12, 16, 10, 10, // A B C D E F G
+                    10, 10, 8, 8, // 0 1 2 3
+                    12, 6, 4, // . # @
+                ];
+                debug_assert_eq!(GLYPHS.len(), GLYPH_WEIGHTS.len());
+                let glyph_total: u32 = GLYPH_WEIGHTS.iter().sum();
+
                 let palette = [
                     Style::None,
                     Style::None.foreground(Color::Red),
@@ -188,36 +227,37 @@ impl Buffer {
                         .foreground(Color::BrightCyan)
                         .with(Attribute::Italic),
                 ];
-                let glyphs = b"abcdefgABCDEFG0123 .#@";
+                // mostly unstyled, decorations are the rare case — same intuition as
+                // the glyph table
+                const STYLE_WEIGHTS: &[u32] = &[200, 25, 25, 20, 15, 10];
+                let style_total: u32 = STYLE_WEIGHTS.iter().sum();
+
                 let backgrounds = [Color::Rgb(20, 20, 20), Color::Blue, Color::Index(238)];
+                const BG_WEIGHTS: &[u32] = &[50, 30, 20];
+                let bg_total: u32 = BG_WEIGHTS.iter().sum();
+
+                // glyph cell / tinted-empty cell / plain empty cell
+                const OUTCOME_WEIGHTS: &[u32] = &[70, 20, 10];
+                let outcome_total: u32 = OUTCOME_WEIGHTS.iter().sum();
 
                 Buffer::from_fn(width, height, |row, col| {
-                    // Using a deterministic pseudo-random generator seeded per cell
-                    // This ensures from_fn remains pure and deterministic
-                    let cell_seed = seed
+                    let mut state = seed
                         .wrapping_mul(0x9E3779B97F4A7C15)
                         .wrapping_add(1)
                         .wrapping_mul(row as u64 + 1)
                         .wrapping_add(col as u64);
 
-                    let mut state = cell_seed;
-                    let mut next = || {
-                        state ^= state << 13;
-                        state ^= state >> 7;
-                        state ^= state << 17;
-                        state
-                    };
-
-                    // First random check determines if cell is empty
-                    if next() % 100 < 100 {
-                        let ch = glyphs[(next() as usize) % glyphs.len()] as char;
-                        let style = palette[(next() as usize) % palette.len()];
-                        Cell::new(ch).with_style(style)
-                    } else if next() % 4 == 0 {
-                        let bg = backgrounds[(next() as usize) % backgrounds.len()];
-                        Cell::default().with_background(bg)
-                    } else {
-                        Cell::default() // Empty cell
+                    match weighted_pick(&mut state, OUTCOME_WEIGHTS, outcome_total) {
+                        0 => {
+                            let gi = weighted_pick(&mut state, GLYPH_WEIGHTS, glyph_total);
+                            let si = weighted_pick(&mut state, STYLE_WEIGHTS, style_total);
+                            Cell::new(GLYPHS[gi] as char).with_style(palette[si])
+                        }
+                        1 => {
+                            let bi = weighted_pick(&mut state, BG_WEIGHTS, bg_total);
+                            Cell::default().with_background(backgrounds[bi])
+                        }
+                        _ => Cell::default(),
                     }
                 })
             }

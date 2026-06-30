@@ -5,6 +5,7 @@ use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 
 #[derive_const(Eq, Clone, PartialEq, MaybeConst)]
 #[derive(Copy, Default)]
+#[repr(u8)]
 pub enum Color {
     #[default]
     None,

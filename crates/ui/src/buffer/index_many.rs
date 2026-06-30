@@ -159,7 +159,7 @@ impl BufferIndexMany for Row {
     }
 }
 
-impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::Range<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexMany for ops::Range<T> {
     type SliceIndexMany = ops::Range<usize>;
 
     #[inline]
@@ -168,7 +168,7 @@ impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::Range<T> {
     }
 }
 
-impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeInclusive<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexMany for ops::RangeInclusive<T> {
     type SliceIndexMany = ops::RangeInclusive<usize>;
 
     #[inline]
@@ -177,7 +177,7 @@ impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeInclusive
     }
 }
 
-impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeTo<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexMany for ops::RangeTo<T> {
     type SliceIndexMany = ops::RangeTo<usize>;
 
     #[inline]
@@ -186,7 +186,7 @@ impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeTo<T> {
     }
 }
 
-impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeToInclusive<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexMany for ops::RangeToInclusive<T> {
     type SliceIndexMany = ops::RangeToInclusive<usize>;
 
     #[inline]
@@ -194,7 +194,7 @@ impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeToInclusi
         self.into_slice_index(context)
     }
 }
-impl<T: BufferIndex<SliceIndex = usize>> BufferIndexMany for ops::RangeFrom<T> {
+impl<T: BufferIndex<SliceIndex = usize> + Copy> BufferIndexMany for ops::RangeFrom<T> {
     type SliceIndexMany = ops::RangeFrom<usize>;
 
     #[inline]

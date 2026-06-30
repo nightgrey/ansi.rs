@@ -20,13 +20,11 @@ const _: () = assert!(core::mem::size_of::<Cell>() == 16);
 ///
 /// ```text
 /// ┌────────────┬───────┬─────────────┬───────────────────────┐
-/// │ grapheme   │ width │ attributes  │ channels (fg|bg)      │
+/// │ grapheme   │ width │ attributes  │ colors (fg|bg)        │
 /// │ 4 bytes    │ 1 B   │ 2 bytes + 1 │ 8 bytes               │
 /// └────────────┴───────┴─────────────┴───────────────────────┘
 /// = 16 bytes with repr(C) and careful alignment
 /// ```
-///
-/// For now, `Style` is a mock and the struct may be slightly larger.
 #[derive(Copy)]
 #[derive_const(Clone, Eq, PartialEq)]
 #[repr(C)]
@@ -233,14 +231,8 @@ impl Cell {
     ///
     /// Empty cells yield `" "` (a single space). Inline graphemes read
     /// zero-copy from the cell; extended graphemes borrow from `arena`.
-    pub fn as_str<'a>(&'a self, arena: &'a Graphemes) -> &'a str {
-        self.grapheme.as_str_or(arena, " ")
-    }
-
-    /// Resolve the cell's grapheme to a `&str`, returning `default` for
-    /// empty cells.
-    pub fn as_str_or<'a>(&'a self, arena: &'a Graphemes, default: &'a str) -> &'a str {
-        self.grapheme.as_str_or(arena, default)
+    pub fn as_str<'a>(&'a self, graphemes: &'a Graphemes) -> &'a str {
+        self.grapheme.as_str_or(graphemes, " ")
     }
 
     /// Returns the number of grid columns the cursor advances.

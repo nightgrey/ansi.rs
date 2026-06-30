@@ -102,7 +102,7 @@ impl Buffer {
     ) -> Self {
         let mut buffer = Self::new(width, height);
         for (index, ch, style) in elements {
-            for cell in buffer.iter_index_mut(index.clone()) {
+            for cell in buffer.get_iter_mut(index.clone()) {
                 *cell = Cell::new(*ch).with_style(*style);
             }
         }
@@ -191,6 +191,36 @@ impl Buffer {
     #[inline]
     pub fn get_many_mut<I: BufferIndexMany>(&mut self, index: I) -> Option<&mut [Cell]> {
         index.get_many_mut(self)
+    }
+
+
+    /// Iterate over the cells covered by `index`.
+    ///
+    /// Out-of-bounds indices produce an empty iterator — no panic, no `None`
+    /// wrapper. This is the ergonomic alternative to `get`/`get_mut` for
+    /// loops that should silently skip invalid ranges.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// for cell in buf.get_iter(Row(3)) {
+    ///     // operates on row 3, does nothing if row 3 is out of bounds
+    /// }
+    /// ```
+    #[inline]
+    pub fn get_iter(&self, index: impl BufferIndexExt) -> impl Iterator<Item = &Cell> {
+        index.iter(self)
+    }
+
+    /// Iterate mutably over the cells covered by `index`.
+    ///
+    /// See [`get_iter`](Self::get_iter) for the borrowing equivalent.
+    #[inline]
+    pub fn get_iter_mut(
+        &mut self,
+        index: impl BufferIndexExt,
+    ) -> impl Iterator<Item = &mut Cell> {
+        index.iter_mut(self)
     }
 
     /// Returns a pointer to the output at this location, without
@@ -321,14 +351,14 @@ impl Buffer {
     pub fn set_string(
         &mut self,
         index: impl BufferIndexExt,
-        string: impl AsRef<str>,
-        style: Option<Style>,
+        text: impl AsRef<str>,
+        style: impl Into<Option<Style>>,
         arena: &mut Graphemes,
     ) -> Option<usize> {
         Some(Cells::write(
             self.get_many_mut(index)?,
-            string.as_ref(),
-            style,
+            text.as_ref(),
+            style.into()    ,
             arena,
         ))
     }
@@ -345,16 +375,16 @@ impl Buffer {
     pub fn set_line(
         &mut self,
         index: impl BufferIndexExt<Output = Cell>,
-        string: impl AsRef<str>,
-        style: Option<Style>,
+        text: impl AsRef<str>,
+        style: impl Into<Option<Style>>,
         arena: &mut Graphemes,
     ) -> Option<usize> {
         let point = self.point_of(index);
 
         self.set_string(
             point..Point::new(self.width(), point.y),
-            string,
-            style,
+            text,
+            style.into(),
             arena,
         )
     }
@@ -415,34 +445,6 @@ impl Buffer {
         self.height = height as u16;
     }
 
-    /// Iterate over the cells covered by `index`.
-    ///
-    /// Out-of-bounds indices produce an empty iterator — no panic, no `None`
-    /// wrapper. This is the ergonomic alternative to `get`/`get_mut` for
-    /// loops that should silently skip invalid ranges.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// for cell in buf.iter_index(Row(3)) {
-    ///     // operates on row 3, does nothing if row 3 is out of bounds
-    /// }
-    /// ```
-    #[inline]
-    pub fn iter_index(&self, index: impl BufferIndexExt) -> impl Iterator<Item = &Cell> {
-        index.iter(self)
-    }
-
-    /// Iterate mutably over the cells covered by `index`.
-    ///
-    /// See [`iter_index`](Self::iter_index) for the borrowing equivalent.
-    #[inline]
-    pub fn iter_index_mut(
-        &mut self,
-        index: impl BufferIndexExt,
-    ) -> impl Iterator<Item = &mut Cell> {
-        index.iter_mut(self)
-    }
 
     /// Iterate over each row, yielding an iterator over the row's cells.
     ///

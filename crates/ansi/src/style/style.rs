@@ -81,6 +81,10 @@ const impl Style {
         attributes: Attribute::Overline,
         ..Self::None
     };
+    
+    pub fn new() -> Self {
+        Self::None
+    }
 
     pub fn from_attribute(attribute: Attribute) -> Self {
         Self {

@@ -56,7 +56,7 @@ use thiserror::Error;
 /// The arena is **not** a deduplicating interner — each insert gets its own
 /// region. This keeps the common path (inline graphemes that never touch the
 /// arena) at zero cost.
-#[derive(Default)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Graphemes {
     /// Contiguous byte storage; `len()` is the high-water mark.
     inner: Vec<u8>,

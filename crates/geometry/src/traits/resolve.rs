@@ -221,10 +221,9 @@ impl<B: Bounded> Resolve<Column, Row> for B {
 // usize
 impl<B: Bounded> Resolve<usize, Point> for B {
     fn resolve(&self, value: usize) -> Point {
-        let value = value as u16;
-        let w = self.width();
+        let w = self.width() as usize;
 
-        Point::new(value % w, value / w)
+        Point::new((value % w) as u16, (value / w) as u16)
     }
 
     fn try_resolve(&self, value: usize) -> Option<Point> {
@@ -242,7 +241,7 @@ impl<B: Bounded> Resolve<usize, usize> for B {
 }
 impl<B: Bounded> Resolve<usize, Row> for B {
     fn resolve(&self, value: usize) -> Row {
-        Row(value as u16 / self.width())
+        Row((value / self.width() as usize) as u16)
     }
 
     fn try_resolve(&self, value: usize) -> Option<Row> {
@@ -255,7 +254,7 @@ impl<B: Bounded> Resolve<usize, Row> for B {
 }
 impl<B: Bounded> Resolve<usize, Column> for B {
     fn resolve(&self, value: usize) -> Column {
-        Column(value as u16 % self.width())
+        Column((value % self.width() as usize) as u16)
     }
 
     fn try_resolve(&self, value: usize) -> Option<Column> {

@@ -42,7 +42,7 @@ pub trait Resolve<T, U> {
 // Coordinate
 impl<B: Bounded> Resolve<Point, usize> for B {
     fn resolve(&self, value: Point) -> usize {
-        (value.y * self.width() + value.x) as usize
+        value.y as usize * self.width() as usize + value.x as usize
     }
 
     fn try_resolve(&self, value: Point) -> Option<usize> {
@@ -83,7 +83,7 @@ impl<B: Bounded> Resolve<Point, Column> for B {
 // Coordinate
 impl<B: Bounded> Resolve<PointLike, usize> for B {
     fn resolve(&self, value: PointLike) -> usize {
-        (value.1 * self.width() + value.0) as usize
+        value.1 as usize * self.width() as usize + value.0 as usize
     }
 
     fn try_resolve(&self, value: PointLike) -> Option<usize> {
@@ -137,7 +137,7 @@ impl<B: Bounded> Resolve<Row, usize> for B {
 }
 impl<B: Bounded> Resolve<Row, Point> for B {
     fn resolve(&self, value: Row) -> Point {
-        Point::new(self.min_x(), value.into_inner() as usize as u16)
+        Point::new(0, value.into_inner())
     }
 
     fn try_resolve(&self, value: Row) -> Option<Point> {
@@ -180,7 +180,7 @@ impl<B: Bounded> Resolve<Row, Range<usize>> for B {
 // Column
 impl<B: Bounded> Resolve<Column, Point> for B {
     fn resolve(&self, value: Column) -> Point {
-        Point::new(value.into_inner() as usize as u16, 0)
+        Point::new(value.into_inner(), 0)
     }
 
     fn try_resolve(&self, value: Column) -> Option<Point> {
@@ -352,7 +352,7 @@ impl<B: Bounded> Resolve<RangeFull, RangeFull> for B {
 
 impl<B: Bounded> Resolve<RangeFull, Range<usize>> for B {
     fn resolve(&self, _: RangeFull) -> Range<usize> {
-        self.min_x() as usize..self.len()
+        0..self.len()
     }
 }
 

@@ -93,8 +93,8 @@ impl BufferIndex for Point {
     type SliceIndex = usize;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> usize {
-        buffer.resolve(self)
+    fn into_slice_index(self, context: &Buffer) -> usize {
+        context.resolve(self)
     }
 
     #[inline]
@@ -108,8 +108,8 @@ impl BufferIndex for PointLike {
     type SliceIndex = usize;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> usize {
-        buffer.resolve(self)
+    fn into_slice_index(self, context: &Buffer) -> usize {
+        context.resolve(self)
     }
 
     #[inline]
@@ -123,8 +123,8 @@ impl BufferIndex for Row {
     type SliceIndex = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
-        buffer.resolve(self)
+    fn into_slice_index(self, context: &Buffer) -> ops::Range<usize> {
+        context.resolve(self)
     }
 
     #[inline]
@@ -138,9 +138,9 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndex for ops::Range<T> {
     type SliceIndex = ops::Range<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::Range<usize> {
-        let start = self.start.into_slice_index(buffer);
-        let end = self.end.into_slice_index(buffer);
+    fn into_slice_index(self, context: &Buffer) -> ops::Range<usize> {
+        let start = self.start.into_slice_index(context);
+        let end = self.end.into_slice_index(context);
         start..end
     }
 }
@@ -151,9 +151,9 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndex for ops::RangeInclusive<T> {
     type SliceIndex = ops::RangeInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeInclusive<usize> {
-        let start = self.start().as_slice_index(buffer);
-        let end = self.end().as_slice_index(buffer);
+    fn into_slice_index(self, context: &Buffer) -> ops::RangeInclusive<usize> {
+        let start = self.start().as_slice_index(context);
+        let end = self.end().as_slice_index(context);
         start..=end
     }
 }
@@ -164,8 +164,8 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndex for ops::RangeTo<T> {
     type SliceIndex = ops::RangeTo<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeTo<usize> {
-        let end = self.end.into_slice_index(buffer);
+    fn into_slice_index(self, context: &Buffer) -> ops::RangeTo<usize> {
+        let end = self.end.into_slice_index(context);
         ..end
     }
 }
@@ -175,8 +175,8 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndex for ops::RangeToInclusive<T>
     type SliceIndex = ops::RangeToInclusive<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeToInclusive<usize> {
-        let end = self.end.into_slice_index(buffer);
+    fn into_slice_index(self, context: &Buffer) -> ops::RangeToInclusive<usize> {
+        let end = self.end.into_slice_index(context);
         ..=end
     }
 }
@@ -185,8 +185,8 @@ impl<T: BufferIndex<SliceIndex= usize>> BufferIndex for ops::RangeFrom<T> {
     type SliceIndex = ops::RangeFrom<usize>;
 
     #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> ops::RangeFrom<usize> {
-        let start = self.start.into_slice_index(buffer);
+    fn into_slice_index(self, context: &Buffer) -> ops::RangeFrom<usize> {
+        let start = self.start.into_slice_index(context);
         start..
     }
 }

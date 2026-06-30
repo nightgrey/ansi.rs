@@ -41,13 +41,5 @@ similar = "3.1.1"
 [dev-dependencies]
 criterion = "0.8.2"
 
-[[bench]]
-name = "terminal"
-harness = false
-
-[[bench]]
-name = "cell"
-harness = false
-
 [lints]
 workspace = true

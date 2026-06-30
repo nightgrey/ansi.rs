@@ -1,15 +1,15 @@
-use crate::{Bound, Coordinate};
+use crate::{Bounded, Point};
 use std::ops::Range;
 
-pub trait Outer: Bound {
+pub trait Outer: Bounded {
     /// Returns the top-left corner.
-    fn top_left(&self) -> Self::Point;
+    fn top_left(&self) -> Point;
     /// Returns the top-right corner.
-    fn top_right(&self) -> Self::Point;
+    fn top_right(&self) -> Point;
     /// Returns the bottom-right corner.
-    fn bottom_right(&self) -> Self::Point;
+    fn bottom_right(&self) -> Point;
     /// Returns the bottom-left corner.
-    fn bottom_left(&self) -> Self::Point;
+    fn bottom_left(&self) -> Point;
 
     /// Returns the y-coordinate of the top edge.
     fn top(&self) -> u16;
@@ -35,18 +35,18 @@ pub trait Outer: Bound {
     }
 }
 
-impl<B: Bound<Point = P>, P: Coordinate> Outer for B {
-    fn top_left(&self) -> Self::Point {
+impl<B: Bounded> Outer for B {
+    fn top_left(&self) -> Point {
         self.min()
     }
-    fn top_right(&self) -> Self::Point {
-        Self::Point::new(self.max_x(), self.min_y())
+    fn top_right(&self) -> Point {
+        Point::new(self.max_x(), self.min_y())
     }
-    fn bottom_right(&self) -> Self::Point {
+    fn bottom_right(&self) -> Point {
         self.max()
     }
-    fn bottom_left(&self) -> Self::Point {
-        Self::Point::new(self.min_x(), self.max_y())
+    fn bottom_left(&self) -> Point {
+        Point::new(self.min_x(), self.max_y())
     }
 
     fn top(&self) -> u16 {

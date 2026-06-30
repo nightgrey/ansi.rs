@@ -5,10 +5,10 @@ use synonym::Synonym;
 #[derive_const(Synonym, Deref, DerefMut)]
 #[synonym(skip(Value))]
 #[repr(transparent)]
-pub struct Row(pub usize);
+pub struct Row(pub u16);
 
 const impl Row {
-    pub fn into_inner(self) -> usize {
+    pub fn into_inner(self) -> u16 {
         self.0
     }
 }

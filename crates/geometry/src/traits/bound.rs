@@ -1,21 +1,21 @@
-use crate::{Coordinate, Point, Rect, Resolve, Size, Steps};
+use crate::{Point, Rect, Resolve, Size, Steps};
 
 /// A geometry with an axis-aligned min/max bounding rectangle in half-open
 /// `[min, max)` coordinates.
-pub trait Bound {
-    type Point: Coordinate;
-
+pub trait Bounded {
     fn min_x(&self) -> u16;
     fn min_y(&self) -> u16;
     fn max_x(&self) -> u16;
     fn max_y(&self) -> u16;
-
-    fn min(&self) -> Self::Point {
-        Coordinate::new(self.min_x(), self.min_y())
+    
+    #[inline]
+    fn min(&self) -> Point {
+        Point::new(self.min_x(), self.min_y())
     }
 
-    fn max(&self) -> Self::Point {
-        Coordinate::new(self.max_x(), self.max_y())
+    #[inline]
+    fn max(&self) -> Point {
+        Point::new(self.max_x(), self.max_y())
     }
 
     #[inline]
@@ -39,7 +39,7 @@ pub trait Bound {
     }
 
     #[inline]
-    fn bounds(&self) -> Rect<Self::Point> {
+    fn bounds(&self) -> Rect {
         Rect::bounds(self.min(), self.max())
     }
 
@@ -50,63 +50,50 @@ pub trait Bound {
             height: self.height(),
         }
     }
-
-    fn steps(self) -> Steps<Self::Point, Self>
-    where
-        Self: Resolve<Self::Point, usize> + Resolve<usize, Self::Point> + Sized,
-    {
-        Steps::new(self)
-    }
 }
 
-impl<P: Coordinate> Bound for Rect<P> {
-    type Point = P;
-
+impl Bounded for Rect {
     fn min_x(&self) -> u16 {
-        self.min.x()
+        self.min.x
     }
     fn min_y(&self) -> u16 {
-        self.min.y()
+        self.min.y
     }
     fn max_x(&self) -> u16 {
-        self.max.x()
+        self.max.x
     }
     fn max_y(&self) -> u16 {
-        self.max.y()
+        self.max.y
     }
 
-    fn min(&self) -> Self::Point {
+    fn min(&self) -> Point {
         self.min
     }
-    fn max(&self) -> Self::Point {
+    fn max(&self) -> Point {
         self.max
     }
 
-    fn bounds(&self) -> Rect<Self::Point> {
+    fn bounds(&self) -> Rect {
         *self
     }
 }
 
-impl<P: Coordinate> Bound for P {
-    type Point = Self;
-
+impl Bounded for Point {
     fn min_x(&self) -> u16 {
-        Coordinate::x(self)
+         self.x
     }
     fn min_y(&self) -> u16 {
-        Coordinate::y(self)
+        self.y
     }
     fn max_x(&self) -> u16 {
-        Coordinate::x(self) + 1
+        self.x + 1
     }
     fn max_y(&self) -> u16 {
-        Coordinate::y(self) + 1
+        self.y + 1
     }
 }
 
-impl Bound for Size {
-    type Point = Point;
-
+impl Bounded for Size {
     fn min_x(&self) -> u16 {
         0
     }

@@ -1,8 +1,8 @@
 use crate::{Buffer, Cell};
-use geometry::{Point, Position, PositionLike, Resolve, Row};
+use geometry::{Point, PointLike, Resolve, Row};
 use std::ops;
-use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
+
 
 pub trait BufferIndex: Clone {
     type Output: ?Sized;
@@ -11,7 +11,6 @@ pub trait BufferIndex: Clone {
     /// Returns the [`Self::Index`] for this location.
     ///
     /// This method does not perform any bounds checking.
-
     fn into_slice_index(self, context: &Buffer) -> Self::Index;
 
     /// Returns a shared reference to the output at this location, if in
@@ -88,17 +87,7 @@ impl BufferIndex for Point {
     }
 }
 
-impl BufferIndex for Position {
-    type Output = Cell;
-    type Index = usize;
-
-    #[inline]
-    fn into_slice_index(self, buffer: &Buffer) -> usize {
-        buffer.resolve(self)
-    }
-}
-
-impl BufferIndex for PositionLike {
+impl BufferIndex for PointLike {
     type Output = Cell;
     type Index = usize;
 
@@ -130,6 +119,7 @@ impl<T: BufferIndex<Index = usize>> BufferIndex for ops::Range<T> {
     }
 }
 
+
 impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<T> {
     type Output = [Cell];
     type Index = ops::RangeInclusive<usize>;
@@ -141,6 +131,7 @@ impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeInclusive<T> {
         start..=end
     }
 }
+
 
 impl<T: BufferIndex<Index = usize>> BufferIndex for ops::RangeTo<T> {
     type Output = [Cell];
@@ -184,14 +175,17 @@ impl BufferIndex for ops::RangeFull {
     }
 }
 
-impl<I: BufferIndex> Index<I> for Buffer {
+impl<I: BufferIndex> ops::Index<I> for Buffer {
     type Output = I::Output;
+
+    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         BufferIndex::index(index, self)
     }
 }
 
-impl<I: BufferIndex> IndexMut<I> for Buffer {
+impl<I: BufferIndex> ops::IndexMut<I> for Buffer {
+    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         BufferIndex::index_mut(index, self)
     }

@@ -1,31 +1,31 @@
 use std::num::Saturating;
 use std::ops::*;
 pub const trait SaturatingOps<Rhs = Self>:
-    SaturatingAdd<Rhs>
-    + SaturatingSub<Rhs>
-    + SaturatingMul<Rhs>
-    + SaturatingDiv<Rhs>
-    + SaturatingRem<Rhs>
+    [const] SaturatingAdd<Rhs>
+    + [const] SaturatingSub<Rhs>
+    + [const] SaturatingMul<Rhs>
+    + [const] SaturatingDiv<Rhs>
+    + [const] SaturatingRem<Rhs>
 {
 }
 
-pub const trait SaturatingAdd<Rhs = Self>: Sized + Add<Rhs, Output = Self> {
+pub const trait SaturatingAdd<Rhs = Self>: Sized + [const] Add<Rhs, Output = Self> {
     fn saturating_add(self, other: Rhs) -> Self;
 }
 
-pub const trait SaturatingSub<Rhs = Self>: Sized + Sub<Self, Output = Self> {
+pub const trait SaturatingSub<Rhs = Self>: Sized + [const] Sub<Self, Output = Self> {
     fn saturating_sub(self, other: Rhs) -> Self;
 }
 
-pub const trait SaturatingMul<Rhs = Self>: Sized + Mul<Self, Output = Self> {
+pub const trait SaturatingMul<Rhs = Self>: Sized + [const] Mul<Self, Output = Self> {
     fn saturating_mul(self, other: Rhs) -> Self;
 }
 
-pub const trait SaturatingDiv<Rhs = Self>: Sized + Div<Self, Output = Self> {
+pub const trait SaturatingDiv<Rhs = Self>: Sized + [const] Div<Self, Output = Self> {
     fn saturating_div(self, other: Rhs) -> Self;
 }
 
-pub const trait SaturatingRem<Rhs = Self>: Sized + Rem<Self, Output = Self> {
+pub const trait SaturatingRem<Rhs = Self>: Sized + [const] Rem<Self, Output = Self> {
     fn saturating_rem(self, other: Rhs) -> Self;
 }
 

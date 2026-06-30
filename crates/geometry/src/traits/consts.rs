@@ -36,7 +36,7 @@ impl Min for Row {
     const MIN: Self = Row(0);
 }
 impl Max for Row {
-    const MAX: Self = Row(usize::MAX);
+    const MAX: Self = Row(u16::MAX);
 }
 
 impl Zero for Column {
@@ -49,7 +49,7 @@ impl Min for Column {
     const MIN: Self = Column(0);
 }
 impl Max for Column {
-    const MAX: Self = Column(usize::MAX);
+    const MAX: Self = Column(u16::MAX);
 }
 
 impl<T: Zero> Zero for Rect<T> {

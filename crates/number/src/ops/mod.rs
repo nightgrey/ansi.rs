@@ -9,61 +9,61 @@ pub use wrapping::*;
 use std::ops::*;
 
 pub const trait Ops<Rhs = Self, Output = Self>:
-    Add<Rhs, Output = Output>
-    + Sub<Rhs, Output = Output>
-    + Mul<Rhs, Output = Output>
-    + Div<Rhs, Output = Output>
-    + Rem<Rhs, Output = Output>
+    [const] Add<Rhs, Output = Output>
+    + [const] Sub<Rhs, Output = Output>
+    + [const] Mul<Rhs, Output = Output>
+    + [const] Div<Rhs, Output = Output>
+    + [const] Rem<Rhs, Output = Output>
 {
 }
 
 pub const trait AssignOps<Rhs = Self>:
-    AddAssign<Rhs> + SubAssign<Rhs> + MulAssign<Rhs> + DivAssign<Rhs> + RemAssign<Rhs>
+    [const] AddAssign<Rhs> + [const] SubAssign<Rhs> + [const] MulAssign<Rhs> + [const] DivAssign<Rhs> + [const] RemAssign<Rhs>
 {
 }
 
 pub const trait ConditionalOps<Rhs = Self>:
-    CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs>
+    [const] CheckedOps<Rhs> + [const] SaturatingOps<Rhs> + [const] WrappingOps<Rhs>
 {
 }
 
 const impl<T, Rhs, Output> Ops<Rhs, Output> for T where
-    T: Add<Rhs, Output = Output>
-        + Sub<Rhs, Output = Output>
-        + Mul<Rhs, Output = Output>
-        + Div<Rhs, Output = Output>
-        + Rem<Rhs, Output = Output>
+    T: [const] Add<Rhs, Output = Output>
+        + [const] Sub<Rhs, Output = Output>
+        + [const] Mul<Rhs, Output = Output>
+        + [const] Div<Rhs, Output = Output>
+        + [const] Rem<Rhs, Output = Output>
 {
 }
 
 const impl<T, Rhs> AssignOps<Rhs> for T where
-    T: AddAssign<Rhs> + SubAssign<Rhs> + MulAssign<Rhs> + DivAssign<Rhs> + RemAssign<Rhs>
+    T: [const] AddAssign<Rhs> + [const] SubAssign<Rhs> + [const] MulAssign<Rhs> + [const] DivAssign<Rhs> + [const] RemAssign<Rhs>
 {
 }
 
 const impl<T, Rhs> ConditionalOps<Rhs> for T where
-    T: CheckedOps<Rhs> + SaturatingOps<Rhs> + WrappingOps<Rhs>
+    T: [const] CheckedOps<Rhs> + [const] SaturatingOps<Rhs> + [const] WrappingOps<Rhs>
 {
 }
 
 pub const trait BitOps<Rhs = Self>:
-    BitAnd<Rhs, Output = Self>
-    + BitAndAssign<Rhs>
-    + BitOr<Rhs, Output = Self>
-    + BitOrAssign<Rhs>
-    + BitXor<Rhs, Output = Self>
-    + BitXorAssign<Rhs>
-    + Not<Output = Self>
+    [const] BitAnd<Rhs, Output = Self>
+    + [const] BitAndAssign<Rhs>
+    + [const] BitOr<Rhs, Output = Self>
+    + [const] BitOrAssign<Rhs>
+    + [const] BitXor<Rhs, Output = Self>
+    + [const] BitXorAssign<Rhs>
+    + [const] Not<Output = Self>
 {
 }
 
 const impl<T, Rhs> BitOps<Rhs> for T where
-    T: BitAnd<Rhs, Output = Self>
-        + BitAndAssign<Rhs>
-        + BitOr<Rhs, Output = Self>
-        + BitOrAssign<Rhs>
-        + BitXor<Rhs, Output = Self>
-        + BitXorAssign<Rhs>
-        + Not<Output = Self>
+    T: [const] BitAnd<Rhs, Output = Self>
+        + [const] BitAndAssign<Rhs>
+        + [const] BitOr<Rhs, Output = Self>
+        + [const] BitOrAssign<Rhs>
+        + [const] BitXor<Rhs, Output = Self>
+        + [const] BitXorAssign<Rhs>
+        + [const] Not<Output = Self>
 {
 }

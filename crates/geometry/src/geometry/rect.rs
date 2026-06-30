@@ -1,4 +1,4 @@
-use crate::{Bound, Coordinate, Edges, Point, Size};
+use crate::{Bounded, Edges, Point, Size, Steps};
 use number::{Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, Sub};
@@ -17,7 +17,7 @@ pub struct Rect<T = Point> {
     pub max: T,
 }
 
-impl<T> Rect<T> {
+const impl<T> Rect<T> {
     /// Create a new rectangle from min and max points.
     ///
     /// Accepts anything convertible to [`Point`], including tuples.
@@ -30,7 +30,7 @@ impl<T> Rect<T> {
     /// let rect2 = Rect::bounds(Point::new(0, 0), Point::new(10, 10));
     /// assert_eq!(rect1, rect2);
     /// ```
-    pub const fn bounds(min: T, max: T) -> Self {
+    pub fn bounds(min: T, max: T) -> Self {
         Self { min, max }
     }
 }
@@ -49,6 +49,12 @@ const impl Rect {
 
     pub fn set_width(&mut self, width: u16) {
         self.max.x = self.min.x + width;
+    }
+}
+
+impl Rect {
+    pub fn iter(&self) -> Steps<Self> {
+        Steps::new(*self)
     }
 }
 

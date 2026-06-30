@@ -1,5 +1,6 @@
 use number::{AssignOps, One, Ops, SaturatingAdd, SaturatingOps, SaturatingSub, Zero};
 use std::fmt::{Debug, Display, Formatter};
+use std::marker::Destruct;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// Type alias for tuple-based points: `(x, y)`.
@@ -53,21 +54,21 @@ impl<T> Point<T> {
     }
 }
 
-impl<T: One> Point<T> {
+const impl<T: One> Point<T> {
     pub const ONE: Self = Point {
         x: T::ONE,
         y: T::ONE,
     };
 }
 
-impl<T: Zero> Point<T> {
+const impl<T: Zero> Point<T> {
     pub const ZERO: Self = Point {
         x: T::ZERO,
         y: T::ZERO,
     };
 }
 
-impl<T: Ops> Add for Point<T> {
+const impl<T: [const] Ops + [const] Destruct> Add for Point<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -78,7 +79,7 @@ impl<T: Ops> Add for Point<T> {
     }
 }
 
-impl<T: AssignOps> AddAssign for Point<T> {
+const impl<T: [const] AssignOps + [const] Destruct> AddAssign for Point<T> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
@@ -86,7 +87,7 @@ impl<T: AssignOps> AddAssign for Point<T> {
     }
 }
 
-impl<T: Ops> Sub for Point<T> {
+const impl<T: [const] Ops + [const] Destruct> Sub for Point<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -97,14 +98,14 @@ impl<T: Ops> Sub for Point<T> {
     }
 }
 
-impl<T: AssignOps> SubAssign for Point<T> {
+const impl<T: [const] AssignOps + [const] Destruct> SubAssign for Point<T> {
     fn sub_assign(&mut self, rhs: Self) {
         self.x -= rhs.x;
         self.y -= rhs.y;
     }
 }
 
-impl<T: SaturatingOps> SaturatingAdd for Point<T> {
+const impl<T: [const] SaturatingOps + [const] Destruct> SaturatingAdd for Point<T> {
     fn saturating_add(self, rhs: Self) -> Self {
         Self {
             x: self.x.saturating_add(rhs.x),
@@ -112,7 +113,7 @@ impl<T: SaturatingOps> SaturatingAdd for Point<T> {
         }
     }
 }
-impl<T: SaturatingOps> SaturatingSub for Point<T> {
+const impl<T: [const] SaturatingOps + [const] Destruct> SaturatingSub for Point<T> {
     fn saturating_sub(self, rhs: Self) -> Self {
         Self {
             x: self.x.saturating_sub(rhs.x),
@@ -121,13 +122,13 @@ impl<T: SaturatingOps> SaturatingSub for Point<T> {
     }
 }
 
-impl<T: Ord> PartialOrd for Point<T> {
+const impl<T: [const] Ord + [const] Destruct> PartialOrd for Point<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: Ord> Ord for Point<T> {
+const impl<T: [const] Ord + [const] Destruct> Ord for Point<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.y.cmp(&other.y) {
             std::cmp::Ordering::Equal => self.x.cmp(&other.x),
@@ -153,7 +154,7 @@ mod tests {
     use super::*;
     use crate::geometry::rect::Rect;
     use crate::geometry::size::Size;
-    use crate::{Bound, Contains};
+    use crate::{Bounded, Contains};
 
     // === Point Tests ===
 

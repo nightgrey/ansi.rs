@@ -1,4 +1,4 @@
-use crate::{Bound, Column, Coordinate, Row};
+use crate::{Bounded, Column, Point, PointLike, Row};
 use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
 /// Resolve a context-dependent value.
@@ -40,13 +40,39 @@ pub trait Resolve<T, U> {
 }
 
 // Coordinate
-impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
-    fn resolve(&self, value: P) -> usize {
-        (value.y() * self.width() + value.x()) as usize
+impl<B: Bounded> Resolve<Point, usize> for B {
+    fn resolve(&self, value: Point) -> usize {
+        (value.y * self.width() + value.x) as usize
     }
 
-    fn try_resolve(&self, value: P) -> Option<usize> {
-        if value.x() < self.width() && value.y() < self.height() {
+    fn try_resolve(&self, value: Point) -> Option<usize> {
+        if value.x < self.width() && value.y < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
+}
+impl<B: Bounded> Resolve<Point, Row> for B {
+    fn resolve(&self, value: Point) -> Row {
+        Row(value.y)
+    }
+
+    fn try_resolve(&self, value: Point) -> Option<Row> {
+        if value.y < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
+}
+impl<B: Bounded> Resolve<Point, Column> for B {
+    fn resolve(&self, value: Point) -> Column {
+        Column(value.x)
+    }
+
+    fn try_resolve(&self, value: Point) -> Option<Column> {
+        if value.x < self.width() {
             Some(self.resolve(value))
         } else {
             None
@@ -54,13 +80,40 @@ impl<B: Bound, P: Coordinate> Resolve<P, usize> for B {
     }
 }
 
-impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
-    fn resolve(&self, value: P) -> Row {
-        Row(value.y() as usize)
+// Coordinate
+impl<B: Bounded> Resolve<PointLike, usize> for B {
+    fn resolve(&self, value: PointLike) -> usize {
+        (value.1 * self.width() + value.0) as usize
     }
 
-    fn try_resolve(&self, value: P) -> Option<Row> {
-        if value.y() < self.height() {
+    fn try_resolve(&self, value: PointLike) -> Option<usize> {
+        if value.0 < self.width() && value.1 < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
+}
+impl<B: Bounded> Resolve<PointLike, Row> for B {
+    fn resolve(&self, value: PointLike) -> Row {
+        Row(value.1)
+    }
+
+    fn try_resolve(&self, value: PointLike) -> Option<Row> {
+        if value.1 < self.height() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
+    }
+}
+impl<B: Bounded> Resolve<PointLike, Column> for B {
+    fn resolve(&self, value: PointLike) -> Column {
+        Column(value.0)
+    }
+
+    fn try_resolve(&self, value: PointLike) -> Option<Column> {
+        if value.0 < self.width() {
             Some(self.resolve(value))
         } else {
             None
@@ -68,62 +121,47 @@ impl<B: Bound, P: Coordinate> Resolve<P, Row> for B {
     }
 }
 
-impl<B: Bound, P: Coordinate> Resolve<P, Column> for B {
-    fn resolve(&self, value: P) -> Column {
-        Column(value.x() as usize)
-    }
-
-    fn try_resolve(&self, value: P) -> Option<Column> {
-        if value.x() < self.width() {
-            Some(self.resolve(value))
-        } else {
-            None
-        }
-    }
-}
-
-impl<B: Bound> Resolve<Row, usize> for B {
+// Row
+impl<B: Bounded> Resolve<Row, usize> for B {
     fn resolve(&self, value: Row) -> usize {
-        (value.into_inner()) * self.width() as usize
+        (value.into_inner() as usize) * self.width() as usize
     }
 
     fn try_resolve(&self, value: Row) -> Option<usize> {
-        if value.into_inner() < self.height() as usize {
+        if (value.into_inner() as usize) < self.height() as usize {
             Some(self.resolve(value))
         } else {
             None
         }
     }
 }
-impl<B: Bound, P: Coordinate> Resolve<Row, P> for B {
-    fn resolve(&self, value: Row) -> P {
-        P::new(self.min_x(), value.into_inner() as u16)
+impl<B: Bounded> Resolve<Row, Point> for B {
+    fn resolve(&self, value: Row) -> Point {
+        Point::new(self.min_x(), value.into_inner() as usize as u16)
     }
 
-    fn try_resolve(&self, value: Row) -> Option<P> {
-        if value.into_inner() < self.height() as usize {
+    fn try_resolve(&self, value: Row) -> Option<Point> {
+        if (value.into_inner() as usize) < self.height() as usize {
             Some(self.resolve(value))
         } else {
             None
         }
     }
 }
-
-impl<B: Bound> Resolve<Row, Column> for B {
+impl<B: Bounded> Resolve<Row, Column> for B {
     fn resolve(&self, _value: Row) -> Column {
         Column(0)
     }
 
     fn try_resolve(&self, value: Row) -> Option<Column> {
-        if value.into_inner() < self.height() as usize {
+        if (value.into_inner() as usize) < self.height() as usize {
             Some(self.resolve(value))
         } else {
             None
         }
     }
 }
-
-impl<B: Bound> Resolve<Row, Range<usize>> for B {
+impl<B: Bounded> Resolve<Row, Range<usize>> for B {
     fn resolve(&self, value: Row) -> Range<usize> {
         let start: usize = self.resolve(value);
         let width = self.width() as usize;
@@ -131,7 +169,7 @@ impl<B: Bound> Resolve<Row, Range<usize>> for B {
     }
 
     fn try_resolve(&self, value: Row) -> Option<Range<usize>> {
-        if value.into_inner() < self.height() as usize {
+        if (value.into_inner() as usize) < self.height() as usize {
             Some(self.resolve(value))
         } else {
             None
@@ -140,41 +178,39 @@ impl<B: Bound> Resolve<Row, Range<usize>> for B {
 }
 
 // Column
-impl<B: Bound, P: Coordinate> Resolve<Column, P> for B {
-    fn resolve(&self, value: Column) -> P {
-        P::new(value.into_inner() as u16, 0)
+impl<B: Bounded> Resolve<Column, Point> for B {
+    fn resolve(&self, value: Column) -> Point {
+        Point::new(value.into_inner() as usize as u16, 0)
     }
 
-    fn try_resolve(&self, value: Column) -> Option<P> {
-        if value.into_inner() < self.width() as usize {
+    fn try_resolve(&self, value: Column) -> Option<Point> {
+        if (value.into_inner() as usize) < self.width() as usize {
             Some(self.resolve(value))
         } else {
             None
         }
     }
 }
-
-impl<B: Bound> Resolve<Column, usize> for B {
+impl<B: Bounded> Resolve<Column, usize> for B {
     fn resolve(&self, value: Column) -> usize {
-        value.into_inner()
+        value.into_inner() as usize
     }
 
     fn try_resolve(&self, value: Column) -> Option<usize> {
-        if value.into_inner() < self.width() as usize {
+        if (value.into_inner() as usize) < self.width() as usize {
             Some(self.resolve(value))
         } else {
             None
         }
     }
 }
-
-impl<B: Bound> Resolve<Column, Row> for B {
+impl<B: Bounded> Resolve<Column, Row> for B {
     fn resolve(&self, _value: Column) -> Row {
         Row(0)
     }
 
     fn try_resolve(&self, value: Column) -> Option<Row> {
-        if value.into_inner() < self.width() as usize {
+        if (value.into_inner() as usize) < self.width() as usize {
             Some(self.resolve(value))
         } else {
             None
@@ -183,15 +219,15 @@ impl<B: Bound> Resolve<Column, Row> for B {
 }
 
 // usize
-impl<B: Bound, P: Coordinate> Resolve<usize, P> for B {
-    fn resolve(&self, value: usize) -> P {
+impl<B: Bounded> Resolve<usize, Point> for B {
+    fn resolve(&self, value: usize) -> Point {
         let value = value as u16;
         let w = self.width();
 
-        P::new(value % w, value / w)
+        Point::new(value % w, value / w)
     }
 
-    fn try_resolve(&self, value: usize) -> Option<P> {
+    fn try_resolve(&self, value: usize) -> Option<Point> {
         if value < self.len() {
             Some(self.resolve(value))
         } else {
@@ -199,15 +235,14 @@ impl<B: Bound, P: Coordinate> Resolve<usize, P> for B {
         }
     }
 }
-impl<B: Bound> Resolve<usize, usize> for B {
+impl<B: Bounded> Resolve<usize, usize> for B {
     fn resolve(&self, value: usize) -> usize {
         value
     }
 }
-
-impl<B: Bound> Resolve<usize, Row> for B {
+impl<B: Bounded> Resolve<usize, Row> for B {
     fn resolve(&self, value: usize) -> Row {
-        Row(value / self.width() as usize)
+        Row(value as u16 / self.width())
     }
 
     fn try_resolve(&self, value: usize) -> Option<Row> {
@@ -218,10 +253,9 @@ impl<B: Bound> Resolve<usize, Row> for B {
         }
     }
 }
-
-impl<B: Bound> Resolve<usize, Column> for B {
+impl<B: Bounded> Resolve<usize, Column> for B {
     fn resolve(&self, value: usize) -> Column {
-        Column(value % self.width() as usize)
+        Column(value as u16 % self.width())
     }
 
     fn try_resolve(&self, value: usize) -> Option<Column> {
@@ -310,13 +344,13 @@ where
     }
 }
 
-impl<B: Bound> Resolve<RangeFull, RangeFull> for B {
+impl<B: Bounded> Resolve<RangeFull, RangeFull> for B {
     fn resolve(&self, _: RangeFull) -> RangeFull {
         ..
     }
 }
 
-impl<B: Bound> Resolve<RangeFull, Range<usize>> for B {
+impl<B: Bounded> Resolve<RangeFull, Range<usize>> for B {
     fn resolve(&self, _: RangeFull) -> Range<usize> {
         self.min_x() as usize..self.len()
     }
@@ -325,8 +359,7 @@ impl<B: Bound> Resolve<RangeFull, Range<usize>> for B {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traits::bound::Bound as _;
-    use crate::{Point, Position};
+    use crate::{Point};
 
     type Bound = crate::Rect;
 
@@ -357,7 +390,6 @@ mod tests {
     fn resolve_index() {
         let ctx = ctx();
 
-        assert_resolve!(ctx, 50 => Position::new(1, 0), Position);
         assert_resolve!(ctx, 50 => Point::new(0, 1), Point);
 
         assert_resolve!(ctx, 0 => Row(0), Row);
@@ -381,15 +413,6 @@ mod tests {
         assert_resolve!(ctx, Point::new(50, 50) => 50 * 50 + 50, usize);
         assert_resolve!(ctx, Point::new(25, 25) => 25 * 50 + 25, usize);
         assert_resolve!(ctx, Point::new(10, 10) => 10 * 50 + 10, usize);
-    }
-
-    #[test]
-    fn resolve_position() {
-        let ctx = ctx();
-        assert_resolve!(ctx, Position::new(0, 0) => 0, usize);
-        assert_resolve!(ctx, Position::new(50, 50) => 50 * 50 + 50, usize);
-        assert_resolve!(ctx, Position::new(25, 25) => 25 * 50 + 25, usize);
-        assert_resolve!(ctx, Position::new(10, 10) => 10 * 50 + 10, usize);
     }
 
     #[test]

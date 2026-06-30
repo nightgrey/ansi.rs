@@ -182,9 +182,7 @@ impl Cell {
         self.set_attributes(attribute);
         self
     }
-
-
-
+    
     /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call

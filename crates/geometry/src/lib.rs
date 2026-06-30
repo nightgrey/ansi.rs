@@ -18,13 +18,15 @@
 //!
 //! ## Traits
 //! - [`Location`] - An (x, y) coordinate with getters, setters, and a `from_xy` constructor.
-//! - [`Bound`] - A geometry with a half-open `[min, max)` bounding rectangle.
+//! - [`Bounded`] - A geometry with a half-open `[min, max)` bounding rectangle.
 
 #![feature(const_clone)]
 #![feature(const_default)]
 #![feature(const_cmp)]
 #![feature(derive_const)]
 #![feature(const_trait_impl)]
+#![feature(const_ops)]
+#![feature(const_destruct)]
 
 mod geometry;
 mod index;

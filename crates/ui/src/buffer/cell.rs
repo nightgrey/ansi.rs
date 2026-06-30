@@ -107,14 +107,24 @@ impl Cell {
         self.grapheme
     }
 
-    /// The display width of this cell's grapheme in terminal columns.
+    /// The width of this cell's grapheme.
     ///
     /// - `1` for ASCII and most single-width characters
     /// - `2` for CJK ideographs, fullwidth forms, and most emoji
     /// - `0` for continuation cells
     #[inline]
-    pub const fn width(&self) -> u8 {
-        self.width
+    pub const fn width(&self) -> usize {
+        self.width as usize
+    }
+
+    /// The display width of this cell's grapheme in terminal columns.
+    ///
+    /// - `1` for ASCII and most single-width characters
+    /// - `2` for CJK ideographs, fullwidth forms, and most emoji
+    /// - `1` for continuation cells
+    #[inline]
+    pub const fn column_width(&self) -> usize {
+        self.width().max(1)
     }
 
     /// The cell's visual style (attributes, foreground, background).
@@ -219,6 +229,13 @@ impl Cell {
         self
     }
 
+    /// Resolve the cell's grapheme to a `&str`.
+    ///
+    /// Empty cells yield `" "` (a single space). Inline graphemes read
+    /// zero-copy from the cell; extended graphemes borrow from `arena`.
+    pub fn as_str<'a>(&'a self, graphemes: &'a Graphemes) -> &'a str {
+        self.grapheme.as_str_or(graphemes, " ")
+    }
     /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call
@@ -227,39 +244,6 @@ impl Cell {
         *self = Self::EMPTY;
     }
 
-    /// Resolve the cell's grapheme to a `&str`.
-    ///
-    /// Empty cells yield `" "` (a single space). Inline graphemes read
-    /// zero-copy from the cell; extended graphemes borrow from `arena`.
-    pub fn as_str<'a>(&'a self, graphemes: &'a Graphemes) -> &'a str {
-        self.grapheme.as_str_or(graphemes, " ")
-    }
-
-    /// Returns the number of grid columns the cursor advances.
-    ///
-    /// Used for diffing, run iteration and presentation.
-    #[inline]
-    pub const fn advance(&self) -> usize {
-        // This is the cell's [`width`](Self::width) clamped to at least `1`:
-        // cleared cells are zero-width but still occupy a single column, so they
-        // must advance the cursor. This is the single source of truth for the
-        // "a base cell occupies `max(width, 1)` columns" rule shared by diffing,
-        // run iteration, and presentation. Continuation cells are not base cells
-        // and should be skipped via [`is_continuation`](Self::is_continuation)
-        // rather than advanced over with this.
-        (self.width as usize).max(1)
-    }
-
-    /// Bitwise equality — compares all fields without relying on `PartialEq`.
-    ///
-    /// Unlike the derived `PartialEq`, this uses bitwise `&` rather than `&&`
-    /// to combine field comparisons, giving branch-free equality checks.
-    pub const fn eq_bitwise(&self, other: &Self) -> bool {
-        (self.grapheme == other.grapheme)
-            & (self.style.foreground == other.style.foreground)
-            & (self.style.background == other.style.background)
-            & (self.style.attributes == other.style.attributes)
-    }
 }
 
 impl Cell {}

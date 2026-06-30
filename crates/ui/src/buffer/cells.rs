@@ -46,14 +46,6 @@ impl Cells {
         }
     }
 
-    /// Iterator over the column advances of each cell in this row.
-    ///
-    /// See [`Cell::advance`].
-    #[inline]
-    pub fn advance(cells: &[Cell]) -> impl Iterator<Item = usize> + '_ {
-        cells.iter().map(Cell::advance)
-    }
-
     /// Index of the last cell in `row` that must be drawn, or `None` if the row
     /// is entirely blank.
     ///
@@ -184,7 +176,7 @@ impl<'a> Iterator for CellsIter<'a> {
             }
 
             let col = self.col;
-            let advance = cell.advance();
+            let advance = cell.column_width();
             self.col += advance as u16;
             self.idx += advance;
             return Some((col, cell));

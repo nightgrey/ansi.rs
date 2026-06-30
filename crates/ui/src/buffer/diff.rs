@@ -135,14 +135,14 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
             // a wide grapheme, which can result in visual artifacts (e.g., leftover
             // characters). Emitting an explicit update for the trailing cells avoids
             // this.
-            let cell_width = current.width() as usize;
+            let cell_width = current.column_width();
             if current == previous {
                 // Equal cells still need to account for multi-width skip.
                 self.pos += cell_width.saturating_sub(1);
                 continue;
             }
 
-            let previous_width = previous.width() as usize;
+            let previous_width = previous.column_width();
 
             if cell_width > 1 {
                 self.pos += cell_width.saturating_sub(1);

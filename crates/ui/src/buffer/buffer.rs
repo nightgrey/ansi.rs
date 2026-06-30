@@ -1,4 +1,4 @@
-use crate::{Graphemes, Cell, Cells, BufferIndex, IndexKind};
+use crate::{Graphemes, Cell, Cells, BufferIndex};
 use ansi::Style;
 use std::borrow::{Borrow, BorrowMut};
 use derive_more::{ Deref, DerefMut, IntoIterator};

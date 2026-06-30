@@ -1,15 +1,8 @@
 use crate::{Buffer, BufferIndex, Cell};
 use geometry::{Point, PointLike, Resolve, Row};
-use std::{iter, ops};
-
-pub enum IndexKind {
-    Single(usize),
-    Range(ops::Range<usize>),
-}
+use std::ops;
 
 pub trait BufferIndexExt: BufferIndex {
-    fn kind(&self, context: &Buffer) -> IndexKind;
-
     fn len(&self, context: &Buffer) -> usize;
     fn start(&self, context: &Buffer) -> usize;
     fn end(&self, context: &Buffer) -> usize;
@@ -29,9 +22,14 @@ pub trait BufferIndexExt: BufferIndex {
     }
 
     fn into_point(self, context: &Buffer) -> Point {
-        let index = self.into_index(context) as u16;
+        let index = self.into_index(context);
         let width = context.width();
-        Point::new((index % width), (index / width))
+        if width == 0 {
+            return Point::ZERO;
+        }
+        let width = width as usize;
+        // Compute in `usize`, narrow only the resulting coordinates.
+        Point::new((index % width) as u16, (index / width) as u16)
     }
 
     fn as_point(&self, context: &Buffer) -> Point {
@@ -51,7 +49,7 @@ pub trait BufferIndexExt: BufferIndex {
     ///
     /// Normalizes the output to a slice.
     fn get_many<'a>(&self, context: &'a Buffer) -> Option<&'a [Cell]> {
-        let range = self.as_range(context); 
+        let range = self.as_range(context);
         context.inner.get(range)
     }
 
@@ -64,24 +62,22 @@ pub trait BufferIndexExt: BufferIndex {
         context.inner.get_mut(range)
     }
 
-    // @TODO
-    // /// Returns an iterator over the output at this location, if in bounds.
-    // fn iter(self, context: &Buffer) -> impl Iterator<Item=&Cell>;
-    // 
-    // /// Returns a mutable iterator over the output at this location, if in bounds.
-    // fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item=&mut Cell>;
+    /// Iterates the cells at this location. Empty if out of bounds.
+    fn iter<'a>(&self, context: &'a Buffer) -> impl Iterator<Item = &'a Cell> {
+        self.get_many(context).unwrap_or(&[]).iter()
+    }
+
+    /// Mutably iterates the cells at this location. Empty if out of bounds.
+    fn iter_mut<'a>(&self, context: &'a mut Buffer) -> impl Iterator<Item = &'a mut Cell> {
+        self.get_many_mut(context).unwrap_or(&mut []).iter_mut()
+    }
 }
 
 // --------------------------------------------------------------------------
-// usize, Point, PointLike, Row – unchanged (except the trait bound is satisfied)
+// usize, Point, PointLike, Row
 // --------------------------------------------------------------------------
 
 impl BufferIndexExt for usize {
-    #[inline]
-    fn kind(&self, _: &Buffer) -> IndexKind {
-        IndexKind::Single(*self)
-    }
-
     #[inline]
     fn len(&self, _: &Buffer) -> usize { 1 }
 
@@ -95,30 +91,11 @@ impl BufferIndexExt for usize {
     fn within(&self, context: &Buffer) -> bool {
         *self < context.len()
     }
-
-    #[inline]
-    fn as_index(&self, context: &Buffer) -> usize {
-        BufferIndexExt::into_index(*self, context)
-    }
-
-    #[inline]
-    fn as_point(&self, context: &Buffer) -> Point {
-        BufferIndexExt::into_point(*self, context)
-    }
-
-    #[inline]
-    fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
-        BufferIndexExt::into_range(*self, context)
-    }
 }
 
 impl BufferIndexExt for Point {
     #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Single(self.into_index(context))
-    }
-    #[inline]
-    fn len(&self, context: &Buffer) -> usize { 1 }
+    fn len(&self, _context: &Buffer) -> usize { 1 }
     #[inline]
     fn start(&self, context: &Buffer) -> usize { context.resolve(*self) }
     #[inline]
@@ -128,31 +105,12 @@ impl BufferIndexExt for Point {
         self.x < context.width() && self.y < context.height()
     }
     #[inline]
-    fn into_point(self, context: &Buffer) -> Point { self.into() }
-
-    #[inline]
-    fn as_index(&self, context: &Buffer) -> usize {
-        BufferIndexExt::into_index(*self, context)
-    }
-
-    #[inline]
-    fn as_point(&self, context: &Buffer) -> Point {
-        BufferIndexExt::into_point(*self, context)
-    }
-
-    #[inline]
-    fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
-        BufferIndexExt::into_range(*self, context)
-    }
+    fn into_point(self, _context: &Buffer) -> Point { self }
 }
 
 impl BufferIndexExt for PointLike {
     #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Single(self.into_index(context))
-    }
-    #[inline]
-    fn len(&self, context: &Buffer) -> usize { 1 }
+    fn len(&self, _context: &Buffer) -> usize { 1 }
     #[inline]
     fn start(&self, context: &Buffer) -> usize { context.resolve(*self) }
     #[inline]
@@ -162,29 +120,10 @@ impl BufferIndexExt for PointLike {
         self.0 < context.width() && self.1 < context.height()
     }
     #[inline]
-    fn into_point(self, context: &Buffer) -> Point { self.into() }
-
-    #[inline]
-    fn as_index(&self, context: &Buffer) -> usize {
-        BufferIndexExt::into_index(*self, context)
-    }
-
-    #[inline]
-    fn as_point(&self, context: &Buffer) -> Point {
-        BufferIndexExt::into_point(*self, context)
-    }
-
-    #[inline]
-    fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
-        BufferIndexExt::into_range(*self, context)
-    }
+    fn into_point(self, _context: &Buffer) -> Point { self.into() }
 }
 
 impl BufferIndexExt for Row {
-    #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(self.into_range(context))
-    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize { context.width() as usize }
     #[inline]
@@ -196,31 +135,12 @@ impl BufferIndexExt for Row {
         self.into_inner() < context.height()
     }
     #[inline]
-    fn into_point(self, context: &Buffer) -> Point {
+    fn into_point(self, _context: &Buffer) -> Point {
         Point::new(0, self.into_inner())
-    }
-
-    #[inline]
-    fn as_index(&self, context: &Buffer) -> usize {
-        BufferIndexExt::into_index(*self, context)
-    }
-
-    #[inline]
-    fn as_point(&self, context: &Buffer) -> Point {
-        BufferIndexExt::into_point(*self, context)
-    }
-
-    #[inline]
-    fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
-        BufferIndexExt::into_range(*self, context)
     }
 }
 
 impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::Range<T> {
-    #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(self.start(context)..self.end(context))
-    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context) - self.start(context)
@@ -240,16 +160,10 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::Range<T> {
         // start ≤ end  AND  start ≤ context.len()  AND  end ≤ context.len()
         s <= e && s <= context.len() && e <= context.len()
     }
-
-
 }
 
 
 impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeInclusive<T> {
-    #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(BufferIndexExt::start(self, context)..BufferIndexExt::end(self, context))
-    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         BufferIndexExt::end(self, context) - BufferIndexExt::start(self, context)   // relies on valid range
@@ -276,11 +190,6 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeInclu
 
 impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeTo<T> {
     #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        let end = self.end.as_slice_index(context);
-        IndexKind::Range(0..end)
-    }
-    #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context)
     }
@@ -301,10 +210,6 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeTo<T>
 }
 
 impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeToInclusive<T> {
-    #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(self.start(context)..self.end(context))
-    }
     #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context)
@@ -328,10 +233,6 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeToInc
 }
 impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeFrom<T> {
     #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(self.start(context)..self.end(context))
-    }
-    #[inline]
     fn len(&self, context: &Buffer) -> usize {
         self.end(context) - self.start(context)
     }
@@ -352,10 +253,6 @@ impl<T: BufferIndex<SliceIndex=usize> + Copy> BufferIndexExt for ops::RangeFrom<
 
 impl BufferIndexExt for ops::RangeFull {
     #[inline]
-    fn kind(&self, context: &Buffer) -> IndexKind {
-        IndexKind::Range(0..context.len())
-    }
-    #[inline]
     fn len(&self, context: &Buffer) -> usize {
         context.len()
     }
@@ -369,58 +266,4 @@ impl BufferIndexExt for ops::RangeFull {
     fn into_point(self, _: &Buffer) -> Point {
         Point::ZERO
     }
-
-    #[inline]
-    fn as_index(&self, context: &Buffer) -> usize {
-        BufferIndexExt::into_index(*self, context)
-    }
-
-    #[inline]
-    fn as_point(&self, context: &Buffer) -> Point {
-        BufferIndexExt::into_point(*self, context)
-    }
-
-    #[inline]
-    fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
-        BufferIndexExt::into_range(*self, context)
-    }
 }
-
-pub enum IndexIter {
-    Single(iter::Once<usize>),
-    Range(ops::Range<usize>),
-}
-
-impl Iterator for IndexIter {
-    type Item = usize;
-
-    #[inline]
-    fn next(&mut self) -> Option<usize> {
-        match self {
-            Self::Single(once) => once.next(),
-            Self::Range(range) => range.next(),
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match self {
-            Self::Single(once) => once.size_hint(),
-            Self::Range(range) => range.size_hint(),
-        }
-    }
-}
-
-impl DoubleEndedIterator for IndexIter {
-    #[inline]
-    fn next_back(&mut self) -> Option<usize> {
-        match self {
-            Self::Single(once) => once.next_back(),
-            Self::Range(range) => range.next_back(),
-        }
-    }
-}
-
-impl ExactSizeIterator for IndexIter {}
-
-impl std::iter::FusedIterator for IndexIter {}

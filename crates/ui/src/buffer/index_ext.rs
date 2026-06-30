@@ -1,9 +1,9 @@
-use crate::{Buffer, BufferIndex, Cell};
+use crate::{Buffer, BufferIndex, BufferIndexMany, Cell};
 use geometry::{Point, PointLike, Resolve, Row};
-use std::ops;
+use std::{iter, ops};
 
 /// [`BufferIndex`] extension
-pub trait BufferIndexExt: BufferIndex {
+pub trait BufferIndexExt: BufferIndex + BufferIndexMany {
     /// Returns the number of elements covered by this index.
     fn len(&self, context: &Buffer) -> usize;
 
@@ -58,31 +58,13 @@ pub trait BufferIndexExt: BufferIndex {
         self.clone().into_range(context)
     }
 
-    /// Returns a shared reference to the output at this location, if in
-    /// bounds.
-    ///
-    /// Normalizes the output to a slice.
-    fn get_many<'a>(&self, context: &'a Buffer) -> Option<&'a [Cell]> {
-        let range = self.as_range(context);
-        context.inner.get(range)
-    }
-
-    /// Returns a mutable reference to the output at this location, if in
-    /// bounds.
-    ///
-    /// Normalizes the output to a slice.
-    fn get_many_mut<'a>(&self, context: &'a mut Buffer) -> Option<&'a mut [Cell]> {
-        let range = self.as_range(context);
-        context.inner.get_mut(range)
-    }
-
     /// Iterates the cells at this location. Empty if out of bounds.
-    fn iter<'a>(&self, context: &'a Buffer) -> impl Iterator<Item = &'a Cell> {
+    fn iter(self, context: &Buffer) -> impl Iterator<Item = &Cell> {
         self.get_many(context).unwrap_or(&[]).iter()
     }
 
     /// Mutably iterates the cells at this location. Empty if out of bounds.
-    fn iter_mut<'a>(&self, context: &'a mut Buffer) -> impl Iterator<Item = &'a mut Cell> {
+    fn iter_mut(self, context: &mut Buffer) -> impl Iterator<Item = &mut Cell> {
         self.get_many_mut(context).unwrap_or(&mut []).iter_mut()
     }
 }

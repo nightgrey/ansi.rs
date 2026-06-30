@@ -37,13 +37,13 @@ impl Buffer {
     /// Create a buffer from a slice of fixed elements.
     ///
     /// A convenience constructor mostly used for tests.
-    pub fn from_elements(width: u16, height: u16, elements: &[(impl BufferIndexExt, char, Style)]) -> Self {
+    pub fn from_elements<I: BufferIndexExt>(width: u16, height: u16, elements: &[(I, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
-        for (index, ch, style) in elements {
-            for cell in index.iter_mut(&mut buffer) {
+        elements.iter().for_each(|(index, ch, style)| {
+            for cell in buffer.iter_index_mut(index.clone()) {
                 *cell = Cell::new(*ch).with_style(*style);
             }
-        }
+        });
         buffer
     }
 
@@ -141,6 +141,8 @@ impl Buffer {
     ) -> *mut I::Output {
         unsafe { index.get_unchecked_mut(self) }
     }
+
+
 
     #[inline]
     pub fn contains(&self, index: impl BufferIndexExt) -> bool {
@@ -314,6 +316,17 @@ impl Buffer {
         }
         self.height = height as u16;
     }
+
+    #[inline]
+    pub fn iter_index(&self, index: impl BufferIndexExt) -> impl Iterator<Item=&Cell> {
+        index.iter(self)
+    }
+
+    #[inline]
+    pub fn iter_index_mut(&mut self, index: impl BufferIndexExt) -> impl Iterator<Item=&mut Cell> {
+        index.iter_mut(self)
+    }
+
 
     pub fn rows(&self) -> impl Iterator<Item = impl Iterator<Item = &Cell>> {
         self.inner.chunks_exact(self.width as usize).map(|row| row.iter())

@@ -40,8 +40,8 @@ impl Buffer {
     pub fn from_elements(width: u16, height: u16, elements: &[(impl BufferIndexExt, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
         for (index, ch, style) in elements {
-            if let Some(range) = index.get_many_mut(&mut buffer) {
-                range.fill(Cell::new(*ch).with_style(*style));
+            for cell in index.iter_mut(&mut buffer) {
+                *cell = Cell::new(*ch).with_style(*style);
             }
         }
         buffer

@@ -2,25 +2,36 @@ use crate::{Buffer, BufferIndex, Cell};
 use geometry::{Point, PointLike, Resolve, Row};
 use std::ops;
 
+/// [`BufferIndex`] extension
 pub trait BufferIndexExt: BufferIndex {
+    /// Returns the number of elements covered by this index.
     fn len(&self, context: &Buffer) -> usize;
+
+    /// Returns the first element covered by this index.
     fn start(&self, context: &Buffer) -> usize;
+
+    /// Returns the last element covered by this index.
     fn end(&self, context: &Buffer) -> usize;
 
+    /// Returns `true` if this index does not cover any elements.
     fn is_empty(&self, context: &Buffer) -> bool {
         self.len(context) == 0
     }
 
+    /// Returns `true` if this index is within the bounds of the given context.
     fn within(&self, context: &Buffer) -> bool;
 
+    /// Converts `self` into a `usize` index.
     fn into_index(self, context: &Buffer) -> usize {
         self.start(context)
     }
 
+    /// Returns `self` as a `usize` index.
     fn as_index(&self, context: &Buffer) -> usize {
         self.clone().into_index(context)
     }
 
+    /// Converts `self` into a [`Point`].
     fn into_point(self, context: &Buffer) -> Point {
         let index = self.into_index(context);
         let width = context.width();
@@ -32,14 +43,17 @@ pub trait BufferIndexExt: BufferIndex {
         Point::new((index % width) as u16, (index / width) as u16)
     }
 
+    /// Returns `self` as a [`Point`].
     fn as_point(&self, context: &Buffer) -> Point {
         self.clone().into_point(context)
     }
 
+    /// Returns `self` as a [`Range<usize>`].
     fn into_range(self, context: &Buffer) -> ops::Range<usize> {
         self.start(context)..self.end(context)
     }
 
+    /// Returns `self` as a [`Range<usize>`].
     fn as_range(&self, context: &Buffer) -> ops::Range<usize> {
         self.clone().into_range(context)
     }

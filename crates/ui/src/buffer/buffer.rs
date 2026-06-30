@@ -2,7 +2,7 @@ use crate::{Graphemes, Cell, Cells, BufferIndex, IndexKind};
 use ansi::Style;
 use std::borrow::{Borrow, BorrowMut};
 use derive_more::{ Deref, DerefMut, IntoIterator};
-use geometry::{Bounded, Point};
+use geometry::{Bounded, Point, Row};
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::ops;
 use unicode_segmentation::UnicodeSegmentation;
@@ -12,9 +12,9 @@ use super::BufferIndexExt;
 #[derive(Deref, DerefMut, IntoIterator, Clone, PartialEq)]
 pub struct Buffer {
     #[deref(forward)]
-    #[deref_mut]
+    #[deref_mut(forward)]
     #[into_iterator(owned, ref, ref_mut)]
-    inner: Vec<Cell>,
+    pub(crate) inner: Vec<Cell>,
     width: u16,
     height: u16,
 }
@@ -37,12 +37,11 @@ impl Buffer {
     /// Create a buffer from a slice of fixed elements.
     ///
     /// A convenience constructor mostly used for tests.
-    pub fn from_elements(width: u16, height: u16, chars: &[(impl BufferIndexExt, char, Style)]) -> Self {
+    pub fn from_elements(width: u16, height: u16, elements: &[(impl BufferIndexExt, char, Style)]) -> Self {
         let mut buffer = Self::new(width, height);
-        for &(index, ch, style) in chars {
-            match index.kind(&buffer) {
-                IndexKind::Single(i) => buffer[i] = Cell::new(ch).with_style(style),
-                IndexKind::Range(r) => buffer[r].fill(Cell::new(ch).with_style(style)),
+        for (index, ch, style) in elements {
+            if let Some(range) = index.get_many_mut(&mut buffer) {
+                range.fill(Cell::new(*ch).with_style(*style));
             }
         }
         buffer

@@ -3,32 +3,29 @@ use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToIncl
 
 /// Resolve a context-dependent value.
 ///
+/// Every [`Bounded`] type gains a family of `Resolve` impls that convert
+/// between buffer-relative (`0`-origin) coordinates, flat indices, rows,
+/// columns, and ranges thereof. Because a single input type can resolve to
+/// several outputs, the target type usually has to be named at the call site.
+///
 /// # Example
 ///
 /// ```rust
-/// # use geometry::{Resolve, Point};
+/// use geometry::{Resolve, Point, Size};
 ///
-/// struct Context {
-///     inner: Vec<usize>,
-///     width: usize,
-///     height: usize
-/// }
+/// // Any `Bounded` type works as the context — here a 5×5 grid.
+/// let grid = Size::new(5, 5);
 ///
-/// # impl Context {
-/// #   pub fn new(width: usize, height: usize) -> Self {
-/// #     Self { inner: vec![0; width * height], width, height }
-/// #   }
-/// # }
-/// #
-/// impl Resolve<Point, usize> for Context {
-///     fn resolve(&self, value: Point) -> usize {
-///         value.y as usize * self.width + value.x as usize
-///     }
-/// }
+/// // Coordinate → flat index, and back.
+/// let index: usize = grid.resolve(Point::new(1, 2));
+/// assert_eq!(index, 11); // 2 * 5 + 1
 ///
-/// let ctx = Context::new(5, 5);
-/// assert_eq!(ctx.inner.len(), 25);
-/// assert_eq!(ctx.resolve(Point::new(1, 2)), 11) // 2 * 5 + 1
+/// let point: Point = grid.resolve(11usize);
+/// assert_eq!(point, Point::new(1, 2));
+///
+/// // Out-of-bounds inputs resolve to `None`.
+/// let oob: Option<usize> = grid.try_resolve(Point::new(9, 0));
+/// assert_eq!(oob, None);
 /// ```
 pub trait Resolve<T, U> {
     /// Given [`T`], resolve [`U`] within [`Self`].
@@ -80,44 +77,18 @@ impl<B: Bounded> Resolve<Point, Column> for B {
     }
 }
 
-// Coordinate
-impl<B: Bounded> Resolve<PointLike, usize> for B {
-    fn resolve(&self, value: PointLike) -> usize {
-        value.1 as usize * self.width() as usize + value.0 as usize
+// `PointLike` (an `(x, y)` tuple) resolves identically to `Point`; forward to
+// the `Point` impls so the index logic lives in exactly one place.
+impl<B, U> Resolve<PointLike, U> for B
+where
+    B: Resolve<Point, U>,
+{
+    fn resolve(&self, value: PointLike) -> U {
+        self.resolve(Point::from(value))
     }
 
-    fn try_resolve(&self, value: PointLike) -> Option<usize> {
-        if value.0 < self.width() && value.1 < self.height() {
-            Some(self.resolve(value))
-        } else {
-            None
-        }
-    }
-}
-impl<B: Bounded> Resolve<PointLike, Row> for B {
-    fn resolve(&self, value: PointLike) -> Row {
-        Row(value.1)
-    }
-
-    fn try_resolve(&self, value: PointLike) -> Option<Row> {
-        if value.1 < self.height() {
-            Some(self.resolve(value))
-        } else {
-            None
-        }
-    }
-}
-impl<B: Bounded> Resolve<PointLike, Column> for B {
-    fn resolve(&self, value: PointLike) -> Column {
-        Column(value.0)
-    }
-
-    fn try_resolve(&self, value: PointLike) -> Option<Column> {
-        if value.0 < self.width() {
-            Some(self.resolve(value))
-        } else {
-            None
-        }
+    fn try_resolve(&self, value: PointLike) -> Option<U> {
+        self.try_resolve(Point::from(value))
     }
 }
 
@@ -237,6 +208,14 @@ impl<B: Bounded> Resolve<usize, Point> for B {
 impl<B: Bounded> Resolve<usize, usize> for B {
     fn resolve(&self, value: usize) -> usize {
         value
+    }
+
+    fn try_resolve(&self, value: usize) -> Option<usize> {
+        if value < self.len() {
+            Some(self.resolve(value))
+        } else {
+            None
+        }
     }
 }
 impl<B: Bounded> Resolve<usize, Row> for B {

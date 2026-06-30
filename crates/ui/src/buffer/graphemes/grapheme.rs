@@ -95,6 +95,12 @@ const impl Grapheme {
         }
     }
 
+    /// Try to encode raw UTF-8 bytes as an inline grapheme.
+    ///
+    /// Returns `Ok` for 0..=4 bytes of valid UTF-8 (empty input produces
+    /// [`EMPTY`](Self::EMPTY)). Returns [`TooLong`](GraphemesError::TooLong)
+    /// for input exceeding 4 bytes, and [`Invalid`](GraphemesError::Invalid)
+    /// for non-UTF-8 byte sequences.
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, GraphemesError> {
         if bytes.is_empty() {
             return Ok(Self::EMPTY);
@@ -116,6 +122,12 @@ const impl Grapheme {
         Ok(Self { inner })
     }
 
+    /// Encode raw UTF-8 bytes as an inline grapheme.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bytes` exceeds 4 bytes or contains invalid UTF-8.
+    /// Use [`try_from_bytes`](Self::try_from_bytes) for fallible conversion.
     pub fn from_bytes(bytes: &[u8]) -> Self {
         match Self::try_from_bytes(bytes) {
             Ok(g) => g,
@@ -123,6 +135,11 @@ const impl Grapheme {
         }
     }
 
+    /// Encode raw UTF-8 bytes without validation.
+    ///
+    /// The caller guarantees that `bytes` contains 0..=4 UTF-8 bytes
+    /// (zero-padded if shorter than 4). No checks are performed — invalid
+    /// input produces an unresolvable or garbled grapheme.
     pub fn from_bytes_unchecked(bytes: [u8; Grapheme::MAX_LEN]) -> Self {
         Self { inner: bytes }
     }
@@ -146,6 +163,10 @@ const impl Grapheme {
         self.inner[3] == Self::EXTENDED_TAG
     }
 
+    /// The raw 4-byte representation.
+    ///
+    /// Byte `[3]` is the tag: `0x01` means extended (arena slot in bytes
+    /// `[0..3]`), anything else means inline UTF-8 (zero-padded).
     #[inline]
     pub fn as_bytes(&self) -> &[u8; Grapheme::MAX_LEN] {
         &self.inner

@@ -50,6 +50,18 @@ pub enum Gen {
 }
 
 impl Buffer {
+    /// Render a [`Gen`] pattern into a buffer of the given dimensions.
+    ///
+    /// Each variant produces a deterministic result: even
+    /// [`Gen::Random`] uses a fixed seed so repeated calls return
+    /// identical output.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let buf = Buffer::from_gen(Gen::Solid(Color::Blue), 10, 5);
+    /// // every cell has a blue background
+    /// ```
     pub fn from_gen(kind: Gen, width: u16, height: u16) -> Self {
         match kind {
             Gen::Solid(color) => {

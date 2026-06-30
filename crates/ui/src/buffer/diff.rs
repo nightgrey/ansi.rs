@@ -1,7 +1,7 @@
-use ansi::Attribute;
 use crate::buffer::{Buffer, Cell, CellDiffOption, CellWidth};
 use crate::layout::Rect;
 use crate::style::{Color, Modifier};
+use ansi::Attribute;
 
 /// A zero-allocation iterator over the differences between two buffers of the same width.
 ///
@@ -39,8 +39,18 @@ struct TrailingState {
     force: bool,
 }
 
-/// Modifiers that are visually apparent on a blank (space) cell.
-const VISIBLE_ON_BLANK: Attribute = Attribute::Inverse | Attribute::Underline | Attribute::Blink | Attribute::RapidBlink | Attribute::Strikethrough;
+/// Bitmask of [`Attribute`] flags that are visually meaningful on a blank
+/// (space) cell.
+///
+/// When a wide character with a visible-on-blank attribute (e.g. underline,
+/// inverse) is replaced by narrower content, the trailing cells must be
+/// force-emitted even if they appear unchanged in the buffer — the terminal
+/// may still render the stale attribute there.
+const VISIBLE_ON_BLANK: Attribute = Attribute::Inverse
+    | Attribute::Underline
+    | Attribute::Blink
+    | Attribute::RapidBlink
+    | Attribute::Strikethrough;
 
 impl<'prev, 'next> BufferDiff<'prev, 'next> {
     /// Creates a new iterator over the differences between `prev` and `next` terminal cells.
@@ -51,36 +61,30 @@ impl<'prev, 'next> BufferDiff<'prev, 'next> {
     ///
     /// Panics if the buffers have different `x`, `y`, or `width` values.
     pub(crate) fn new(prev: &'prev Buffer, next: &'next Buffer) -> Self {
-        assert!(
-            prev.area.x == next.area.x
-                && prev.area.y == next.area.y
-                && prev.area.width == next.area.width,
-            "buffer areas must have the same x, y, and width: prev={:?}, next={:?}",
-            prev.area,
-            next.area,
+        assert_eq!(
+            prev.width(),
+            next.width(),
+            "buffer areas must have the same width: prev={:?}, next={:?}",
+            prev.width(),
+            next.width()
         );
 
-        let mut area = prev.area;
-        area.height = area.height.min(next.area.height);
+        let height = prev.height().min(next.height());
 
         Self {
-            next: &next.content,
-            prev: &prev.content,
-            area,
+            next: &next,
+            prev: &prev,
+            width: prev.width(),
+            height,
             pos: 0,
             trailing: None,
         }
     }
 
-    /// Converts a flat index to (x, y) coordinates.
-    const fn pos_of(&self, index: usize) -> (u16, u16) {
-        let w = self.area.width as usize;
-
-        let x = index % w + self.area.x as usize;
-        let y = index / w + self.area.y as usize;
-
-        (x as u16, y as u16)
-    }
+    /// Converts a flat cell index to `(x, y)` grid coordinates.
+    ///
+    /// Uses the stored width and origin offset (`area.x`, `area.y`).
+    const fn pos_of(&self, index: usize) -> (u16, u16) {}
 }
 
 impl<'next> Iterator for BufferDiff<'_, 'next> {
@@ -91,10 +95,10 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
 
         // First, yield any pending trailing cells.
         if let Some(TrailingState {
-                        next_index,
-                        end,
-                        force,
-                    }) = &mut self.trailing
+            next_index,
+            end,
+            force,
+        }) = &mut self.trailing
         {
             while *next_index < *end {
                 let j = *next_index;
@@ -170,7 +174,7 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
                         self.pos += cell_width.saturating_sub(1);
                     } else if previous_width > cell_width
                         && (previous.bg != Color::Reset
-                        || previous.modifier.intersects(VISIBLE_ON_BLANK))
+                            || previous.modifier.intersects(VISIBLE_ON_BLANK))
                     {
                         // The previous wide character's style is visible on blank cells, so the
                         // terminal may still show it on the trailing columns even after the
@@ -195,7 +199,11 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
     }
 }
 
-/// Returns `true` if this cell should be skipped during diffing.
+/// Returns `true` if a cell should be skipped during diff iteration.
+///
+/// A cell is skipped when it carries a [`CellDiffOption::Skip`] directive
+/// or, for backward compatibility, when the deprecated `skip` field is set
+/// and no explicit diff option overrides it.
 #[allow(deprecated)]
 const fn is_skip(cell: &Cell) -> bool {
     matches!(cell.diff_option, CellDiffOption::Skip)

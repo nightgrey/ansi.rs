@@ -100,6 +100,7 @@ impl Graphemes {
     }
 
     /// Get the stored grapheme cluster for the given slot or a default.
+    /// Fallible resolution with a fallback default.
     #[inline]
     pub fn try_get_or<'a>(
         &'a self,
@@ -120,17 +121,39 @@ impl Graphemes {
         }
     }
 
+    /// Resolve a grapheme handle to a `&str`, returning `default` for empty
+    /// or unresolvable handles.
+    ///
+    /// Inline graphemes read zero-copy from the handle. Extended graphemes
+    /// borrow from the arena buffer. Empty handles yield `default`.
     #[inline]
     pub fn get_or<'a>(&'a self, grapheme: &'a Grapheme, default: &'a str) -> &'a str {
         self.try_get(grapheme).unwrap_or(default)
     }
 
     /// Get the stored grapheme cluster for the given slot.
+    /// Fallible resolution: returns `Err` for out-of-bounds or
+    /// already-freed handles.
+    ///
+    /// Prefer [`get`](Self::get) when handle validity is guaranteed.
     #[inline]
     pub fn try_get<'a>(&'a self, grapheme: &'a Grapheme) -> Result<&'a str, GraphemesError> {
         Self::try_get_or(self, grapheme, "")
     }
 
+    /// Resolve a grapheme handle to a `&str`, returning `""` for empty or
+    /// unresolvable handles.
+    ///
+    /// This is the primary string resolution method. Inline graphemes are
+    /// zero-copy; extended graphemes borrow from the arena buffer.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut arena = Graphemes::new();
+    /// let g = arena.insert("hello");
+    /// assert_eq!(arena.get(&g), "hello");
+    /// ```
     #[inline]
     pub fn get<'a>(&'a self, grapheme: &'a Grapheme) -> &'a str {
         self.try_get(grapheme).unwrap_or("")
@@ -243,29 +266,48 @@ impl Graphemes {
 
     /// Interior free bytes available for reuse. With tail-truncation this is
     /// exactly `len() - count()`.
+    /// Interior free bytes available for reuse.
+    ///
+    /// Equal to [`count_total`](Self::count_total) −
+    /// [`count_occupied`](Self::count_occupied). With tail truncation this
+    /// includes only interior gaps, never the region past the high-water
+    /// mark.
     #[inline]
     pub fn count_free(&self) -> usize {
         self.count_total() - self.len
     }
 
     /// Number of distinct (coalesced) free regions — a fragmentation gauge.
+    /// Number of distinct coalesced free regions — a fragmentation gauge.
+    ///
+    /// A healthy arena should have 0 or 1 free regions at steady state;
+    /// higher counts indicate fragmentation. Zero-cost to query.
     #[inline]
     pub fn count_regions(&self) -> usize {
         self.slots.len()
     }
 
+    /// Total allocated capacity of the backing buffer, in bytes.
+    ///
+    /// This is the `Vec<u8>` capacity — it may exceed
+    /// [`count_total`](Self::count_total).
     #[inline]
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
 
     /// `true` if no live entries remain.
+    /// `true` if no live entries remain.
+    ///
+    /// After [`clear`](Self::clear) this is always `true`.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Bytes occupied by live entries (including length prefixes).
+    /// Bytes occupied by live entries (including their 2-byte length
+    /// prefixes).
     #[inline]
     pub fn count_occupied(&self) -> usize {
         self.len
@@ -273,6 +315,11 @@ impl Graphemes {
 
     /// Reset the arena entirely, invalidating **all** outstanding handles that
     /// reference it. O(1) — the "erase plane" operation.
+    /// Reset the arena entirely, invalidating **all** outstanding handles.
+    ///
+    /// O(1) — this is the "erase plane" operation. The backing allocation
+    /// is dropped (capacity goes to zero). All [`Grapheme`] handles
+    /// previously obtained from this arena become dangling.
     pub fn clear(&mut self) {
         self.inner.clear();
         self.slots.clear();

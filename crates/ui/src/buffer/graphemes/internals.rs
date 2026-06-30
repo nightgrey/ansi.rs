@@ -23,6 +23,10 @@ pub struct Entry {
 }
 
 impl Entry {
+    /// The flat byte offset of this entry's slot within the arena buffer.
+    ///
+    /// This is `slot.as_usize()` — a convenience for indexing into the
+    /// arena's backing `Vec<u8>`.
     #[inline]
     pub fn index(&self) -> usize {
         self.slot.as_usize()
@@ -90,6 +94,10 @@ const impl Slot {
         }
     }
 
+    /// Pack this slot into an extended [`Grapheme`] handle.
+    ///
+    /// Writes the 24-bit slot into the low 3 bytes and sets the 4th byte
+    /// to the extended sentinel tag (`0x01`).
     #[inline]
     pub fn into_grapheme(self) -> Grapheme {
         Grapheme::from_bytes_unchecked([
@@ -100,21 +108,28 @@ const impl Slot {
         ])
     }
 
+    /// The raw `u32` value of this slot.
     #[inline]
     pub fn value(self) -> u32 {
         self.0
     }
 
+    /// The low byte of this slot, as a `u8`.
     #[inline]
     pub fn as_u8(self) -> u8 {
         self.value() as _
     }
 
+    /// The slot value widened to `u32`.
     #[inline]
     pub fn as_u32(self) -> u32 {
         self.value() as _
     }
 
+    /// The slot value widened to `usize`.
+    ///
+    /// This is the canonical form for indexing into the arena's backing
+    /// `Vec<u8>`.
     #[inline]
     pub fn as_usize(self) -> usize {
         self.value() as _

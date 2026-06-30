@@ -26,7 +26,7 @@
 //! fall outside the new bounds are dropped; new cells are initialised to
 //! [`Cell::EMPTY`].
 
-use super::{Cell, Cells, Graphemes, BufferIndex, BufferIndexExt, BufferIndexMany};
+use super::{BufferIndex, BufferIndexExt, BufferIndexMany, Cell, Cells, Graphemes};
 use ansi::Style;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use geometry::{Bounded, Point};
@@ -66,6 +66,20 @@ impl Buffer {
         height: 0,
     };
 
+    /// Create a buffer filled with [`Cell::EMPTY`] cells.
+    ///
+    /// The backing storage is a flat `Vec<Cell>` of length `width × height`,
+    /// laid out row-major. Every cell starts as a blank space with default
+    /// style.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut buf = Buffer::new(80, 24);
+    /// assert_eq!(buf.width(), 80);
+    /// assert_eq!(buf.height(), 24);
+    /// assert_eq!(buf.len(), 80 * 24);
+    /// ```
     pub fn new(width: u16, height: u16) -> Self {
         Self {
             inner: vec![Cell::EMPTY; (width * height) as usize],
@@ -74,9 +88,13 @@ impl Buffer {
         }
     }
 
-    /// Create a buffer from a slice of fixed elements.
+    /// Create a buffer from a slice of `(index, char, style)` tuples.
     ///
-    /// A convenience constructor mostly used for tests.
+    /// Each tuple places a styled character at the given index. Indices can
+    /// be any [`BufferIndexExt`] type — points set a single cell, ranges fill
+    /// a region.
+    ///
+    /// Mostly used for constructing expected buffers in tests.
     pub fn from_elements<I: BufferIndexExt>(
         width: u16,
         height: u16,
@@ -91,7 +109,14 @@ impl Buffer {
         buffer
     }
 
-    /// Create a buffer from a slice of fixed elements.
+    /// Create a buffer from an iterator of string slices, one per row.
+    ///
+    /// The buffer's width is the display width of the longest line;
+    /// its height is the number of lines. Shorter lines are padded with
+    /// empty cells. Every line is written via [`set_line`](Self::set_line),
+    /// so wide characters and style handling go through the normal path.
+    ///
+    /// Empty input produces a zero-sized buffer.
     #[must_use]
     pub fn from_lines<'a>(lines: impl IntoIterator<Item = &'a str>, arena: &mut Graphemes) -> Self {
         let lines = lines.into_iter().collect::<Vec<_>>();
@@ -128,10 +153,14 @@ impl Buffer {
         }
     }
 
+    /// The width of the buffer in terminal columns.
+    #[inline]
     pub fn width(&self) -> u16 {
         self.width
     }
 
+    /// The height of the buffer in terminal rows.
+    #[inline]
     pub fn height(&self) -> u16 {
         self.height
     }
@@ -212,46 +241,77 @@ impl Buffer {
         index.get_many_unchecked_mut(self)
     }
 
+    /// Returns `true` if `index` lies within the buffer's bounds.
+    ///
+    /// Accepts any index type — points, rows, ranges, and raw `usize`
+    /// offsets — and delegates to [`BufferIndexExt::within`].
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let buf = Buffer::new(10, 5);
+    /// assert!(buf.contains((5, 3)));          // valid point
+    /// assert!(!buf.contains((15, 3)));         // x out of bounds
+    /// assert!(buf.contains(0usize..50usize));  // valid range
+    /// ```
     #[inline]
     pub fn contains(&self, index: impl BufferIndexExt) -> bool {
         index.within(self)
     }
 
+    /// Convert `index` to a flat `usize` offset into the backing `Vec<Cell>`.
+    ///
+    /// This is the `y * width + x` calculation for point-like indices and the
+    /// start offset for range-like indices. Does **not** perform bounds
+    /// checking — use [`contains`](Self::contains) or
+    /// [`within`](BufferIndexExt::within) first if needed.
     #[inline]
     pub fn index_of(&self, index: impl BufferIndexExt) -> usize {
         index.as_index(self)
     }
 
+    /// Convert `index` to a [`Point`] representing the first cell covered.
+    ///
+    /// For range indices this returns the `(x, y)` of the range's start.
     #[inline]
     pub fn point_of(&self, index: impl BufferIndexExt) -> Point {
         index.as_point(self)
     }
 
+    /// The column (`x`) of the first cell covered by `index`.
     #[inline]
     pub fn x_of(&self, index: impl BufferIndexExt) -> u16 {
         index.x(self)
     }
 
+    /// The row (`y`) of the first cell covered by `index`.
     #[inline]
     pub fn y_of(&self, index: impl BufferIndexExt) -> u16 {
         index.y(self)
     }
 
+    /// Convert `index` to a `Range<usize>` in flat storage.
     #[inline]
     pub fn range_of(&self, index: impl BufferIndexExt) -> ops::Range<usize> {
         index.as_range(self)
     }
 
+    /// The number of cells covered by `index`.
+    ///
+    /// Returns `1` for point-like indices and the slice length for range
+    /// indices.
     #[inline]
     pub fn len_of(&self, index: impl BufferIndexExt) -> usize {
         index.len(self)
     }
 
+    /// The flat offset of the first cell covered by `index`.
     #[inline]
     pub fn start_of(&self, index: impl BufferIndexExt) -> usize {
         index.start(self)
     }
 
+    /// The flat offset just past the last cell covered by `index`.
     #[inline]
     pub fn end_of(&self, index: impl BufferIndexExt) -> usize {
         index.end(self)
@@ -273,6 +333,15 @@ impl Buffer {
         ))
     }
 
+    /// Write `string` from `index` to the end of its row.
+    ///
+    /// Clamps the write to the row's right edge — the string never wraps to
+    /// the next line. This is a convenience wrapper around
+    /// [`set_string`](Self::set_string) that computes the row-extent range
+    /// from `index`'s `(x, y)` to `(width, y)`.
+    ///
+    /// Returns `None` if `index` is out of bounds; otherwise the number of
+    /// columns written (see [`Cells::write`]).
     pub fn set_line(
         &mut self,
         index: impl BufferIndexExt<Output = Cell>,
@@ -290,6 +359,19 @@ impl Buffer {
         )
     }
 
+    /// Resize the buffer to new dimensions, preserving existing content.
+    ///
+    /// Cells that fall within the overlap of the old and new grids keep
+    /// their values. New cells (from widening or growing taller) are
+    /// initialised to [`Cell::EMPTY`]. Cells that fall outside the new
+    /// bounds are dropped.
+    ///
+    /// When only the height changes, rows are appended or truncated in
+    /// place. When the width changes, each row is shifted to its new offset
+    /// and new columns are filled with [`Cell::EMPTY`].
+    ///
+    /// This is O(n) in the total number of cells. It does **not** interact
+    /// with the grapheme arena — release arena storage separately if needed.
     pub fn resize(&mut self, width: u16, height: u16) {
         let (current_width, current_height) = (self.width as usize, self.height as usize);
         let (width, height) = (width as usize, height as usize);
@@ -333,11 +415,27 @@ impl Buffer {
         self.height = height as u16;
     }
 
+    /// Iterate over the cells covered by `index`.
+    ///
+    /// Out-of-bounds indices produce an empty iterator — no panic, no `None`
+    /// wrapper. This is the ergonomic alternative to `get`/`get_mut` for
+    /// loops that should silently skip invalid ranges.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// for cell in buf.iter_index(Row(3)) {
+    ///     // operates on row 3, does nothing if row 3 is out of bounds
+    /// }
+    /// ```
     #[inline]
     pub fn iter_index(&self, index: impl BufferIndexExt) -> impl Iterator<Item = &Cell> {
         index.iter(self)
     }
 
+    /// Iterate mutably over the cells covered by `index`.
+    ///
+    /// See [`iter_index`](Self::iter_index) for the borrowing equivalent.
     #[inline]
     pub fn iter_index_mut(
         &mut self,
@@ -346,17 +444,33 @@ impl Buffer {
         index.iter_mut(self)
     }
 
+    /// Iterate over each row, yielding an iterator over the row's cells.
+    ///
+    /// The outer iterator yields one inner iterator per row; each inner
+    /// iterator walks the cells of that row left-to-right. Uses
+    /// [`chunks_exact`](slice::chunks_exact) for zero-overhead row slicing.
     pub fn rows(&self) -> impl Iterator<Item = impl Iterator<Item = &Cell>> {
         self.inner
             .chunks_exact(self.width as usize)
             .map(|row| row.iter())
     }
 
+    /// Iterate over each column, yielding an iterator over the column's cells.
+    ///
+    /// The outer iterator yields one inner iterator per column; each inner
+    /// iterator walks the cells of that column top-to-bottom. Uses
+    /// [`step_by`](Iterator::step_by) on a slice window, so column access is
+    /// strided rather than contiguous.
     pub fn cols(&self) -> impl Iterator<Item = impl Iterator<Item = &Cell>> {
         let width = self.width as usize;
         (0..width).map(move |col| self[col..].iter().step_by(width))
     }
 
+    /// Reset every cell in the buffer to [`Cell::EMPTY`].
+    ///
+    /// This is O(n) in the number of cells. It does **not** release the
+    /// allocation — capacity is preserved for reuse. If you also need to
+    /// reclaim grapheme arena storage, call [`Graphemes::clear`] separately.
     pub fn clear(&mut self) {
         self.inner.fill(Cell::EMPTY);
     }

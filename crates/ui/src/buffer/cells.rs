@@ -148,6 +148,10 @@ pub struct CellsIter<'a> {
 }
 
 impl<'a> CellsIter<'a> {
+    /// Create a new cell iterator over a row slice.
+    ///
+    /// Starts at column 0 (relative to the slice), skipping continuation
+    /// cells and advancing by each cell's display width.
     #[inline]
     pub fn new(cells: &'a [Cell]) -> Self {
         Self {
@@ -161,6 +165,12 @@ impl<'a> CellsIter<'a> {
 impl<'a> Iterator for CellsIter<'a> {
     type Item = (u16, &'a Cell);
 
+    /// Yields the next base cell with its starting column.
+    ///
+    /// Continuation cells (the trailing positions of wide graphemes) are
+    /// skipped — each distinct visible character is yielded exactly once.
+    /// Each base cell advances the column cursor by
+    /// [`Cell::advance`], so cleared cells still occupy a column.
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -181,6 +191,10 @@ impl<'a> Iterator for CellsIter<'a> {
         }
     }
 
+    /// Size hint for the remaining cells.
+    ///
+    /// Lower bound is `0` (the remaining slice could be entirely
+    /// continuations). Upper bound is the number of remaining slots.
     fn size_hint(&self) -> (usize, Option<usize>) {
         // The remaining slice could be entirely continuations, so the lower
         // bound is 0; each base cell consumes at least one slot.

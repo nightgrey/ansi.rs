@@ -60,6 +60,7 @@ pub use buffer::*;
 
 mod cell;
 pub use cell::*;
+
 mod cells;
 pub use cells::*;
 
@@ -68,12 +69,10 @@ pub use graphemes::*;
 
 pub mod index;
 pub use index::*;
-pub mod index_ext;
-pub use index_ext::*;
-pub mod index_many;
-pub use index_many::*;
-pub mod generation;
-pub mod index_iter;
-pub mod diff;
 
-pub use index_iter::*;
+mod procedural;
+pub use procedural::*;
+
+pub mod diff;
+pub use diff::*;
+

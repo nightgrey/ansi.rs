@@ -12,6 +12,6 @@ itertools = "0.14.0"
 number = { workspace = true }
 utils-derive = { workspace = true }
 log = "0.4.32"
-
+itoaaa = "0.1.1"
 [lints]
 workspace = true

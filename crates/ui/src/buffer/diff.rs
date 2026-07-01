@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Cell};
+use  super::{Buffer, Cell, Routine};
 use ansi::{Attribute, Color};
 use geometry::{Point, Resolve, Size};
 
@@ -106,12 +106,11 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
                 let j = *next_index;
                 // Advance past this cell; if it is wide, also skip its own trailing column
                 // so the main loop does not emit a spurious EMPTY write over it.
-                let cell_width = self.next[j].width().max(1) as usize;
+                let cell_width = self.next[j].column_width();
                 *next_index += cell_width;
                 *end = (*end).max(*next_index).min(len);
 
-                if !is_skip(&self.next[j])
-                    && (*force || self.prev[j].grapheme() != self.next[j].grapheme())
+                if (*force || self.prev[j].grapheme() != self.next[j].grapheme())
                 {
                     return Some((self.point_of(j), &self.next[j]));
                 }
@@ -169,26 +168,13 @@ impl<'next> Iterator for BufferDiff<'_, 'next> {
     }
 }
 
-/// Returns `true` if a cell should be skipped during diff iteration.
-///
-/// A cell is skipped when it carries a [`CellDiffOption::Skip`] directive
-/// or, for backward compatibility, when the deprecated `skip` field is set
-/// and no explicit diff option overrides it.
-#[allow(deprecated)]
-const fn is_skip(cell: &Cell) -> bool {
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use core::num::NonZeroU16;
-
-    use compact_str::CompactString;
     use ansi::Style;
     use geometry::Rect;
     use super::*;
     use crate::buffer::Buffer;
-    use crate::generation::Gen;
     use crate::Graphemes;
 
     #[test]
@@ -229,11 +215,11 @@ mod tests {
     #[test]
     fn test() {
         let graphemes = &mut Graphemes::new();
-        let prev = Buffer::from_gen(Gen::Diagonals {
+        let prev = Buffer::from_procedural(Routine::Diagonals {
             foreground: Some(Color::Red),
             background: Some(Color::Blue),
         }, 10, 10);
-        let next = Buffer::from_gen(Gen::Diagonals {
+        let next = Buffer::from_procedural(Routine::Diagonals {
             foreground: Some(Color::Red),
             background: Some(Color::Yellow),
         }, 10, 10);

@@ -39,6 +39,8 @@ pub mod byte_string;
 pub use byte_string::*;
 pub mod ansi;
 pub mod counting_writer;
+pub mod itoa;
+pub use itoa::*;
 
 pub use counting_writer::*;
 

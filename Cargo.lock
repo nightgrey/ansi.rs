@@ -1278,6 +1278,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
+name = "itoaaa"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e4acd1c26e82f9f528ee42afa96d815df709538cdefe8dfacf68e19c5e69f2"
+
+[[package]]
 name = "js-sys"
 version = "0.3.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2505,6 +2511,7 @@ dependencies = [
  "compact_bytes",
  "derive_more",
  "itertools 0.14.0",
+ "itoaaa",
  "log",
  "number",
  "smallvec 2.0.0-alpha.12",

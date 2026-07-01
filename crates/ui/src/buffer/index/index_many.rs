@@ -8,7 +8,6 @@
 //!
 //! The trait mirrors [`BufferIndex`]'s access pattern — checked, unchecked,
 //! and panicking — but returns `&[Cell]` instead of `&Self::Output`.
-
 use crate::{Buffer, BufferIndex, Cell};
 use geometry::{Point, PointLike, Resolve, Row};
 use std::ops;

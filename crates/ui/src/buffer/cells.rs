@@ -14,7 +14,7 @@
 //! [`write_grapheme`](Cells::write_grapheme) enforces this invariant when
 //! building rows.
 
-use crate::{Cell, Grapheme, Graphemes, IntoGraphemeWidth};
+use crate::{Cell, Grapheme, Graphemes};
 use ansi::Style;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;

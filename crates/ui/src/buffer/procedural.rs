@@ -1,12 +1,12 @@
 //! Procedural buffer generation for demos, tests, and benchmarking.
 //!
-//! The [`Gen`] enum describes a handful of deterministic patterns — solid
+//! The [`Routine`] enum describes a handful of deterministic patterns — solid
 //! colour fills, chessboard patterns (with Unicode piece glyphs when the
 //! board is exactly 8×8), diagonal lines, random-noise grids, and
 //! user-supplied character matrices — that are rendered into a [`Buffer`]
-//! by [`Buffer::from_gen`].
+//! by [`Buffer::from_procedural`].
 //!
-//! Each variant produces a pure, deterministic result: even [`Gen::Random`]
+//! Each variant produces a pure, deterministic result: even [`Routine::Random`]
 //! uses a seed so repeated calls produce identical output.
 
 use crate::{Buffer, Cell};
@@ -15,8 +15,8 @@ use ansi::{Attribute, Color, Style};
 /// A procedural buffer pattern used for demos, testing, and benchmarking.
 ///
 /// Each variant renders deterministically into a [`Buffer`] via
-/// [`Buffer::from_gen`].
-pub enum Gen {
+/// [`Buffer::from_procedural`].
+pub enum Routine {
     /// Every cell filled with a solid background colour.
     Solid(Color),
 
@@ -26,13 +26,6 @@ pub enum Gen {
     /// are placed in the standard starting position. For any other size, only
     /// the chessboard pattern is drawn.
     Chessboard,
-
-    /// A user-supplied grid of `(character, style)` pairs.
-    ///
-    /// Each inner `Vec` is one row; characters with value `'\0'` are left
-    /// as empty cells.
-    Grid(Vec<Vec<(char, Style)>>),
-
     /// Two crossing diagonal lines, optionally with distinct foreground and
     /// background colours.
     Diagonals {
@@ -50,24 +43,23 @@ pub enum Gen {
 }
 
 impl Buffer {
-    /// Render a [`Gen`] pattern into a buffer of the given dimensions.
+    /// Render a [`Routine`] pattern into a buffer of the given dimensions.
     ///
     /// Each variant produces a deterministic result: even
-    /// [`Gen::Random`] uses a fixed seed so repeated calls return
+    /// [`Routine::Random`] uses a fixed seed so repeated calls return
     /// identical output.
     ///
     /// # Example
     ///
     /// ```ignore
-    /// let buf = Buffer::from_gen(Gen::Solid(Color::Blue), 10, 5);
-    /// // every cell has a blue background
+    /// let buf = Buffer::from_procedural(Routine::Solid(Color::Blue), 10, 5);
     /// ```
-    pub fn from_gen(kind: Gen, width: u16, height: u16) -> Self {
-        match kind {
-            Gen::Solid(color) => {
+    pub fn from_procedural(routine: Routine, width: u16, height: u16) -> Self {
+        match routine {
+            Routine::Solid(color) => {
                 Self::from_fn(width, height, |_, _| Cell::empty().with_background(color))
             }
-            Gen::Chessboard => {
+            Routine::Chessboard => {
                 // Predefined board for 8×8 – top row (index 0) is black pieces, bottom row (7) white
                 const PIECES: [[Option<char>; 8]; 8] = [
                     // Row 0 (black back rank)
@@ -154,7 +146,7 @@ impl Buffer {
                     }
                 })
             }
-            Gen::Diagonals {
+            Routine::Diagonals {
                 foreground,
                 background,
             } => Buffer::from_fn(width, height, |row, col| {
@@ -164,20 +156,7 @@ impl Buffer {
                     Cell::default().with_background(background.unwrap_or_default())
                 }
             }),
-            Gen::Grid(rows) => {
-                let height = rows.len();
-                let width = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-                let mut buf = Buffer::new(width as u16, height as u16);
-                for (y, row) in rows.iter().enumerate() {
-                    for (x, &(ch, style)) in row.iter().enumerate() {
-                        if ch != '\0' {
-                            buf[(y as u16, x as u16)] = Cell::new(ch).with_style(style);
-                        }
-                    }
-                }
-                buf
-            }
-            Gen::Random(seed) => {
+            Routine::Random(seed) => {
                 /// xorshift64 step. Pure function of the state, so callers stay deterministic.
                 #[inline]
                 fn xorshift_next(state: &mut u64) -> u64 {
@@ -187,9 +166,7 @@ impl Buffer {
                     *state
                 }
 
-                /// Weighted index pick, no external `rand` dependency — same approach as
-                /// the corpus generator's `WeightedIndex`, just hand-rolled against the
-                /// existing xorshift state so `Gen::Random` stays self-contained.
+                /// Weighted index pick – no external `rand` dependency.
                 #[inline]
                 fn weighted_pick(state: &mut u64, weights: &[u32], total: u32) -> usize {
                     let mut roll = (xorshift_next(state) % total as u64) as u32;
@@ -199,44 +176,121 @@ impl Buffer {
                         }
                         roll -= w;
                     }
-                    weights.len() - 1 // unreachable unless `total` undercounts `weights`
+                    weights.len() - 1
                 }
 
-                // Zipfian-ish glyph table: space dominates, lowercase beats
-                // uppercase beats digits beats symbols — mirrors how a real
-                // screenful of text is distributed, instead of sampling all 22
-                // glyphs uniformly.
-                const GLYPHS: &[u8] = b" abcdefgABCDEFG0123.#@";
+                /// Build a random foreground colour from the current state.
+                #[inline]
+                fn random_fg_color(state: &mut u64) -> Color {
+                    match weighted_pick(state, &[40, 30, 20, 10], 100) {
+                        0 => {
+                            // Random RGB
+                            let r = (xorshift_next(state) & 0xFF) as u8;
+                            let g = (xorshift_next(state) & 0xFF) as u8;
+                            let b = (xorshift_next(state) & 0xFF) as u8;
+                            Color::Rgb(r, g, b)
+                        }
+                        1 => {
+                            // Random 256-colour Ascii index
+                            Color::Index((xorshift_next(state) % 256) as u8)
+                        }
+                        2 => {
+                            // A few named colours for contrast
+                            const NAMED: &[Color] = &[
+                                Color::Red,
+                                Color::Green,
+                                Color::Yellow,
+                                Color::Blue,
+                                Color::Magenta,
+                                Color::Cyan,
+                                Color::BrightRed,
+                                Color::BrightGreen,
+                                Color::BrightYellow,
+                                Color::BrightBlue,
+                                Color::BrightMagenta,
+                                Color::BrightCyan,
+                            ];
+                            let idx = (xorshift_next(state) % NAMED.len() as u64) as usize;
+                            NAMED[idx]
+                        }
+                        _ => Color::None,
+                    }
+                }
+
+                /// Build a random background colour similarly.
+                #[inline]
+                fn random_bg_color(state: &mut u64) -> Color {
+                    // Same distribution but slightly different weights to
+                    // favour darker backgrounds.
+                    match weighted_pick(state, &[35, 35, 20, 10], 100) {
+                        0 => {
+                            let r = (xorshift_next(state) & 0xFF) as u8;
+                            let g = (xorshift_next(state) & 0xFF) as u8;
+                            let b = (xorshift_next(state) & 0xFF) as u8;
+                            Color::Rgb(r, g, b)
+                        }
+                        1 => Color::Index((xorshift_next(state) % 256) as u8),
+                        2 => {
+                            const NAMED: &[Color] = &[
+                                Color::Blue,
+                                Color::Green,
+                                Color::Cyan,
+                                Color::Red,
+                                Color::Magenta,
+                                Color::Yellow,
+                                Color::Black,
+                                Color::Index(232),
+                            ];
+                            let idx = (xorshift_next(state) % NAMED.len() as u64) as usize;
+                            NAMED[idx]
+                        }
+                        _ => Color::None,
+                    }
+                }
+
+                /// Randomly attach text decorations to a style.
+                #[inline]
+                fn random_style(state: &mut u64, style: Style) -> Style {
+                    let mut style = style;
+                    // Order doesn't matter; we just try each flag independently.
+                    if xorshift_next(state) % 10 < 2 {        // 20 % chance
+                        style = style.with(Attribute::Bold);
+                    }
+                    if xorshift_next(state) % 10 < 2 {
+                        style = style.with(Attribute::Faint);
+                    }
+                    if xorshift_next(state) % 20 < 2 {        // 10 % chance
+                        style = style.with(Attribute::Italic);
+                    }
+                    if xorshift_next(state) % 50 < 1 {        // 2 % chance
+                        style = style.with(Attribute::Underline);
+                    }
+                    if xorshift_next(state) % 100 < 1 {       // 1 % chance
+                        style = style.with(Attribute::Strikethrough);
+                    }
+                    style
+                }
+
+                // Extended glyph table – ASCII + a few emoji (single codepoints).
+                const GLYPHS: &[char] = &[
+                    ' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+                    'A', 'B', 'C', 'D', 'E', 'F', 'G',
+                    '0', '1', '2', '3',
+                    '.', '#', '@',
+                    '🚀', '🦀', '🎉', '🔥', '✨', '🌟', '🧪', '🔧', '💻', '🎨',
+                ];
                 const GLYPH_WEIGHTS: &[u32] = &[
-                    500, // ' '
+                    500,                     // ' '
                     40, 30, 30, 28, 45, 25, 22, // a b c d e f g
                     18, 14, 14, 12, 16, 10, 10, // A B C D E F G
-                    10, 10, 8, 8, // 0 1 2 3
-                    12, 6, 4, // . # @
+                    10, 10, 8, 8,            // 0 1 2 3
+                    12, 6, 4,                // . # @
+                    5, 5, 5, 5, 5, 5, 3, 3, 3, 3,
                 ];
                 debug_assert_eq!(GLYPHS.len(), GLYPH_WEIGHTS.len());
                 let glyph_total: u32 = GLYPH_WEIGHTS.iter().sum();
 
-                let palette = [
-                    Style::None,
-                    Style::None.foreground(Color::Red),
-                    Style::None.foreground(Color::Rgb(10, 200, 30)),
-                    Style::None.background(Color::Blue),
-                    Style::None.with(Attribute::Bold),
-                    Style::None
-                        .foreground(Color::BrightCyan)
-                        .with(Attribute::Italic),
-                ];
-                // mostly unstyled, decorations are the rare case — same intuition as
-                // the glyph table
-                const STYLE_WEIGHTS: &[u32] = &[200, 25, 25, 20, 15, 10];
-                let style_total: u32 = STYLE_WEIGHTS.iter().sum();
-
-                let backgrounds = [Color::Rgb(20, 20, 20), Color::Blue, Color::Index(238)];
-                const BG_WEIGHTS: &[u32] = &[50, 30, 20];
-                let bg_total: u32 = BG_WEIGHTS.iter().sum();
-
-                // glyph cell / tinted-empty cell / plain empty cell
+                // Fraction of cells that are glyph / tinted empty / plain empty
                 const OUTCOME_WEIGHTS: &[u32] = &[70, 20, 10];
                 let outcome_total: u32 = OUTCOME_WEIGHTS.iter().sum();
 
@@ -249,13 +303,16 @@ impl Buffer {
 
                     match weighted_pick(&mut state, OUTCOME_WEIGHTS, outcome_total) {
                         0 => {
+                            // Glyph cell
                             let gi = weighted_pick(&mut state, GLYPH_WEIGHTS, glyph_total);
-                            let si = weighted_pick(&mut state, STYLE_WEIGHTS, style_total);
-                            Cell::new(GLYPHS[gi] as char).with_style(palette[si])
+                            let fg = random_fg_color(&mut state);
+                            let sty = random_style(&mut state, Style::None.foreground(fg));
+                            Cell::new(GLYPHS[gi]).with_style(sty)
                         }
                         1 => {
-                            let bi = weighted_pick(&mut state, BG_WEIGHTS, bg_total);
-                            Cell::default().with_background(backgrounds[bi])
+                            // Tinted empty cell
+                            let bg = random_bg_color(&mut state);
+                            Cell::default().with_background(bg)
                         }
                         _ => Cell::default(),
                     }

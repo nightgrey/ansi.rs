@@ -1,40 +1,25 @@
 use super::{Grapheme, Graphemes};
-use crate::{IntoGrapheme, IntoGraphemeWidth};
+use crate::{Source};
 use ansi::{Attribute, Color, Style};
 use maybe::Maybe;
 use std::fmt::{Debug, from_fn};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 // Compile-time size check
-const _: () = assert!(core::mem::size_of::<Cell>() == 16);
+const _: () = assert!(size_of::<Cell>() == 16);
 
-/// A single terminal cell — the fundamental unit of the framebuffer.
+/// Cell
 ///
-/// Each cell holds a grapheme cluster (the visible character), its display
-/// width in terminal columns, and visual style (attributes + colors).
-///
-/// # Size target
-///
-/// When `Style` is finalized into a packed representation (attributes in a
-/// `u16`, foreground + background in a `u64` channel pair), this struct will
-/// pack to exactly **16 bytes** for cache-line efficiency:
-///
-/// ```text
-/// ┌────────────┬───────┬─────────────┬───────────────────────┐
-/// │ grapheme   │ width │ attributes  │ colors (fg|bg)        │
-/// │ 4 bytes    │ 1 B   │ 2 bytes + 1 │ 8 bytes               │
-/// └────────────┴───────┴─────────────┴───────────────────────┘
-/// = 16 bytes with repr(C) and careful alignment
-/// ```
+/// The fundamental frame buffer unit. It holds a grapheme cluster, its width, and a visual style.
 #[derive(Copy)]
 #[derive_const(Clone, Eq, PartialEq)]
-#[repr(C)]
 pub struct Cell {
     /// The grapheme cluster displayed in this cell.
     ///
     /// 4 bytes: either inline UTF-8 or a arena offset (see [`Grapheme`]).
     grapheme: Grapheme,
 
-    /// Column width of this cell's grapheme.
+    /// Display width of this cell's grapheme.
     ///
     /// - `1` for ASCII and most single-width characters
     /// - `2` for CJK ideographs, fullwidth forms, and most emoji
@@ -60,9 +45,6 @@ impl Cell {
     };
 
     /// A continuation cell — the trailing slot of a wide grapheme.
-    ///
-    /// Width `0`, empty grapheme. Continuation cells are skipped by
-    /// [`CellsIter`] and should never be independently styled or written.
     pub const CONTINUATION: Self = Self {
         grapheme: Grapheme::EMPTY,
         width: 0,
@@ -75,8 +57,8 @@ impl Cell {
     }
 
     /// Create a new cell from a grapheme source with measured width.
-    pub fn new(grapheme: impl IntoGrapheme + IntoGraphemeWidth) -> Self {
-        let width = grapheme.width() as u8;
+    pub fn new(grapheme: impl MeasurableSource) -> Self {
+        let width = grapheme.width();
         Self {
             grapheme: Grapheme::new(grapheme),
             width,
@@ -84,15 +66,17 @@ impl Cell {
         }
     }
 
-    /// Create a cell with a pre-measured width (in columns).
-    ///
-    /// Unlike [`new`](Self::new), this does not call [`IntoGraphemeWidth`];
-    /// the caller supplies the column width directly. Useful when the width
-    /// has already been computed or the grapheme source doesn't implement
-    /// `IntoGraphemeWidth`.
-    pub const fn new_measured(grapheme: impl [const] IntoGrapheme, width: usize) -> Self {
+    pub const fn new_measured(grapheme: impl [const] Source, width: usize) -> Self {
         Self {
             grapheme: Grapheme::new(grapheme),
+            width: width as u8,
+            style: Style::None,
+        }
+    }
+
+    pub const fn from_grapheme(grapheme: Grapheme, width: usize) -> Self {
+        Self {
+            grapheme,
             width: width as u8,
             style: Style::None,
         }
@@ -107,24 +91,20 @@ impl Cell {
         self.grapheme
     }
 
-    /// The width of this cell's grapheme.
+    /// The display width of this cell's grapheme.
     ///
-    /// - `1` for ASCII and most single-width characters
-    /// - `2` for CJK ideographs, fullwidth forms, and most emoji
-    /// - `0` for continuation cells
+    /// Note: For continuation cells, this returns `0`.
     #[inline]
-    pub const fn width(&self) -> usize {
+    pub const fn display_width(&self) -> usize {
         self.width as usize
     }
 
-    /// The display width of this cell's grapheme in terminal columns.
+    /// The column width of this cell.
     ///
-    /// - `1` for ASCII and most single-width characters
-    /// - `2` for CJK ideographs, fullwidth forms, and most emoji
-    /// - `1` for continuation cells
+    /// Note: For continuation cells, this returns `1`.
     #[inline]
     pub const fn column_width(&self) -> usize {
-        self.width().max(1)
+        self.width.max(1) as usize
     }
 
     /// The cell's visual style (attributes, foreground, background).
@@ -142,42 +122,35 @@ impl Cell {
         self.grapheme == Grapheme::EMPTY && self.width == 0
     }
 
-    /// Returns `true` if this cell's grapheme is empty (and would be rendered as a space).
+    /// Returns `true` if this cell renders a space.
+    ///
+    /// Such a cell carries no grapheme, but it may still have a style and be
+    /// painted as a space.
     #[inline]
     pub const fn is_blank(&self) -> bool {
         self.grapheme == Grapheme::EMPTY && self.width == 1
     }
 
-    /// Returns `true` if this cell has nothing to draw: no glyph *and* no style.
+    /// Returns `true` if this cell is completely empty — no glyph **and** no style.
     ///
-    /// An empty cell that carries a style (e.g. a background colour) must still
-    /// be painted as a styled space, so it is **not** empty by this definition.
     /// Use this to find the last drawable cell in a row (trim trailing blanks).
+    /// An empty cell that carries a style (e.g., a background) must still be
+    /// painted, so it is **not** empty by this definition.
     #[inline]
     pub const fn is_empty(&self) -> bool {
         self.is_blank() && self.style.is_empty()
     }
 
-    /// Check if this cell has the default value (empty space).
-    ///
-    /// Equivalent to [`is_space`](Self::is_blank) — exists primarily for
-    /// readability in tests.
-    #[inline]
-    pub const fn is_default(&self) -> bool {
-        self.is_blank()
-    }
-
-    /// Replace the grapheme and width in-place. Returns `self` for chaining.
-    pub fn set(&mut self, grapheme: impl IntoGrapheme, width: usize) -> &mut Self {
-        self.grapheme = grapheme.into_grapheme();
+    /// Replace the grapheme and width in-place.
+    pub fn set(&mut self, grapheme: impl Source, width: usize) -> &mut Self {
+        self.grapheme = grapheme.into();
         self.width = width as u8;
         self
     }
 
     /// Create a new cell with the given grapheme and width (builder pattern).
-    pub fn with(mut self, grapheme: impl IntoGrapheme, width: usize) -> Self {
-        self.grapheme = grapheme.into_grapheme();
-        self.width = width as u8;
+    pub fn with(mut self, grapheme: impl Source, width: usize) -> Self {
+        self.set(grapheme, width);
         self
     }
 
@@ -236,6 +209,7 @@ impl Cell {
     pub fn as_str<'a>(&'a self, graphemes: &'a Graphemes) -> &'a str {
         self.grapheme.as_str_or(graphemes, " ")
     }
+
     /// Reset this cell to default (empty space).
     ///
     /// Does **not** release arena storage — call
@@ -245,8 +219,6 @@ impl Cell {
     }
 
 }
-
-impl Cell {}
 
 const impl Default for Cell {
     fn default() -> Self {
@@ -321,6 +293,22 @@ impl Debug for Cell {
     }
 }
 
+pub trait MeasurableSource: Source {
+    fn width(&self) -> u8;
+}
+
+impl MeasurableSource for char {
+    fn width(&self) -> u8 {
+        UnicodeWidthChar::width(*self).unwrap_or(1) as u8
+    }
+}
+
+impl MeasurableSource for &str {
+    fn width(&  self) -> u8 {
+        UnicodeWidthStr::width(*self) as u8
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ansi::{Attribute, Color};
@@ -331,14 +319,14 @@ mod tests {
     fn empty_cell() {
         let cell = Cell::EMPTY;
         assert!(cell.is_blank());
-        assert_eq!(cell.width(), 1);
+        assert_eq!(cell.display_width(), 1);
     }
 
     #[test]
     fn continuation_cell() {
         let cell = Cell::CONTINUATION;
         assert!(cell.is_continuation());
-        assert_eq!(cell.width(), 0);
+        assert_eq!(cell.display_width(), 0);
     }
 
     #[test]
@@ -347,7 +335,7 @@ mod tests {
             .with_attributes(Attribute::Bold)
             .with_foreground(Color::Rgb(255, 0, 0));
         assert!(!cell.is_blank());
-        assert_eq!(cell.width(), 1);
+        assert_eq!(cell.display_width(), 1);
         assert_eq!(cell.style().foreground, Color::Rgb(255, 0, 0));
         assert!(cell.style().attributes.contains(Attribute::Bold));
 
@@ -358,7 +346,7 @@ mod tests {
     #[test]
     fn cell_with_wide_char() {
         let cell = Cell::new('中');
-        assert_eq!(cell.width(), 2);
+        assert_eq!(cell.display_width(), 2);
     }
 
     #[test]

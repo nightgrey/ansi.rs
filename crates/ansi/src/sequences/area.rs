@@ -27,7 +27,7 @@ pub enum SetTopBottomMargins {
 }
 
 impl Escape for SetTopBottomMargins {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         match self {
             Self::None => {
                 write!(w, "\x1B[r")

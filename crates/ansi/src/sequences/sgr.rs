@@ -50,7 +50,7 @@ impl SelectGraphicRendition {
 }
 
 impl Escape for SelectGraphicRendition {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         Style::escape(&self.0, w)
     }
 }
@@ -88,7 +88,7 @@ impl SelectGraphicRenditionTransition {
 }
 
 impl Escape for SelectGraphicRenditionTransition {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, mut w: &mut dyn std::io::Write) -> std::io::Result<()> {
         use crate::WriteEscape as _;
         use std::io::Write as _;
 
@@ -214,7 +214,7 @@ pub type SGRDiff = SelectGraphicRenditionTransition;
 pub struct SelectGraphicRenditionReset;
 
 impl Escape for SelectGraphicRenditionReset {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         w.write_all(b"\x1B[0m")
     }
 }

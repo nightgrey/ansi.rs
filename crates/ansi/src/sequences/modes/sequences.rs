@@ -1,3 +1,5 @@
+use std::io::Write;
+use utils::itoa::Itoa;
 use super::*;
 use crate::Escape;
 
@@ -26,7 +28,7 @@ const impl<M> SetMode<M> {
 }
 
 impl Escape for SetMode<Mode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn  std::io::Write) -> std::io::Result<()> {
         match self.0 {
             Mode::Ansi(ansi) => write!(w, "\x1B[{}h", ansi),
             Mode::Dec(dec) => write!(w, "\x1B[?{}h", dec),
@@ -35,13 +37,13 @@ impl Escape for SetMode<Mode> {
 }
 
 impl Escape for SetMode<AnsiMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[{}h", self.0)
     }
 }
 
 impl Escape for SetMode<DecMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[?{}h", self.0)
     }
 }
@@ -90,7 +92,7 @@ const impl<M> ResetMode<M> {
 }
 
 impl Escape for ResetMode<Mode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         match self.0 {
             Mode::Ansi(ansi) => write!(w, "\x1B[{}l", ansi),
             Mode::Dec(dec) => write!(w, "\x1B[?{}l", dec),
@@ -99,13 +101,13 @@ impl Escape for ResetMode<Mode> {
 }
 
 impl Escape for ResetMode<AnsiMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[{}l", self.0)
     }
 }
 
 impl Escape for ResetMode<DecMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[?{}l", self.0)
     }
 }
@@ -146,7 +148,7 @@ pub struct ReportMode<M = Mode> {
 }
 
 impl Escape for ReportMode<Mode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         match self.mode {
             Mode::Ansi(ansi) => write!(w, "\x1B[{};{}$y", ansi, self.setting),
             Mode::Dec(dec) => write!(w, "\x1B[?{};{}$y", dec, self.setting),
@@ -155,13 +157,13 @@ impl Escape for ReportMode<Mode> {
 }
 
 impl Escape for ReportMode<AnsiMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[{};{}$y", self.mode, self.setting)
     }
 }
 
 impl Escape for ReportMode<DecMode> {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         write!(w, "\x1B[?{};{}$y", self.mode, self.setting)
     }
 }

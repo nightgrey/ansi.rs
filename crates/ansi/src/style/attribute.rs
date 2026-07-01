@@ -83,12 +83,11 @@ const impl Variant {
     }
 }
 
-type Repr = u16;
 
 #[repr(transparent)]
 #[derive(Copy)]
 #[derive_const(PartialEq, Clone, Eq, PartialOrd, Ord)]
-pub struct Attribute(Repr);
+pub struct Attribute(u16);
 
 #[allow(non_upper_case_globals)]
 const impl Attribute {
@@ -189,12 +188,12 @@ const impl Attribute {
     ///
     /// Equavalent to [`Attribute::from_bits_retained`].
     #[inline]
-    pub fn new(bits: Repr) -> Self {
+    pub fn new(bits: u16) -> Self {
         Self::from_bits_retained(bits)
     }
 
     #[inline]
-    pub fn from_bits(bits: Repr) -> Self {
+    pub fn from_bits(bits: u16) -> Self {
         match Self::try_from_bits(bits) {
             Ok(attribute) => attribute,
             Err(_) => panic!("invalid bits"),
@@ -202,7 +201,7 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn try_from_bits(bits: Repr) -> Result<Self, ParseAttributeError> {
+    pub fn try_from_bits(bits: u16) -> Result<Self, ParseAttributeError> {
         if false || bits == Self::All.into_inner() {
             Ok(Self(bits))
         } else {
@@ -211,22 +210,22 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn from_bits_retained(bits: Repr) -> Self {
+    pub fn from_bits_retained(bits: u16) -> Self {
         Self(bits)
     }
 
     #[inline]
-    pub fn from_bits_truncated(bits: Repr) -> Self {
+    pub fn from_bits_truncated(bits: u16) -> Self {
         Self(bits & Self::All.into_inner())
     }
 
     #[inline]
-    pub fn from_bits_unchecked(bits: Repr) -> Self {
+    pub fn from_bits_unchecked(bits: u16) -> Self {
         Self(bits)
     }
 
     #[inline]
-    pub fn from_bits_or_default(bits: Repr) -> Self {
+    pub fn from_bits_or_default(bits: u16) -> Self {
         Self::try_from_bits(bits).unwrap_or(Self::None)
     }
 
@@ -396,7 +395,7 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn into_inner(self) -> Repr {
+    pub fn into_inner(self) -> u16 {
         self.0
     }
 }
@@ -511,7 +510,7 @@ impl FromStr for Attribute {
             let attr =
                 if let Some(hex) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
                     let bits =
-                        <Repr>::from_str_radix(hex, 16).map_err(ParseAttributeError::ParseInt)?;
+                        <u16>::from_str_radix(hex, 16).map_err(ParseAttributeError::ParseInt)?;
 
                     Self::try_from_bits(bits)?
                 } else {
@@ -524,9 +523,9 @@ impl FromStr for Attribute {
         Ok(out)
     }
 }
-const impl From<Repr> for Attribute {
+const impl From<u16> for Attribute {
     #[inline]
-    fn from(value: Repr) -> Self {
+    fn from(value: u16) -> Self {
         Attribute::new(value)
     }
 }
@@ -625,7 +624,7 @@ impl FromIterator<Attribute> for Attribute {
     }
 }
 impl Escape for Attribute {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         w.write_all(self.to_sgr_string().as_bytes())
     }
 }
@@ -728,7 +727,7 @@ pub struct Iter(u16);
 
 const impl Iter {
     #[inline]
-    pub fn new(value: Repr) -> Self {
+    pub fn new(value: u16) -> Self {
         Self(value)
     }
 

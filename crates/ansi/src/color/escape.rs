@@ -69,7 +69,7 @@ const impl Color {
 }
 
 impl Escape for Foreground {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
         match self.0 {
@@ -101,7 +101,7 @@ impl Escape for Foreground {
 }
 
 impl Escape for Background {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         use Color::*;
 
         match self.0 {
@@ -133,7 +133,7 @@ impl Escape for Background {
 }
 
 impl Escape for Underline {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         use Color::*;
         match self.0 {
             None => Ok(()),

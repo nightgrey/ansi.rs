@@ -18,7 +18,7 @@ macro_rules! sequence {
         $vis struct $name;
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }
@@ -47,7 +47,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }
@@ -72,7 +72,7 @@ macro_rules! sequence {
         $vis struct $name($($(#[$fields_meta])* $field_vis $fields),*);
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }
@@ -100,7 +100,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }
@@ -130,7 +130,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }
@@ -157,7 +157,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
-            fn escape(&self, $w: &mut impl std::io::Write) -> std::io::Result<()> {
+            fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
             }

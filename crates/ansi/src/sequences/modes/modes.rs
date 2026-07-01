@@ -21,25 +21,25 @@ impl Modes {
 
     pub fn set(&mut self, mode: Mode) -> &'_ mut ModeSetting {
         self.entry(mode)
-            .and_modify(|setting| setting.set())
+            .and_modify(|setting| *setting = ModeSetting::Set)
             .or_insert(ModeSetting::Set)
     }
 
     pub fn set_permanently(&mut self, mode: Mode) -> &'_ mut ModeSetting {
         self.entry(mode)
-            .and_modify(|setting| setting.set_permanently())
+            .and_modify(|setting| *setting = ModeSetting::PermanentlySet)
             .or_insert(ModeSetting::PermanentlySet)
     }
 
     pub fn reset(&mut self, mode: Mode) -> &'_ mut ModeSetting {
         self.entry(mode)
-            .and_modify(|setting| setting.reset())
+            .and_modify(|setting| *setting = ModeSetting::Reset)
             .or_insert(ModeSetting::Reset)
     }
 
     pub fn reset_permanently(&mut self, mode: Mode) -> &'_ mut ModeSetting {
         self.entry(mode)
-            .and_modify(|setting| setting.reset_permanently())
+            .and_modify(|setting| *setting = ModeSetting::PermanentlyReset)
             .or_insert(ModeSetting::PermanentlyReset)
     }
 

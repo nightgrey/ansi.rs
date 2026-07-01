@@ -1,10 +1,10 @@
 pub const trait Escape {
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()>;
 }
 
 impl<T: AsRef<str>> Escape for T {
     #[inline]
-    fn escape(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         w.write_all(self.as_ref().as_bytes())
     }
 }

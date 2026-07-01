@@ -29,23 +29,7 @@ pub enum ModeSetting {
     PermanentlyReset = 4,
 }
 
-impl ModeSetting {
-    pub fn set(&mut self) {
-        *self = Self::Set;
-    }
-
-    pub fn reset(&mut self) {
-        *self = Self::Reset;
-    }
-
-    pub fn reset_permanently(&mut self) {
-        *self = Self::PermanentlyReset;
-    }
-
-    pub fn set_permanently(&mut self) {
-        *self = Self::PermanentlySet;
-    }
-
+const impl ModeSetting {
     pub fn is_not_recognized(&self) -> bool {
         matches!(self, Self::NotRecognized)
     }

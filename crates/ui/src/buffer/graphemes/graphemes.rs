@@ -99,70 +99,40 @@ impl Graphemes {
         }
     }
 
-    /// Get the stored grapheme cluster for the given slot or a default.
-    /// Fallible resolution with a fallback default.
+    /// Resolve a grapheme handle to a `&str` or `None`.
+    ///
+    /// - Inline graphemes borrow from the grapheme handle.
+    /// - Extended graphemes borrow from the arena.
+    /// - Empty graphemes yield `None`.
     #[inline]
-    pub fn try_get_or<'a>(
-        &'a self,
-        grapheme: &'a Grapheme,
-        default: &'a str,
-    ) -> Result<&'a str, GraphemesError> {
+    pub fn get<'a>(&'a self, grapheme: &'a Grapheme) -> Option<&'a str> {
         if grapheme.is_empty() {
-            Ok(default)
+            None
         } else if grapheme.is_extended() {
-            Slot::try_from_grapheme(*grapheme)
-                .and_then(|slot| self.try_resolve(slot))
+            self.try_resolve(Slot::try_from(grapheme).ok()?)
                 .map(|meta| unsafe {
                     std::str::from_utf8_unchecked(self.inner.get_unchecked(meta.start..meta.end))
-                })
-                .or(Ok(default))
+                }).ok()
         } else {
-            Ok(grapheme.as_inline_str())
+            Some(grapheme.as_inline_str())
         }
     }
 
-    /// Resolve a grapheme handle to a `&str`, returning `default` for empty
-    /// or unresolvable handles.
+    /// Resolve a grapheme handle to a `&str`.
     ///
-    /// Inline graphemes read zero-copy from the handle. Extended graphemes
-    /// borrow from the arena buffer. Empty handles yield `default`.
+    /// - Inline graphemes borrow from the grapheme handle.
+    /// - Extended graphemes borrow from the arena.
+    /// - Empty graphemes yield `default`.
     #[inline]
     pub fn get_or<'a>(&'a self, grapheme: &'a Grapheme, default: &'a str) -> &'a str {
-        self.try_get(grapheme).unwrap_or(default)
+        self.get(grapheme).unwrap_or(default)
     }
 
-    /// Get the stored grapheme cluster for the given slot.
-    /// Fallible resolution: returns `Err` for out-of-bounds or
-    /// already-freed handles.
-    ///
-    /// Prefer [`get`](Self::get) when handle validity is guaranteed.
-    #[inline]
-    pub fn try_get<'a>(&'a self, grapheme: &'a Grapheme) -> Result<&'a str, GraphemesError> {
-        Self::try_get_or(self, grapheme, "")
-    }
-
-    /// Resolve a grapheme handle to a `&str`, returning `""` for empty or
-    /// unresolvable handles.
-    ///
-    /// This is the primary string resolution method. Inline graphemes are
-    /// zero-copy; extended graphemes borrow from the arena buffer.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let mut arena = Graphemes::new();
-    /// let g = arena.insert("hello");
-    /// assert_eq!(arena.get(&g), "hello");
-    /// ```
-    #[inline]
-    pub fn get<'a>(&'a self, grapheme: &'a Grapheme) -> &'a str {
-        self.try_get(grapheme).unwrap_or("")
-    }
 
     /// Returns `true` if the arena contains the given slot.
     #[inline]
     pub fn contains(&self, grapheme: Grapheme) -> bool {
-        match Slot::try_from_grapheme(grapheme) {
+        match Slot::try_from(grapheme) {
             Ok(slot) => self.try_get_len(slot).is_ok(),
             Err(_) => false,
         }
@@ -194,7 +164,7 @@ impl Graphemes {
         self.inner[index + Self::PREFIX..index + needed].copy_from_slice(s.as_bytes());
 
         self.len += needed;
-        Ok(slot.into_grapheme())
+        Ok(slot.into())
     }
 
     /// Infallible [`try_insert`](Self::try_insert).
@@ -213,7 +183,7 @@ impl Graphemes {
     /// Returns `Err` for an out-of-bounds handle or a double-release, leaving
     /// the arena unchanged.
     pub fn try_remove(&mut self, g: Grapheme) -> Result<(), GraphemesError> {
-        let slot = Slot::try_from_grapheme(g)?;
+        let slot = Slot::try_from(g)?;
         let meta = self.try_resolve(slot)?;
         let index = meta.index();
 
@@ -431,13 +401,13 @@ impl fmt::Debug for Graphemes {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum GraphemesError {
     #[error("arena is full")]
     Full,
 
-    #[error("{len} bytes needs an arena (inline holds at most 4 bytes)")]
-    RequiresStorage { len: usize },
+    #[error("requires an arena for {len} bytes")]
+    RequiresArena { len: usize },
 
     #[error("{len} bytes exceeds the maximum entry length ({max} bytes)")]
     TooLong { len: usize, max: usize },
@@ -448,12 +418,16 @@ pub enum GraphemesError {
     #[error("{_0:?} was already freed")]
     DoubleRelease(Slot),
 
+    #[error("{_0:?} not found")]
+    NotFound(Slot),
+
     #[error("invalid")]
     Invalid,
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::Source;
     use super::*;
 
     /// Cross-check the two free indexes and the `free_bytes == len - count`
@@ -485,7 +459,7 @@ mod tests {
         let mut arena = Graphemes::new();
         let s = "hello, 世界!";
         let g = arena.try_insert(s).unwrap();
-        assert_eq!(arena.get(&g), s);
+        assert_eq!(arena.get(&g), Some(s));
         assert_eq!(arena.count_occupied(), Graphemes::PREFIX + s.len());
         check_invariants(&arena);
     }
@@ -501,7 +475,7 @@ mod tests {
         ];
         let handles: Vec<_> = entries.iter().map(|s| arena.insert(s)).collect();
         for (h, &expected) in handles.iter().zip(entries.iter()) {
-            assert_eq!(arena.get(h), expected);
+            assert_eq!(arena.get(h), Some(expected));
         }
         check_invariants(&arena);
     }
@@ -521,13 +495,13 @@ mod tests {
         );
 
         let g3 = arena.try_insert("reuse!").unwrap(); // best-fit -> slot 0
-        assert_eq!(g3.slot(), g1.slot());
+        assert_eq!(Slot::try_from(g3), Slot::try_from(g1));
         assert_eq!(
             arena.count_total(),
             len_before,
             "reuse did not grow the arena"
         );
-        assert_eq!(arena.get(&g3), "reuse!");
+        assert_eq!(arena.get(&g3), Some("reuse!"));
         check_invariants(&arena);
     }
 
@@ -562,13 +536,13 @@ mod tests {
 
         let big = "DDDDDDDDDDDDDD"; // 14 + 2 = 16 total
         let gd = arena.try_insert(big).unwrap();
-        assert_eq!(gd.slot(), ga.slot());
+        assert_eq!(Slot::try_from(gd), Slot::try_from(ga));
         assert_eq!(
             arena.count_total(),
             len_before,
             "coalesced gap absorbed the entry"
         );
-        assert_eq!(arena.get(&gd), big);
+        assert_eq!(arena.get(&gd), Some(big));
         check_invariants(&arena);
     }
 
@@ -584,7 +558,7 @@ mod tests {
         arena.remove(big); // free (12,16)
 
         let g = arena.try_insert("xy").unwrap(); // needs 4 -> best-fit (0,4)
-        assert_eq!(g.slot(), small.slot());
+        assert_eq!(Slot::try_from(g), Slot::try_from(small));
         check_invariants(&arena);
     }
 
@@ -598,7 +572,7 @@ mod tests {
         arena.remove(ge); // free (0,8)
 
         let gf = arena.try_insert("FFFF").unwrap(); // 4+2=6 -> slot 0, sliver (6,2)
-        assert_eq!(gf.slot(), ge.slot());
+        assert_eq!(Slot::try_from(gf), Slot::try_from(ge));
         assert_eq!(arena.count_free(), 2, "sliver tracked, not dropped");
 
         // Releasing the guard coalesces with the sliver and truncates the tail

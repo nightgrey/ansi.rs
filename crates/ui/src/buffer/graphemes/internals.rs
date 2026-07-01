@@ -73,17 +73,6 @@ const impl Slot {
     }
 
     #[inline]
-    pub fn try_from_grapheme(value: Grapheme) -> Result<Self, GraphemesError> {
-        if !value.is_extended() {
-            return Err(GraphemesError::Invalid);
-        }
-
-        let slice = value.as_bytes();
-        // The low 3 bytes hold a 24-bit slot, so the value is always <= MAX.
-        Ok(Self(u32::from_le_bytes([slice[0], slice[1], slice[2], 0])))
-    }
-
-    #[inline]
     pub fn try_from_usize(value: usize) -> Result<Self, GraphemesError> {
         // Validate before narrowing: a bare `as u32` would alias large values
         // down into the valid 24-bit range.
@@ -92,20 +81,6 @@ const impl Slot {
         } else {
             Err(GraphemesError::Invalid)
         }
-    }
-
-    /// Pack this slot into an extended [`Grapheme`] handle.
-    ///
-    /// Writes the 24-bit slot into the low 3 bytes and sets the 4th byte
-    /// to the extended sentinel tag (`0x01`).
-    #[inline]
-    pub fn into_grapheme(self) -> Grapheme {
-        Grapheme::from_bytes_unchecked([
-            self.as_u8(),
-            (self.as_u32() >> 8) as u8,
-            (self.as_u32() >> 16) as u8,
-            Grapheme::EXTENDED_TAG,
-        ])
     }
 
     /// The raw `u32` value of this slot.
@@ -163,5 +138,37 @@ const impl PartialEq<Slot> for u32 {
 const impl PartialOrd<Slot> for u32 {
     fn partial_cmp(&self, other: &Slot) -> Option<std::cmp::Ordering> {
         self.partial_cmp(&other.0)
+    }
+}
+
+const impl TryFrom<Grapheme> for Slot {
+    type Error = GraphemesError;
+
+    fn try_from(value: Grapheme) -> Result<Self, Self::Error> {
+        if value.is_extended() {
+            let bytes = value.as_inner();
+            // The low 3 bytes hold a 24-bit slot, so the value is always <= MAX.
+            Ok(Self(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], 0])))
+        } else {
+            Err(GraphemesError::Invalid)
+        }
+    }
+}
+const impl TryFrom<&Grapheme> for Slot {
+    type Error = GraphemesError;
+
+    fn try_from(value: &Grapheme) -> Result<Self, Self::Error> {
+        Slot::try_from(*value)
+    }
+}
+
+const impl From<Slot> for Grapheme {
+    fn from(value: Slot) -> Self {
+        Grapheme::from_bytes_unchecked([
+            value.as_u8(),
+            (value.as_u32() >> 8) as u8,
+            (value.as_u32() >> 16) as u8,
+            Grapheme::EXTENDED_TAG,
+        ])
     }
 }

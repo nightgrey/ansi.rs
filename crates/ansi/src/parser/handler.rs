@@ -21,7 +21,3 @@ pub trait Handler {
 
     fn osc_end(&mut self, byte: u8) {}
 }
-
-pub trait Utf8Handler: Handler {
-    fn char(&mut self, char: char) {}
-}

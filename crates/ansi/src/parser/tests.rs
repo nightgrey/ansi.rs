@@ -105,11 +105,6 @@ impl Handler for Recorder {
     }
 }
 
-impl Utf8Handler for Recorder {
-    fn char(&mut self, char: char) {
-        self.push(Record::Char(char));
-    }
-}
 
 impl Debug for Recorder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

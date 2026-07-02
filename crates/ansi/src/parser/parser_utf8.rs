@@ -1,5 +1,10 @@
 use super::*;
 
+
+pub trait Utf8Handler: Handler {
+    fn char(&mut self, char: char) {}
+}
+
 #[derive(Debug, Default)]
 pub struct Utf8Parser {
     inner: Parser,
@@ -35,6 +40,11 @@ mod tests {
     use crate::parser::tests::{Record, Recorder};
     use crate::{Parameters, assert_utf8_parser};
 
+    impl Utf8Handler for Recorder {
+        fn char(&mut self, char: char) {
+            self.push(Record::Char(char));
+        }
+    }
     mod utf8 {
         use super::*;
 

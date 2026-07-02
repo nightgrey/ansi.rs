@@ -4,117 +4,6 @@ use std::borrow::Borrow;
 use arrayvec::ArrayVec;
 use utils::{NestedMut};
 
-const UTF8_CONTINUATION_MASK: u8 = 0b0011_1111;
-
-#[derive(Debug)]
-pub struct Utf8 {
-    inner: [u8; char::MAX_LEN_UTF8],
-    codepoint: u32,
-    len: u8,
-}
-
-const impl Utf8 {
-    pub const REPLACEMENT_CHARACTER: Self = Self {
-        inner: [239, 191, 189, 0],
-        codepoint: char::REPLACEMENT_CHARACTER as u32,
-        len: 3,
-    };
-    pub const EMPTY: Self = Self {
-        inner: [0; char::MAX_LEN_UTF8],
-        codepoint: 0,
-        len: 0,
-    };
-
-    pub fn new() -> Self {
-        Self {
-            inner: [0; char::MAX_LEN_UTF8],
-            codepoint: 0,
-            len: 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    pub fn is_partial(&self) -> bool {
-        // If the byte at [len - 1] is 0 for a multi-byte sequence (len >= 2), the last continuation byte hasn't been written yet.
-        self.len >= 2 && self.inner[(self.len - 1) as usize] == 0
-    }
-
-    #[inline]
-    pub fn set_byte_1(&mut self, byte: u8) {
-        self.codepoint |= (byte & UTF8_CONTINUATION_MASK) as u32;
-        self.set(byte, 1);
-    }
-
-    #[inline]
-    pub fn set_byte_2_top(&mut self, byte: u8) {
-        self.codepoint |= ((byte & 0b0001_1111) as u32) << 6;
-        self.set_top(byte, 2);
-    }
-
-    #[inline]
-    pub fn set_byte_2(&mut self, byte: u8) {
-        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 6;
-        self.set(byte, 2);
-    }
-
-    #[inline]
-    pub fn set_byte_3_top(&mut self, byte: u8) {
-        self.codepoint |= ((byte & 0b0000_1111) as u32) << 12;
-        self.set_top(byte, 3);
-    }
-
-    #[inline]
-    pub fn set_byte_3(&mut self, byte: u8) {
-        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 12;
-        self.set(byte, 3);
-    }
-
-    #[inline]
-    pub fn set_byte_4_top(&mut self, byte: u8) {
-        self.codepoint |= ((byte & 0b0000_0111) as u32) << 18;
-        self.set_top(byte, 4);
-    }
-
-    #[inline]
-    fn set(&mut self, byte: u8, from: usize) {
-        debug_assert!(from <= self.len as usize);
-        self.inner[self.len as usize - from] = byte;
-    }
-
-    #[inline]
-    fn set_top(&mut self, byte: u8, len: usize) {
-        debug_assert!(len <= char::MAX_LEN_UTF8);
-        self.len = len as u8;
-        self.inner[0] = byte;
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        *self = Self::EMPTY;
-    }
-
-    #[inline]
-    pub fn as_char(&self) -> char {
-        unsafe { char::from_u32_unchecked(self.codepoint) }
-    }
-}
-
-const impl AsRef<[u8]> for Utf8 {
-    fn as_ref(&self) -> &[u8] {
-        &self.inner[..self.len as usize]
-    }
-}
-
-const impl Default for Utf8 {
-    fn default() -> Self {
-        Self::EMPTY
-    }
-}
-
-
 /// Accumulator for the numeric parameter string of an ECMA-48 CSI or DCS
 /// control sequence.
 ///
@@ -274,3 +163,115 @@ impl Borrow<Params> for ParametersAccumulator {
 }
 
 pub type IntermediatesAccumulator = ArrayVec<u8, 2>;
+
+
+
+const UTF8_CONTINUATION_MASK: u8 = 0b0011_1111;
+
+#[derive(Debug)]
+pub struct Utf8 {
+    inner: [u8; char::MAX_LEN_UTF8],
+    codepoint: u32,
+    len: u8,
+}
+
+const impl Utf8 {
+    pub const REPLACEMENT_CHARACTER: Self = Self {
+        inner: [239, 191, 189, 0],
+        codepoint: char::REPLACEMENT_CHARACTER as u32,
+        len: 3,
+    };
+    pub const EMPTY: Self = Self {
+        inner: [0; char::MAX_LEN_UTF8],
+        codepoint: 0,
+        len: 0,
+    };
+
+    pub fn new() -> Self {
+        Self {
+            inner: [0; char::MAX_LEN_UTF8],
+            codepoint: 0,
+            len: 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn is_partial(&self) -> bool {
+        // If the byte at [len - 1] is 0 for a multi-byte sequence (len >= 2), the last continuation byte hasn't been written yet.
+        self.len >= 2 && self.inner[(self.len - 1) as usize] == 0
+    }
+
+    #[inline]
+    pub fn set_byte_1(&mut self, byte: u8) {
+        self.codepoint |= (byte & UTF8_CONTINUATION_MASK) as u32;
+        self.set(byte, 1);
+    }
+
+    #[inline]
+    pub fn set_byte_2_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0001_1111) as u32) << 6;
+        self.set_top(byte, 2);
+    }
+
+    #[inline]
+    pub fn set_byte_2(&mut self, byte: u8) {
+        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 6;
+        self.set(byte, 2);
+    }
+
+    #[inline]
+    pub fn set_byte_3_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0000_1111) as u32) << 12;
+        self.set_top(byte, 3);
+    }
+
+    #[inline]
+    pub fn set_byte_3(&mut self, byte: u8) {
+        self.codepoint |= ((byte & UTF8_CONTINUATION_MASK) as u32) << 12;
+        self.set(byte, 3);
+    }
+
+    #[inline]
+    pub fn set_byte_4_top(&mut self, byte: u8) {
+        self.codepoint |= ((byte & 0b0000_0111) as u32) << 18;
+        self.set_top(byte, 4);
+    }
+
+    #[inline]
+    fn set(&mut self, byte: u8, from: usize) {
+        debug_assert!(from <= self.len as usize);
+        self.inner[self.len as usize - from] = byte;
+    }
+
+    #[inline]
+    fn set_top(&mut self, byte: u8, len: usize) {
+        debug_assert!(len <= char::MAX_LEN_UTF8);
+        self.len = len as u8;
+        self.inner[0] = byte;
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::EMPTY;
+    }
+
+    #[inline]
+    pub fn as_char(&self) -> char {
+        unsafe { char::from_u32_unchecked(self.codepoint) }
+    }
+}
+
+const impl AsRef<[u8]> for Utf8 {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner[..self.len as usize]
+    }
+}
+
+const impl Default for Utf8 {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}

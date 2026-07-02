@@ -343,7 +343,7 @@ macro_rules! const_bitflags {
                 Self::new(value)
             }
         }
-        impl ::std::default::Default for $Name {
+        const impl ::std::default::Default for $Name {
             #[inline]
             fn default() -> Self {
                 Self::None

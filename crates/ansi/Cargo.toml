@@ -14,6 +14,8 @@ maybe-derive = { workspace = true }
 derive_more = { workspace = true }
 signal-hook = "0.4.4"
 signal-hook-sys = "0.1.0"
+unicode-segmentation = "1.13.3"
+compact_str = "0.9.1"
 
 arrayvec = { workspace = true }
 filedescriptor = "*"

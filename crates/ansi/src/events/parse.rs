@@ -38,31 +38,10 @@
 // The biggest thing to decide when you wire this up for real: decode currently mimics the reference's "buffer ends mid-sequence → return what we have as Unknown" behavior. For the Events<R: Read> iterator you'll want those truncation paths (i >= b.len() returns) to become an Incomplete outcome plus a more flag for the lone-ESC case, as we discussed — they're easy to spot since they're all return (i, Some(unknown(&b[..i]))) right after an end-of-buffer check.
 
 use bitflags::*;
+use unicode_segmentation::UnicodeSegmentation;
+use geometry::{Point, Size};
 use utils::const_bitflags;
 use super::*;
-
-// C0/C1 bytes used by the decoder.
-const NUL: u8 = 0x00;
-const SOH: u8 = 0x01;
-const BEL: u8 = 0x07;
-const BS: u8 = 0x08;
-const HT: u8 = 0x09;
-const CR: u8 = 0x0D;
-const CAN: u8 = 0x18;
-const SUB: u8 = 0x1A;
-const ESC: u8 = 0x1B;
-const FS: u8 = 0x1C;
-const US: u8 = 0x1F;
-const SP: u8 = 0x20;
-const DEL: u8 = 0x7F;
-const SS3: u8 = 0x8F;
-const DCS: u8 = 0x90;
-const SOS: u8 = 0x98;
-const CSI: u8 = 0x9B;
-const ST: u8 = 0x9C;
-const OSC: u8 = 0x9D;
-const PM: u8 = 0x9E;
-const APC: u8 = 0x9F;
 
 const_bitflags! {
     pub struct Flags(u16);
@@ -195,7 +174,7 @@ impl Decoder {
             ESC => {
                 if buf.len() == 1 {
                     // Escape key
-                    return (1, Some(Event::Key(press(Key::Escape))));
+                    return (1, Some(Event::Key(KeyEvent::Up(Code::Escape))));
                 }
 
                 match buf[1] {
@@ -208,18 +187,17 @@ impl Decoder {
                     b'X' => self.parse_st_terminated(SOS, b'X', None, buf),
                     _ => {
                         let (n, event) = self.decode(&buf[1..]);
-                        if let Some(Event::Key(mut k)) = event
-                            && k.kind == KeyKind::Press
+                        if let Some(Event::Key(mut key_event)) = event
+                            && key_event.kind == KeyKind::Down
                         {
-                            k.text = None;
-                            k.meta |= Meta::Alt;
-                            return (n + 1, Some(Event::Key(k)));
+                            key_event.meta |= Meta::Alt;
+                            return (n + 1, Some(Event::Key(key_event)));
                         }
 
                         // Not a key sequence, nor an alt modified key
                         // sequence. In that case, just report a single escape
                         // key.
-                        (1, Some(Event::Key(press(Key::Escape))))
+                        (1, Some(Event::Key(KeyEvent::Up(Code::Escape))))
                     }
                 }
             }
@@ -236,7 +214,7 @@ impl Decoder {
                 } else if (0x80..=0x9F).contains(&b) {
                     // C1 control code. UTF-8 never starts with a C1 control
                     // code; encode these as Ctrl+Alt+<code - 0x40>.
-                    let key = Key::Char((b - 0x40) as char);
+                    let key = Code::Char((b - 0x40) as char);
                     (1, Some(Event::Key(press_mod(key, Meta::Ctrl | Meta::Alt))))
                 } else {
                     self.parse_utf8(buf)
@@ -249,48 +227,44 @@ impl Decoder {
         let k = match b {
             NUL => {
                 if self.flags.contains(Flags::CtrlAt) {
-                    press_mod(Key::Char('@'), Meta::Ctrl)
+                    press_mod(Code::Char('@'), Meta::Ctrl)
                 } else {
-                    press_mod(Key::Space, Meta::Ctrl)
+                    press_mod(Code::Space, Meta::Ctrl)
                 }
             }
-            BS => press_mod(Key::Char('h'), Meta::Ctrl),
+            BS => press_mod(Code::Char('h'), Meta::Ctrl),
             HT => {
                 if self.flags.contains(Flags::CtrlI) {
-                    press_mod(Key::Char('i'), Meta::Ctrl)
+                    press_mod(Code::Char('i'), Meta::Ctrl)
                 } else {
-                    press(Key::Tab)
+                    KeyEvent::Up(Code::Tab)
                 }
             }
             CR => {
                 if self.flags.contains(Flags::CtrlM) {
-                    press_mod(Key::Char('m'), Meta::Ctrl)
+                    press_mod(Code::Char('m'), Meta::Ctrl)
                 } else {
-                    press(Key::Enter)
+                    KeyEvent::Up(Code::Enter)
                 }
             }
             ESC => {
                 if self.flags.contains(Flags::CtrlOpenBracket) {
-                    press_mod(Key::Char('['), Meta::Ctrl)
+                    press_mod(Code::Char('['), Meta::Ctrl)
                 } else {
-                    press(Key::Escape)
+                    KeyEvent::Up(Code::Escape)
                 }
             }
             DEL => {
                 if self.flags.contains(Flags::Backspace) {
-                    press(Key::Delete)
+                    KeyEvent::Up(Code::Delete)
                 } else {
-                    press(Key::Backspace)
+                    KeyEvent::Up(Code::Backspace)
                 }
             }
-            SP => {
-                let mut k = press(Key::Space);
-                k.text = Some(" ".into());
-                k
-            }
+            SP => KeyEvent::Up(Code::Space),
             // Use lower case letters for control codes.
-            SOH..=SUB => press_mod(Key::Char((b + 0x60) as char), Meta::Ctrl),
-            FS..=US => press_mod(Key::Char((b + 0x40) as char), Meta::Ctrl),
+            SOH..=SUB => press_mod(Code::Char((b + 0x60) as char), Meta::Ctrl),
+            FS..=US => press_mod(Code::Char((b + 0x40) as char), Meta::Ctrl),
             _ => return unknown(&[b]),
         };
         Event::Key(k)
@@ -308,30 +282,30 @@ impl Decoder {
         } else if c < DEL {
             // ASCII printable characters
             let code = c as char;
-            let mut k = press(Key::Char(code));
-            k.text = Some(code.to_string());
+            let mut k = KeyEvent::Up(Code::Char(code));
             if code.is_ascii_uppercase() {
                 // Convert upper case letters to lower case + shift modifier.
-                k.key = Key::Char(code.to_ascii_lowercase());
-                k.shifted_key = Some(code);
+                k.code = Code::Char(code.to_ascii_lowercase());
                 k.meta |= Meta::Shift;
             }
             return (1, Some(Event::Key(k)));
         }
 
+
         let Some((code, _)) = utf8::first_char(b) else {
             return (1, Some(unknown(&b[..1])));
         };
 
+
         // Use `Key::Extended` for multi-rune graphemes.
         let cluster = grapheme::first_cluster(b);
         let key = if cluster.chars().count() > 1 {
-            Key::Extended
+            Code::Extended(cluster.to_compact_string())
         } else {
-            Key::Char(code)
+            Code::Char(code)
         };
 
-        let mut k = press(key);
+        let mut k = KeyEvent::Up(key);
         k.text = Some(cluster.to_string());
         (cluster.len(), Some(Event::Key(k)))
     }
@@ -339,29 +313,21 @@ impl Decoder {
 
 // ---- Key event helpers ----------------------------------------------------
 
-fn press(key: Key) -> KeyEvent {
+fn press_mod(key: Code, meta: Meta) -> KeyEvent {
     KeyEvent {
-        key,
-        kind: KeyKind::Press,
-        ..Default::default()
+        code: key,
+        kind: KeyKind::Down,
+        meta: Meta::empty(),
+        repeat: false,
     }
 }
 
-fn press_mod(key: Key, meta: Meta) -> KeyEvent {
-    KeyEvent {
-        key,
-        kind: KeyKind::Press,
-        meta,
-        ..Default::default()
-    }
-}
-
-fn arrow(n: u8) -> Key {
+fn arrow(n: u8) -> Code {
     match n {
-        0 => Key::Up,
-        1 => Key::Down,
-        2 => Key::Right,
-        _ => Key::Left,
+        0 => Code::Up,
+        1 => Code::Down,
+        2 => Code::Right,
+        _ => Code::Left,
     }
 }
 
@@ -421,7 +387,7 @@ impl Decoder {
     fn parse_csi(&mut self, b: &[u8]) -> (usize, Option<Event>) {
         if b.len() == 2 && b[0] == ESC {
             // Shortcut if this is an alt+[ key.
-            return (2, Some(Event::Key(press_mod(Key::Char(b[1] as char), Meta::Alt))));
+            return (2, Some(Event::Key(press_mod(Code::Char(b[1] as char), Meta::Alt))));
         }
 
         let mut params = [Param::MISSING; MAX_PARAMS];
@@ -524,7 +490,7 @@ impl Decoder {
             (b'?', 0, b'u') => {
                 // Kitty keyboard enhancement flags
                 let flags = pa.param(0, -1).unwrap_or(-1);
-                Some(Event::KeyboardEnhancements(flags))
+                Some(Event::KeyEnhancements(flags))
             }
             (b'?', 0, b'R') => 'arm: {
                 // DECXCPR cursor position report. This report may include a
@@ -577,7 +543,7 @@ impl Decoder {
                         // cursor is on row 1, so report both. For an
                         // unambiguous report, use DECXCPR (CSI ? 6 n) instead.
                         break 'arm Some(Event::Multi(vec![
-                            Event::Key(press_mod(Key::F(3), from_xterm_mod(col - 1))),
+                            Event::Key(press_mod(Code::F(3), from_xterm_mod(col - 1))),
                             m,
                         ]));
                     }
@@ -644,24 +610,24 @@ impl Decoder {
                 }
 
                 let key = match param {
-                    1 if self.flags.contains(Flags::Find) => Key::Find,
-                    1 => Key::Home,
-                    2 => Key::Insert,
-                    3 => Key::Delete,
-                    4 if self.flags.contains(Flags::Select) => Key::Select,
-                    4 => Key::End,
-                    5 => Key::PageUp,
-                    6 => Key::PageDown,
-                    7 => Key::Home,
-                    8 => Key::End,
-                    11..=15 => Key::F(1 + (param - 11) as u8),
-                    17..=21 => Key::F(6 + (param - 17) as u8),
-                    23..=26 => Key::F(11 + (param - 23) as u8),
-                    28 | 29 => Key::F(15 + (param - 28) as u8),
-                    31..=34 => Key::F(17 + (param - 31) as u8),
+                    1 if self.flags.contains(Flags::Find) => Code::Find,
+                    1 => Code::Home,
+                    2 => Code::Insert,
+                    3 => Code::Delete,
+                    4 if self.flags.contains(Flags::Select) => Code::Select,
+                    4 => Code::End,
+                    5 => Code::PageUp,
+                    6 => Code::PageDown,
+                    7 => Code::Home,
+                    8 => Code::End,
+                    11..=15 => Code::F(1 + (param - 11) as u8),
+                    17..=21 => Code::F(6 + (param - 17) as u8),
+                    23..=26 => Code::F(11 + (param - 23) as u8),
+                    28 | 29 => Code::F(15 + (param - 28) as u8),
+                    31..=34 => Code::F(17 + (param - 31) as u8),
                     _ => break 'arm None,
                 };
-                let mut k = press(key);
+                let mut k = KeyEvent::Up(key);
 
                 // Modifiers
                 let m = pa.param(1, -1).unwrap_or(-1);
@@ -688,7 +654,7 @@ impl Decoder {
                         // Report terminal window size in pixels.
                         let height = pa.param(1, 0).unwrap_or(0);
                         let width = pa.param(2, 0).unwrap_or(0);
-                        break 'arm Some(Event::PixelSize(Size::new(width, height)));
+                        break 'arm Some(Event::Resize(Size::new(width as u16, height as u16)));
                     }
                     (6, 3) => {
                         // Report terminal character cell size.
@@ -741,12 +707,12 @@ impl Decoder {
 fn csi_func_key(cmd: u8, pa: Params) -> Option<Event> {
     let mut k = match cmd {
         b'a'..=b'd' => press_mod(arrow(cmd - b'a'), Meta::Shift),
-        b'A'..=b'D' => press(arrow(cmd - b'A')),
-        b'E' => press(Key::Begin),
-        b'F' => press(Key::End),
-        b'H' => press(Key::Home),
-        b'P'..=b'S' => press(Key::F(1 + cmd - b'P')),
-        b'Z' => press_mod(Key::Tab, Meta::Shift),
+        b'A'..=b'D' => KeyEvent::Up(arrow(cmd - b'A')),
+        b'E' => KeyEvent::Up(Code::Begin),
+        b'F' => KeyEvent::Up(Code::End),
+        b'H' => KeyEvent::Up(Code::Home),
+        b'P'..=b'S' => KeyEvent::Up(Code::F(1 + cmd - b'P')),
+        b'Z' => press_mod(Code::Tab, Meta::Shift),
         _ => return None,
     };
 
@@ -774,7 +740,7 @@ impl Decoder {
         if b.len() == 2 && b[0] == ESC {
             // Shortcut if this is an alt+O key.
             let c = (b[1] as char).to_ascii_lowercase();
-            return (2, Some(Event::Key(press_mod(Key::Char(c), Meta::Shift | Meta::Alt))));
+            return (2, Some(Event::Key(press_mod(Code::Char(c), Meta::Shift | Meta::Alt))));
         }
 
         let mut i = 0;
@@ -803,21 +769,21 @@ impl Decoder {
 
         let mut k = match gl {
             b'a'..=b'd' => press_mod(arrow(gl - b'a'), Meta::Ctrl),
-            b'A'..=b'D' => press(arrow(gl - b'A')),
-            b'E' => press(Key::Begin),
-            b'F' => press(Key::End),
-            b'H' => press(Key::Home),
-            b'P'..=b'S' => press(Key::F(1 + gl - b'P')),
-            b'M' => press(Key::KpEnter),
-            b'X' => press(Key::KpEqual),
+            b'A'..=b'D' => KeyEvent::Up(arrow(gl - b'A')),
+            b'E' => KeyEvent::Up(Code::Begin),
+            b'F' => KeyEvent::Up(Code::End),
+            b'H' => KeyEvent::Up(Code::Home),
+            b'P'..=b'S' => KeyEvent::Up(Code::F(1 + gl - b'P')),
+            b'M' => KeyEvent::Up(Code::KpEnter),
+            b'X' => KeyEvent::Up(Code::KpEqual),
             // VT220 application keypad: j..y
-            b'j' => press(Key::KpMultiply),
-            b'k' => press(Key::KpPlus),
-            b'l' => press(Key::KpComma),
-            b'm' => press(Key::KpMinus),
-            b'n' => press(Key::KpDecimal),
-            b'o' => press(Key::KpDivide),
-            b'p'..=b'y' => press(Key::Kp(gl - b'p')),
+            b'j' => KeyEvent::Up(Code::KpMultiply),
+            b'k' => KeyEvent::Up(Code::KpPlus),
+            b'l' => KeyEvent::Up(Code::KpComma),
+            b'm' => KeyEvent::Up(Code::KpMinus),
+            b'n' => KeyEvent::Up(Code::KpDecimal),
+            b'o' => KeyEvent::Up(Code::KpDivide),
+            b'p'..=b'y' => KeyEvent::Up(Code::Keypad(gl - b'p')),
             _ => return (i, Some(unknown_ss3(&b[..i]))),
         };
 
@@ -830,7 +796,7 @@ impl Decoder {
     }
 
     fn parse_osc(&mut self, b: &[u8]) -> (usize, Option<Event>) {
-        let default_key = |b: &[u8]| Event::Key(press_mod(Key::Char(b[1] as char), Meta::Alt));
+        let default_key = |b: &[u8]| Event::Key(press_mod(Code::Char(b[1] as char), Meta::Alt));
         if b.len() == 2 && b[0] == ESC {
             // Shortcut if this is an alt+] key.
             return (2, Some(default_key(b)));
@@ -941,9 +907,9 @@ impl Decoder {
             match intro8 {
                 SOS => {
                     let c = (b[1] as char).to_ascii_lowercase();
-                    (2, Some(Event::Key(press_mod(Key::Char(c), Meta::Shift | Meta::Alt))))
+                    (2, Some(Event::Key(press_mod(Code::Char(c), Meta::Shift | Meta::Alt))))
                 }
-                PM | APC => (2, Some(Event::Key(press_mod(Key::Char(b[1] as char), Meta::Alt)))),
+                PM | APC => (2, Some(Event::Key(press_mod(Code::Char(b[1] as char), Meta::Alt)))),
                 _ => (0, None),
             }
         };
@@ -1004,7 +970,7 @@ impl Decoder {
         if b.len() == 2 && b[0] == ESC {
             // Shortcut if this is an alt+P key.
             let c = (b[1] as char).to_ascii_lowercase();
-            return (2, Some(Event::Key(press_mod(Key::Char(c), Meta::Shift | Meta::Alt))));
+            return (2, Some(Event::Key(press_mod(Code::Char(c), Meta::Shift | Meta::Alt))));
         }
 
         let mut params = [Param::MISSING; 16];
@@ -1120,7 +1086,7 @@ impl Decoder {
     fn parse_apc(&mut self, b: &[u8]) -> (usize, Option<Event>) {
         if b.len() == 2 && b[0] == ESC {
             // Shortcut if this is an alt+_ key.
-            return (2, Some(Event::Key(press_mod(Key::Char(b[1] as char), Meta::Alt))));
+            return (2, Some(Event::Key(press_mod(Code::Char(b[1] as char), Meta::Alt))));
         }
 
         // APC sequences are introduced by APC (0x9F) or ESC _.
@@ -1182,89 +1148,89 @@ fn from_kitty_mod(m: i32) -> Meta {
 
 /// The Kitty keyboard protocol functional key mapping, including the faulty
 /// C0 mappings some terminals (WezTerm & friends) produce.
-fn kitty_key(code: u32) -> Option<(Key, Meta)> {
+fn kitty_key(code: u32) -> Option<(Code, Meta)> {
     let key = match code {
-        0x08 => Key::Backspace,
-        0x09 => Key::Tab,
-        0x0D => Key::Enter,
-        0x1B => Key::Escape,
-        0x7F => Key::Backspace,
+        0x08 => Code::Backspace,
+        0x09 => Code::Tab,
+        0x0D => Code::Enter,
+        0x1B => Code::Escape,
+        0x7F => Code::Backspace,
 
         // Faulty C0 mappings.
-        0x00 => return Some((Key::Space, Meta::Ctrl)),
+        0x00 => return Some((Code::Space, Meta::Ctrl)),
         c @ (0x01..=0x07 | 0x0A..=0x0C | 0x0E..=0x1A) => {
-            return Some((Key::Char((c as u8 + 0x60) as char), Meta::Ctrl));
+            return Some((Code::Char((c as u8 + 0x60) as char), Meta::Ctrl));
         }
-        c @ 0x1C..=0x1F => return Some((Key::Char((c as u8 + 0x40) as char), Meta::Ctrl)),
+        c @ 0x1C..=0x1F => return Some((Code::Char((c as u8 + 0x40) as char), Meta::Ctrl)),
 
-        57344 => Key::Escape,
-        57345 => Key::Enter,
-        57346 => Key::Tab,
-        57347 => Key::Backspace,
-        57348 => Key::Insert,
-        57349 => Key::Delete,
-        57350 => Key::Left,
-        57351 => Key::Right,
-        57352 => Key::Up,
-        57353 => Key::Down,
-        57354 => Key::PageUp,
-        57355 => Key::PageDown,
-        57356 => Key::Home,
-        57357 => Key::End,
-        57358 => Key::CapsLock,
-        57359 => Key::ScrollLock,
-        57360 => Key::NumLock,
-        57361 => Key::PrintScreen,
-        57362 => Key::Pause,
-        57363 => Key::Menu,
-        c @ 57364..=57398 => Key::F((c - 57363) as u8), // F1..=F35
-        c @ 57399..=57408 => Key::Kp((c - 57399) as u8), // Kp0..=Kp9
-        57409 => Key::KpDecimal,
-        57410 => Key::KpDivide,
-        57411 => Key::KpMultiply,
-        57412 => Key::KpMinus,
-        57413 => Key::KpPlus,
-        57414 => Key::KpEnter,
-        57415 => Key::KpEqual,
-        57416 => Key::KpSep,
-        57417 => Key::KpLeft,
-        57418 => Key::KpRight,
-        57419 => Key::KpUp,
-        57420 => Key::KpDown,
-        57421 => Key::KpPageUp,
-        57422 => Key::KpPageDown,
-        57423 => Key::KpHome,
-        57424 => Key::KpEnd,
-        57425 => Key::KpInsert,
-        57426 => Key::KpDelete,
-        57427 => Key::KpBegin,
-        57428 => Key::MediaPlay,
-        57429 => Key::MediaPause,
-        57430 => Key::MediaPlayPause,
-        57431 => Key::MediaReverse,
-        57432 => Key::MediaStop,
-        57433 => Key::MediaFastForward,
-        57434 => Key::MediaRewind,
-        57435 => Key::MediaNext,
-        57436 => Key::MediaPrev,
-        57437 => Key::MediaRecord,
-        57438 => Key::LowerVolume,
-        57439 => Key::RaiseVolume,
-        57440 => Key::Mute,
-        57441 => Key::LeftShift,
-        57442 => Key::LeftCtrl,
-        57443 => Key::LeftAlt,
-        57444 => Key::LeftSuper,
-        57445 => Key::LeftHyper,
-        57446 => Key::LeftMeta,
-        57447 => Key::RightShift,
-        57448 => Key::RightCtrl,
-        57449 => Key::RightAlt,
-        57450 => Key::RightSuper,
-        57451 => Key::RightHyper,
-        57452 => Key::RightMeta,
-        57453 => Key::IsoLevel3Shift,
-        57454 => Key::IsoLevel5Shift,
+        57344 => Code::Escape,
+        57345 => Code::Enter,
+        57346 => Code::Tab,
+        57347 => Code::Backspace,
+        57348 => Code::Insert,
+        57349 => Code::Delete,
+        57350 => Code::Left,
+        57351 => Code::Right,
+        57352 => Code::Up,
+        57353 => Code::Down,
+        57354 => Code::PageUp,
+        57355 => Code::PageDown,
+        57356 => Code::Home,
+        57357 => Code::End,
+        57358 => Code::CapsLock,
+        57359 => Code::ScrollLock,
+        57360 => Code::NumLock,
+        57361 => Code::PrintScreen,
+        57362 => Code::Pause,
+        57363 => Code::Menu,
+        c @ 57364..=57398 => Code::F((c - 57363) as u8), // F1..=F35
+        c @ 57399..=57408 => Code::Keypad((c - 57399) as u8), // Kp0..=Kp9
+        57409 => Code::KpDecimal,
+        57410 => Code::KpDivide,
+        57411 => Code::KpMultiply,
+        57412 => Code::KpMinus,
+        57413 => Code::KpPlus,
+        57414 => Code::KpEnter,
+        57415 => Code::KpEqual,
+        57416 => Code::KpSep,
+        57417 => Code::KpLeft,
+        57418 => Code::KpRight,
+        57419 => Code::KpUp,
+        57420 => Code::KpDown,
+        57421 => Code::KpPageUp,
+        57422 => Code::KpPageDown,
+        57423 => Code::KpHome,
+        57424 => Code::KpEnd,
+        57425 => Code::KpInsert,
+        57426 => Code::KpDelete,
+        57427 => Code::KpBegin,
+        57428 => Code::MediaPlay,
+        57429 => Code::MediaPause,
+        57430 => Code::MediaPlayPause,
+        57431 => Code::MediaReverse,
+        57432 => Code::MediaStop,
+        57433 => Code::MediaFastForward,
+        57434 => Code::MediaRewind,
+        57435 => Code::MediaNext,
+        57436 => Code::MediaPrev,
+        57437 => Code::MediaRecord,
+        57438 => Code::LowerVolume,
+        57439 => Code::RaiseVolume,
+        57440 => Code::Mute,
+        57441 => Code::LeftShift,
+        57442 => Code::LeftCtrl,
+        57443 => Code::LeftAlt,
+        57444 => Code::LeftSuper,
+        57445 => Code::LeftHyper,
+        57446 => Code::LeftMeta,
+        57447 => Code::RightShift,
+        57448 => Code::RightCtrl,
+        57449 => Code::RightAlt,
+        57450 => Code::RightSuper,
+        57451 => Code::RightHyper,
+        57452 => Code::RightMeta,
+        57453 => Code::IsoLevel3Shift,
+        57454 => Code::IsoLevel5Shift,
         _ => return None,
     };
     Some((key, Meta::empty()))
@@ -1288,7 +1254,7 @@ fn kitty_key(code: u32) -> Option<(Key, Meta)> {
 /// See <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>
 fn parse_kitty_keyboard(pa: Params) -> Event {
     let mut is_release = false;
-    let mut k = press(Key::Char(char::REPLACEMENT_CHARACTER));
+    let mut k = KeyEvent::Up(Code::Char(char::REPLACEMENT_CHARACTER));
     let mut text = String::new();
 
     // Parameters are separated by ';', subparameters by ':'.
@@ -1302,11 +1268,11 @@ fn parse_kitty_keyboard(pa: Params) -> Event {
                 let code = p.value_or(1) as u32;
                 match kitty_key(code) {
                     Some((key, meta)) => {
-                        k.key = key;
+                        k.code = key;
                         k.meta = meta;
                     }
                     None => {
-                        k.key = Key::Char(
+                        k.code = Code::Char(
                             char::from_u32(code).unwrap_or(char::REPLACEMENT_CHARACTER),
                         );
                     }
@@ -1375,14 +1341,14 @@ fn parse_kitty_keyboard(pa: Params) -> Event {
 
     if text.is_empty()
         && print_mod
-        && let Some(t) = keypad_text(k.key)
+        && let Some(t) = keypad_text(k.code)
     {
         text.push(t);
     }
 
     if text.is_empty()
         && print_mod
-        && let Key::Char(c) = k.key
+        && let Code::Char(c) = k.code
         && !c.is_control()
     {
         if key_mod.is_empty() {
@@ -1412,23 +1378,23 @@ fn parse_kitty_keyboard_ext(pa: Params, mut k: KeyEvent) -> Event {
         // The third parameter is the event type (defaults to 1).
         match pa.param(2, 1).unwrap_or(1) {
             2 => k.kind = KeyKind::Repeat,
-            3 => k.kind = KeyKind::Release,
+            3 => k.kind = KeyKind::Up,
             _ => {}
         }
     }
     Event::Key(k)
 }
 
-fn keypad_text(key: Key) -> Option<char> {
+fn keypad_text(key: Code) -> Option<char> {
     Some(match key {
-        Key::Kp(n) => (b'0' + n) as char,
-        Key::KpEqual => '=',
-        Key::KpMultiply => '*',
-        Key::KpPlus => '+',
-        Key::KpMinus => '-',
-        Key::KpDecimal => '.',
-        Key::KpDivide => '/',
-        Key::KpSep => ',',
+        Code::Keypad(n) => (b'0' + n) as char,
+        Code::KpEqual => '=',
+        Code::KpMultiply => '*',
+        Code::KpPlus => '+',
+        Code::KpMinus => '-',
+        Code::KpDecimal => '.',
+        Code::KpDivide => '/',
+        Code::KpSep => ',',
         _ => return None,
     })
 }
@@ -1445,14 +1411,14 @@ fn parse_xterm_modify_other_keys(pa: Params) -> Event {
     let meta = from_xterm_mod(xmod - 1);
 
     let key = match xcode as u32 {
-        0x08 => Key::Backspace,
-        0x09 => Key::Tab,
-        0x0D => Key::Enter,
-        0x1B => Key::Escape,
-        0x7F => Key::Backspace,
+        0x08 => Code::Backspace,
+        0x09 => Code::Tab,
+        0x0D => Code::Enter,
+        0x1B => Code::Escape,
+        0x7F => Code::Backspace,
         code => {
             let c = char::from_u32(code).unwrap_or(char::REPLACEMENT_CHARACTER);
-            let mut k = press_mod(Key::Char(c), meta);
+            let mut k = press_mod(Code::Char(c), meta);
             if meta.is_empty() || meta == Meta::Shift {
                 k.text = Some(c.to_string());
             }
@@ -1486,27 +1452,12 @@ fn parse_tertiary_dev_attrs(data: &[u8]) -> Event {
 
 // ---- Mouse -----------------------------------------------------------------
 
-/// A raw mouse button as encoded in X10/SGR mouse events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum MouseButton {
-    None,
-    Left,
-    Middle,
-    Right,
-    WheelUp,
-    WheelDown,
-    WheelLeft,
-    WheelRight,
-    Backward,
-    Forward,
-    Button10,
-    Button11,
-}
-
 /// Decodes the button bitfield shared by the X10 and SGR encodings.
 ///
 /// See <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates>
-fn parse_mouse_button(b: i32) -> (Meta, MouseButton, bool, bool) {
+fn mouse_event(param: i32, x: i32, y: i32, release: Option<bool>) -> Event {
+    let position = Point::new(x as u16, y as u16);
+
     // Mouse bit shifts.
     const BIT_SHIFT: i32 = 0b0000_0100;
     const BIT_ALT: i32 = 0b0000_1000;
@@ -1518,106 +1469,73 @@ fn parse_mouse_button(b: i32) -> (Meta, MouseButton, bool, bool) {
 
     // Modifiers
     let mut meta = Meta::empty();
-    if b & BIT_ALT != 0 {
+    if param & BIT_ALT != 0 {
         meta |= Meta::Alt;
     }
-    if b & BIT_CTRL != 0 {
+    if param & BIT_CTRL != 0 {
         meta |= Meta::Ctrl;
     }
-    if b & BIT_SHIFT != 0 {
+    if param & BIT_SHIFT != 0 {
         meta |= Meta::Shift;
     }
 
     let mut is_release = false;
-    let btn = if b & BIT_ADD != 0 {
-        match b & BITS_MASK {
-            0 => MouseButton::Backward,
-            1 => MouseButton::Forward,
-            2 => MouseButton::Button10,
-            _ => MouseButton::Button11,
-        }
-    } else if b & BIT_WHEEL != 0 {
-        match b & BITS_MASK {
-            0 => MouseButton::WheelUp,
-            1 => MouseButton::WheelDown,
-            2 => MouseButton::WheelLeft,
-            _ => MouseButton::WheelRight,
+
+    if param & BIT_WHEEL != 0 {
+        return Event::Scroll(ScrollEvent {
+            button: match param & BITS_MASK {
+                0 => ScrollButton::Up,
+                1 => ScrollButton::Down,
+                2 => ScrollButton::Left,
+                _ => ScrollButton::Right,
+            },
+            meta,
+            kind: if is_release { ScrollKind::End } else { ScrollKind::Move },
+            position,
+        });
+    }
+
+    // The motion bit doesn't get reported for wheel events.
+    let is_motion = param & BIT_MOTION != 0;
+
+    let button = if param & BIT_ADD != 0 {
+        match param & BITS_MASK {
+            0 => PointerButton::Backward,
+            1 => PointerButton::Forward,
+            2 => PointerButton::Button10,
+            _ => PointerButton::Button11,
         }
     } else {
-        match b & BITS_MASK {
-            0 => MouseButton::Left,
-            1 => MouseButton::Middle,
-            2 => MouseButton::Right,
+        match param & BITS_MASK {
+            0 => PointerButton::Left,
+            1 => PointerButton::Middle,
+            2 => PointerButton::Right,
             // X10 reports a button release as 0b0000_0011.
             _ => {
                 is_release = true;
-                MouseButton::None
+                PointerButton::None
             }
         }
     };
 
-    // The motion bit doesn't get reported for wheel events.
-    let is_motion = b & BIT_MOTION != 0 && !is_wheel(btn);
-
-    (meta, btn, is_release, is_motion)
-}
-
-fn is_wheel(btn: MouseButton) -> bool {
-    (MouseButton::WheelUp..=MouseButton::WheelRight).contains(&btn)
-}
-
-fn mouse_event(
-    btn: MouseButton,
-    meta: Meta,
-    x: i32,
-    y: i32,
-    is_release: bool,
-    is_motion: bool,
-) -> Event {
-    let position = Point::new(x, y);
-
-    if is_wheel(btn) {
-        // Wheel buttons don't have release events.
-        let kind = match btn {
-            MouseButton::WheelUp => ScrollKind::Up,
-            MouseButton::WheelDown => ScrollKind::Down,
-            MouseButton::WheelLeft => ScrollKind::Left,
-            _ => ScrollKind::Right,
-        };
-        return Event::Scroll(ScrollEvent { kind, meta, position });
-    }
-
-    // Motion can be reported as a release event in some terminals (Windows
-    // Terminal).
-    let kind = if is_motion {
-        PointerKind::Motion
-    } else if is_release {
-        PointerKind::Release
-    } else {
-        PointerKind::Press
-    };
-
     Event::Pointer(PointerEvent {
-        button: pointer_button(btn),
-        kind,
+        button,
+        // Motion can be reported as a release event in some terminals (Windows
+        // Terminal).
+        kind: if is_motion {
+            PointerKind::Move
+        } else if is_release {
+            PointerKind::Up
+        } else {
+            PointerKind::Down
+        },
         meta,
         position,
     })
 }
 
-fn pointer_button(btn: MouseButton) -> PointerButton {
-    match btn {
-        MouseButton::None => PointerButton::None,
-        MouseButton::Left => PointerButton::Left,
-        MouseButton::Middle => PointerButton::Middle,
-        MouseButton::Right => PointerButton::Right,
-        MouseButton::Backward => PointerButton::Backward,
-        MouseButton::Forward => PointerButton::Forward,
-        MouseButton::Button10 => PointerButton::Button10,
-        MouseButton::Button11 => PointerButton::Button11,
-        // Wheel buttons are reported as scroll events.
-        _ => PointerButton::None,
-    }
+fn is_wheel(btn: PointerButton) -> bool {
+    (PointerButton::WheelUp..=PointerButton::WheelRight).contains(&btn)
 }
 
 /// Parses SGR extended mouse events:
@@ -1634,10 +1552,7 @@ fn parse_sgr_mouse(final_byte: u8, pa: Params) -> Event {
     let x = pa.param(1, 1).unwrap_or(1);
     let y = pa.param(2, 1).unwrap_or(1);
     let release = final_byte == b'm';
-    let (meta, btn, _, is_motion) = parse_mouse_button(pa.param(0, 0).unwrap_or(0));
-
-    // (1,1) is the upper left; normalize to (0,0).
-    mouse_event(btn, meta, x - 1, y - 1, release, is_motion)
+    mouse_event(pa.param(0, 0).unwrap_or(0), x - 1, y - 1, Some(release))
 }
 
 const X10_MOUSE_BYTE_OFFSET: i32 = 32;
@@ -1659,14 +1574,11 @@ fn parse_x10_mouse(v: &[u8]) -> Event {
         // b < 32 should be impossible, but be defensive.
         b -= X10_MOUSE_BYTE_OFFSET;
     }
-
-    let (meta, btn, is_release, is_motion) = parse_mouse_button(b);
-
     // (1,1) is the upper left; normalize to (0,0).
     let x = v[1] as i32 - X10_MOUSE_BYTE_OFFSET - 1;
     let y = v[2] as i32 - X10_MOUSE_BYTE_OFFSET - 1;
 
-    mouse_event(btn, meta, x, y, is_release, is_motion)
+    mouse_event(b, x, y)
 }
 
 // ---- Termcap ---------------------------------------------------------------
@@ -1702,3 +1614,27 @@ fn parse_termcap(data: &[u8]) -> Event {
 
     Event::Capability(tc)
 }
+
+
+// C0/C1 bytes used by the decoder.
+const NUL: u8 = 0x00;
+const SOH: u8 = 0x01;
+const BEL: u8 = 0x07;
+const BS: u8 = 0x08;
+const HT: u8 = 0x09;
+const CR: u8 = 0x0D;
+const CAN: u8 = 0x18;
+const SUB: u8 = 0x1A;
+const ESC: u8 = 0x1B;
+const FS: u8 = 0x1C;
+const US: u8 = 0x1F;
+const SP: u8 = 0x20;
+const DEL: u8 = 0x7F;
+const SS3: u8 = 0x8F;
+const DCS: u8 = 0x90;
+const SOS: u8 = 0x98;
+const CSI: u8 = 0x9B;
+const ST: u8 = 0x9C;
+const OSC: u8 = 0x9D;
+const PM: u8 = 0x9E;
+const APC: u8 = 0x9F;

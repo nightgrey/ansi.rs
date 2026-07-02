@@ -218,42 +218,20 @@ impl Borrow<Params> for InternalParameters {
     }
 }
 
-const NUL: u8 = 0;
-const SOH: u8 = 1;
-const STX: u8 = 2;
-const ETX: u8 = 3;
-const EOT: u8 = 4;
-const ENQ: u8 = 5;
-const ACK: u8 = 6;
-const BEL: u8 = 7;
-const BS: u8 = 8;
-const TAB: u8 = 9;
-const LF: u8 = 10;
-const VT: u8 = 11;
-const FF: u8 = 12;
-const CR: u8 = 13;
-const SO: u8 = 14;
-const SI: u8 = 15;
-const DLE: u8 = 16;
-const DC1: u8 = 17;
-const DC2: u8 = 18;
-const DC3: u8 = 19;
-const DC4: u8 = 20;
-const NAK: u8 = 21;
-const SYN: u8 = 22;
-const ETB: u8 = 23;
-const CAN: u8 = 24;
-const EM: u8 = 25;
-const SUB: u8 = 26;
-const ESC: u8 = 27;
-const FS: u8 = 28;
-const GS: u8 = 29;
-const RS: u8 = 30;
-const US: u8 = 31;
-const DEL: u8 = 127;
-
 memspan::skip_class! {
     pub fn skip_ascii_graphic_and_utf8(
         ranges = [0x21..=0xFF],
+    );
+}
+
+memspan::skip_class! {
+    pub fn skip_osc_string(
+        ranges = [0x20..=0xFF],
+    );
+}
+
+memspan::skip_class! {
+    pub fn skip_dcs_data(
+        ranges = [0x20..=0x7E, 0x80u8..=0xFFu8],
     );
 }

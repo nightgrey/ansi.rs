@@ -165,8 +165,9 @@ transition! {
         0x00..=0x17 => (State::DcsData, Action::DcsData),
         0x19       => (State::DcsData, Action::DcsData),
         0x1c..=0x1f => (State::DcsData, Action::DcsData),
-        0x20..=0x7e => (State::DcsData, Action::DcsByte),
+        0x20..=0x7e => (State::DcsData, Action::DcsData),
         0x7f       => (State::DcsData, Action::Ignore),
+        0x80..=0xff => (State::DcsData, Action::DcsData),
     },
 
     State::DcsIgnore => {
@@ -188,8 +189,8 @@ transition! {
         0x1c..=0x1f => (State::OscData, Action::Ignore),
 
         0x20..=0x7f => (State::OscData, Action::OscData),
-        // Utf8
-        0xc2..=0xf4 => (State::OscData, Action::OscData),
+        // Utf8 (leading and continuation bytes)
+        0x80..=0xff => (State::OscData, Action::OscData),
     },
 
     State::SosPmData => {

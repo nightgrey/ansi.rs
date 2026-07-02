@@ -36,6 +36,36 @@ impl Parser {
 
                     i += self.advance_byte(handler, bytes[i]);
                 },
+                State::OscData => {
+                    let skipped = skip_osc_string(&bytes[i..]);
+
+                    if skipped > 0 {
+                        let start = i;
+                        i += skipped;
+                        handler.osc_data(&bytes[start..i]);
+                    }
+
+                    if i >= bytes.len() {
+                        break;
+                    }
+
+                    i += self.advance_byte(handler, bytes[i]);
+                },
+                State::DcsData => {
+                    let skipped = skip_dcs_data(&bytes[i..]);
+
+                    if skipped > 0 {
+                        let start = i;
+                        i += skipped;
+                        handler.dcs_data(&bytes[start..i]);
+                    }
+
+                    if i >= bytes.len() {
+                        break;
+                    }
+
+                    i += self.advance_byte(handler, bytes[i]);
+                },
                 _ => i += self.advance_byte(handler, bytes[i]),
             }
         }
@@ -110,11 +140,11 @@ impl Parser {
                 self.params.finish();
                 handler.dcs(self.params.as_ref(), &self.intermediates, byte as char);
             }
-            Action::DcsData => handler.dcs_data(byte),
+            Action::DcsData => handler.dcs_data(&[byte]),
             Action::DcsEnd => handler.dcs_end(byte),
 
             Action::Osc => handler.osc(),
-            Action::OscData => handler.osc_data(byte),
+            Action::OscData => handler.osc_data(&[byte]),
             Action::OscEnd => handler.osc_end(byte),
 
             _ => {}
@@ -215,16 +245,6 @@ mod tests {
                 fn execute(&mut self, byte: u8) {
                     self.dispatched.push(Sequence::Execute(byte));
                 }
-            }
-
-            #[test]
-            fn qwe() {
-                let mut dispatcher = Dispatcher::default();
-                let mut parser = Parser::new();
-
-                parser.advance(&mut dispatcher, b"\x07\x08\x09\x0A\x0D");
-                dbg!(&dispatcher.dispatched);
-
             }
         }
 
@@ -581,13 +601,7 @@ mod tests {
                 Recorder::record(b"\x1B]0;title\x1B\\"),
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'i'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'l'),
-                    Record::OscData(b'e'),
+                    Record::OscData(b"0;title".to_vec()),
                     Record::OscEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -601,10 +615,7 @@ mod tests {
                 Recorder::record(b"\x1B]0;hi\x07"),
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b'h'),
-                    Record::OscData(b'i'),
+                    Record::OscData(b"0;hi".to_vec()),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -618,10 +629,7 @@ mod tests {
                 Recorder::record(b"\x1B]0;hi\x18"),
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b'h'),
-                    Record::OscData(b'i'),
+                    Record::OscData(b"0;hi".to_vec()),
                     Record::OscEnd(0x18),
                     Record::Execute(0x18),
                 ],
@@ -644,12 +652,8 @@ mod tests {
                 Recorder::record(b"\x1B]0;ab\x08cd\x07"),
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b'a'),
-                    Record::OscData(b'b'),
-                    Record::OscData(b'c'),
-                    Record::OscData(b'd'),
+                    Record::OscData(b"0;ab".to_vec()),
+                    Record::OscData(b"cd".to_vec()),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -666,13 +670,8 @@ mod tests {
                 recorder,
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'i'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'l'),
-                    Record::OscData(b'e'),
+                    Record::OscData(b"0;ti".to_vec()),
+                    Record::OscData(b"tle".to_vec()),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -690,15 +689,12 @@ mod tests {
                 recorder,
                 [
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(0xC3),
-                    Record::OscData(0xA9),
+                    Record::OscData(vec![b'0', b';', 0xC3, 0xA9]),
                     Record::OscEnd(0x07),
                     Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsData(0xC3),
-                    Record::DcsData(0xA9),
+                    Record::DcsData(vec![0xC3, 0xA9]),
                     Record::DcsEnd(0x1B),
+                    Record::Esc(Intermediates::empty(), b'\\'),
                 ],
             );
         }
@@ -714,8 +710,7 @@ mod tests {
                 Recorder::record(b"\x1BP$q q\x1B\\"),
                 vec![
                     Record::Dcs(Parameters::new(), Intermediates::from(b"$"), 'q'),
-                    Record::DcsData(b' '),
-                    Record::DcsData(b'q'),
+                    Record::DcsData(b" q".to_vec()),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -728,10 +723,7 @@ mod tests {
                 Recorder::record(b"\x1BP1;2|data\x1B\\"),
                 vec![
                     Record::Dcs(params![[1], [2]], Intermediates::empty(), '|'),
-                    Record::DcsData(b'd'),
-                    Record::DcsData(b'a'),
-                    Record::DcsData(b't'),
-                    Record::DcsData(b'a'),
+                    Record::DcsData(b"data".to_vec()),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -744,7 +736,7 @@ mod tests {
                 Recorder::record(b"\x1BP1:2|x\x1B\\"),
                 vec![
                     Record::Dcs(params![[1, 2]], Intermediates::empty(), '|'),
-                    Record::DcsData(b'x'),
+                    Record::DcsData(b"x".to_vec()),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -758,10 +750,7 @@ mod tests {
                 Recorder::record(b"\x1BPq abc\x18tail"),
                 vec![
                     Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsData(b' '),
-                    Record::DcsData(b'a'),
-                    Record::DcsData(b'b'),
-                    Record::DcsData(b'c'),
+                    Record::DcsData(b" abc".to_vec()),
                     Record::DcsEnd(0x18),
                     Record::Execute(0x18),
                     Record::Print(b"tail".to_vec()),
@@ -799,13 +788,8 @@ mod tests {
                 recorder,
                 vec![
                     Record::Osc,
-                    Record::OscData(b'0'),
-                    Record::OscData(b';'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'i'),
-                    Record::OscData(b't'),
-                    Record::OscData(b'l'),
-                    Record::OscData(b'e'),
+                    Record::OscData(b"0;ti".to_vec()),
+                    Record::OscData(b"tle".to_vec()),
                     Record::OscEnd(0x07),
                 ]
             );

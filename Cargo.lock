@@ -82,6 +82,7 @@ dependencies = [
  "memspan",
  "number",
  "pprof",
+ "simdutf8",
  "smallvec 2.0.0-alpha.12",
  "smallvec-wrapper",
  "strum",

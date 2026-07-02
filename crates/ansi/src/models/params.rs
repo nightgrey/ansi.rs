@@ -518,12 +518,14 @@ impl Parameters {
     }
 
     #[inline]
-    pub fn push_many<I, P>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = P>,
-        P: Into<Param>,
-    {
-        self.0.extend(iter.into_iter().map(Into::into));
+    pub fn push_many(&mut self, iter: impl IntoIterator<Item = u16>) {
+        self.extend(
+            iter.into_iter().enumerate().map(|(i, p)| if i > 0 {
+                Param::Sub(p)
+            } else {
+                Param::Main(p)
+            }),
+        );
     }
 }
 
@@ -598,7 +600,7 @@ impl Extend<Param> for Parameters {
     where
         T: IntoIterator<Item = Param>,
     {
-        self.0.extend(iter);
+        self.0.extend(iter)
     }
 }
 
@@ -639,6 +641,12 @@ const impl From<Vec<Param>> for Parameters {
     }
 }
 
+impl<const N: usize> From<[Param; N]> for Parameters {
+    #[inline]
+    fn from(value: [Param; N]) -> Self {
+        Self(value.to_vec())
+    }
+}
 const impl From<Parameters> for Vec<Param>
 where
     Parameters: [const] Destruct,
@@ -933,7 +941,7 @@ macro_rules! params {
     // Emptyto_owned
     () => {
         {
-                $crate::Parameters::new()
+            $crate::Parameters::new()
         }
     };
     // [_]

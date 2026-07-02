@@ -1,7 +1,8 @@
 use crate::params::{Param, Parameters, Params};
 use derive_more::{Deref, DerefMut};
 use std::borrow::Borrow;
-use utils::{NestedArray, NestedMut, TryNestedMut};
+use arrayvec::ArrayVec;
+use utils::{NestedMut};
 
 const UTF8_CONTINUATION_MASK: u8 = 0b0011_1111;
 
@@ -117,7 +118,7 @@ const impl Default for Utf8 {
 pub struct InternalParameters {
     #[deref]
     #[deref_mut]
-    inner: Parameters,
+    inner: ArrayVec<Param, 32>,
     current: Option<u16>,
     /// Whether the main parameter currently being built has sub-parameters,
     /// i.e. a `:` separator has been seen since the last `;`. This is the one
@@ -186,33 +187,34 @@ impl InternalParameters {
     // reference's cap-and-continue behavior, safely.
     fn push_value(&mut self, val: u16) {
         if self.in_group {
-            self.inner.push(Param::Sub(val));
+            let _ = self.inner.try_push(Param::Sub(val));
         } else {
-            self.inner.push(Param::Main(val));
+            let _ = self.inner.try_push(Param::Main(val));
         }
     }
 
     fn push_sub_value(&mut self, val: u16) {
         if self.in_group {
-            self.inner.push(Param::Sub(val));
+            let _ = self.inner.try_push(Param::Sub(val));
         } else {
             // Only enter the group if the value actually landed, so `in_group`
             // bookkeeping stays consistent on overflow.
-            self.inner.push(Param::Main(val));
-            self.in_group = true;
+            if let Ok(_) =self.inner.try_push(Param::Main(val)) {
+                self.in_group = true;
+            }
         }
     }
 }
 
-const impl AsRef<Params> for InternalParameters {
+impl AsRef<Params> for InternalParameters {
     fn as_ref(&self) -> &Params {
-        self.inner.as_ref()
+        &Params::new(self.inner.as_slice())
     }
 }
 
-const impl Borrow<Params> for InternalParameters {
+impl Borrow<Params> for InternalParameters {
     fn borrow(&self) -> &Params {
-        self.inner.borrow()
+        self.as_ref()
     }
 }
 
@@ -251,41 +253,7 @@ const US: u8 = 31;
 const DEL: u8 = 127;
 
 memspan::skip_class! {
-    pub fn skip_printable(
-        ranges = [0x20..=0x7f],
+    pub fn skip_ascii_graphic_and_utf8(
+        ranges = [0x21..=0xFF],
     );
-}
-memspan::skip_class! {
-    pub fn skip_csi_ignore(
-        bytes  = [0x7f],
-        ranges = [
-            0x20..=0x3f,
-        ],
-    );
-}
-
-macro_rules! table {
-    (|$p:ident| $body:block) => {{
-        let mut out: [bool; 256] = [false; 256];
-        let mut i = 0;
-        while i < 256 {
-            let $p: u8 = i as u8;
-            out[i] = $body;
-            i += 1;
-        }
-        out
-    }};
-}
-
-pub const fn is_end_of_csi(byte: u8) -> bool {
-    static TABLE: [bool; 256] = table!(|b| { matches!(b, 0x40..=0x7e | ESC | CAN | SUB) });
-
-    TABLE[byte as usize]
-}
-
-pub const fn is_end_of_ground(byte: u8) -> bool {
-    static TABLE: [bool; 256] =
-        table!(|b| { matches!(b, 0x1B | 0x00..=0x08 | 0x0b..=0x0c | 0x0e..=0x1f | DEL) });
-
-    TABLE[byte as usize]
 }

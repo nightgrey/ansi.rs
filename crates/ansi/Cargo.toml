@@ -20,6 +20,7 @@ utils-derive = { workspace = true }
 pprof =  { version = "0.15.0", features = ["criterion", "flamegraph"] }
 utf8parse = "0.2.2"
 utf8-zero = "0.8.1"
+simdutf8 = "0.1.5"
 memspan = "0.1.0"
 bytes = "1.12.0"
 smallvec = { version = "2.0.0-alpha.12", features = ["specialization", "bytes", "extract_if"] }
@@ -33,18 +34,7 @@ vte = "0.15.0"
 inferno = "0.11.21"
 utf8parse = "0.2.2"
 utf8-zero = "0.8.1"
-
-[[bench]]
-name = "parser_criterion"
-harness = false
-
-[[bench]]
-name = "parser_divan"
-harness = false
-
-[[bench]]
-name = "utf8"
-harness = false
+memspan = "0.1.0"
 
 [lints]
 workspace = true

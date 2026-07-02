@@ -1,4 +1,4 @@
-use crate::{Color, Escape, Style};
+use crate::{Color, Escape, Style, Write};
 use bitflags::Flags;
 use derive_more::{Deref, DerefMut};
 use maybe::Maybe;
@@ -89,9 +89,6 @@ impl SelectGraphicRenditionTransition {
 
 impl Escape for SelectGraphicRenditionTransition {
     fn escape(&self, mut w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        use crate::WriteEscape as _;
-        use std::io::Write as _;
-
         let (from, to) = (self.from, self.to);
 
         if from.is_none() && to.is_none() {
@@ -136,10 +133,14 @@ impl Escape for SelectGraphicRenditionTransition {
             match (from.contains(attr), to.contains(attr)) {
                 (true, true) | (false, false) => continue,
                 (true, false) => {
-                    separate!(w.write_all(&attr.to_reset_bytes())?);
+                    for reset in attr.iter_reset() {
+                        separate!(w.write_all(reset.as_bytes())?);
+                    }
                 }
                 (false, true) => {
-                    separate!(w.write_all(&attr.to_sgr_bytes())?);
+                    for set in attr.iter_sgr() {
+                        separate!(w.write_all(set.as_bytes())?);
+                    }
                 }
             }
         }

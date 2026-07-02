@@ -7,6 +7,7 @@
 /// # Credits
 ///  https://github.com/qwandor/anes-rs/blob/main/anes/src/macros.rs
 #[macro_export]
+
 macro_rules! sequence {
     // Field-less struct
     // `struct Foo`
@@ -14,11 +15,14 @@ macro_rules! sequence {
         $(#[$meta:meta])*
         $vis:vis struct $name:ident => |$this:ident, $w:ident| $write:block
     ) => {
+        
         $(#[$meta])*
             #[derive(Copy, Clone, Debug,  PartialEq)]
         $vis struct $name;
+        
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -49,6 +53,7 @@ macro_rules! sequence {
 
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -75,6 +80,7 @@ macro_rules! sequence {
 
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -104,6 +110,7 @@ macro_rules! sequence {
 
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -135,6 +142,7 @@ macro_rules! sequence {
 
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -163,6 +171,7 @@ macro_rules! sequence {
 
         impl $crate::Escape for $name {
             #[allow(unused_mut)]
+            #[allow(unused_variables)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -294,7 +303,7 @@ macro_rules! sequence_only {
 #[macro_export]
 macro_rules! cost {
     ($ty:ident => $calc:expr) => {
-        impl $crate::Cost for $ty {
+        impl $crate::EstimateableCost for $ty {
             #[inline]
             fn cost(&self) -> usize {
                 $calc(self)

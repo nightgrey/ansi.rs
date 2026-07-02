@@ -90,7 +90,7 @@ const impl Variant {
 pub struct Attribute(u16);
 
 #[allow(non_upper_case_globals)]
-const impl Attribute {
+impl Attribute {
     variants! {
         Bold {
             position: 0,
@@ -180,7 +180,7 @@ const impl Attribute {
 
     /// Creates an empty attribute.
     #[inline]
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self::None
     }
 
@@ -188,12 +188,12 @@ const impl Attribute {
     ///
     /// Equavalent to [`Attribute::from_bits_retained`].
     #[inline]
-    pub fn new(bits: u16) -> Self {
+    pub const fn new(bits: u16) -> Self {
         Self::from_bits_retained(bits)
     }
 
     #[inline]
-    pub fn from_bits(bits: u16) -> Self {
+    pub const fn from_bits(bits: u16) -> Self {
         match Self::try_from_bits(bits) {
             Ok(attribute) => attribute,
             Err(_) => panic!("invalid bits"),
@@ -201,7 +201,7 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn try_from_bits(bits: u16) -> Result<Self, ParseAttributeError> {
+    pub const fn try_from_bits(bits: u16) -> Result<Self, ParseAttributeError> {
         if false || bits == Self::All.into_inner() {
             Ok(Self(bits))
         } else {
@@ -210,27 +210,27 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn from_bits_retained(bits: u16) -> Self {
+    pub const fn from_bits_retained(bits: u16) -> Self {
         Self(bits)
     }
 
     #[inline]
-    pub fn from_bits_truncated(bits: u16) -> Self {
+    pub const fn from_bits_truncated(bits: u16) -> Self {
         Self(bits & Self::All.into_inner())
     }
 
     #[inline]
-    pub fn from_bits_unchecked(bits: u16) -> Self {
+    pub const fn from_bits_unchecked(bits: u16) -> Self {
         Self(bits)
     }
 
     #[inline]
-    pub fn from_bits_or_default(bits: u16) -> Self {
+    pub const fn from_bits_or_default(bits: u16) -> Self {
         Self::try_from_bits(bits).unwrap_or(Self::None)
     }
 
     #[inline]
-    pub fn try_from_position(position: usize) -> Result<Self, ParseAttributeError> {
+    pub const fn try_from_position(position: usize) -> Result<Self, ParseAttributeError> {
         if position >= Self::COUNT {
             return Err(ParseAttributeError::Invalid(position as u16));
         }
@@ -238,7 +238,7 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn from_position(position: usize) -> Self {
+    pub const fn from_position(position: usize) -> Self {
         match Self::try_from_position(position) {
             Ok(attr) => attr,
             Err(_) => panic!("invalid position"),
@@ -246,112 +246,112 @@ const impl Attribute {
     }
 
     #[inline]
-    pub fn count_ones(self) -> u32 {
+    pub const fn count_ones(self) -> u32 {
         self.0.count_ones()
     }
 
     #[inline]
-    pub fn known(self) -> Self {
+    pub const fn known(self) -> Self {
         Self(self.0 & Self::All.into_inner())
     }
 
     #[inline]
-    pub fn unknown(self) -> Self {
+    pub const fn unknown(self) -> Self {
         Self(self.0 & !Self::All.into_inner())
     }
 
     #[inline]
-    pub fn has_unknown_bits(self) -> bool {
+    pub const fn has_unknown_bits(self) -> bool {
         self.unknown() != Self::None
     }
 
     #[inline]
-    pub fn is_empty(self) -> bool {
+    pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     #[inline]
-    pub fn is_all(self) -> bool {
+    pub const fn is_all(self) -> bool {
         self.0 == Self::All.into_inner()
     }
 
     #[inline]
-    pub fn equals(self, other: Self) -> bool {
+    pub const fn equals(self, other: Self) -> bool {
         self.0 == other.0
     }
 
     #[inline]
-    pub fn contains(self, other: Self) -> bool {
+    pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
 
     #[inline]
-    pub fn intersects(self, other: Self) -> bool {
+    pub const fn intersects(self, other: Self) -> bool {
         self.0 & other.0 != 0
     }
 
     #[inline]
-    pub fn is_disjoint(self, other: Self) -> bool {
+    pub const fn is_disjoint(self, other: Self) -> bool {
         self.0 & other.0 == 0
     }
 
     #[inline]
     #[must_use]
-    pub fn union(self, other: Self) -> Self {
+    pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
     #[inline]
     #[must_use]
-    pub fn intersection(self, other: Self) -> Self {
+    pub const fn intersection(self, other: Self) -> Self {
         Self(self.0 & other.0)
     }
 
     #[inline]
     #[must_use]
-    pub fn difference(self, other: Self) -> Self {
+    pub const fn difference(self, other: Self) -> Self {
         Self(self.0 & !other.0)
     }
 
     #[inline]
     #[must_use]
-    pub fn symmetric_difference(self, other: Self) -> Self {
+    pub const fn symmetric_difference(self, other: Self) -> Self {
         Self((self.0 ^ other.0) & Self::All.into_inner())
     }
 
     #[inline]
     #[must_use]
-    pub fn complement(self) -> Self {
+    pub const fn complement(self) -> Self {
         Self(!self.0 & Self::All.into_inner())
     }
 
     #[inline]
-    pub fn insert(&mut self, other: Self) {
+    pub const fn insert(&mut self, other: Self) {
         self.0 |= other.0;
     }
 
     #[inline]
-    pub fn remove(&mut self, other: Self) {
+    pub const fn remove(&mut self, other: Self) {
         self.0 &= !other.0;
     }
 
     #[inline]
-    pub fn toggle(&mut self, other: Self) {
+    pub const fn toggle(&mut self, other: Self) {
         self.0 = (self.0 ^ other.0) & Self::All.into_inner();
     }
 
     #[inline]
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         self.0 = 0;
     }
 
     #[inline]
-    pub fn count(self) -> usize {
+    pub const fn count(self) -> usize {
         self.known().count_ones() as usize
     }
 
     #[inline]
-    pub fn iter(self) -> Iter {
+    pub const fn iter(self) -> Iter {
         Iter::new(self.into_inner())
     }
 
@@ -367,15 +367,59 @@ const impl Attribute {
     /// assert_eq!(Attribute::All.meta().count(), Attribute::COUNT);
     /// ```
     #[inline]
-    pub fn meta(self) -> MetaIter {
-        MetaIter::new(self.into_inner())
+    pub const fn meta(self) -> impl Iterator<Item = &'static Variant> {
+        self.iter().map(|i| &Attribute::META[i])
     }
 
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn iter_sgr(self) -> impl Iterator<Item = &'static str> {
-        self.meta().map(|meta| meta.set())
+    pub const fn iter_sgr(self) -> impl Iterator<Item = &'static str> {
+        self.iter().map(|i| Attribute::META[i].set())
+    }
+
+    /// Returns an iterator over the SGR reset parameters for each attribute.
+    ///
+    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
+    pub const fn iter_reset(self) -> impl Iterator<Item = &'static str> {
+        self.iter().map(|i| Attribute::META[i].reset())
+    }
+
+    /// Returns the semicolon-separated SGR parameters to set attributes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ansi::Attribute;
+    ///
+    /// let attrs = Attribute::Bold | Attribute::Italic;
+    /// assert_eq!(attrs.to_sgr(), "1;3");
+    /// ```
+    ///
+    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
+    pub fn to_sgr(self) -> Cow<'static, str> {
+        self.iter_sgr()
+            .intersperse(";")
+            .collect()
+    }
+
+    /// Returns the semicolon-separated SGR parameters to reset attributes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ansi::Attribute;
+    ///
+    /// let attrs = Attribute::Bold | Attribute::Italic;
+    ///
+    /// assert_eq!(attrs.to_reset(), "22;23");
+    /// ```
+    ///
+    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
+    pub fn to_reset(self) -> Cow<'static, str> {
+        self.iter_reset()
+            .intersperse(";")
+            .collect()
     }
 
     /// Returns an iterator over the names of attributes in [`Self`].
@@ -390,73 +434,15 @@ const impl Attribute {
     /// assert_eq!(attrs.names().collect::<Vec<_>>(), vec!["Bold", "Italic"]);
     /// ```
     #[inline]
-    pub fn names(self) -> impl Iterator<Item = &'static str> {
-        self.meta().map(|meta| meta.name())
+    pub const fn names(self) -> impl Iterator<Item = &'static str> {
+        self.iter().map(|i| Attribute::META[i].name())
     }
 
     #[inline]
-    pub fn into_inner(self) -> u16 {
+    pub const fn into_inner(self) -> u16 {
         self.0
     }
-}
 
-impl Attribute {
-    /// Returns the semicolon-separated SGR parameters to set attributes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use ansi::Attribute;
-    ///
-    /// let attrs = Attribute::Bold | Attribute::Italic;
-    /// assert_eq!(attrs.to_sgr_string(), "1;3");
-    /// ```
-    ///
-    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn to_sgr_string(self) -> Cow<'static, str> {
-        self.meta()
-            .map(|meta| meta.set())
-            .intersperse(";")
-            .collect()
-    }
-
-    pub fn to_sgr_bytes(&self) -> Cow<'static, [u8]> {
-        match self.to_sgr_string() {
-            Cow::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
-            Cow::Owned(s) => Cow::Owned(s.into_bytes()),
-        }
-    }
-
-    /// Returns the semicolon-separated SGR parameters to reset attributes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use ansi::Attribute;
-    ///
-    /// let attrs = Attribute::Bold | Attribute::Italic;
-    ///
-    /// assert_eq!(attrs.to_reset_string(), "22;23");
-    /// ```
-    ///
-    /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
-    pub fn to_reset_string(self) -> Cow<'static, str> {
-        if self.is_none() {
-            return Cow::Borrowed("");
-        }
-
-        self.meta()
-            .map(|meta| meta.reset())
-            .intersperse(";")
-            .collect()
-    }
-
-    pub fn to_reset_bytes(&self) -> Cow<'static, [u8]> {
-        match self.to_reset_string() {
-            Cow::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
-            Cow::Owned(s) => Cow::Owned(s.into_bytes()),
-        }
-    }
 
     /// Returns a string representation of the attributes.
     ///
@@ -625,7 +611,7 @@ impl FromIterator<Attribute> for Attribute {
 }
 impl Escape for Attribute {
     fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        w.write_all(self.to_sgr_string().as_bytes())
+        w.write_all(self.to_sgr().as_bytes())
     }
 }
 
@@ -633,94 +619,6 @@ const impl Maybe for Attribute {
     #[allow(non_upper_case_globals)]
     const None: Self = Attribute::from_bits_retained(0);
 }
-
-#[derive(Debug, Clone, Deref)]
-pub struct MetaIter {
-    inner: Iter,
-}
-
-const impl MetaIter {
-    #[inline]
-    pub fn new(value: u16) -> Self {
-        Self {
-            inner: Iter::new(value),
-        }
-    }
-}
-
-const impl Iterator for MetaIter {
-    type Item = Variant;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.inner.next()?;
-
-        Some(Variant::from_position(next))
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.inner.count()
-    }
-
-    #[inline]
-    fn last(self) -> Option<Self::Item> {
-        if let Some(last) = self.inner.last() {
-            return Some(Variant::from_position(last));
-        }
-        None
-    }
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        let mut i = 0;
-        while self.inner.0 != 0 && i < n {
-            self.inner.clear_max();
-            i += 1;
-        }
-        self.next()
-    }
-
-    #[inline]
-    fn fold<B, F>(self, init: B, mut f: F) -> B
-    where
-        F: [const] FnMut(B, Self::Item) -> B + [const] Destruct,
-    {
-        let mut accum = init;
-        for item in self {
-            accum = f(accum, item);
-        }
-        accum
-    }
-
-    #[inline]
-    fn max(self) -> Option<Self::Item> {
-        self.last()
-    }
-
-    #[inline]
-    fn min(self) -> Option<Self::Item> {
-        if self.inner.0 != 0 {
-            Some(Variant::from_position(self.inner.min_bit()))
-        } else {
-            None
-        }
-    }
-
-    fn is_sorted(self) -> bool {
-        true
-    }
-}
-impl ExactSizeIterator for MetaIter {
-    fn len(&self) -> usize {
-        self.count_ones()
-    }
-}
-
 #[derive(Debug, Clone, Deref)]
 #[repr(transparent)]
 pub struct Iter(u16);

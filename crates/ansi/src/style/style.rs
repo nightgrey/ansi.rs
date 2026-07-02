@@ -1,4 +1,4 @@
-use crate::{Attribute, Color, Escape};
+use crate::{Attribute, Color, Escape, Write};
 use maybe::Maybe;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, from_fn};
@@ -467,8 +467,6 @@ impl Debug for Style {
 
 impl Escape for Style {
     fn escape(&self, mut w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        use crate::WriteEscape as _;
-
         if self.is_none() {
             return Ok(());
         }
@@ -492,9 +490,11 @@ impl Escape for Style {
         }
 
         // Attributes (bold, underline, etc.)
-        separate! {
-            w.write_all(&self.attributes.to_sgr_bytes())?
-        };
+        for attr in self.attributes.iter_sgr() {
+            separate! {
+                w.write_all(attr.as_bytes())?
+            };
+        }
 
         w.write_all(b"m")
     }

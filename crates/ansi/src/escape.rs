@@ -2,31 +2,31 @@ pub const trait Escape {
     fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()>;
 }
 
-impl<T: AsRef<str>> Escape for T {
-    #[inline]
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        w.write_all(self.as_ref().as_bytes())
-    }
-}
-
-pub const trait WriteEscape {
+pub const trait Write {
     fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()>;
 }
 
-impl<W: std::io::Write> WriteEscape for W {
+pub const trait Fmt {
+    fn write_escape(&mut self, escape: impl Escape) -> std::fmt::Result;
+}
+
+impl<T: AsRef<[u8]>> Escape for T {
+    #[inline]
+    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
+        w.write_all(self.as_ref())
+    }
+}
+
+impl<W: std::io::Write> Write for W {
     #[inline]
     fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
         escape.escape(self)
     }
 }
 
-pub trait FmtEscape {
-    fn fmt_escape(&mut self, escape: impl Escape) -> std::fmt::Result;
-}
-
-impl<W: std::fmt::Write> FmtEscape for W {
+impl<W: std::fmt::Write> Fmt for W {
     #[inline]
-    fn fmt_escape(&mut self, escape: impl Escape) -> std::fmt::Result {
+    fn write_escape(&mut self, escape: impl Escape) -> std::fmt::Result {
         use std::io::Cursor;
 
         // Create a shim which translates a `io::Write` to a `fmt::Write` and saves off
@@ -36,7 +36,7 @@ impl<W: std::fmt::Write> FmtEscape for W {
             error: std::fmt::Result,
         }
 
-        impl<Inner: std::fmt::Write> WriteEscape for Adapter<'_, Inner> {
+        impl<Inner: std::fmt::Write> Write for Adapter<'_, Inner> {
             fn write_escape(&mut self, escape: impl Escape) -> std::io::Result<()> {
                 let mut buf = Vec::<u8>::new();
                 let mut cursor = Cursor::new(&mut buf);
@@ -57,7 +57,7 @@ impl<W: std::fmt::Write> FmtEscape for W {
             error: Ok(()),
         };
 
-        match WriteEscape::write_escape(&mut adapter, escape) {
+        match Write::write_escape(&mut adapter, escape) {
             Ok(()) => Ok(()),
             Err(..) => {
                 // Check whether the error came from the underlying `Write`.
@@ -75,14 +75,15 @@ impl<W: std::fmt::Write> FmtEscape for W {
     }
 }
 
+
 /// Writes escaped content to a writer, handling multiple arguments with short-circuit error handling.
 ///
 /// This macro accepts a 'writer' and a list of values to be escaped. Values will be
 /// escaped and the result will be passed to the writer. The writer may be any value
 /// with a `write_fmt` method; generally this comes from an
-/// implementation of either the [`fmt::EscapeFmt`] or the [`io::EscapeWrite`] trait. The macro
-/// returns whatever the `write_fmt` method returns; commonly a [`fmt::Result`], or an
-/// [`io::Result`].
+/// implementation of either the [`std::fmt::EscapeFmt`] or the [`std::io::EscapeWrite`] trait. The macro
+/// returns whatever the `write_fmt` method returns; commonly a [`std::fmt::Result`], or an
+/// [`std::io::Result`].
 ///
 ///
 /// # Examples
@@ -122,22 +123,15 @@ impl<W: std::fmt::Write> FmtEscape for W {
 #[macro_export]
 macro_rules! escape {
     ($dst:expr, $arg: expr) => {
-        $crate::WriteEscape::write_escape($dst, $arg)
+        $crate::WriteEscape:write_escapee($dst, $arg)
     };
     ($dst:expr, $first: expr, $($args:expr),* $(,)?) => {{
-        let mut result: std::io::Result<()> = $crate::WriteEscape::write_escape($dst, $first);
+        let mut result: std::io::Result<()> = $crate::WriteEscape:write_escapee($dst, $first);
         $(
                 if result.is_ok() {
-                  result = $crate::WriteEscape::write_escape($dst, $args);
+                  result = $crate::WriteEscape:write_escapee($dst, $args);
                 }
         )*
         result
     }};
-}
-
-/// Writes escaped value to the writer.
-///
-/// A single-value, functional version of [`escape!`].
-pub fn escape(w: &mut impl std::io::Write, escape: impl Escape) -> std::io::Result<()> {
-    WriteEscape::write_escape(w, escape)
 }

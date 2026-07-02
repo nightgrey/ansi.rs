@@ -5,8 +5,8 @@ use crate::Escape;
 ///
 /// This is the static dual of `Escape`—`cost()` must return the exact
 /// number of bytes that `escape()` would write.
-pub trait Cost: Escape {
-    fn cost(self) -> usize;
+pub trait EstimateableCost {
+    fn estimate_cost(self) -> usize;
 }
 
 /// Width of the decimal representation of an unsigned integer.
@@ -40,58 +40,58 @@ fn relative_cursor_cost(n: u16) -> usize {
     }
 }
 
-impl Cost for SetCursorStyle {
-    fn cost(self) -> usize {
+impl EstimateableCost for SetCursorStyle {
+    fn estimate_cost(self) -> usize {
         2 + 1 + 1 + 1
     }
 }
 
-impl Cost for CursorPosition {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorPosition {
+    fn estimate_cost(self) -> usize {
         // CSI Pl ; Pc H  →  \x1B [ digits ; digits H
         2 + decimal_width(self.0 + 1) + 1 + decimal_width(self.1 + 1) + 1
     }
 }
 
-impl Cost for CursorBackward {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorBackward {
+    fn estimate_cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
-impl Cost for CursorDown {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorDown {
+    fn estimate_cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
-impl Cost for CursorForward {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorForward {
+    fn estimate_cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
-impl Cost for CursorUp {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorUp {
+    fn estimate_cost(self) -> usize {
         relative_cursor_cost(self.value())
     }
 }
 
-impl Cost for CursorHorizontalAbsolute {
-    fn cost(self) -> usize {
+impl EstimateableCost for CursorHorizontalAbsolute {
+    fn estimate_cost(self) -> usize {
         3 + decimal_width(self.0.saturating_add(1))
     }
 }
 
-impl Cost for HorizontalPositionAbsolute {
-    fn cost(self) -> usize {
+impl EstimateableCost for HorizontalPositionAbsolute {
+    fn estimate_cost(self) -> usize {
         // \x1B [ digits `
         2 + decimal_width(self.0 + 1) + 1
     }
 }
 
-impl Cost for VerticalPositionAbsolute {
-    fn cost(self) -> usize {
+impl EstimateableCost for VerticalPositionAbsolute {
+    fn estimate_cost(self) -> usize {
         // \x1B [ digits d
         2 + decimal_width(self.0 + 1) + 1
     }
@@ -100,15 +100,14 @@ impl Cost for VerticalPositionAbsolute {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WriteEscape;
+    use crate::escape::{Escape,Fmt, Write};
 
     macro_rules! assert_cost {
         (@$sequence:expr) => {
-            let actual = $sequence.cost();
+            let actual = $sequence.estimate_cost();
             let expected = {
-                use crate::Escape;
-                let mut buf = Vec::new();
-                buf.write_escape($sequence).and_then(|_| Ok(buf.len())).unwrap()
+                let mut str = String::new();
+                str.write_escape($sequence).and_then(|_| Ok(str.len())).unwrap()
             };
             let label = $sequence;
             assert_eq!(actual, expected, "Cost of {label:?} expected to be {expected}, but was {actual}");

@@ -41,7 +41,7 @@ impl Parser {
         }
         i
     }
-    
+
     #[inline(always)]
     fn advance_byte(&mut self, handler: &mut dyn Handler, byte: u8) -> usize {
         self.transition(handler, byte);
@@ -106,20 +106,17 @@ impl Parser {
                 handler.csi(self.params.as_ref(), &self.intermediates, byte as char);
             }
 
-            Action::DcsStart => {
+            Action::Dcs => {
                 self.params.finish();
                 handler.dcs(self.params.as_ref(), &self.intermediates, byte as char);
             }
-            Action::DcsByte => handler.dcs_byte(byte),
+            Action::DcsData => handler.dcs_data(byte),
             Action::DcsEnd => handler.dcs_end(byte),
 
-            Action::OscStart => handler.osc(),
-            Action::OscByte => handler.osc_byte(byte),
+            Action::Osc => handler.osc(),
+            Action::OscData => handler.osc_data(byte),
             Action::OscEnd => handler.osc_end(byte),
 
-            Action::ApcStart => handler.apc(),
-            Action::ApcByte => handler.apc_byte(byte),
-            Action::ApcEnd => handler.apc_end(byte),
             _ => {}
 
         }
@@ -583,14 +580,14 @@ mod tests {
             assert_eq!(
                 Recorder::record(b"\x1B]0;title\x1B\\"),
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'i'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'l'),
-                    Record::OscByte(b'e'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'i'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'l'),
+                    Record::OscData(b'e'),
                     Record::OscEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -603,11 +600,11 @@ mod tests {
             assert_eq!(
                 Recorder::record(b"\x1B]0;hi\x07"),
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b'h'),
-                    Record::OscByte(b'i'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b'h'),
+                    Record::OscData(b'i'),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -620,11 +617,11 @@ mod tests {
             assert_eq!(
                 Recorder::record(b"\x1B]0;hi\x18"),
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b'h'),
-                    Record::OscByte(b'i'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b'h'),
+                    Record::OscData(b'i'),
                     Record::OscEnd(0x18),
                     Record::Execute(0x18),
                 ],
@@ -635,7 +632,7 @@ mod tests {
         fn osc_empty() {
             assert_eq!(
                 Recorder::record(b"\x1B]\x07"),
-                vec![Record::OscStart, Record::OscEnd(0x07),],
+                vec![Record::Osc, Record::OscEnd(0x07),],
             );
         }
 
@@ -646,13 +643,13 @@ mod tests {
             assert_eq!(
                 Recorder::record(b"\x1B]0;ab\x08cd\x07"),
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b'a'),
-                    Record::OscByte(b'b'),
-                    Record::OscByte(b'c'),
-                    Record::OscByte(b'd'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b'a'),
+                    Record::OscData(b'b'),
+                    Record::OscData(b'c'),
+                    Record::OscData(b'd'),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -668,14 +665,14 @@ mod tests {
             assert_eq!(
                 recorder,
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'i'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'l'),
-                    Record::OscByte(b'e'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'i'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'l'),
+                    Record::OscData(b'e'),
                     Record::OscEnd(0x07),
                 ],
             );
@@ -692,15 +689,15 @@ mod tests {
             assert_eq!(
                 recorder,
                 [
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(0xC3),
-                    Record::OscByte(0xA9),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(0xC3),
+                    Record::OscData(0xA9),
                     Record::OscEnd(0x07),
                     Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsByte(0xC3),
-                    Record::DcsByte(0xA9),
+                    Record::DcsData(0xC3),
+                    Record::DcsData(0xA9),
                     Record::DcsEnd(0x1B),
                 ],
             );
@@ -717,8 +714,8 @@ mod tests {
                 Recorder::record(b"\x1BP$q q\x1B\\"),
                 vec![
                     Record::Dcs(Parameters::new(), Intermediates::from(b"$"), 'q'),
-                    Record::DcsByte(b' '),
-                    Record::DcsByte(b'q'),
+                    Record::DcsData(b' '),
+                    Record::DcsData(b'q'),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -731,10 +728,10 @@ mod tests {
                 Recorder::record(b"\x1BP1;2|data\x1B\\"),
                 vec![
                     Record::Dcs(params![[1], [2]], Intermediates::empty(), '|'),
-                    Record::DcsByte(b'd'),
-                    Record::DcsByte(b'a'),
-                    Record::DcsByte(b't'),
-                    Record::DcsByte(b'a'),
+                    Record::DcsData(b'd'),
+                    Record::DcsData(b'a'),
+                    Record::DcsData(b't'),
+                    Record::DcsData(b'a'),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -747,7 +744,7 @@ mod tests {
                 Recorder::record(b"\x1BP1:2|x\x1B\\"),
                 vec![
                     Record::Dcs(params![[1, 2]], Intermediates::empty(), '|'),
-                    Record::DcsByte(b'x'),
+                    Record::DcsData(b'x'),
                     Record::DcsEnd(0x1B),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
@@ -761,10 +758,10 @@ mod tests {
                 Recorder::record(b"\x1BPq abc\x18tail"),
                 vec![
                     Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsByte(b' '),
-                    Record::DcsByte(b'a'),
-                    Record::DcsByte(b'b'),
-                    Record::DcsByte(b'c'),
+                    Record::DcsData(b' '),
+                    Record::DcsData(b'a'),
+                    Record::DcsData(b'b'),
+                    Record::DcsData(b'c'),
                     Record::DcsEnd(0x18),
                     Record::Execute(0x18),
                     Record::Print(b"tail".to_vec()),
@@ -801,14 +798,14 @@ mod tests {
             assert_eq!(
                 recorder,
                 vec![
-                    Record::OscStart,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'i'),
-                    Record::OscByte(b't'),
-                    Record::OscByte(b'l'),
-                    Record::OscByte(b'e'),
+                    Record::Osc,
+                    Record::OscData(b'0'),
+                    Record::OscData(b';'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'i'),
+                    Record::OscData(b't'),
+                    Record::OscData(b'l'),
+                    Record::OscData(b'e'),
                     Record::OscEnd(0x07),
                 ]
             );

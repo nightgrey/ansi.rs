@@ -43,64 +43,7 @@ transition! {
         0x20..=0x7f => (State::Ground, Action::Print),
         // Utf8
         0xC2..=0xF4 => (State::Ground, Action::Print),
-
-        // Utf8
-        // 0xc2..=0xdf => (State::Utf8_1, Action::SetUtf8Byte2Top),
-        // 0xe0 => (State::Utf8_2E0, Action::SetUtf8Byte3Top),
-        // 0xe1..=0xec => (State::Utf8_2, Action::SetUtf8Byte3Top),
-        // 0xed => (State::Utf8_2Ed, Action::SetUtf8Byte3Top),
-        // 0xee..=0xef => (State::Utf8_2, Action::SetUtf8Byte3Top),
-        // 0xf0 => (State::Utf8_3F0, Action::SetUtf8Byte4Top),
-        // 0xf1..=0xf3 => (State::Utf8_3, Action::SetUtf8Byte4Top),
-        // 0xf4 => (State::Utf8_3F4, Action::SetUtf8Byte4Top),
-        // // Invalid UTF-8: Continuation bytes + overlong encoding
-        // 0x80..=0xc1 => (State::Ground, Action::FlushInvalid),
     },
-
-   //  /// UTF-8 with 1 continuation byte
-   //  State::Utf8_1 => {
-   //      0x80..=0xbf => (State::Ground, Action::SetUtf8Byte1),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //
-   //  /// UTF-8 with 2 continuation bytes
-   //  State::Utf8_2 => {
-   //      0x80..=0xbf => (State::Utf8_1, Action::SetUtf8Byte2),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //  /// UTF-8 with 2 continuation bytes starting with 0xE0
-   // State::Utf8_2E0 => {
-   //      0xa0..=0xbf => (State::Utf8_1, Action::SetUtf8Byte2),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //  /// UTF-8 with 2 continuation bytes starting with 0xED
-   //  State::Utf8_2Ed => {
-   //      0x80..=0x9f => (State::Utf8_1, Action::SetUtf8Byte2),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //
-   //  /// UTF-8 with 3 continuation bytes
-   //  State::Utf8_3 => {
-   //      0x80..=0xbf => (State::Utf8_2, Action::SetUtf8Byte3),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //  /// UTF-8 with 3 continuation bytes starting with 0xE0
-   //  State::Utf8_3F0 => {
-   //      0x90..=0xbf => (State::Utf8_2, Action::SetUtf8Byte3),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
-   //  /// UTF-8 with 3 continuation bytes starting with 0xF4
-   //  State::Utf8_3F4 => {
-   //      0x80..=0x8f => (State::Utf8_2, Action::SetUtf8Byte3),
-   //      0x1b => (State::Escape, Action::FlushInvalid),
-   //      _ => (State::Ground, Action::FlushInvalid),
-   //  },
 
     State::Escape => {
         on_entry => Action::Clear,
@@ -217,11 +160,11 @@ transition! {
     },
 
     State::DcsData => {
-        on_entry => Action::DcsStart,
+        on_entry => Action::Dcs,
         on_exit  => Action::DcsEnd,
-        0x00..=0x17 => (State::DcsData, Action::DcsByte),
-        0x19       => (State::DcsData, Action::DcsByte),
-        0x1c..=0x1f => (State::DcsData, Action::DcsByte),
+        0x00..=0x17 => (State::DcsData, Action::DcsData),
+        0x19       => (State::DcsData, Action::DcsData),
+        0x1c..=0x1f => (State::DcsData, Action::DcsData),
         0x20..=0x7e => (State::DcsData, Action::DcsByte),
         0x7f       => (State::DcsData, Action::Ignore),
     },
@@ -234,7 +177,7 @@ transition! {
     },
 
     State::OscData => {
-        on_entry => Action::OscStart,
+        on_entry => Action::Osc,
         on_exit  => Action::OscEnd,
 
 
@@ -244,22 +187,9 @@ transition! {
         0x19       => (State::OscData, Action::Ignore),
         0x1c..=0x1f => (State::OscData, Action::Ignore),
 
-        0x20..=0x7f => (State::OscData, Action::OscByte),
+        0x20..=0x7f => (State::OscData, Action::OscData),
         // Utf8
-        0xc2..=0xf4 => (State::OscData, Action::OscByte),
-
-
-        // Utf8
-        // 0xc2..=0xdf => (State::Utf8_1, Action::SetUtf8Byte2Top),
-        // 0xe0 => (State::Utf8_2E0, Action::SetUtf8Byte3Top),
-        // 0xe1..=0xec => (State::Utf8_2, Action::SetUtf8Byte3Top),
-        // 0xed => (State::Utf8_2Ed, Action::SetUtf8Byte3Top),
-        // 0xee..=0xef => (State::Utf8_2, Action::SetUtf8Byte3Top),
-        // 0xf0 => (State::Utf8_3F0, Action::SetUtf8Byte4Top),
-        // 0xf1..=0xf3 => (State::Utf8_3, Action::SetUtf8Byte4Top),
-        // 0xf4 => (State::Utf8_3F4, Action::SetUtf8Byte4Top),
-        // // Invalid UTF-8: Continuation bytes + overlong encoding
-        // 0x80..=0xc1 => (State::Ground, Action::FlushInvalid),
+        0xc2..=0xf4 => (State::OscData, Action::OscData),
     },
 
     State::SosPmData => {

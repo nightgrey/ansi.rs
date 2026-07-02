@@ -12,14 +12,11 @@ pub enum Record {
     Esc(Intermediates, u8),
     Csi(Parameters, Intermediates, char),
     Dcs(Parameters, Intermediates, char),
-    DcsByte(u8),
+    DcsData(u8),
     DcsEnd(u8),
-    OscStart,
-    OscByte(u8),
+    Osc,
+    OscData(u8),
     OscEnd(u8),
-    ApcStart,
-    ApcByte(u8),
-    ApcEnd(u8),
 }
 
 impl std::fmt::Debug for Record {
@@ -36,19 +33,14 @@ impl std::fmt::Debug for Record {
             Record::Dcs(p, i, c) => {
                 write!(f, "Dcs({:?}, {:?}, {})", p, i, (*c as char).escape_default())
             }
-            Record::DcsByte(b) => write!(f, "DcsByte({})", (*b as char).escape_default()),
+            Record::DcsData(b) => write!(f, "DcsByte({})", (*b as char).escape_default()),
             Record::DcsEnd(b) => {
                 write!(f, "DcsEnd({})", (*b as char).escape_default())
             }
-            Record::OscStart => write!(f, "OscStart"),
-            Record::OscByte(b) => write!(f, "OscByte({})", (*b as char).escape_default()),
+            Record::Osc => write!(f, "OscStart"),
+            Record::OscData(b) => write!(f, "OscByte({})", (*b as char).escape_default()),
             Record::OscEnd(b) => {
                 write!(f, "OscEnd({})", (*b as char).escape_default())
-            }
-            Record::ApcStart => write!(f, "ApcStart"),
-            Record::ApcByte(b) => write!(f, "ApcByte({})", (*b as char).escape_default()),
-            Record::ApcEnd(b) => {
-                write!(f, "ApcEnd({})", (*b as char).escape_default())
             }
         }
     }
@@ -93,32 +85,20 @@ impl Handler for Recorder {
             final_char,
         ));
     }
-    fn dcs_byte(&mut self, byte: u8) {
-        self.push(Record::DcsByte(byte));
+    fn dcs_data(&mut self, byte: u8) {
+        self.push(Record::DcsData(byte));
     }
     fn dcs_end(&mut self, byte: u8) {
         self.push(Record::DcsEnd(byte));
     }
     fn osc(&mut self) {
-        self.push(Record::OscStart);
+        self.push(Record::Osc);
     }
-    fn osc_byte(&mut self, byte: u8) {
-        self.push(Record::OscByte(byte));
+    fn osc_data(&mut self, byte: u8) {
+        self.push(Record::OscData(byte));
     }
     fn osc_end(&mut self, byte: u8) {
         self.push(Record::OscEnd(byte));
-    }
-
-    fn apc(&mut self) {
-        self.push(Record::ApcStart);
-    }
-
-    fn apc_byte(&mut self, byte: u8) {
-        self.push(Record::ApcByte(byte));
-    }
-
-    fn apc_end(&mut self, byte: u8) {
-        self.push(Record::ApcEnd(byte));
     }
 }
 

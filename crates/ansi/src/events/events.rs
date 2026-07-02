@@ -1,0 +1,83 @@
+use bitflags::bitflags;
+use geometry::Point;
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum Event {
+    /// A named key on the keyboard
+    Key(KeyEvent),
+    /// A mouse event.
+    Pointer(PointerEvent),
+    // /// A scroll event.
+    Scroll(ScrollEvent),
+    // /// A focus event.
+    // Focus(FocusEvent),
+    // /// A blur event.
+    // Blur(BlurEvent),
+    // /// A paste event.
+    // Paste(PasteEvent),
+    // /// A copy event.
+    // Copy(CopyEvent),
+    //
+    // /// An unknown sequence.
+    // Unknown(Sequence)
+}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub struct KeyEvent {
+    pub key: Key,
+    pub kind: KeyKind,
+    pub meta: Meta,
+}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum KeyKind {}
+
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub struct PointerEvent {
+    pub button: PointerButton,
+    pub kind: PointerKind,
+    pub meta: Meta,
+    pub position: Point,
+}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum PointerButton {}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum PointerKind {}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub struct ScrollEvent {
+    pub kind: ScrollKind,
+    pub meta: Meta,
+    pub position: Point,
+}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum ScrollKind {}
+
+#[derive(Debug)]
+#[derive_const(Clone, PartialEq, Eq)]
+pub enum Key {
+}
+
+
+bitflags! {
+    pub struct Meta: u16 {
+        const Alt = 1 << 0;
+        const Ctrl = 1 << 1;
+        const Shift = 1 << 2;
+        const CapsLock = 1 << 3;
+        const NumLock = 1 << 4;
+        const ScrollLock = 1 << 5;
+    }
+}

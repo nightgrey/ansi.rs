@@ -1,3 +1,4 @@
+
 /// Creates an ANSI sequence.
 ///
 /// You can use this macro to create your own ANSI sequence. All sequences are
@@ -16,8 +17,8 @@ macro_rules! sequence {
         $(#[$meta])*
             #[derive(Copy, Clone, Debug,  PartialEq)]
         $vis struct $name;
-
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -47,6 +48,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -72,6 +74,7 @@ macro_rules! sequence {
         $vis struct $name($($(#[$fields_meta])* $field_vis $fields),*);
 
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -100,6 +103,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -130,6 +134,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write
@@ -157,6 +162,7 @@ macro_rules! sequence {
         }
 
         impl $crate::Escape for $name {
+            #[allow(unused_mut)]
             fn escape(&self, mut $w: &mut dyn std::io::Write) -> std::io::Result<()> {
                 let $this = self;
                 $write

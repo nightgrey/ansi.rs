@@ -1,5 +1,5 @@
-use std::io::Write;
-use utils::itoa::Itoa;
+use std::io;
+use derive_more::Deref;
 use super::*;
 use crate::Escape;
 
@@ -16,39 +16,28 @@ use crate::Escape;
 /// ## Parameters
 /// - `Pd` are mode values from [`Mode`]
 /// [`RM`]: https://vt100.net/docs/vt510-rm/SM.html
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Debug, Deref)]
+#[derive_const(Clone, Eq, PartialEq)]
 #[repr(transparent)]
-pub struct SetMode<M = Mode>(pub M);
+pub struct Set(pub Mode);
 
-const impl<M> SetMode<M> {
+const impl Set {
     #[inline]
-    pub fn value(&self) -> &M {
+    pub fn value(&self) -> &Mode {
         &self.0
     }
 }
 
-impl Escape for SetMode<Mode> {
-    fn escape(&self, w: &mut dyn  std::io::Write) -> std::io::Result<()> {
-        match self.0 {
-            Mode::Ansi(ansi) => write!(w, "\x1B[{}h", ansi),
-            Mode::Dec(dec) => write!(w, "\x1B[?{}h", dec),
+impl Escape for Set {
+    fn escape(&self, w: &mut dyn  io::Write) -> io::Result<()> {
+        match self.kind() {
+            ModeKind::Ansi => write!(w, "\x1B[{}h", self.0),
+            ModeKind::Dec => write!(w, "\x1B[?{}h", self.0),
         }
     }
 }
 
-impl Escape for SetMode<AnsiMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[{}h", self.0)
-    }
-}
-
-impl Escape for SetMode<DecMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[?{}h", self.0)
-    }
-}
-
-pub type SM<M = Mode> = SetMode<M>;
+pub type SM = Set;
 
 /// [RM] - Reset Mode
 ///
@@ -80,39 +69,23 @@ pub type SM<M = Mode> = SetMode<M>;
 /// See the Report Mode (DECRPM) section in this chapter for details.
 ///
 /// [`RM`]: https://vt100.net/docs/vt510-rm/RM.html
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Debug, Deref)]
+#[derive_const(Clone, Eq, PartialEq)]
 #[repr(transparent)]
-pub struct ResetMode<M = Mode>(pub M);
+pub struct Reset(pub Mode);
 
-const impl<M> ResetMode<M> {
-    #[inline]
-    pub fn value(&self) -> &M {
-        &self.0
-    }
-}
 
-impl Escape for ResetMode<Mode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        match self.0 {
-            Mode::Ansi(ansi) => write!(w, "\x1B[{}l", ansi),
-            Mode::Dec(dec) => write!(w, "\x1B[?{}l", dec),
+impl Escape for Reset {
+    fn escape(&self, w: &mut dyn io::Write) -> io::Result<()> {
+        match self.kind() {
+            ModeKind::Ansi => write!(w, "\x1B[{}l", self.0),
+            ModeKind::Dec => write!(w, "\x1B[?{}l", self.0),
         }
     }
 }
 
-impl Escape for ResetMode<AnsiMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[{}l", self.0)
-    }
-}
 
-impl Escape for ResetMode<DecMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[?{}l", self.0)
-    }
-}
-
-pub type RM<M = Mode> = ResetMode<M>;
+pub type RM = Reset;
 
 /// [DECRPM] - Report Mode - Terminal To Host
 ///
@@ -141,31 +114,29 @@ pub type RM<M = Mode> = ResetMode<M>;
 /// changed them.
 ///
 /// [`DECRPM`]: https://vt100.net/docs/vt510-rm/DECRPM.html
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct ReportMode<M = Mode> {
-    pub mode: M,
-    pub setting: ModeSetting,
+#[derive(Copy, Debug, Deref)]
+#[derive_const(Clone, Eq, PartialEq)]
+pub struct Report(#[deref] pub Mode, pub ModeSetting);
+
+impl Report {
+    #[inline]
+    pub fn mode(&self) -> &Mode {
+        &self.0
+    }
+
+    #[inline]
+    pub fn setting(&self) -> &ModeSetting {
+        &self.1
+    }
 }
 
-impl Escape for ReportMode<Mode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        match self.mode {
-            Mode::Ansi(ansi) => write!(w, "\x1B[{};{}$y", ansi, self.setting),
-            Mode::Dec(dec) => write!(w, "\x1B[?{};{}$y", dec, self.setting),
+impl Escape for Report {
+    fn escape(&self, w: &mut dyn io::Write) -> io::Result<()> {
+        match self.kind() {
+            ModeKind::Ansi => write!(w, "\x1B[{};{}$y", self.0, self.1),
+            ModeKind::Dec => write!(w, "\x1B[?{};{}$y", self.0, self.1),
         }
     }
 }
 
-impl Escape for ReportMode<AnsiMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[{};{}$y", self.mode, self.setting)
-    }
-}
-
-impl Escape for ReportMode<DecMode> {
-    fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "\x1B[?{};{}$y", self.mode, self.setting)
-    }
-}
-
-pub type DECRPM<M = Mode> = ReportMode<M>;
+pub type DECRPM = Report;

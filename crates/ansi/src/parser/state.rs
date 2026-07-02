@@ -200,15 +200,15 @@ transition! {
         0x20..=0x7f => (State::SosPmData, Action::Ignore),
     },
 
-    State::ApcData => {
-        on_entry => Action::ApcStart,
-        on_exit  => Action::ApcEnd,
-
-        0x00..=0x17 => (State::ApcData, Action::ApcByte),
-        0x19       => (State::ApcData, Action::ApcByte),
-        0x1c..=0x1f => (State::ApcData, Action::ApcByte),
-        0x20..=0x7f => (State::ApcData, Action::ApcByte),
-    },
+    // State::ApcData => {
+    //     on_entry => Action::ApcStart,
+    //     on_exit  => Action::ApcEnd,
+    //
+    //     0x00..=0x17 => (State::ApcData, Action::ApcByte),
+    //     0x19       => (State::ApcData, Action::ApcByte),
+    //     0x1c..=0x1f => (State::ApcData, Action::ApcByte),
+    //     0x20..=0x7f => (State::ApcData, Action::ApcByte),
+    // },
 }
 
 impl Debug for State {

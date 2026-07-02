@@ -1,3 +1,4 @@
+use std::char::EscapeDefault;
 use super::*;
 use crate::{Intermediates, Parameters, Params};
 use derive_more::{Deref, DerefMut};
@@ -24,21 +25,23 @@ impl std::fmt::Debug for Record {
 
         match self {
             Record::Char(c) => write!(f, "Char({})", c.escape_default()),
-            Record::Print(b) => write!(f, "Print({:?})", String::from_utf8_lossy(b)),
+            Record::Print(b) => write!(f, "Print({})", String::from_utf8_lossy(b)),
             Record::Execute(b) => write!(f, "Execute({})", (*b as char).escape_default()),
-            Record::Esc(i, b) => write!(f, "Esc({:?},  {})", i, (*b as char).escape_default()),
+            Record::Esc(i, b) => {
+                write!(f, "Esc({}{})", i, *b as char)
+            },
             Record::Csi(p, i, c) => {
-                write!(f, "Csi({:?}, {:?}, {})", p, i, (*c as char).escape_default())
+                write!(f, "Csi({}{}{})", p, i, c)
             }
             Record::Dcs(p, i, c) => {
-                write!(f, "Dcs({:?}, {:?}, {})", p, i, (*c as char).escape_default())
+                write!(f, "Dcs({}{}{})", p, i, (*c as char).escape_default())
             }
-            Record::DcsData(b) => write!(f, "DcsData({:?})", String::from_utf8_lossy(b)),
+            Record::DcsData(b) => write!(f, "DcsData({})", String::from_utf8_lossy(b)),
             Record::DcsEnd(b) => {
                 write!(f, "DcsEnd({})", (*b as char).escape_default())
             }
-            Record::Osc => write!(f, "OscStart"),
-            Record::OscData(b) => write!(f, "OscData({:?})", String::from_utf8_lossy(b)),
+            Record::Osc => write!(f, "Osc"),
+            Record::OscData(b) => write!(f, "OscData({})", String::from_utf8_lossy(b)),
             Record::OscEnd(b) => {
                 write!(f, "OscEnd({})", (*b as char).escape_default())
             }
@@ -141,18 +144,10 @@ macro_rules! records {
 
 #[macro_export]
 macro_rules! assert_parser {
-    ($bytes:expr, [ $($record:expr),* ]) => {
-        let mut recorder = Recorder::new();
-        let mut parser = Parser::new();
-        parser.advance(&mut recorder, $bytes.as_ref());
-        assert_eq!(recorder, [$($record),*]);
-    };
-    ($bytes:expr, $($record:expr),*) => {
-        let mut recorder = Recorder::new();
-        let mut parser = Parser::new();
-        parser.advance(&mut recorder, $bytes.as_ref());
-        assert_eq!(recorder, [$($record),*]);
-    };
+    // array form
+    ($bytes:expr, [ $($record:expr),* $(,)? ]) => { assert_eq!(Recorder::record($bytes), vec![$($record),*]) };
+    // single form
+    ($bytes:expr, $record:expr) => { assert_eq!(Recorder::record($bytes), vec![$record]) };
 }
 
 #[macro_export]
@@ -180,7 +175,7 @@ const YELLOW: &str = "\x1b[33m";
 const MAGENTA: &str = "\x1b[35m";
 const RESET: &str = "\x1b[0m";
 
-pub fn debug_byte(byte: u8) -> String {
+pub fn fmt_byte(byte: u8) -> String {
     format!("{YELLOW}[0x{byte:02X}]{RESET}")
 }
 pub fn debug_advance(bytes: &[u8]) {
@@ -199,7 +194,7 @@ pub fn debug_transition(
         "{}",
         from_fn(|f| {
             // Byte
-            write!(f, "{}", debug_byte(byte))?;
+            write!(f, "{}", fmt_byte(byte))?;
 
             if from != to {
                 // State
@@ -241,7 +236,7 @@ pub fn debug_print(bytes: &[u8], len: usize) {
         "{}",
         from_fn(|f| {
             let byte = bytes[0];
-            write!(f, "{}", debug_byte(byte))?;
+            write!(f, "{}", fmt_byte(byte))?;
 
             // Byte
             write!(

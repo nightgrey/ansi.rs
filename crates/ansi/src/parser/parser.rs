@@ -1,11 +1,11 @@
+use std::char::EscapeDebug;
 use super::*;
-use arrayvec::ArrayVec;
 
 #[derive(Debug, Default)]
 pub struct Parser {
     pub state: State,
-    pub params: InternalParameters,
-    pub intermediates: ArrayVec<u8, 2>,
+    pub params: ParametersAccumulator,
+    pub intermediates: IntermediatesAccumulator,
 }
 
 impl Parser {
@@ -14,19 +14,23 @@ impl Parser {
     }
 
     pub fn advance(&mut self, handler: &mut dyn Handler, bytes: &[u8]) -> usize {
-        debug_advance(bytes);
+        // debug_advance(bytes);
         let mut i = 0;
-
 
         while i < bytes.len() {
             match self.state {
                 State::Ground => {
+                    memspan::skip_class! {
+                        pub fn skip_ascii_graphic_and_utf8(
+                            ranges = [0x21..=0xFF],
+                        );
+                    }
                     let skipped = skip_ascii_graphic_and_utf8(&bytes[i..]);
 
                     if skipped > 0 {
                         let start = i;
                         i += skipped;
-                        debug_print(&bytes[start..i], skipped);
+                        // debug_print(&bytes[start..i], skipped);
                         handler.print(&bytes[start..i]);
                     }
 
@@ -35,13 +39,18 @@ impl Parser {
                     }
 
                     i += self.advance_byte(handler, bytes[i]);
-                },
+                }
                 State::OscData => {
-                    let skipped = skip_osc_string(&bytes[i..]);
+                    memspan::skip_class! {
+                        pub fn skip_osc_data(
+                            ranges = [0x20..=0xFF],
+                        );
+                    }
+                    let batched = skip_osc_data(&bytes[i..]);
 
-                    if skipped > 0 {
+                    if batched > 0 {
                         let start = i;
-                        i += skipped;
+                        i += batched;
                         handler.osc_data(&bytes[start..i]);
                     }
 
@@ -50,8 +59,13 @@ impl Parser {
                     }
 
                     i += self.advance_byte(handler, bytes[i]);
-                },
+                }
                 State::DcsData => {
+                    memspan::skip_class! {
+                        pub fn skip_dcs_data(
+                            ranges = [0x20..=0x7E, 0x80u8..=0xFFu8],
+                        );
+                    }
                     let skipped = skip_dcs_data(&bytes[i..]);
 
                     if skipped > 0 {
@@ -65,7 +79,7 @@ impl Parser {
                     }
 
                     i += self.advance_byte(handler, bytes[i]);
-                },
+                }
                 _ => i += self.advance_byte(handler, bytes[i]),
             }
         }
@@ -92,14 +106,14 @@ impl Parser {
     fn transition(&mut self, handler: &mut dyn Handler, byte: u8) {
         let (next_state, action) = self.state.transition(byte);
 
-        debug_transition(
-            byte,
-            self.state,
-            next_state,
-            action,
-            self.state.exit(),
-            next_state.entry(),
-        );
+        // debug_transition(
+        //     byte,
+        //     self.state,
+        //     next_state,
+        //     action,
+        //     self.state.exit(),
+        //     next_state.entry(),
+        // );
 
         if self.state != next_state {
             self.action(handler, self.state.exit(), byte);
@@ -132,12 +146,12 @@ impl Parser {
 
             Action::EscDispatch => handler.esc(self.intermediates.as_ref(), byte),
             Action::CsiDispatch => {
-                self.params.finish();
+                self.params.flush();
                 handler.csi(self.params.as_ref(), &self.intermediates, byte as char);
             }
 
             Action::Dcs => {
-                self.params.finish();
+                self.params.flush();
                 handler.dcs(self.params.as_ref(), &self.intermediates, byte as char);
             }
             Action::DcsData => handler.dcs_data(&[byte]),
@@ -148,553 +162,315 @@ impl Parser {
             Action::OscEnd => handler.osc_end(byte),
 
             _ => {}
-
         }
     }
 }
 
-/*
-
-            //
-            // if self.state == State::CsiIgnore {
-            //     let end = skip_csi_ignore(&bytes[i..]);
-            //
-            //     if end > 0 {
-            //         i += end;
-            //
-            //         if i >= bytes.len() {
-            //             break;
-            //         }
-            //     }
-            // }
-
-*/
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Intermediates;
     use crate::parser::tests::{Record, Recorder};
-    use crate::{Parameters, assert_parser, params};
+    use crate::{Intermediates, params};
 
-    mod ground {
+    // ---- OSC ------------------------------------------------------------
+    mod osc {
+        use vte::{Params, Perform};
         use super::*;
+        use crate::assert_parser;
+
+        /// vte: `parse_osc`. Payload is emitted as a single verbatim run (no
+        /// `;`-splitting into params).
         #[test]
-        fn prints_plain_ascii() {
-            assert_parser!(
-                "abc",
-                Record::Print(b"abc".to_vec())
+        fn parse_osc() {
+            assert_eq!(
+                Recorder::record(b"\x1b]2;jwilm@jwilm-desk: ~/code/alacritty\x07"),
+                vec![
+                    Record::Osc,
+                    Record::OscData(b"2;jwilm@jwilm-desk: ~/code/alacritty".to_vec()),
+                    Record::OscEnd(0x07),
+                ],
             );
         }
 
-        mod vte {
-            use vte::{Params, Parser, Perform};
+        /// vte: `parse_empty_osc`.
+        #[test]
+        fn parse_empty_osc() {
+            assert_eq!(
+                Recorder::record(b"\x1b]\x07"),
+                vec![Record::Osc, Record::OscEnd(0x07)],
+            );
+        }
 
-            #[derive(Default)]
-            struct Dispatcher {
-                dispatched: Vec<Sequence>,
-            }
+        /// vte: `osc_bell_terminated`.
+        #[test]
+        fn osc_bell_terminated() {
+            assert_eq!(
+                Recorder::record(b"\x1b]11;ff/00/ff\x07"),
+                vec![
+                    Record::Osc,
+                    Record::OscData(b"11;ff/00/ff".to_vec()),
+                    Record::OscEnd(0x07),
+                ],
+            );
+        }
 
-            #[derive(Debug, PartialEq, Eq)]
-            enum Sequence {
-                Osc(Vec<Vec<u8>>, bool),
-                Csi(Vec<Vec<u16>>, Vec<u8>, bool, char),
-                Esc(Vec<u8>, bool, u8),
-                DcsHook(Vec<Vec<u16>>, Vec<u8>, bool, char),
-                DcsPut(u8),
-                Print(char),
-                Execute(u8),
-                DcsUnhook,
-            }
-
-            impl Perform for Dispatcher {
-                fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
-                    let params = params.iter().map(|p| p.to_vec()).collect();
-                    self.dispatched.push(Sequence::Osc(params, bell_terminated));
-                }
-
-                fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], ignore: bool, c: char) {
-                    let params = params.iter().map(|subparam| subparam.to_vec()).collect();
-                    let intermediates = intermediates.to_vec();
-                    self.dispatched.push(Sequence::Csi(params, intermediates, ignore, c));
-                }
-
-                fn esc_dispatch(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
-                    let intermediates = intermediates.to_vec();
-                    self.dispatched.push(Sequence::Esc(intermediates, ignore, byte));
-                }
-
-                fn hook(&mut self, params: &Params, intermediates: &[u8], ignore: bool, c: char) {
-                    let params = params.iter().map(|subparam| subparam.to_vec()).collect();
-                    let intermediates = intermediates.to_vec();
-                    self.dispatched.push(Sequence::DcsHook(params, intermediates, ignore, c));
-                }
-
-                fn put(&mut self, byte: u8) {
-                    self.dispatched.push(Sequence::DcsPut(byte));
-                }
-
-                fn unhook(&mut self) {
-                    self.dispatched.push(Sequence::DcsUnhook);
-                }
-
-                fn print(&mut self, c: char) {
-                    self.dispatched.push(Sequence::Print(c));
-                }
-
-                fn execute(&mut self, byte: u8) {
-                    self.dispatched.push(Sequence::Execute(byte));
-                }
-            }
+        /// vte: `osc_c0_st_terminated`. ST (`ESC \`) closes the OSC (with the
+        /// ESC as the terminating byte) and then dispatches as its own `Esc`.
+        #[test]
+        fn osc_c0_st_terminated() {
+            assert_eq!(
+                Recorder::record(b"\x1b]11;ff/00/ff\x1b\\"),
+                vec![
+                    Record::Osc,
+                    Record::OscData(b"11;ff/00/ff".to_vec()),
+                    Record::OscEnd(0x1b),
+                    Record::Esc(Intermediates::empty(), b'\\'),
+                ],
+            );
+        }
+        #[test]
+        fn parse_osc_with_utf8_arguments() {
+            assert_eq!(
+                Recorder::record(&[
+                    0x0D, 0x1B, 0x5D, 0x32, 0x3B, 0x65, 0x63, 0x68, 0x6F, 0x20, 0x27, 0xC2, 0xAF,
+                    0x5C, 0x5F, 0x28, 0xE3, 0x83, 0x84, 0x29, 0x5F, 0x2F, 0xC2, 0xAF, 0x27, 0x20,
+                    0x26, 0x26, 0x20, 0x73, 0x6C, 0x65, 0x65, 0x70, 0x20, 0x31, 0x07,
+                ]),
+                vec![
+                    Record::Execute(b'\r'),
+                    Record::Osc,
+                    Record::OscData(
+                        String::from("2;echo '¯\\_(ツ)_/¯' && sleep 1")
+                            .as_bytes()
+                            .to_vec()
+                    ),
+                    Record::OscEnd(0x07),
+                ],
+            );
         }
 
         #[test]
-        fn executes_c0_controls() {
-            // BEL, BS, TAB, LF, CR
+        fn osc_containing_string_terminator() {
+            const INPUT: &[u8] = b"\x1b]2;\xe6\x9c\xab\x1b\\";
+
+            assert_parser!(INPUT, [
+                Record::Osc,
+                Record::OscData(b"2;\xe6\x9c\xab".to_vec()),
+                Record::OscEnd(0x1b),
+                Record::Esc(Intermediates::empty(), b'\\'),
+            ]);
+
+        }
+
+        /// vte: `parse_osc_max_params`. This parser has no param cap because it
+        /// never splits OSC on `;` — the separators survive verbatim in the
+        /// payload run.
+        #[test]
+        fn osc_semicolons_are_verbatim() {
             assert_eq!(
-                Recorder::record(b"\x07\x08\x09\x0A\x0D"),
+                Recorder::record(b"\x1b];;;;;;;;;;;;;;;;;\x1b\\"),
                 vec![
-                    Record::Execute(0x07),
-                    Record::Execute(0x08),
-                    Record::Execute(0x09),
-                    Record::Execute(0x0A),
-                    Record::Execute(0x0D),
+                    Record::Osc,
+                    Record::OscData(b";;;;;;;;;;;;;;;;;".to_vec()),
+                    Record::OscEnd(0x1b),
+                    Record::Esc(Intermediates::empty(), b'\\'),
+                ],
+            );
+        }
+
+        /// vte: `exceed_max_buffer_size`. There is no fixed OSC buffer here, so
+        /// arbitrarily large payloads round-trip without truncation.
+        #[test]
+        fn large_osc_payload_is_not_truncated() {
+            const NUM_BYTES: usize = 4096;
+            let mut input = Vec::from(b"\x1b]52;".as_slice());
+            input.extend(std::iter::repeat(b'a').take(NUM_BYTES));
+            input.push(0x07);
+
+            let events = Recorder::record(&input);
+            assert_eq!(
+                events,
+                vec![
+                    Record::Osc,
+                    Record::OscData({
+                        let mut p = Vec::from(b"52;".as_slice());
+                        p.extend(std::iter::repeat(b'a').take(NUM_BYTES));
+                        p
+                    }),
+                    Record::OscEnd(0x07),
                 ]
             );
         }
-
-        #[test]
-        fn mixes_print_and_execute() {
-            assert_eq!(
-                Recorder::record(b"a\x07b"),
-                vec![
-                    Record::Print(b"a".to_vec()),
-                    Record::Execute(0x07),
-                    Record::Print(b"b".to_vec()),
-                ],
-            );
-        }
-
-        #[test]
-        fn ignores_del_in_ground_via_print_path() {
-            // 0x7F is in the printable-fast-path range; it should not be executed
-            // since DEL traditionally has no visible glyph but most parsers treat
-            // it as printable here. We assert current behavior so regressions are
-            // visible.
-            assert_eq!(Recorder::record(b"\x7f"), vec![Record::Print(b"\x7f".to_vec())]);
-        }
-
-        #[test]
-        fn high_bytes_are_not_raw_c1_controls() {
-            let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-
-            parser.advance(&mut recorder, &[b'x', 0x9B, b'1', b'm']);
-
-            assert_eq!(
-                recorder,
-                [
-                    Record::Print(b"x\x9B1m".to_vec()),
-                ],
-            );
-        }
     }
 
-    mod esc {
-        use super::*;
-        #[test]
-        fn esc_simple_dispatch() {
-            // ESC 7 — DECSC
-            assert_eq!(
-                Recorder::record(b"\x1B7"),
-                vec![Record::Esc(Intermediates::empty(), b'7')],
-            );
-        }
-
-        #[test]
-        fn esc_with_intermediate() {
-            // ESC # 8 — DECALN
-            assert_eq!(
-                Recorder::record(b"\x1B#8"),
-                vec![Record::Esc(Intermediates::from(b"#"), b'8')],
-            );
-        }
-
-        #[test]
-        fn esc_with_two_intermediates() {
-            // ESC SP # F (uncommon but legal)
-            assert_eq!(
-                Recorder::record(b"\x1B #F"),
-                vec![Record::Esc(Intermediates::from(b" #"), b'F')],
-            );
-        }
-
-        #[test]
-        fn esc_re_entry_aborts_previous() {
-            // ESC inside a CSI sequence should abandon the CSI and start fresh.
-            assert_eq!(
-                Recorder::record(b"\x1B[1;\x1B[2m"),
-                vec![Record::Csi(params![[2]], Intermediates::empty(), 'm')],
-            );
-        }
-    }
-
+    // ---- CSI ------------------------------------------------------------
     mod csi {
-        use crate::{Param, Params};
         use super::*;
+
+        /// vte: `parse_csi_params_trailing_semicolon`. A trailing `;` yields an
+        /// implicit `0` param — matching vte exactly.
         #[test]
-        fn csi_no_params() {
+        fn trailing_semicolon() {
             assert_eq!(
-                Recorder::record(b"\x1B[m"),
-                vec![Record::Csi(Parameters::new(), Intermediates::empty(), 'm')],
+                Recorder::record(b"\x1b[4;m"),
+                vec![Record::Csi(params![[4], [0]], Intermediates::empty(), 'm')],
             );
         }
 
+        /// vte: `parse_csi_params_leading_semicolon`.
         #[test]
-        fn csi_single_param() {
+        fn leading_semicolon() {
             assert_eq!(
-                Recorder::record(b"\x1B[1m"),
-                vec![Record::Csi(params![[1]], Intermediates::empty(), 'm')],
+                Recorder::record(b"\x1b[;4m"),
+                vec![Record::Csi(params![[0], [4]], Intermediates::empty(), 'm')],
             );
         }
 
+        /// vte: `parse_long_csi_param`. `i64::MAX + 1` saturates at `u16::MAX`.
         #[test]
-        fn csi_multiple_params() {
+        fn long_param_saturates() {
             assert_eq!(
-                Recorder::record(b"\x1B[1;2;3m"),
-                vec![Record::Csi(
-                    params!([1], [2], [3]),
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-
-        #[test]
-        fn csi_subparams() {
-            // 24-bit fg via sub-params: 38:2:255:128:0
-            assert_eq!(
-                Recorder::record(b"\x1B[38:2:255:128:0m"),
-                vec![Record::Csi(
-                    params![[38, 2, 255, 128, 0]],
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-
-        #[test]
-        fn csi_mixed_subparams_and_params() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1;2:3:4;5m"),
-                vec![Record::Csi(
-                    params![[1], [2, 3, 4], [5]],
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-
-        #[test]
-        fn csi_empty_leading_param_defaults_to_zero() {
-            assert_eq!(
-                Recorder::record(b"\x1B[;1m"),
-                vec![Record::Csi(params![[0], [1]], Intermediates::empty(), 'm')],
-            );
-        }
-
-        #[test]
-        fn csi_empty_subparam_defaults_to_zero() {
-            // 38:2::255:128:0 — empty colorspace ID should be 0.
-            assert_eq!(
-                Recorder::record(b"\x1B[38:2::255:128:0m"),
-                vec![Record::Csi(
-                    Parameters::from([Param::Main(38), Param::Sub(2), Param::Sub(0), Param::Sub(255), Param::Sub(128), Param::Sub(0)]),
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-
-        #[test]
-        fn csi_trailing_semicolon_does_not_add_param() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1;m"),
-                vec![Record::Csi(params![[1]], Intermediates::empty(), 'm')],
-            );
-        }
-
-        #[test]
-        fn csi_double_semicolon_inserts_zero() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1;;2m"),
-                vec![Record::Csi(
-                    params![[1], [0], [2]],
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-
-        #[test]
-        fn csi_trailing_colon_dispatches_with_zero_subparam() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1::m"),
-                vec![Record::Csi(params![[1, 0, 0]], Intermediates::empty(), 'm')],
-            );
-        }
-
-        #[test]
-        fn csi_clamps_param_to_max() {
-            // 99999 saturates at 65535 (ECMA-48 cap).
-            assert_eq!(
-                Recorder::record(b"\x1B[99999m"),
+                Recorder::record(b"\x1b[9223372036854775808m"),
                 vec![Record::Csi(params![[65535]], Intermediates::empty(), 'm')],
             );
         }
 
+        /// vte: `csi_reset`. An embedded ESC abandons the in-flight CSI and
+        /// starts a fresh one.
         #[test]
-        fn csi_private_marker() {
-            // DECSET — CSI ? 25 h
+        fn reset_on_embedded_esc() {
             assert_eq!(
-                Recorder::record(b"\x1B[?25h"),
-                vec![Record::Csi(params![[25]], Intermediates::from(b"?"), 'h')],
+                Recorder::record(b"\x1b[3;1\x1b[?1049h"),
+                vec![Record::Csi(params![[1049]], Intermediates::from(b"?"), 'h')],
             );
         }
 
+        /// vte: `csi_subparameters`.
         #[test]
-        fn csi_intermediate() {
-            // CSI SP q — DECSCUSR
+        fn subparameters() {
             assert_eq!(
-                Recorder::record(b"\x1B[2 q"),
-                vec![Record::Csi(params![[2]], Intermediates::from(b" "), 'q')],
-            );
-        }
-
-        #[test]
-        fn csi_colon_at_entry_enters_ignore() {
-            // `[:1m` — leading `:` enters CsiIgnore; nothing dispatches.
-            assert_eq!(Recorder::record(b"\x1B[:1m"), vec![]);
-        }
-
-
-        #[test]
-        fn csi_followed_by_text() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1mhi"),
-                vec![
-                    Record::Csi(params![[1]], Intermediates::empty(), 'm'),
-                    Record::Print(b"hi".to_vec()),
-                ],
-            );
-        }
-
-        #[test]
-        fn csi_can_cancels() {
-            // CAN inside a CSI returns to Ground without dispatch.
-            assert_eq!(
-                Recorder::record(b"\x1B[1;2\x18m"),
-                vec![Record::Execute(0x18), Record::Print(b"m".to_vec())],
-            );
-        }
-
-        #[test]
-        fn csi_sub_cancels() {
-            // SUB inside a CSI returns to Ground without dispatch.
-            assert_eq!(
-                Recorder::record(b"\x1B[1;2\x1Am"),
-                vec![Record::Execute(0x1A), Record::Print(b"m".to_vec())],
-            );
-        }
-
-        #[test]
-        fn csi_ignore_consumes_without_text_dispatch() {
-            assert_parser!(b"\x1B[:1mX", [Record::Print(b"X".to_vec())]);
-        }
-
-        #[test]
-        fn csi_intermediate_only_soft_reset() {
-            // CSI ! p — DECSTR (soft reset): intermediate, no params.
-            assert_eq!(
-                Recorder::record(b"\x1B[!p"),
+                Recorder::record(b"\x1b[38:2:255:0:255;1m"),
                 vec![Record::Csi(
-                    Parameters::new(),
-                    Intermediates::from(b"!"),
-                    'p'
+                    params![[38, 2, 255, 0, 255], [1]],
+                    Intermediates::empty(),
+                    'm',
                 )],
             );
         }
 
-        // ---- CSI edge cases -------------------------------------------------
-
+        /// vte: `parse_csi_params_ignore_long_params`. There is no `ignore`
+        /// flag; an over-long param list still dispatches once, with the
+        /// trailing params dropped at capacity (32).
         #[test]
-        fn del_inside_csi_param_is_ignored() {
-            // 0x7F inside a CSI param is ignored; the sequence still dispatches.
+        fn overflow_dispatches_capped() {
+            let mut input = Vec::from(b"\x1b[".as_slice());
+            for _ in 0..40 {
+                input.extend_from_slice(b"1;");
+            }
+            input.push(b'm');
+
+            let events = Recorder::record(&input);
+            assert_eq!(events.len(), 1);
+            match &events[0] {
+                Record::Csi(params, intermediates, c) => {
+                    assert_eq!(*c, 'm');
+                    assert!(intermediates.is_empty());
+                    assert_eq!(params.len(), 32);
+                }
+                other => panic!("expected a single Csi dispatch, got {other:?}"),
+            }
+        }
+
+        /// Params exactly at capacity dispatch losslessly.
+        #[test]
+        fn params_within_capacity() {
             assert_eq!(
-                Recorder::record(b"\x1B[1;2\x7fm"),
+                Recorder::record(b"\x1b[1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16m"),
+                vec![Record::Csi(
+                    params!(
+                        [1],
+                        [2],
+                        [3],
+                        [4],
+                        [5],
+                        [6],
+                        [7],
+                        [8],
+                        [9],
+                        [10],
+                        [11],
+                        [12],
+                        [13],
+                        [14],
+                        [15],
+                        [16]
+                    ),
+                    Intermediates::empty(),
+                    'm',
+                )],
+            );
+        }
+
+        /// vte: `params_buffer_filled_with_subparam`. A leading `:` sends CSI
+        /// straight to the ignore state, so nothing is dispatched (this parser
+        /// has no dispatch-with-ignore path).
+        #[test]
+        fn leading_colon_is_ignored() {
+            assert_eq!(Recorder::record(b"\x1b[::::::::x"), vec![]);
+        }
+
+        /// vte: `advance_csi_param`, `0x7F => ()`. DEL inside a param is
+        /// dropped; the sequence still dispatches.
+        #[test]
+        fn del_inside_param_is_ignored() {
+            assert_eq!(
+                Recorder::record(b"\x1b[1;2\x7fm"),
                 vec![Record::Csi(params![[1], [2]], Intermediates::empty(), 'm')],
             );
         }
 
+        /// A private-marker CSI (`CSI ? 25 h`).
+        #[test]
+        fn private_marker() {
+            assert_eq!(
+                Recorder::record(b"\x1b[?25h"),
+                vec![Record::Csi(params![[25]], Intermediates::from(b"?"), 'h')],
+            );
+        }
+
+        /// An intermediate byte in a CSI (`CSI 2 SP q`).
+        #[test]
+        fn intermediate() {
+            assert_eq!(
+                Recorder::record(b"\x1b[2 q"),
+                vec![Record::Csi(params![[2]], Intermediates::from(b" "), 'q')],
+            );
+        }
     }
 
-    /*mod eight_bit {
-    use super::*;
+    // ---- ESC ------------------------------------------------------------
+    mod esc {
         use super::*;
+
+        /// vte: `esc_reset`. An in-flight CSI is abandoned by ESC, and the
+        /// following ESC-with-intermediate dispatches cleanly.
         #[test]
-        fn c1_csi_starts_csi() {
-            // 0x9B is 8-bit CSI.
+        fn reset() {
             assert_eq!(
-                Harness::run([0x9B, b'1', b';', b'2', b'm']),
-                vec![Record::Csi(params![[1], [2]], Intermediates::empty(), 'm')],
+                Recorder::record(b"\x1b[3;1\x1b(A"),
+                vec![Record::Esc(Intermediates::from(b"("), b'A')],
             );
         }
 
+        /// vte: `esc_reset_intermediates`. Intermediates from a completed CSI
+        /// do not leak into the following ESC.
         #[test]
-        fn c1_osc_starts_osc() {
-            // 0x9D is 8-bit OSC, 0x9C is ST.
+        fn reset_intermediates() {
             assert_eq!(
-                Harness::run([0x9D, b'0', b';', b'h', b'i', 0x9C]),
+                Recorder::record(b"\x1b[?2004l\x1b#8"),
                 vec![
-                    Record::Osc,
-                    Record::OscByte(b'0'),
-                    Record::OscByte(b';'),
-                    Record::OscByte(b'h'),
-                    Record::OscByte(b'i'),
-                    Record::OscTermination(0x9C),
-                ],
-            );
-        }
-
-        #[test]
-        fn c1_dcs_starts_dcs() {
-            // 0x90 is 8-bit DCS, 0x9C is ST.
-            assert_eq!(
-                Harness::run([0x90, b'q', b'X', 0x9C]),
-                vec![
-                    Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsByte(b'X'),
-                    Record::DcsTermination(0x9C),
-                ],
-            );
-        }
-
-        #[test]
-        fn c1_sos_string_is_silently_consumed() {
-            // 8-bit SOS introducer 0x98.
-            let mut seq = vec![0x98];
-            seq.extend_from_slice(b"junk\x1B\\");
-            assert_eq!(
-                Harness::run(seq),
-                vec![Record::Esc(Intermediates::empty(), b'\\')]
-            );
-        }
-
-    }*/
-
-    mod osc {
-        use super::*;
-        #[test]
-        fn osc_st_terminated() {
-            // OSC 0 ; title ST  (ST = ESC \)
-            assert_eq!(
-                Recorder::record(b"\x1B]0;title\x1B\\"),
-                vec![
-                    Record::Osc,
-                    Record::OscData(b"0;title".to_vec()),
-                    Record::OscEnd(0x1B),
-                    Record::Esc(Intermediates::empty(), b'\\'),
-                ],
-            );
-        }
-
-        #[test]
-        fn osc_bel_terminated() {
-            // OSC 0 ; title BEL — xterm convention.
-            assert_eq!(
-                Recorder::record(b"\x1B]0;hi\x07"),
-                vec![
-                    Record::Osc,
-                    Record::OscData(b"0;hi".to_vec()),
-                    Record::OscEnd(0x07),
-                ],
-            );
-        }
-
-        #[test]
-        fn osc_can_terminated() {
-            // CAN inside OSC terminates the string and executes the CAN, returning
-            // to ground.
-            assert_eq!(
-                Recorder::record(b"\x1B]0;hi\x18"),
-                vec![
-                    Record::Osc,
-                    Record::OscData(b"0;hi".to_vec()),
-                    Record::OscEnd(0x18),
-                    Record::Execute(0x18),
-                ],
-            );
-        }
-
-        #[test]
-        fn osc_empty() {
-            assert_eq!(
-                Recorder::record(b"\x1B]\x07"),
-                vec![Record::Osc, Record::OscEnd(0x07),],
-            );
-        }
-
-        #[test]
-        fn osc_ignored_control_splits_run() {
-            // An ignored C0 (BS = 0x08) inside the body splits the batch and is
-            // dropped — no osc_byte for it — while the data on either side survives.
-            assert_eq!(
-                Recorder::record(b"\x1B]0;ab\x08cd\x07"),
-                vec![
-                    Record::Osc,
-                    Record::OscData(b"0;ab".to_vec()),
-                    Record::OscData(b"cd".to_vec()),
-                    Record::OscEnd(0x07),
-                ],
-            );
-        }
-
-        #[test]
-        fn osc_run_spans_advance_chunks() {
-            // Data split across advance calls still reconstructs losslessly.
-            let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-            parser.advance(&mut recorder, b"\x1B]0;ti");
-            parser.advance(&mut recorder, b"tle\x07");
-            assert_eq!(
-                recorder,
-                vec![
-                    Record::Osc,
-                    Record::OscData(b"0;ti".to_vec()),
-                    Record::OscData(b"tle".to_vec()),
-                    Record::OscEnd(0x07),
-                ],
-            );
-        }
-
-        #[test]
-        fn osc_payloads_preserve_high_bytes() {
-            let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-
-            parser.advance(&mut recorder, b"\x1B]0;\xC3\xA9\x07");
-            parser.advance(&mut recorder, b"\x1BPq\xC3\xA9\x1B\\");
-
-            assert_eq!(
-                recorder,
-                [
-                    Record::Osc,
-                    Record::OscData(vec![b'0', b';', 0xC3, 0xA9]),
-                    Record::OscEnd(0x07),
-                    Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsData(vec![0xC3, 0xA9]),
-                    Record::DcsEnd(0x1B),
-                    Record::Esc(Intermediates::empty(), b'\\'),
+                    Record::Csi(params![[2004]], Intermediates::from(b"?"), 'l'),
+                    Record::Esc(Intermediates::from(b"#"), b'8'),
                 ],
             );
         }
@@ -703,174 +479,144 @@ mod tests {
     // ---- DCS ------------------------------------------------------------
     mod dcs {
         use super::*;
+
+        /// vte: `parse_dcs`. `vte`'s per-byte `put` becomes a single batched
+        /// `DcsData` run; ST is reported as `DcsEnd` + a following `Esc`.
+        /// (C1 ST `0x9C` is 7-bit-only here, so the ST is spelled `ESC \`.)
         #[test]
-        fn dcs_basic() {
-            // DCS $ q   <data>   ESC \
+        fn parse_dcs() {
             assert_eq!(
-                Recorder::record(b"\x1BP$q q\x1B\\"),
+                Recorder::record(b"\x1bP0;1|17/ab\x1b\\"),
                 vec![
-                    Record::Dcs(Parameters::new(), Intermediates::from(b"$"), 'q'),
-                    Record::DcsData(b" q".to_vec()),
-                    Record::DcsEnd(0x1B),
+                    Record::Dcs(params![[0], [1]], Intermediates::empty(), '|'),
+                    Record::DcsData(b"17/ab".to_vec()),
+                    Record::DcsEnd(0x1b),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
             );
         }
 
+        /// vte: `dcs_reset`. An in-flight CSI is abandoned, then a DCS with an
+        /// intermediate runs to completion.
         #[test]
-        fn dcs_with_params() {
+        fn reset() {
             assert_eq!(
-                Recorder::record(b"\x1BP1;2|data\x1B\\"),
+                Recorder::record(b"\x1b[3;1\x1bP1$tx\x1b\\"),
                 vec![
-                    Record::Dcs(params![[1], [2]], Intermediates::empty(), '|'),
-                    Record::DcsData(b"data".to_vec()),
-                    Record::DcsEnd(0x1B),
-                    Record::Esc(Intermediates::empty(), b'\\'),
-                ],
-            );
-        }
-
-        #[test]
-        fn dcs_with_subparams() {
-            assert_eq!(
-                Recorder::record(b"\x1BP1:2|x\x1B\\"),
-                vec![
-                    Record::Dcs(params![[1, 2]], Intermediates::empty(), '|'),
+                    Record::Dcs(params![[1]], Intermediates::from(b"$"), 't'),
                     Record::DcsData(b"x".to_vec()),
-                    Record::DcsEnd(0x1B),
+                    Record::DcsEnd(0x1b),
                     Record::Esc(Intermediates::empty(), b'\\'),
                 ],
             );
         }
 
+        /// vte: `intermediate_reset_on_dcs_exit`. The DCS intermediate (`=`)
+        /// does not leak into the trailing ESC.
         #[test]
-        fn dcs_can_cancels() {
-            // CAN aborts the DCS without termination event.
+        fn intermediate_reset_on_exit() {
             assert_eq!(
-                Recorder::record(b"\x1BPq abc\x18tail"),
+                Recorder::record(b"\x1bP=1sZZZ\x1b+\x5c"),
                 vec![
-                    Record::Dcs(Parameters::new(), Intermediates::empty(), 'q'),
-                    Record::DcsData(b" abc".to_vec()),
-                    Record::DcsEnd(0x18),
-                    Record::Execute(0x18),
-                    Record::Print(b"tail".to_vec()),
+                    Record::Dcs(params![[1]], Intermediates::from(b"="), 's'),
+                    Record::DcsData(b"ZZZ".to_vec()),
+                    Record::DcsEnd(0x1b),
+                    Record::Esc(Intermediates::from(b"+"), b'\\'),
                 ],
             );
         }
     }
 
-    mod incremental {
+    // ---- Controls -------------------------------------------------------
+    mod controls {
         use super::*;
+
+        /// vte: `execute_anywhere`. CAN (`0x18`) and SUB (`0x1A`) execute from
+        /// any state.
         #[test]
-        fn csi_split_across_advance_calls() {
-            let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-            parser.advance(&mut recorder, b"\x1B[");
-            parser.advance(&mut recorder, b"38;5;");
-            parser.advance(&mut recorder, b"196m");
+        fn execute_anywhere() {
             assert_eq!(
-                recorder,
-                vec![Record::Csi(
-                    params![[38], [5], [196]],
-                    Intermediates::empty(),
-                    'm'
-                )]
+                Recorder::record(b"\x18\x1a"),
+                vec![Record::Execute(0x18), Record::Execute(0x1a)],
             );
         }
 
+        /// vte: `c1s` (C0 portion). C0 controls execute; surrounding text
+        /// prints.
         #[test]
-        fn osc_split_across_advance_calls() {
-            let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-            parser.advance(&mut recorder, b"\x1B]0;ti");
-            parser.advance(&mut recorder, b"tle\x07");
+        fn c0_controls_execute() {
             assert_eq!(
-                recorder,
+                Recorder::record(b"\x00\x1fa"),
                 vec![
-                    Record::Osc,
-                    Record::OscData(b"0;ti".to_vec()),
-                    Record::OscData(b"tle".to_vec()),
-                    Record::OscEnd(0x07),
-                ]
+                    Record::Execute(0x00),
+                    Record::Execute(0x1f),
+                    Record::Print(b"a".to_vec()),
+                ],
             );
         }
-    }
 
-    mod overflow {
-        use super::*;
+        /// vte: `c1s` (C1 portion) — divergence. This is a 7-bit parser: a raw
+        /// C1 byte (`0x9B`, "8-bit CSI") is not a control here, it is folded
+        /// into the surrounding printable run.
         #[test]
-        fn param_overflow_does_not_panic() {
-            // A pathologically long parameter list must not panic. It dispatches
-            // with the trailing params dropped once capacity is reached.
-            let mut seq = Vec::from(b"\x1B[".as_slice());
-            for _ in 0..40 {
-                seq.extend_from_slice(b"1;");
-            }
-            seq.push(b'm');
-
-            let events = Recorder::record(seq);
-            // Exactly one CSI dispatch, with the trailing params dropped once the
-            // builder hits capacity. `NestedRaw<_, 32, 32>` reserves one `starts`
-            // slot as a sentinel, so the group cap is 31.
-            assert_eq!(events.len(), 1);
-            match &events[0] {
-                Record::Csi(params, i, c) => {
-                    assert_eq!(*c, 'm');
-                    assert!(i.is_empty());
-                    assert_eq!(params.len(), 32);
-                }
-                other => panic!("expected a single Csi dispatch, got {other:?}"),
-            }
-        }
-
-        #[test]
-        fn many_param_sgr_within_capacity() {
-            assert_eq!(
-                Recorder::record(b"\x1B[1;2;3;4;5;6;7;8;9;10m"),
-                vec![Record::Csi(
-                    params!([1], [2], [3], [4], [5], [6], [7], [8], [9], [10]),
-                    Intermediates::empty(),
-                    'm'
-                )],
-            );
-        }
-    }
-
-    #[test]
-    fn sgr_emoji_reset_combination() {
-        let events = Recorder::record("\x1B[1;2;3m👨🏿\x1B[0m".as_bytes());
-        assert_eq!(
-            events,
-            vec![
-                Record::Csi(params![[1], [2], [3]], Intermediates::empty(), 'm'),
-                Record::Print("👨🏿".as_bytes().to_vec()),
-                Record::Csi(params![[0]], Intermediates::empty(), 'm'),
-            ],
-        );
-    }
-
-    mod flush {
-        use super::*;
-        #[test]
-        fn flush_on_clean_boundary_emits_nothing() {
+        fn raw_c1_bytes_are_printed() {
             let mut parser = Parser::new();
             let mut recorder = Recorder::new();
-            parser.advance(&mut recorder, b"ab");
-            let before = recorder.len();
-            parser.flush();
-            assert_eq!(recorder.len(), before);
+            parser.advance(&mut recorder, &[b'x', 0x9b, b'1', b'm']);
+            assert_eq!(recorder, [Record::Print(b"x\x9b1m".to_vec())]);
+        }
+    }
+
+    // ---- "Unicode" --------------------------------------------
+    mod unicode {
+        use crate::assert_parser;
+        use super::*;
+
+        #[test]
+        fn unicode() {
+            const INPUT: &[u8] = b"\xF0\x9F\x8E\x89_\xF0\x9F\xA6\x80\xF0\x9F\xA6\x80_\xF0\x9F\x8E\x89";
+
+            assert_parser!(INPUT, [
+                Record::Print(INPUT.to_vec()),
+            ]);
         }
 
         #[test]
-        fn flush_resets_to_ground() {
+        fn invalid_utf8() {
+            const INPUT: &[u8] = b"a\xEF\xBCb";
+
+            assert_parser!(INPUT, [
+                Record::Print(INPUT.to_vec()),
+            ]);
+        }
+
+        #[test]
+        fn partial_utf8() {
+            const INPUT: &[u8] = b"\xF0\x9F\x9A\x80";
+
+            assert_parser!(INPUT, [
+                Record::Print(INPUT.to_vec()),
+            ]);
+        }
+
+        #[test]
+        fn partial_utf8_separating_utf8() {
+            // This is different from the `partial_utf8` test since it has a multi-byte UTF8
+            // character after the partial UTF8 state, causing a partial byte to be present
+            // in the `partial_utf8` buffer after the 2-byte codepoint.
+
+            // "ĸ🎉"
+            const INPUT: &[u8] = b"\xC4\xB8\xF0\x9F\x8E\x89";
+
+            let mut recorder = Recorder::default();
             let mut parser = Parser::new();
-            let mut recorder = Recorder::new();
-            // Enter an incomplete CSI, then flush: the dangling sequence is
-            // discarded and subsequent text parses from ground.
-            parser.advance(&mut recorder, b"\x1B[1;2");
-            parser.flush();
-            parser.advance(&mut recorder, b"x");
-            assert_eq!(recorder, vec![Record::Print(b"x".to_vec())]);
+
+            parser.advance(&mut recorder, &INPUT[..1]);
+            parser.advance(&mut recorder, &INPUT[1..]);
+
+            assert_eq!(recorder, [Record::Print(INPUT[..1].to_vec()), Record::Print(INPUT[1..].to_vec())]);
         }
     }
+
+
 }

@@ -1,8 +1,20 @@
 use crate::params::{Param, Parameters, Params};
 use derive_more::{Deref, DerefMut};
 use std::borrow::Borrow;
+use std::ops::{Deref, DerefMut};
 use arrayvec::ArrayVec;
 use utils::{NestedMut};
+
+/// Which separator was encountered in the parameter string.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Separator {
+    /// `;` — starts a new main parameter.
+    Main,
+    /// `:` — starts a new sub-parameter within the current main parameter.
+    Sub,
+}
+
+// ── Accumulator ────────────────────────────────────────────────────────────
 
 /// Accumulator for the numeric parameter string of an ECMA-48 CSI or DCS
 /// control sequence.
@@ -19,59 +31,50 @@ use utils::{NestedMut};
 /// ECMA-48. The type derefs to an [`ArrayVec`] of [`Param`] values so the
 /// finished list can be inspected directly.
 ///
-/// # Parsing state
-///
-/// Because the first value of a main parameter and the first value of a
-/// sub-parameter look identical until the next separator arrives, the
-/// accumulator keeps three pieces of in-flight state:
-///
-/// * `current` – the decimal value currently being built from ASCII digits.
-/// * `in_group` – whether a `:` has been seen since the last `;`, i.e. whether
-///   `current` belongs to an active sub-parameter group.
-/// * `is_pending` – whether a trailing `;` has opened a fresh main-parameter
-///   slot that has not yet received a value.
-///
 /// # Semantics
 ///
 /// * Empty main parameters default to `0`. Leading or repeated `;` separators
-///   therefore create a `[0]` main parameter, and a trailing `;` before the
-///   final character (e.g. `CSI 4 ; m`) also emits a final `[0]`.
+///   therefore create a `Param::None`, and a trailing `;` before the final
+///   character (e.g. `CSI 4 ; m`) also emits a trailing `Param::None`.
 /// * Empty sub-parameters default to `0`, so `1::3` is parsed as
-///   `[[1, 0, 3]]`.
+///   `[Main(1), Sub(0), Sub(3)]`.
 /// * A sequence with no separator at all, such as `CSI m`, leaves the
 ///   parameter list empty.
-/// * Numeric values saturate at [`u16::MAX`]; values and capacity limits are
-///   hard caps. The control sequence still dispatches with whatever parameters
-///   fit, rather than panicking.
+/// * Numeric values saturate at `u16::MAX`; overflow of the 32-entry capacity
+///   is silently dropped so dispatch still proceeds with whatever fit.
 ///
 /// # Lifecycle
 ///
-/// Feed bytes with [`InternalParameters::push_digit`], then call the
-/// appropriate separator handler ([`InternalParameters::push_sub`] for `:`
-/// and [`InternalParameters::push_main`] for `;`). When the final character
-/// of the sequence is reached, call [`InternalParameters::flush`] to materialize
-/// any pending value. The accumulator can be reused with
-/// [`InternalParameters::clear`].
-#[derive(Deref, DerefMut, Debug, Default, Clone)]
+/// ```text
+/// for each digit byte:    push_digit(byte)
+/// for each `;` separator: push_separator(Separator::Main)  // or push_main()
+/// for each `:` separator: push_separator(Separator::Sub)   // or push_sub()
+/// at end of sequence:     finish()
+/// ```
+///
+/// Reuse with [`clear`](Self::clear).
+#[derive(Debug, Default, Clone, Deref, DerefMut)]
 pub struct ParametersAccumulator {
+    /// Flat list of parsed parameters.
     #[deref]
     #[deref_mut]
-    inner: ArrayVec<Param, 32>, // 32 is the maximum capacity for parameters according to ECMA-48.
+    params: ArrayVec<Param, 32>,
+    /// Decimal value being built from incoming ASCII digits.
     current: Option<u16>,
-    /// Whether the main parameter currently being built has sub-parameters,
-    /// i.e. a `:` separator has been seen since the last `;`. This is the one
-    /// bit that distinguishes `1:2` (sub) from `1;2` (new param) — `inner`
-    /// alone can't, since both leave `[1]` behind after the first value.
+    /// Whether a `:` has been seen since the last `;` — i.e. whether `current`
+    /// belongs to an active sub-parameter group.
     in_group: bool,
-    /// Whether a `;` has opened a fresh main-parameter slot that has not yet
-    /// been closed. A trailing `;` (e.g. `CSI 4 ; m`) leaves an empty slot that
-    /// must still materialize as a default `0` at dispatch — ECMA-48 / vte
-    /// semantics — whereas `CSI m` (no separator at all) stays empty. `finish`
-    /// reads this to tell the two apart.
+    /// Whether a `;` has opened a fresh main-parameter slot not yet filled.
+    /// Distinguishes `CSI 4 ; m` (trailing `;` → emit `None`) from `CSI m`
+    /// (no separator → stay empty).
     is_pending: bool,
 }
 
+
+// --- Core API --------------------------------------------------------------
+
 impl ParametersAccumulator {
+    /// Feed one ASCII digit byte (`b'0'`..`b'9'`).
     #[inline]
     pub fn push_digit(&mut self, digit: u8) {
         self.current = Some(
@@ -82,87 +85,124 @@ impl ParametersAccumulator {
         );
     }
 
+    /// Feed a separator (`;` or `:`).
+    ///
+    /// Convenience wrapper around [`push_main`](Self::push_main) and
+    /// [`push_sub`](Self::push_sub) for code that already has a
+    /// [`Separator`] value.
     #[inline]
-    pub fn push_sub(&mut self) {
-        let current = self.current.take().unwrap_or(0);
-        self.flush_sub(current);
+    pub fn push_separator(&mut self, separator: Separator) {
+        match separator {
+            Separator::Main => self.push_main(),
+            Separator::Sub => self.push_sub(),
+        }
     }
 
+    /// Handle a `;` separator — finishes the current value (if any) and
+    /// opens a fresh main-parameter slot.
     #[inline]
     pub fn push_main(&mut self) {
-        match self.current.take() {
-            Some(val) => self.flush_value(val),
-            // Trailing empty sub (`1:;`) defaults to 0 within the group.
-            None if self.in_group => self.flush_sub(0),
-            // Empty main param (`;`, `1;;`) becomes a new `[0]` group.
-            // Drop on overflow: the CSI/DCS still dispatches with the capped
-            // params rather than panicking.
-            None => {
-                let _ = self.inner.try_push(Param::None);
-            }
-        }
-
+        self.flush();
         self.in_group = false;
-        // The `;` opened a fresh main-parameter slot; if nothing fills it before
-        // dispatch, [`InternalParameters::flush`] turns it into a default `0`.
         self.is_pending = true;
     }
 
+    /// Handle a `:` separator — finishes the current value (if any) as a
+    /// sub-parameter within the current main parameter.
     #[inline]
-    pub fn flush(&mut self) {
-        match self.current.take() {
-            Some(val) => self.flush_value(val),
-            None if self.in_group => self.flush_sub(0),
-            // Trailing `;` (`CSI 4 ; m`) → the open slot defaults to `0`.
-            None if self.is_pending => {
-                let _ = self.inner.try_push(Param::None);
-            }
-            None => {}
-        }
+    pub fn push_sub(&mut self) {
+        self.flush_as_sub();
     }
 
-    fn flush_value(&mut self, val: u16) {
-        if self.in_group {
-            let _ = self.inner.try_push(Param::Sub(val));
-        } else {
-            let _ = self.inner.try_push(Param::Main(val));
-        }
+    /// Called when the final character of the sequence is reached.
+    ///
+    /// Materializes any pending value and resets the in-flight state so the
+    /// accumulator is ready for inspection (or reuse after [`clear`](Self::clear)).
+    #[inline]
+    pub fn finish(&mut self) {
+        self.flush();
+        // Reset transient state; `params` is left intact for reading.
+        self.in_group = false;
+        self.is_pending = false;
     }
 
-    fn flush_sub(&mut self, val: u16) {
-        if self.in_group {
-            let _ = self.inner.try_push(Param::Sub(val));
-        } else {
-            // Only enter the group if the value actually landed, so `in_group`
-            // bookkeeping stays consistent on overflow.
-            if let Ok(_) =self.inner.try_push(Param::Main(val)) {
-                self.in_group = true;
-            }
-        }
-    }
-
+    /// Reset the accumulator to its initial empty state.
     #[inline]
     pub fn clear(&mut self) {
-        self.inner.clear();
+        self.params.clear();
         self.current = None;
         self.in_group = false;
         self.is_pending = false;
     }
-}
 
-impl AsRef<Params> for ParametersAccumulator {
-    fn as_ref(&self) -> &Params {
-        &Params::new(self.inner.as_slice())
+    /// Returns a slice of the finished parameters.
+    #[inline]
+    pub fn as_slice(&self) -> &[Param] {
+        &self.params
+    }
+
+    /// Push `current` (or a default) into `params` using whatever group mode
+    /// is active, then clear `current`. Also handles the `is_pending` default.
+    #[inline]
+    pub fn flush(&mut self) {
+        match self.current.take() {
+            Some(val) => self.push(val),
+            None => {
+                if self.in_group {
+                    // Trailing empty sub (`1:;`) → default 0 within the group.
+                    let _ = self.params.try_push(Param::Sub(0));
+                } else if self.is_pending {
+                    // Trailing `;` (e.g. `CSI 4 ; m`) → default 0 main.
+                    let _ = self.params.try_push(Param::None);
+                }
+                // Else: nothing was pending (e.g. `CSI m`), stay empty.
+            }
+        }
+        self.is_pending = false;
+    }
+
+    /// Like [`commit`](Self::flush) but ensures the value
+    /// lands as a `Sub` (entering the group if necessary).
+    #[inline]
+    fn flush_as_sub(&mut self) {
+        let val = self.current.take().unwrap_or(0);
+        if self.in_group {
+            let _ = self.params.try_push(Param::Sub(val));
+        } else {
+            // First sub in this group: emit as Main, then mark group active.
+            if self.params.try_push(Param::Main(val)).is_ok() {
+                self.in_group = true;
+            }
+        }
+        self.is_pending = false;
+    }
+
+    /// Push a concrete value with the currently active group mode.
+    #[inline]
+    fn push(&mut self, val: u16) {
+        let param = if self.in_group {
+            Param::Sub(val)
+        } else {
+            Param::Main(val)
+        };
+        let _ = self.params.try_push(param);
+        self.is_pending = false;
     }
 }
 
-impl Borrow<Params> for ParametersAccumulator {
-    fn borrow(&self) -> &Params {
-        self.as_ref()
+impl AsRef<[Param]> for ParametersAccumulator {
+    #[inline]
+    fn as_ref(&self) -> &[Param] {
+        self.as_slice()
     }
 }
 
-pub type IntermediatesAccumulator = ArrayVec<u8, 2>;
+impl Borrow<[Param]> for ParametersAccumulator {
+    #[inline]
+    fn borrow(&self) -> &[Param] {
+        self.as_slice()
+    }
+}
 
 
 

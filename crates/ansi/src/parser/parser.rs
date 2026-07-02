@@ -1,11 +1,12 @@
-use std::char::EscapeDebug;
 use super::*;
+use crate::Params;
+use arrayvec::ArrayVec;
 
 #[derive(Debug, Default)]
 pub struct Parser {
     pub state: State,
     pub params: ParametersAccumulator,
-    pub intermediates: IntermediatesAccumulator,
+    pub intermediates: ArrayVec<u8, 2>,
 }
 
 impl Parser {
@@ -17,79 +18,32 @@ impl Parser {
         // debug_advance(bytes);
         let mut i = 0;
 
+        macro_rules! batch_and_then {
+            ($batch:expr, $then:expr) => {{
+                let len = $batch(&bytes[i..]);
+                if len > 0 {
+                    let start = i;
+                    i += len;
+                    $then(start);
+                }
+
+                if i >= bytes.len() {
+                    break;
+                }
+
+                i += self.advance_byte(handler, bytes[i]);
+            }};
+        }
+
         while i < bytes.len() {
             match self.state {
-                State::Ground => {
-                    memspan::skip_class! {
-                        pub fn skip_ascii_graphic_and_utf8(
-                            ranges = [0x21..=0xFF],
-                        );
-                    }
-                    let skipped = skip_ascii_graphic_and_utf8(&bytes[i..]);
-
-                    if skipped > 0 {
-                        let start = i;
-                        i += skipped;
-                        // debug_print(&bytes[start..i], skipped);
-                        handler.print(&bytes[start..i]);
-                    }
-
-                    if i >= bytes.len() {
-                        break;
-                    }
-
-                    i += self.advance_byte(handler, bytes[i]);
-                }
-                State::OscData => {
-                    memspan::skip_class! {
-                        pub fn skip_osc_data(
-                            ranges = [0x20..=0xFF],
-                        );
-                    }
-                    let batched = skip_osc_data(&bytes[i..]);
-
-                    if batched > 0 {
-                        let start = i;
-                        i += batched;
-                        handler.osc_data(&bytes[start..i]);
-                    }
-
-                    if i >= bytes.len() {
-                        break;
-                    }
-
-                    i += self.advance_byte(handler, bytes[i]);
-                }
-                State::DcsData => {
-                    memspan::skip_class! {
-                        pub fn skip_dcs_data(
-                            ranges = [0x20..=0x7E, 0x80u8..=0xFFu8],
-                        );
-                    }
-                    let skipped = skip_dcs_data(&bytes[i..]);
-
-                    if skipped > 0 {
-                        let start = i;
-                        i += skipped;
-                        handler.dcs_data(&bytes[start..i]);
-                    }
-
-                    if i >= bytes.len() {
-                        break;
-                    }
-
-                    i += self.advance_byte(handler, bytes[i]);
-                }
+                State::Ground => batch_and_then!(skip_ascii_graphic_and_utf8, |start| self.action_print(handler, &bytes[start..i])),
+                State::OscData => batch_and_then!(skip_osc_data, |start| self.action_osc_data(handler, &bytes[start..i])),
+                State::DcsData => batch_and_then!(skip_dcs_data, |start| self.action_dcs_data(handler, &bytes[start..i])),
                 _ => i += self.advance_byte(handler, bytes[i]),
             }
         }
         i
-    }
-
-    #[inline(always)]
-    fn advance_byte(&mut self, handler: &mut dyn Handler, byte: u8) -> usize {
-        self.transition(handler, byte);
-        1
     }
 
     pub fn clear(&mut self) {
@@ -100,6 +54,14 @@ impl Parser {
     pub fn flush(&mut self) {
         self.state = State::Ground;
         self.clear();
+    }
+
+    // Private methods
+
+    #[inline(always)]
+    fn advance_byte(&mut self, handler: &mut dyn Handler, byte: u8) -> usize {
+        self.transition(handler, byte);
+        1
     }
 
     #[inline]
@@ -126,44 +88,131 @@ impl Parser {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn action(&mut self, handler: &mut dyn Handler, action: Action, byte: u8) {
         match action {
-            Action::None | Action::Ignore => {}
+            Action::None | Action::Ignore => {},
 
-            Action::Clear => self.clear(),
-            Action::Print => handler.print(&[byte]),
-            Action::Execute => handler.control(byte),
+            Action::Clear => self.action_clear(),
+            Action::Print => self.action_print(handler, &[byte]),
+            Action::Execute => self.action_execute(handler, byte),
 
-            Action::Collect => self.intermediates.push(byte),
+            Action::Collect => self.action_collect(handler, byte),
 
-            Action::Param => match byte {
-                b'0'..=b'9' => self.params.push_digit(byte),
-                b':' => self.params.push_sub(),
-                b';' => self.params.push_main(),
-                _ => {}
-            },
+            Action::Param => self.action_param(handler, byte),
 
-            Action::EscDispatch => handler.esc(self.intermediates.as_ref(), byte),
-            Action::CsiDispatch => {
-                self.params.flush();
-                handler.csi(self.params.as_ref(), &self.intermediates, byte as char);
-            }
+            Action::EscDispatch => self.action_esc_dispatch(handler, byte),
+            Action::CsiDispatch => self.action_csi_dispatch(handler, byte),
 
-            Action::Dcs => {
-                self.params.flush();
-                handler.dcs(self.params.as_ref(), &self.intermediates, byte as char);
-            }
-            Action::DcsData => handler.dcs_data(&[byte]),
-            Action::DcsEnd => handler.dcs_end(byte),
+            Action::Dcs => self.action_dcs(handler, byte),
+            Action::DcsData => self.action_dcs_data(handler, &[byte]),
+            Action::DcsEnd => self.action_dcs_end(handler, byte),
 
-            Action::Osc => handler.osc(),
-            Action::OscData => handler.osc_data(&[byte]),
-            Action::OscEnd => handler.osc_end(byte),
+            Action::Osc => self.action_osc(handler, byte),
+            Action::OscData => self.action_osc_data(handler, &[byte]),
+            Action::OscEnd => self.action_osc_end(handler, byte),
 
             _ => {}
         }
     }
+
+    #[inline]
+    fn action_clear(&mut self) {
+        self.clear();
+    }
+
+    #[inline]
+    fn action_print(&mut self, handler: &mut dyn Handler, bytes: &[u8]) {
+        handler.print(bytes);
+    }
+
+    #[inline]
+    fn action_execute(&mut self, handler: &mut dyn Handler, byte: u8) {
+        handler.control(byte);
+    }
+
+    #[inline]
+    fn action_collect(&mut self, handler: &mut dyn Handler, byte: u8) {
+        self.intermediates.push(byte);
+    }
+
+    #[inline]
+    fn action_param(&mut self, handler: &mut dyn Handler, byte: u8) {
+        match byte {
+            b'0'..=b'9' => self.params.push_digit(byte),
+            b':' => self.params.push_sub(),
+            b';' => self.params.push_main(),
+            _ => {}
+        }
+    }
+
+    #[inline]
+    fn action_esc_dispatch(&mut self, handler: &mut dyn Handler, byte: u8) {
+        handler.esc(self.intermediates.as_ref(), byte);
+    }
+
+    #[inline]
+    fn action_csi_dispatch(&mut self, handler: &mut dyn Handler, byte: u8) {
+        self.params.flush();
+        handler.csi(
+            Params::new(self.params.as_slice()),
+            &self.intermediates,
+            byte as char,
+        );
+    }
+
+    #[inline]
+    fn action_dcs(&mut self, handler: &mut dyn Handler, byte: u8) {
+        self.params.flush();
+        handler.dcs(
+            Params::new(self.params.as_slice()),
+            &self.intermediates,
+            byte as char,
+        );
+    }
+
+    #[inline]
+    fn action_dcs_data(&mut self, handler: &mut dyn Handler, bytes: &[u8]) {
+        handler.dcs_data(bytes);
+    }
+
+    #[inline]
+    fn action_dcs_end(&mut self, handler: &mut dyn Handler, byte: u8) {
+        handler.dcs_end(byte);
+    }
+
+    #[inline]
+    fn action_osc(&mut self, handler: &mut dyn Handler, _byte: u8) {
+        handler.osc();
+    }
+
+    #[inline]
+    fn action_osc_data(&mut self, handler: &mut dyn Handler, bytes: &[u8]) {
+        handler.osc_data(bytes);
+    }
+
+    #[inline]
+    fn action_osc_end(&mut self, handler: &mut dyn Handler, byte: u8) {
+        handler.osc_end(byte);
+    }
+}
+
+memspan::skip_class! {
+    pub fn skip_ascii_graphic_and_utf8(
+        ranges = [0x21..=0xFF],
+    );
+}
+
+memspan::skip_class! {
+    pub fn skip_osc_data(
+        ranges = [0x20..=0xFF],
+    );
+}
+
+memspan::skip_class! {
+    pub fn skip_dcs_data(
+        ranges = [0x20..=0x7E, 0x80u8..=0xFFu8],
+    );
 }
 
 #[cfg(test)]
@@ -174,9 +223,9 @@ mod tests {
 
     // ---- OSC ------------------------------------------------------------
     mod osc {
-        use vte::{Params, Perform};
         use super::*;
         use crate::assert_parser;
+        use vte::{Params, Perform};
 
         /// vte: `parse_osc`. Payload is emitted as a single verbatim run (no
         /// `;`-splitting into params).
@@ -253,13 +302,15 @@ mod tests {
         fn osc_containing_string_terminator() {
             const INPUT: &[u8] = b"\x1b]2;\xe6\x9c\xab\x1b\\";
 
-            assert_parser!(INPUT, [
-                Record::Osc,
-                Record::OscData(b"2;\xe6\x9c\xab".to_vec()),
-                Record::OscEnd(0x1b),
-                Record::Esc(Intermediates::empty(), b'\\'),
-            ]);
-
+            assert_parser!(
+                INPUT,
+                [
+                    Record::Osc,
+                    Record::OscData(b"2;\xe6\x9c\xab".to_vec()),
+                    Record::OscEnd(0x1b),
+                    Record::Esc(Intermediates::empty(), b'\\'),
+                ]
+            );
         }
 
         /// vte: `parse_osc_max_params`. This parser has no param cap because it
@@ -569,34 +620,29 @@ mod tests {
 
     // ---- "Unicode" --------------------------------------------
     mod unicode {
-        use crate::assert_parser;
         use super::*;
+        use crate::assert_parser;
 
         #[test]
         fn unicode() {
-            const INPUT: &[u8] = b"\xF0\x9F\x8E\x89_\xF0\x9F\xA6\x80\xF0\x9F\xA6\x80_\xF0\x9F\x8E\x89";
+            const INPUT: &[u8] =
+                b"\xF0\x9F\x8E\x89_\xF0\x9F\xA6\x80\xF0\x9F\xA6\x80_\xF0\x9F\x8E\x89";
 
-            assert_parser!(INPUT, [
-                Record::Print(INPUT.to_vec()),
-            ]);
+            assert_parser!(INPUT, [Record::Print(INPUT.to_vec()),]);
         }
 
         #[test]
         fn invalid_utf8() {
             const INPUT: &[u8] = b"a\xEF\xBCb";
 
-            assert_parser!(INPUT, [
-                Record::Print(INPUT.to_vec()),
-            ]);
+            assert_parser!(INPUT, [Record::Print(INPUT.to_vec()),]);
         }
 
         #[test]
         fn partial_utf8() {
             const INPUT: &[u8] = b"\xF0\x9F\x9A\x80";
 
-            assert_parser!(INPUT, [
-                Record::Print(INPUT.to_vec()),
-            ]);
+            assert_parser!(INPUT, [Record::Print(INPUT.to_vec()),]);
         }
 
         #[test]
@@ -614,9 +660,13 @@ mod tests {
             parser.advance(&mut recorder, &INPUT[..1]);
             parser.advance(&mut recorder, &INPUT[1..]);
 
-            assert_eq!(recorder, [Record::Print(INPUT[..1].to_vec()), Record::Print(INPUT[1..].to_vec())]);
+            assert_eq!(
+                recorder,
+                [
+                    Record::Print(INPUT[..1].to_vec()),
+                    Record::Print(INPUT[1..].to_vec())
+                ]
+            );
         }
     }
-
-
 }

@@ -85,6 +85,8 @@ dependencies = [
  "polling",
  "pprof",
  "rustix",
+ "signal-hook",
+ "signal-hook-sys",
  "simdutf8",
  "smallvec 2.0.0-alpha.12",
  "smallvec-wrapper",
@@ -2073,6 +2075,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
 dependencies = [
  "errno",
+ "libc",
+]
+
+[[package]]
+name = "signal-hook-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4a3aed153ec14a08114dd42cbd81027202ed1b99a22407f182b5d78d98e595f"
+dependencies = [
+ "cc",
  "libc",
 ]
 

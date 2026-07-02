@@ -12,6 +12,9 @@ geometry = { workspace = true }
 maybe = { workspace = true }
 maybe-derive = { workspace = true }
 derive_more = { workspace = true }
+signal-hook = "0.4.4"
+signal-hook-sys = "0.1.0"
+
 arrayvec = { workspace = true }
 filedescriptor = "*"
 rustix = { version = "1.1.4", features = ["stdio", "all-apis"] }

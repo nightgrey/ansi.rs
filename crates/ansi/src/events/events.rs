@@ -1,8 +1,8 @@
 use bitflags::bitflags;
-use geometry::Point;
+use geometry::{Point, Size};
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Event {
     /// A named key on the keyboard
     Key(KeyEvent),
@@ -10,6 +10,8 @@ pub enum Event {
     Pointer(PointerEvent),
     // /// A scroll event.
     Scroll(ScrollEvent),
+    
+    Resize(Size),
     // /// A focus event.
     // Focus(FocusEvent),
     // /// A blur event.
@@ -24,7 +26,7 @@ pub enum Event {
 }
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct KeyEvent {
     pub key: Key,
     pub kind: KeyKind,
@@ -32,12 +34,12 @@ pub struct KeyEvent {
 }
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum KeyKind {}
 
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PointerEvent {
     pub button: PointerButton,
     pub kind: PointerKind,
@@ -46,15 +48,15 @@ pub struct PointerEvent {
 }
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PointerButton {}
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PointerKind {}
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ScrollEvent {
     pub kind: ScrollKind,
     pub meta: Meta,
@@ -62,18 +64,18 @@ pub struct ScrollEvent {
 }
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ScrollKind {}
 
 #[derive(Debug)]
-#[derive_const(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Key {
 }
 
 
 bitflags! {
     #[derive(Debug)]
-    #[derive_const(Clone, PartialEq, Eq)]
+    #[derive(Clone, PartialEq, Eq)]
     pub struct Meta: u16 {
         const Alt = 1 << 0;
         const Ctrl = 1 << 1;

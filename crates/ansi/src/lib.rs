@@ -29,6 +29,7 @@
 #![feature(array_try_from_fn)]
 #![feature(const_result_unwrap_unchecked)]
 #![feature(const_heap)]
+#![feature(macro_metavar_expr)]
 extern crate core;
 
 mod color;

@@ -1,388 +1,78 @@
 use crate::Escape;
-use derive_more::{AsRef, Deref};
 use maybe::Maybe;
 use std::borrow::Cow;
-use std::fmt;
-use std::iter::Map;
-use std::marker::Destruct;
-use std::ops;
-use std::str::FromStr;
-use thiserror::Error;
+use utils::{const_bitflags, ParseFlagsError};
 
-macro_rules! variants {
+const_bitflags! {
+    pub struct Attribute(u16);
+    pub struct AttributeIter;
+
+    Bold = 0,
+    Faint = 1,
+    Italic = 2,
+    Underline = 3,
+    Blink = 4,
+    RapidBlink = 5,
+    Inverse = 6,
+    Invisible = 7,
+    Strikethrough = 8,
+    UnderlineDouble = 9,
+    UnderlineCurly = 10,
+    Frame = 11,
+    Encircle = 12,
+    Overline = 13,
+}
+
+macro_rules! sgr {
     (
         $(
-            $(#[$attr:meta])*
-                $variant:ident {
-                    position: $position:expr,
-                    name: $name:expr,
-                    set: $set:expr,
-                    reset: $reset:expr,
-                }
-        ),+
+            $variant:ident => ($set:expr, $reset:expr),
+        )+
         $(,)?
     ) => {
-            pub const META: &'static [Variant] = &[
-                $(
-                    Variant {
-                        attribute: Attribute::$variant,
-                        name: $name,
-                        set: $set,
-                        reset: $reset,
-                    },
-                )+
-            ];
-
-            pub const COUNT: usize = Self::META.len();
-
-
-            pub const None: Self = Self(0);
-            // Bit‑flag constants – these match the enum variants.
-            // `None` is explicitly given (bit 0), but its Meta entry is omitted
-            // (no set/reset). You can choose to include/exclude it.
+        pub const SGR: &'static [&'static str] = &[
             $(
-                $(#[$attr])*
-                pub const $variant: Self = Self(1 << $position);
+                $set,
             )+
-            pub const All: Self = $(Self::$variant)|+;
+        ];
+        pub const RESET: &'static [&'static str] = &[
+            $(
+                $reset,
+            )+
+        ];
     };
 }
 
-#[derive(Copy, Clone, Debug, Deref, AsRef)]
-pub struct Variant {
-    #[deref]
-    #[as_ref(forward)]
-    pub attribute: Attribute,
-    pub name: &'static str,
-    pub set: &'static str,
-    pub reset: &'static str,
-}
-const impl Variant {
-    fn from_position(position: usize) -> Self {
-        Attribute::META[position]
-    }
-
-    fn from_attribute(attr: Attribute) -> Self {
-        Self::from_position(attr.0.trailing_zeros() as usize)
-    }
-
-    fn attribute(&self) -> Attribute {
-        self.attribute
-    }
-
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn set(&self) -> &'static str {
-        self.set
-    }
-
-    fn reset(&self) -> &'static str {
-        self.reset
-    }
-}
-
-
-#[repr(transparent)]
-#[derive(Copy)]
-#[derive_const(PartialEq, Clone, Eq, PartialOrd, Ord)]
-pub struct Attribute(u16);
-
-#[allow(non_upper_case_globals)]
 impl Attribute {
-    variants! {
-        Bold {
-            position: 0,
-            name: "Bold",
-            set: "1",
-            reset: "22",
-        },
-        Faint {
-            position: 1,
-            name: "Faint",
-            set: "2",
-            reset: "22",
-        },
-        Italic {
-            position: 2,
-            name: "Italic",
-            set: "3",
-            reset: "23",
-        },
-        Underline {
-            position: 3,
-            name: "Underline",
-            set: "4",
-            reset: "24",
-        },
-        Blink {
-            position: 4,
-            name: "Blink",
-            set: "5",
-            reset: "25",
-        },
-        RapidBlink {
-            position: 5,
-            name: "RapidBlink",
-            set: "6",
-            reset: "25",
-        },
-        Inverse {
-            position: 6,
-            name: "Inverse",
-            set: "7",
-            reset: "27",
-        },
-        Invisible {
-            position: 7,
-            name: "Invisible",
-            set: "8",
-            reset: "28",
-        },
-        Strikethrough {
-            position: 8,
-            name: "Strikethrough",
-            set: "9",
-            reset: "29",
-        },
-        UnderlineDouble {
-            position: 9,
-            name: "UnderlineDouble",
-            set: "21",
-            reset: "24",
-        },
-        UnderlineCurly {
-            position: 10,
-            name: "UnderlineCurly",
-            set: "23",
-            reset: "24",
-        },
-        Frame {
-            position: 11,
-            name: "Frame",
-            set: "51",
-            reset: "54",
-        },
-        Encircle {
-            position: 12,
-            name: "Encircle",
-            set: "52",
-            reset: "54",
-        },
-        Overline {
-            position: 13,
-            name: "Overline",
-            set: "53",
-            reset: "55",
-        },
-    }
-
-    /// Creates an empty attribute.
-    #[inline]
-    pub const fn empty() -> Self {
-        Self::None
-    }
-
-    /// Creates an attribute from bits.
-    ///
-    /// Equavalent to [`Attribute::from_bits_retained`].
-    #[inline]
-    pub const fn new(bits: u16) -> Self {
-        Self::from_bits_retained(bits)
-    }
-
-    #[inline]
-    pub const fn from_bits(bits: u16) -> Self {
-        match Self::try_from_bits(bits) {
-            Ok(attribute) => attribute,
-            Err(_) => panic!("invalid bits"),
-        }
-    }
-
-    #[inline]
-    pub const fn try_from_bits(bits: u16) -> Result<Self, ParseAttributeError> {
-        if false || bits == Self::All.into_inner() {
-            Ok(Self(bits))
-        } else {
-            Err(ParseAttributeError::Unknown(bits))
-        }
-    }
-
-    #[inline]
-    pub const fn from_bits_retained(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    #[inline]
-    pub const fn from_bits_truncated(bits: u16) -> Self {
-        Self(bits & Self::All.into_inner())
-    }
-
-    #[inline]
-    pub const fn from_bits_unchecked(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    #[inline]
-    pub const fn from_bits_or_default(bits: u16) -> Self {
-        Self::try_from_bits(bits).unwrap_or(Self::None)
-    }
-
-    #[inline]
-    pub const fn try_from_position(position: usize) -> Result<Self, ParseAttributeError> {
-        if position >= Self::COUNT {
-            return Err(ParseAttributeError::Invalid(position as u16));
-        }
-        Ok(Self(1 << position))
-    }
-
-    #[inline]
-    pub const fn from_position(position: usize) -> Self {
-        match Self::try_from_position(position) {
-            Ok(attr) => attr,
-            Err(_) => panic!("invalid position"),
-        }
-    }
-
-    #[inline]
-    pub const fn count_ones(self) -> u32 {
-        self.0.count_ones()
-    }
-
-    #[inline]
-    pub const fn known(self) -> Self {
-        Self(self.0 & Self::All.into_inner())
-    }
-
-    #[inline]
-    pub const fn unknown(self) -> Self {
-        Self(self.0 & !Self::All.into_inner())
-    }
-
-    #[inline]
-    pub const fn has_unknown_bits(self) -> bool {
-        self.unknown() != Self::None
-    }
-
-    #[inline]
-    pub const fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
-    #[inline]
-    pub const fn is_all(self) -> bool {
-        self.0 == Self::All.into_inner()
-    }
-
-    #[inline]
-    pub const fn equals(self, other: Self) -> bool {
-        self.0 == other.0
-    }
-
-    #[inline]
-    pub const fn contains(self, other: Self) -> bool {
-        self.0 & other.0 == other.0
-    }
-
-    #[inline]
-    pub const fn intersects(self, other: Self) -> bool {
-        self.0 & other.0 != 0
-    }
-
-    #[inline]
-    pub const fn is_disjoint(self, other: Self) -> bool {
-        self.0 & other.0 == 0
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn union(self, other: Self) -> Self {
-        Self(self.0 | other.0)
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn intersection(self, other: Self) -> Self {
-        Self(self.0 & other.0)
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn difference(self, other: Self) -> Self {
-        Self(self.0 & !other.0)
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn symmetric_difference(self, other: Self) -> Self {
-        Self((self.0 ^ other.0) & Self::All.into_inner())
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn complement(self) -> Self {
-        Self(!self.0 & Self::All.into_inner())
-    }
-
-    #[inline]
-    pub const fn insert(&mut self, other: Self) {
-        self.0 |= other.0;
-    }
-
-    #[inline]
-    pub const fn remove(&mut self, other: Self) {
-        self.0 &= !other.0;
-    }
-
-    #[inline]
-    pub const fn toggle(&mut self, other: Self) {
-        self.0 = (self.0 ^ other.0) & Self::All.into_inner();
-    }
-
-    #[inline]
-    pub const fn clear(&mut self) {
-        self.0 = 0;
-    }
-
-    #[inline]
-    pub const fn count(self) -> usize {
-        self.known().count_ones() as usize
-    }
-
-    #[inline]
-    pub const fn iter(self) -> Iter {
-        Iter::new(self.into_inner())
-    }
-
-    /// Returns an iterator over the meta data for every attribute defined in [`Self`].
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use ansi::Attribute;
-    ///
-    /// assert!(Attribute::All.meta().any(|meta| meta.name == "Bold"));
-    /// assert!(Attribute::All.meta().any(|meta| meta.name == "Italic"));
-    /// assert_eq!(Attribute::All.meta().count(), Attribute::COUNT);
-    /// ```
-    #[inline]
-    pub const fn meta(self) -> impl Iterator<Item = &'static Variant> {
-        self.iter().map(|i| &Attribute::META[i])
+    sgr! {
+        Bold => ("1", "22"),
+        Faint => ("2", "22"),
+        Italic => ("3", "23"),
+        Underline => ("4", "24"),
+        Blink => ("5", "25"),
+        RapidBlink => ("6", "25"),
+        Inverse => ("7", "27"),
+        Invisible => ("8", "28"),
+        Strikethrough => ("9", "29"),
+        UnderlineDouble => ("21", "24"),
+        UnderlineCurly => ("23", "24"),
+        Frame => ("51", "54"),
+        Encircle => ("52", "54"),
+        Overline => ("53", "55"),
     }
 
     /// Returns an iterator over the SGR parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub const fn iter_sgr(self) -> impl Iterator<Item = &'static str> {
-        self.iter().map(|i| Attribute::META[i].set())
+        self.iter().map(|i| Attribute::SGR[i])
     }
 
     /// Returns an iterator over the SGR reset parameters for each attribute.
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub const fn iter_reset(self) -> impl Iterator<Item = &'static str> {
-        self.iter().map(|i| Attribute::META[i].reset())
+        self.iter().map(|i| Attribute::RESET[i])
     }
 
     /// Returns the semicolon-separated SGR parameters to set attributes.
@@ -398,9 +88,7 @@ impl Attribute {
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn to_sgr(self) -> Cow<'static, str> {
-        self.iter_sgr()
-            .intersperse(";")
-            .collect()
+        self.iter_sgr().intersperse(";").collect()
     }
 
     /// Returns the semicolon-separated SGR parameters to reset attributes.
@@ -417,198 +105,10 @@ impl Attribute {
     ///
     /// See <https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters>
     pub fn to_reset(self) -> Cow<'static, str> {
-        self.iter_reset()
-            .intersperse(";")
-            .collect()
-    }
-
-    /// Returns an iterator over the names of attributes in [`Self`].
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use ansi::Attribute;
-    ///
-    /// let attrs = Attribute::Bold | Attribute::Italic;
-    ///
-    /// assert_eq!(attrs.names().collect::<Vec<_>>(), vec!["Bold", "Italic"]);
-    /// ```
-    #[inline]
-    pub const fn names(self) -> impl Iterator<Item = &'static str> {
-        self.iter().map(|i| Attribute::META[i].name())
-    }
-
-    #[inline]
-    pub const fn into_inner(self) -> u16 {
-        self.0
-    }
-
-
-    /// Returns a string representation of the attributes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use ansi::Attribute;
-    ///
-    /// let attrs = Attribute::Bold | Attribute::Italic;
-    ///
-    /// assert_eq!(attrs.to_string(), "Bold | Italic");
-    /// ```
-    pub fn to_string(&self) -> Cow<'_, str> {
-        self.names().intersperse(" | ").collect()
+        self.iter_reset().intersperse(";").collect()
     }
 }
 
-impl fmt::Debug for Attribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_empty() {
-            return f.write_str("Attribute::None");
-        }
-
-        f.debug_tuple("Attribute")
-            .field(&fmt::from_fn(|f| fmt::Display::fmt(self, f)))
-            .finish()
-    }
-}
-impl fmt::Display for Attribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.to_string().as_ref())
-    }
-}
-impl FromStr for Attribute {
-    type Err = ParseAttributeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim();
-
-        if s.is_empty() || s == "None" {
-            return Ok(Self::None);
-        }
-
-        let mut out = Self::empty();
-
-        for part in s
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty() && s != &"None")
-        {
-            let attr =
-                if let Some(hex) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
-                    let bits =
-                        <u16>::from_str_radix(hex, 16).map_err(ParseAttributeError::ParseInt)?;
-
-                    Self::try_from_bits(bits)?
-                } else {
-                    <Attribute as FromStr>::from_str(part)?
-                };
-
-            out.insert(attr);
-        }
-
-        Ok(out)
-    }
-}
-const impl From<u16> for Attribute {
-    #[inline]
-    fn from(value: u16) -> Self {
-        Attribute::new(value)
-    }
-}
-impl Default for Attribute {
-    #[inline]
-    fn default() -> Self {
-        Self::None
-    }
-}
-const impl ops::BitOr for Attribute {
-    type Output = Self;
-
-    #[inline]
-    fn bitor(self, rhs: Self) -> Self {
-        self.union(rhs)
-    }
-}
-impl ops::BitOrAssign for Attribute {
-    #[inline]
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.insert(rhs);
-    }
-}
-const impl ops::BitAnd for Attribute {
-    type Output = Self;
-
-    #[inline]
-    fn bitand(self, rhs: Self) -> Self {
-        self.intersection(rhs)
-    }
-}
-const impl ops::BitAndAssign for Attribute {
-    #[inline]
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = self.intersection(rhs);
-    }
-}
-const impl ops::BitXor for Attribute {
-    type Output = Self;
-
-    #[inline]
-    fn bitxor(self, rhs: Self) -> Self {
-        self.symmetric_difference(rhs)
-    }
-}
-const impl ops::BitXorAssign for Attribute {
-    #[inline]
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = self.symmetric_difference(rhs);
-    }
-}
-const impl ops::Sub for Attribute {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, rhs: Self) -> Self {
-        self.difference(rhs)
-    }
-}
-const impl ops::SubAssign for Attribute {
-    #[inline]
-    fn sub_assign(&mut self, rhs: Self) {
-        self.remove(rhs);
-    }
-}
-const impl ops::Not for Attribute {
-    type Output = Attribute;
-
-    #[inline]
-    fn not(self) -> Attribute {
-        self.complement()
-    }
-}
-const impl IntoIterator for Attribute {
-    type Item = Attribute;
-    type IntoIter = Map<Iter, fn(usize) -> Attribute>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-            .map(|i| Attribute::new((i as u16).saturating_sub(1)))
-    }
-}
-impl Extend<Attribute> for Attribute {
-    fn extend<T: IntoIterator<Item = Attribute>>(&mut self, iter: T) {
-        for bit in iter {
-            self.insert(bit);
-        }
-    }
-}
-impl FromIterator<Attribute> for Attribute {
-    fn from_iter<T: IntoIterator<Item = Attribute>>(iter: T) -> Self {
-        let mut out = Self::None;
-        out.extend(iter);
-        out
-    }
-}
 impl Escape for Attribute {
     fn escape(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         w.write_all(self.to_sgr().as_bytes())
@@ -618,128 +118,6 @@ impl Escape for Attribute {
 const impl Maybe for Attribute {
     #[allow(non_upper_case_globals)]
     const None: Self = Attribute::from_bits_retained(0);
-}
-#[derive(Debug, Clone, Deref)]
-#[repr(transparent)]
-pub struct Iter(u16);
-
-const impl Iter {
-    #[inline]
-    pub fn new(value: u16) -> Self {
-        Self(value)
-    }
-
-    #[inline]
-    fn max_bit(&self) -> usize {
-        self.0.trailing_zeros() as usize
-    }
-
-    #[inline]
-    fn min_bit(&self) -> usize {
-        (<u16>::BITS - 1 - self.0.leading_zeros()) as usize
-    }
-
-    #[inline]
-    fn count_ones(&self) -> usize {
-        self.0.count_ones() as usize
-    }
-
-    #[inline]
-    fn clear_max(&mut self) {
-        self.0 &= self.0.wrapping_sub(1);
-    }
-}
-
-const impl Iterator for Iter {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0 != 0 {
-            let position = self.max_bit();
-            self.clear_max();
-            Some(position)
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let sz = self.count_ones();
-        (sz, Some(sz))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.count_ones()
-    }
-
-    #[inline]
-    fn last(self) -> Option<Self::Item> {
-        if self.0 != 0 {
-            Some(self.min_bit())
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        let mut i = 0;
-        while self.0 != 0 && i < n {
-            self.clear_max();
-            i += 1;
-        }
-        self.next()
-    }
-
-    #[inline]
-    fn fold<B, F>(mut self, init: B, mut f: F) -> B
-    where
-        F: [const] FnMut(B, Self::Item) -> B + [const] Destruct,
-    {
-        let mut accum = init;
-        while self.0 != 0 {
-            accum = f(accum, self.max_bit());
-            self.clear_max();
-        }
-        accum
-    }
-
-    #[inline]
-    fn max(self) -> Option<Self::Item> {
-        self.last()
-    }
-
-    #[inline]
-    fn min(self) -> Option<Self::Item> {
-        if self.0 != 0 {
-            Some(self.max_bit())
-        } else {
-            None
-        }
-    }
-
-    fn is_sorted(self) -> bool {
-        true
-    }
-}
-impl ExactSizeIterator for Iter {
-    fn len(&self) -> usize {
-        self.count_ones()
-    }
-}
-
-#[derive(Clone, Debug, Error)]
-pub enum ParseAttributeError {
-    #[error("empty bits")]
-    Empty,
-    #[error("invalid bits")]
-    Invalid(u16),
-    #[error("unknown bits")]
-    Unknown(u16),
-    #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
 }
 
 #[cfg(test)]

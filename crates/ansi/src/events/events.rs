@@ -1,5 +1,6 @@
 use bitflags::bitflags;
 use geometry::{Point, Size};
+use utils::const_bitflags;
 
 #[derive(Debug)]
 #[derive(Clone, PartialEq, Eq)]
@@ -10,7 +11,7 @@ pub enum Event {
     Pointer(PointerEvent),
     // /// A scroll event.
     Scroll(ScrollEvent),
-    
+
     Resize(Size),
     // /// A focus event.
     // Focus(FocusEvent),
@@ -72,16 +73,14 @@ pub enum ScrollKind {}
 pub enum Key {
 }
 
-
-bitflags! {
-    #[derive(Debug)]
-    #[derive(Clone, PartialEq, Eq)]
-    pub struct Meta: u16 {
-        const Alt = 1 << 0;
-        const Ctrl = 1 << 1;
-        const Shift = 1 << 2;
-        const CapsLock = 1 << 3;
-        const NumLock = 1 << 4;
-        const ScrollLock = 1 << 5;
-    }
+const_bitflags! {
+    pub struct Meta(u16);
+    pub struct MetaIter;
+    
+    Alt = 0,
+    Ctrl = 1,
+    Shift = 2,
+    CapsLock = 3,
+    NumLock = 4,
+    ScrollLock = 5,
 }

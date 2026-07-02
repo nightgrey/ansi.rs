@@ -23,6 +23,7 @@
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(const_option_ops)]
+#![feature(macro_metavar_expr)]
 extern crate core;
 
 #[macro_use]
@@ -33,6 +34,9 @@ mod separate_by;
 
 pub mod nested;
 pub use nested::*;
+
+pub mod bitflags;
+pub use bitflags::*;
 
 pub mod byte_string;
 

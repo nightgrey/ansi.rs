@@ -13,8 +13,10 @@ maybe = { workspace = true }
 maybe-derive = { workspace = true }
 derive_more = { workspace = true }
 arrayvec = { workspace = true }
+filedescriptor = "*"
+rustix = { version = "1.1.4", features = ["stdio", "all-apis"] }
 bilge = "0.3.0"
-bitflags = "2.13.0"
+polling = "3.11.0"
 strum = { version = "0.28", features = ["derive"] }
 memchr = "2.8.0"
 utils-derive = { workspace = true }

@@ -72,6 +72,8 @@ pub enum Key {
 
 
 bitflags! {
+    #[derive(Debug)]
+    #[derive_const(Clone, PartialEq, Eq)]
     pub struct Meta: u16 {
         const Alt = 1 << 0;
         const Ctrl = 1 << 1;

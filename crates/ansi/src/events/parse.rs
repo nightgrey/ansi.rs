@@ -20,6 +20,22 @@
 //!
 //! Omitted from the reference: `UseTerminfo` and everything Windows/Win32
 //! (`CSI _` input mode, control-key-state translation).
+//! 
+
+// Done — crates/ansi/src/events/parse.rs now holds the full translation (~1,300 lines). The decoding logic — every match arm from the Go reference — is transported; it won't compile yet, by design, since it references the assumed symbols listed in the module doc comment at the top of the file.
+// 
+// Structure (mirrors the reference):
+// - Decoder::decode(&[u8]) -> (usize, Option<Event>) — top-level dispatch on the first byte: lone ESC → Escape key, ESC-prefixed introducers, raw C1 bytes → Ctrl+Alt keys, controls, UTF-8 text. The Alt-prefix recursion (ESC <seq> → re-decode with Meta::Alt) is there too.
+// - parse_csi with the full command table: DECRPM, DA1/DA2, kitty flags query reply, DECXCPR, SGR + X10 mouse, modifyOtherKeys, light/dark scheme, focus/blur, the ambiguous CPR-vs-modified-F3 case, legacy ~/^/@ function keys, bracketed paste markers, window ops, and the URxvt $-intermediate retry hack.
+// - parse_ss3, parse_osc (colors 10/11/12, clipboard 52), parse_st_terminated (shared by PM/SOS/APC), parse_dcs (XTGETTCAP, XTVersion, DA3), parse_apc (ki
+// - Go's packed ansi.Cmd bitfield became a (prefix, intermediate, final) tuple match; the param HasMoreFlag/MissingParam packing became an explicit Param { value, missing, has_more } struct.
+// - Wheel buttons map to your Event::Scroll(ScrollEvent) instead of a MouseWheel event; other buttons to Event::Pointer with PointerKind::{Press, Release, Motion}. Kitty's IsRepeat became KeyKind::Repeat.
+// - I did not reproduce the Go fallthrough in the kitty alternate-keycodes handling (where the base-key subparam also overwrites the shifted key) — it looks like an upstream quirk/bug; noted in a comment at (0, 2).
+// - The seven Unknown{Csi,Osc,...}Event types collapse into unknown_* one-liner helpers over Event::Unknown; Go's ignoredEvent became Event::Ignored.
+// 
+// Skipped per your notes: UseTerminfo, Win32 input mode (CSI _ arm is a comment), the Windows key-event translator, and the unused color-math utilities (rgbToHSL, isDarkColor, colorToHex).
+// 
+// The biggest thing to decide when you wire this up for real: decode currently mimics the reference's "buffer ends mid-sequence → return what we have as Unknown" behavior. For the Events<R: Read> iterator you'll want those truncation paths (i >= b.len() returns) to become an Incomplete outcome plus a more flag for the lone-ESC case, as we discussed — they're easy to spot since they're all return (i, Some(unknown(&b[..i]))) right after an end-of-buffer check.
 
 use bitflags::*;
 use super::*;
